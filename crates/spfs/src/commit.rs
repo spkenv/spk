@@ -10,7 +10,7 @@ use std::sync::Arc;
 use futures::{FutureExt, StreamExt, TryStreamExt};
 use once_cell::sync::OnceCell;
 use progress_bar_derive_macro::ProgressBar;
-use spfs_encoding::Encodable;
+use spfs_encoding::prelude::*;
 
 use super::status::remount_runtime;
 use crate::prelude::*;
@@ -35,7 +35,7 @@ pub struct InMemoryBlobHasher;
 #[tonic::async_trait]
 impl BlobHasher for InMemoryBlobHasher {
     async fn hash_blob(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
-        Ok(encoding::Digest::from_async_reader(reader).await?)
+        Ok(encoding::Hasher::hash_async_reader(reader).await?)
     }
 }
 
@@ -72,6 +72,7 @@ pub struct Committer<
     reporter: Arc<Reporter>,
     builder: ManifestBuilder<H, F, Arc<Reporter>>,
     max_concurrent_blobs: usize,
+    allow_empty: bool,
 }
 
 impl<'repo> Committer<'repo, InMemoryBlobHasher, (), SilentCommitReporter> {
@@ -86,6 +87,7 @@ impl<'repo> Committer<'repo, InMemoryBlobHasher, (), SilentCommitReporter> {
             reporter,
             builder,
             max_concurrent_blobs: tracking::DEFAULT_MAX_CONCURRENT_BLOBS,
+            allow_empty: false,
         }
     }
 }
@@ -96,6 +98,14 @@ where
     F: PathFilter + Send + Sync,
     R: CommitReporter,
 {
+    /// Set if an empty commit is allowed.
+    ///
+    /// Defaults to false.
+    pub fn with_allow_empty(mut self, allow_empty: bool) -> Self {
+        self.allow_empty = allow_empty;
+        self
+    }
+
     /// Set how many blobs should be processed at once.
     ///
     /// Defaults to [`tracking::DEFAULT_MAX_CONCURRENT_BLOBS`].
@@ -134,6 +144,7 @@ where
             builder: self.builder.with_blob_hasher(hasher),
             reporter: self.reporter,
             max_concurrent_blobs: self.max_concurrent_blobs,
+            allow_empty: self.allow_empty,
         }
     }
 
@@ -148,6 +159,7 @@ where
             builder: self.builder.with_reporter(Arc::clone(&reporter)),
             reporter,
             max_concurrent_blobs: self.max_concurrent_blobs,
+            allow_empty: self.allow_empty,
         }
     }
 
@@ -167,6 +179,7 @@ where
             builder: self.builder.with_path_filter(filter),
             reporter: self.reporter,
             max_concurrent_blobs: self.max_concurrent_blobs,
+            allow_empty: self.allow_empty,
         }
     }
 
@@ -184,19 +197,23 @@ where
         manifest: tracking::Manifest,
         runtime: &mut runtime::Runtime,
     ) -> Result<graph::Layer> {
-        if manifest.is_empty() {
+        if manifest.is_empty() && !self.allow_empty {
             return Err(Error::NothingToCommit);
         }
         let layer = self
             .repo
-            .create_layer(&graph::Manifest::from(&manifest))
+            .create_layer(&manifest.to_graph_manifest())
             .await?;
-        if !runtime.push_digest(layer.digest()?) {
-            return Err(Error::NothingToCommit);
+        if !manifest.is_empty() {
+            // Don't bother putting the empty layer on the stack, the goal
+            // with allow_empty is to create an empty manifest.
+            if !runtime.push_digest(layer.digest()?) {
+                return Err(Error::NothingToCommit);
+            }
+            runtime.status.editable = false;
+            runtime.save_state_to_storage().await?;
+            remount_runtime(runtime).await?;
         }
-        runtime.status.editable = false;
-        runtime.save_state_to_storage().await?;
-        remount_runtime(runtime).await?;
         Ok(layer)
     }
 
@@ -208,7 +225,7 @@ where
         }
 
         runtime.reload_state_from_storage().await?;
-        if runtime.status.stack.is_empty() {
+        if runtime.status.stack.is_empty() && !self.allow_empty {
             Err(Error::NothingToCommit)
         } else {
             self.repo
@@ -309,10 +326,8 @@ where
         }
         drop(stream);
 
-        let storable = graph::Manifest::from(&manifest);
-        self.repo
-            .write_object(&graph::Object::Manifest(storable))
-            .await?;
+        let storable = manifest.to_graph_manifest();
+        self.repo.write_object(&storable).await?;
 
         Ok(manifest)
     }

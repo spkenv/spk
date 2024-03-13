@@ -20,7 +20,7 @@ async fn test_object_existence(
 ) {
     let tmprepo = tmprepo.await;
     let digest = encoding::EMPTY_DIGEST.into();
-    let obj = graph::Blob::new(digest, 0).into();
+    let obj = graph::Blob::new(digest, 0);
     tmprepo
         .write_object(&obj)
         .await

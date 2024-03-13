@@ -142,6 +142,8 @@ impl CmdEnter {
 
         let mut runtime = self.load_runtime(config).await?;
 
+        tracing::debug!("entering runtime: {runtime:#?}");
+
         if self.make_durable.enabled {
             if runtime.is_durable() {
                 return Err(spfs::Error::from("runtime is already durable").into());
@@ -241,6 +243,7 @@ impl CmdEnter {
         config: &spfs::Config,
     ) -> Result<Option<spfs::runtime::OwnedRuntime>> {
         let runtime = self.load_runtime(config).await?;
+        tracing::debug!("entering runtime: {runtime:#?}");
         if self.exit.enabled {
             todo!()
         } else if self.remount.enabled {

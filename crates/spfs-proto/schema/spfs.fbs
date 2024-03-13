@@ -1,0 +1,65 @@
+// Copyright (c) Sony Pictures Imageworks, et al.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/imageworks/spk
+
+// when adding or modifying this file, take care to read
+// the compatibility and evolution notes here:
+// https://flatbuffers.dev/flatbuffers_guide_writing_schema.html
+// In general, only add fields to the end of tables. Never add
+// new fields to struct types.
+
+union Object {
+    Platform,
+    Layer,
+    Manifest,
+    Blob,
+}
+
+table Platform {
+    layers:[Digest] (required);
+}
+
+table Layer {
+    manifest:Digest (required);
+}
+
+table Manifest {
+    /// Must be non-empty
+    trees:[Tree] (required);
+}
+
+/// Blobs represent an arbitrary chunk of binary data, usually a file.
+table Blob {
+    size:uint64;
+    payload:Digest (required);
+}
+
+/// Digest is the result of a hashing operation over binary data.
+struct Digest {
+    bytes:[uint8:32]; // SHA-256 output len (256 / 8)
+}
+
+table Tree {
+    entries:[Entry] (required);
+}
+
+enum EntryKind:uint8 {
+    Blob = 0,
+    /* Aligned to the rust ObjectKind type */
+    Tree = 4,
+    Mask = 5,
+}
+
+table Entry {
+    kind:EntryKind;
+    object:Digest (required);
+    mode:uint32;
+    size:uint64;
+    name:string (required);
+}
+
+
+table AnyObject {
+    object:Object (required);
+}
+root_type AnyObject;

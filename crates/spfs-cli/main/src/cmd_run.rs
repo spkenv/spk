@@ -7,7 +7,7 @@ use std::time::Instant;
 
 use clap::{ArgGroup, Args};
 use miette::{Context, Result};
-use spfs::storage::FromConfig;
+use spfs::prelude::*;
 use spfs::tracking::EnvSpec;
 use spfs_cli_common as cli;
 
@@ -158,7 +158,7 @@ impl CmdRun {
                 // local repo. Tags synced to a local repo will prevent
                 // future 'spfs clean's from removing many unused spfs
                 // objects.
-                let repos: Vec<_> = vec![&*origin, &*repo];
+                let repos: Vec<_> = vec![&origin, &repo];
                 let references_to_sync = reference
                     .with_tag_items_resolved_to_digest_items(&repos)
                     .await?;

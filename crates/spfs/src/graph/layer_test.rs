@@ -7,12 +7,16 @@ use rstest::rstest;
 use super::Layer;
 use crate::encoding;
 use crate::encoding::prelude::*;
+use crate::graph::Object;
 
 #[rstest]
 fn test_layer_encoding() {
     let expected = Layer::new(encoding::EMPTY_DIGEST.into());
     let mut stream = Vec::new();
     expected.encode(&mut stream).unwrap();
-    let actual = Layer::decode(&mut stream.as_slice()).unwrap();
+    let actual = Object::decode(&mut stream.as_slice())
+        .unwrap()
+        .into_layer()
+        .unwrap();
     assert_eq!(actual.digest().unwrap(), expected.digest().unwrap())
 }

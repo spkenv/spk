@@ -175,7 +175,7 @@ async fn handle_uncompressed_upload(
     repo: Arc<storage::RepositoryHandle>,
     reader: Pin<Box<dyn crate::tracking::BlobRead>>,
 ) -> crate::Result<hyper::http::Response<hyper::Body>> {
-    // Safety: it is unsafe to create a payload without it's corresponding
+    // Safety: it is unsafe to create a payload without its corresponding
     // blob, but this payload http server is part of a larger repository
     // and does not intend to be responsible for ensuring the integrity
     // of the object graph - only the up/down of payload data

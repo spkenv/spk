@@ -48,7 +48,7 @@ impl proto::database_service_server::DatabaseService for DatabaseService {
         let request = request.into_inner();
         let digest = proto::handle_error!(convert_digest(request.digest));
         let object = { proto::handle_error!(self.repo.read_object(digest).await) };
-        let result = proto::ReadObjectResponse::ok((&object).into());
+        let result = proto::ReadObjectResponse::ok((&object.into_enum()).into());
         Ok(Response::new(result))
     }
 

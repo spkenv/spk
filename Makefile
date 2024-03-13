@@ -46,9 +46,18 @@ clean: packages.clean
 
 .PHONY: lint
 lint: FEATURES?=server,spfs/server
-lint:
+lint: lint-fmt lint-clippy lint-docs
+
+.PHONY: lint-fmt
+lint-fmt:
 	$(CARGO) +nightly fmt --check
-	$(CARGO) clippy --tests $(cargo_features_arg) $(cargo_packages_arg) -- -Dwarnings
+
+.PHONY: lint-clippy
+lint-clippy:
+	$(CARGO) clippy --tests $(cargo_features_arg) $(cargo_packages_arg) $(CARGO_ARGS) -- -Dwarnings
+
+.PHONY: lint-docs
+lint-docs:
 	env RUSTDOCFLAGS="-Dwarnings" cargo doc --no-deps $(cargo_features_arg) $(cargo_packages_arg)
 
 .PHONY: format
@@ -73,7 +82,7 @@ release-spfs:
 .PHONY: test
 test: FEATURES?=server,spfs/server
 test:
-	spfs run - -- cargo test $(cargo_features_arg) $(cargo_packages_arg)
+	spfs run - -- cargo test $(cargo_features_arg) $(cargo_packages_arg) -- $(TEST_ARGS)
 
 .PHONY: converters
 converters:
@@ -92,7 +101,9 @@ spk-rpm:
 
 .PHONY: rpm-build
 rpm-build: rpm-buildenv
+	# ulimit for faster yum installs
 	docker build . \
+		--ulimit 'nofile=32768:32768' \
 		--target rpm_build \
 		--cache-from build_env \
 		-f rpmbuild.Dockerfile \
@@ -108,10 +119,10 @@ rpm-build: rpm-buildenv
 
 .PHONY: rpm-buildenv
 rpm-buildenv:
+	# ulimit for faster yum installs
 	docker build . \
+		--ulimit 'nofile=32768:32768' \
 		--target build_env \
 		--cache-from build_env \
 		-f rpmbuild.Dockerfile \
 		--tag build_env
-
-

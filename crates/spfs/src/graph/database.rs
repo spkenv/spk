@@ -9,7 +9,7 @@ use std::task::Poll;
 use chrono::{DateTime, Utc};
 use futures::{Future, Stream, StreamExt, TryStreamExt};
 
-use super::Object;
+use super::{FlatObject, Object, ObjectProto};
 use crate::{encoding, Error, Result};
 
 /// Walks an object tree depth-first starting at some root digest
@@ -251,7 +251,7 @@ impl<T: DatabaseView> DatabaseView for &T {
 #[async_trait::async_trait]
 pub trait Database: DatabaseView {
     /// Write an object to the database, for later retrieval.
-    async fn write_object(&self, obj: &Object) -> Result<()>;
+    async fn write_object<T: ObjectProto>(&self, obj: &FlatObject<T>) -> Result<()>;
 
     /// Remove an object from the database.
     async fn remove_object(&self, digest: encoding::Digest) -> Result<()>;
@@ -269,7 +269,7 @@ pub trait Database: DatabaseView {
 
 #[async_trait::async_trait]
 impl<T: Database> Database for &T {
-    async fn write_object(&self, obj: &Object) -> Result<()> {
+    async fn write_object<O: ObjectProto>(&self, obj: &FlatObject<O>) -> Result<()> {
         Database::write_object(&**self, obj).await
     }
 

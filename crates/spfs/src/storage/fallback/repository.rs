@@ -11,6 +11,7 @@ use futures::Stream;
 use relative_path::RelativePath;
 
 use crate::config::ToAddress;
+use crate::graph::ObjectProto;
 use crate::prelude::*;
 use crate::storage::fs::{FsHashStore, ManifestRenderPath, OpenFsRepository, RenderStore};
 use crate::storage::tag::TagSpecAndTagStream;
@@ -113,7 +114,7 @@ impl graph::DatabaseView for FallbackProxy {
                 // missing object. Best effort; ignore errors.
                 if let Err(err) = self.primary.write_object(obj).await {
                     #[cfg(feature = "sentry")]
-                    tracing::error!(target: "sentry", ?err, ?digest, "Failed to repair missing object");
+                    tracing::error!(target: "sentry", ?err, %digest, "Failed to repair missing object");
 
                     tracing::warn!("Failed to repair missing object: {err}");
                 } else {
@@ -155,7 +156,7 @@ impl graph::DatabaseView for FallbackProxy {
 
 #[async_trait::async_trait]
 impl graph::Database for FallbackProxy {
-    async fn write_object(&self, obj: &graph::Object) -> Result<()> {
+    async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
         self.primary.write_object(obj).await?;
         Ok(())
     }

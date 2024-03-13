@@ -11,7 +11,7 @@ use super::Syncer;
 use crate::config::Config;
 use crate::fixtures::*;
 use crate::prelude::*;
-use crate::{encoding, graph, storage, tracking, Error};
+use crate::{encoding, storage, tracking, Error};
 
 #[rstest]
 #[tokio::test]
@@ -54,7 +54,7 @@ async fn test_push_ref(#[future] config: (tempfile::TempDir, Config)) {
         .await
         .unwrap();
     let layer = local
-        .create_layer(&graph::Manifest::from(&manifest))
+        .create_layer(&manifest.to_graph_manifest())
         .await
         .unwrap();
     let tag = tracking::TagSpec::parse("testing").unwrap();
@@ -100,7 +100,7 @@ async fn test_sync_ref(
         .await
         .unwrap();
     let layer = repo_a
-        .create_layer(&graph::Manifest::from(&manifest))
+        .create_layer(&manifest.to_graph_manifest())
         .await
         .unwrap();
     let platform = repo_a
@@ -167,7 +167,7 @@ async fn test_sync_missing_from_source(
         .await
         .unwrap();
     let layer = repo_b
-        .create_layer(&graph::Manifest::from(&manifest))
+        .create_layer(&manifest.to_graph_manifest())
         .await
         .unwrap();
     let platform = repo_b
@@ -236,7 +236,7 @@ async fn test_sync_through_tar(
         .await
         .unwrap();
     let layer = repo_a
-        .create_layer(&graph::Manifest::from(&manifest))
+        .create_layer(&manifest.to_graph_manifest())
         .await
         .unwrap();
     let platform = repo_a

@@ -8,7 +8,7 @@ use std::str::Utf8Error;
 use miette::Diagnostic;
 use thiserror::Error;
 
-use crate::{encoding, storage};
+use crate::{encoding, graph, storage};
 
 #[derive(Diagnostic, Debug, Error)]
 #[diagnostic(
@@ -42,6 +42,9 @@ pub enum Error {
     #[error(transparent)]
     #[diagnostic(forward(0))]
     Encoding(#[from] super::encoding::Error),
+    #[error(transparent)]
+    #[diagnostic(forward(0))]
+    GraphObject(#[from] super::graph::error::ObjectError),
 
     #[error("Invalid repository url: {0:?}")]
     InvalidRemoteUrl(#[from] url::ParseError),
@@ -80,8 +83,11 @@ pub enum Error {
     InvalidReference(String),
     #[error("Repository does not support manifest rendering: {0:?}")]
     NoRenderStorage(url::Url),
-    #[error("Object is not a blob: {1}")]
-    ObjectNotABlob(crate::graph::Object, encoding::Digest),
+    #[error("Object is not a {desired:?}: {digest}")]
+    NotCorrectKind {
+        desired: graph::ObjectKind,
+        digest: encoding::Digest,
+    },
     #[error("Cannot write to a repository which has been pinned in time")]
     RepositoryIsPinned,
 
@@ -255,37 +261,24 @@ impl From<String> for Error {
         Self::String(err)
     }
 }
+
 impl From<&str> for Error {
     fn from(err: &str) -> Self {
         Self::String(err.to_string())
     }
 }
+
 impl From<std::path::StripPrefixError> for Error {
     fn from(err: std::path::StripPrefixError) -> Self {
         Error::String(err.to_string())
     }
 }
 
-// impl IntoError for storage::OpenRepositoryError {
-//     type Context = url::Url;
-//     type Error = Error;
-
-//     fn into_error(self, context: Self::Context) -> Self::Error {
-//         Error::FailedToOpenRepository {
-//             repository: context.into(),
-//             source: self,
-//         }
-//     }
-// }
-
-// /// A type that can be converted into an error if
-// /// some additional context is provided
-// pub trait IntoError {
-//     type Context;
-//     type Error;
-
-//     fn into_error(self, context: Self::Context) -> Self::Error;
-// }
+impl From<spfs_proto::digest::Error> for Error {
+    fn from(err: spfs_proto::digest::Error) -> Self {
+        Error::Encoding(err.into())
+    }
+}
 
 /// An OS error represents an error that may have an associated
 /// error code from the operating system

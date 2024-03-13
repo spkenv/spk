@@ -8,12 +8,11 @@ use std::pin::Pin;
 
 use chrono::{DateTime, Utc};
 use close_err::Closable;
-use encoding::{Decodable, Encodable};
+use encoding::prelude::*;
 use futures::{Stream, StreamExt, TryFutureExt};
-use graph::DatabaseView;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-use crate::graph::Object;
+use crate::graph::{DatabaseView, Object, ObjectProto};
 use crate::{encoding, graph, Error, Result};
 
 #[async_trait::async_trait]
@@ -57,7 +56,7 @@ impl DatabaseView for super::FsRepository {
 
 #[async_trait::async_trait]
 impl graph::Database for super::FsRepository {
-    async fn write_object(&self, obj: &graph::Object) -> Result<()> {
+    async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
         self.opened().await?.write_object(obj).await
     }
 
@@ -97,7 +96,10 @@ impl DatabaseView for super::OpenFsRepository {
         file.read_to_end(&mut buf).await.map_err(|err| {
             Error::StorageReadError("read_to_end on object file", filepath.clone(), err)
         })?;
-        Object::decode(&mut buf.as_slice())
+        // if the capacity of the vec already equals the length then a conversion
+        // to the Bytes type in the `new` call will avoid reallocating the data
+        buf.shrink_to_fit();
+        Object::new(buf)
     }
 
     fn find_digests(
@@ -125,14 +127,14 @@ impl DatabaseView for super::OpenFsRepository {
 
 #[async_trait::async_trait]
 impl graph::Database for super::OpenFsRepository {
-    async fn write_object(&self, obj: &graph::Object) -> Result<()> {
+    async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
         let digest = obj.digest()?;
         let filepath = self.objects.build_digest_path(&digest);
         if filepath.exists() {
-            tracing::trace!(?digest, "object already exists");
+            tracing::trace!(%digest, kind=%std::any::type_name::<T>(), "object already exists");
             return Ok(());
         }
-        tracing::trace!(?digest, kind = ?obj.kind(), "writing object to db");
+        tracing::trace!(%digest, kind=%std::any::type_name::<T>(), "writing object to db");
 
         // we need to use a temporary file here, so that
         // other processes don't try to read our incomplete
@@ -223,7 +225,7 @@ impl graph::Database for super::OpenFsRepository {
                 )),
             };
         }
-        tracing::trace!(?digest, "removed object from db");
+        tracing::trace!(%digest, "removed object from db");
         Ok(())
     }
 

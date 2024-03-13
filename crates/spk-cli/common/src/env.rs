@@ -257,7 +257,7 @@ pub fn configure_logging(verbosity: u8) -> Result<()> {
     }
     // this is not ideal, because it can propagate annoyingly into
     // created environments, but without it the spfs logging configuration
-    // takes over in it's current setup/state.
+    // takes over in its current setup/state.
     std::env::set_var("RUST_LOG", &directives);
     let env_filter = tracing_subscriber::filter::EnvFilter::new(directives);
     let stderr_log = tracing_subscriber::fmt::layer()

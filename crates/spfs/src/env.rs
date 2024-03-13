@@ -540,7 +540,7 @@ where
     where
         P: AsRef<std::ffi::OsStr>,
     {
-        use spfs_encoding::Encodable;
+        use spfs_encoding::prelude::*;
 
         let path = path.as_ref().to_owned();
         let platform = rt.to_platform().digest()?.to_string();

@@ -214,7 +214,7 @@ impl<'a> Dynamic<'a> {
             unreachable!();
         }
 
-        let config = spfs::load_config().expect("loaded spfs config");
+        let config = spfs::get_config().expect("loaded spfs config");
         let local_repo = config
             .get_opened_local_repository()
             .await
@@ -230,7 +230,11 @@ impl<'a> Dynamic<'a> {
             SPFS_TAG_SUBDIR,
             bin_tag.to_string_lossy(),
         );
-        match remote_repo.read_ref(&spfs_tag).await {
+        match remote_repo
+            .read_ref(&spfs_tag)
+            .await
+            .map(spfs::graph::Object::into_platform)
+        {
             Err(spfs::Error::UnknownReference(_)) => {
                 bail!(
                     "Unable to resolve ${} == \"{}\"",
@@ -239,8 +243,8 @@ impl<'a> Dynamic<'a> {
                 );
             }
             Err(err) => bail!(err.to_string()),
-            Ok(spfs::graph::Object::Platform(platform)) => {
-                if platform.stack.is_empty() {
+            Ok(Some(platform)) => {
+                if !platform.iter_bottom_up().any(|_| true) {
                     bail!("Unexpected empty platform stack");
                 }
 
@@ -276,7 +280,7 @@ impl<'a> Dynamic<'a> {
                 .wrap_err("process replaced")?;
                 unreachable!();
             }
-            Ok(obj) => bail!("Expected platform object from spfs; found: {}", obj),
+            Ok(None) => bail!("Expected platform object from spfs"),
         }
     }
 }

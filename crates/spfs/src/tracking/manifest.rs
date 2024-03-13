@@ -20,7 +20,7 @@ use tokio::sync::Semaphore;
 
 use super::entry::{Entry, EntryKind};
 use super::{BlobRead, BlobReadExt, Diff};
-use crate::{encoding, runtime, Error, Result};
+use crate::{encoding, graph, runtime, Error, Result};
 
 #[cfg(test)]
 #[path = "./manifest_test.rs"]
@@ -36,6 +36,9 @@ pub const DEFAULT_MAX_CONCURRENT_BRANCHES: usize = 5;
 
 #[derive(Clone)]
 pub struct Manifest<T = ()> {
+    /// retains the original header values/configuration
+    /// of the constructed or loaded data
+    header: graph::object::HeaderBuf,
     root: Entry<T>,
 }
 
@@ -45,6 +48,7 @@ where
 {
     fn default() -> Self {
         Self {
+            header: graph::object::HeaderBuf::new(graph::ObjectKind::Manifest),
             root: Entry::empty_dir_with_open_perms(),
         }
     }
@@ -74,13 +78,26 @@ impl<T> std::cmp::Eq for Manifest<T> where T: std::cmp::Eq {}
 
 impl<T> From<Entry<T>> for Manifest<T> {
     fn from(root: Entry<T>) -> Self {
-        Self { root }
+        Self::new(root)
     }
 }
 
 impl<T> Manifest<T> {
     pub fn new(root: Entry<T>) -> Self {
-        Self { root }
+        Self {
+            header: graph::object::HeaderBuf::new(graph::ObjectKind::Manifest),
+            root,
+        }
+    }
+
+    pub fn header(&self) -> &graph::object::Header {
+        &self.header
+    }
+
+    pub fn set_header(&mut self, mut header: graph::object::HeaderBuf) {
+        // a different object kind would cause bugs and should never be allowed
+        header.set_object_kind(graph::ObjectKind::Manifest);
+        self.header = header;
     }
 
     pub fn root(&self) -> &Entry<T> {
@@ -96,7 +113,7 @@ impl<T> Manifest<T> {
         self.root.entries.len() == 0
     }
 
-    /// Get an entry in this manifest given it's filepath.
+    /// Get an entry in this manifest given its filepath.
     pub fn get_path<P: AsRef<str>>(&self, path: P) -> Option<&Entry<T>> {
         const TRIM_START: &[char] = &['/', '.'];
         const TRIM_END: &[char] = &['/'];
@@ -155,7 +172,9 @@ where
     /// Convert this manifest into its encodable,
     /// hashable form for storage.
     pub fn to_graph_manifest(&self) -> crate::graph::Manifest {
-        self.into()
+        crate::graph::Manifest::builder()
+            .with_header(|h| h.copy_from(&self.header))
+            .build(self.root())
     }
 }
 
@@ -369,7 +388,7 @@ pub trait BlobHasher {
 #[tonic::async_trait]
 impl BlobHasher for () {
     async fn hash_blob(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
-        Ok(encoding::Digest::from_async_reader(reader).await?)
+        Ok(encoding::Hasher::hash_async_reader(reader).await?)
     }
 }
 
@@ -532,11 +551,10 @@ where
         path: P,
     ) -> Result<Manifest> {
         tracing::trace!("computing manifest for {:?}", path.as_ref());
-        let manifest = Manifest {
-            root: self
-                .compute_tree_node(Arc::new(path.as_ref().to_owned()), path.as_ref())
+        let manifest = Manifest::new(
+            self.compute_tree_node(Arc::new(path.as_ref().to_owned()), path.as_ref())
                 .await?,
-        };
+        );
         Ok(manifest)
     }
 

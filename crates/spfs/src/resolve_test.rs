@@ -16,15 +16,11 @@ use crate::{encoding, graph};
 async fn test_stack_to_layers_dedupe(#[future] tmprepo: TempRepo) {
     let repo = tmprepo.await;
     let layer = graph::Layer::new(encoding::EMPTY_DIGEST.into());
-    let platform = graph::Platform::from_encodable([&layer, &layer]).unwrap();
-    let mut stack = graph::Stack::from_encodable([&layer]).unwrap();
+    let platform = graph::Platform::from_digestible([&layer, &layer]).unwrap();
+    let mut stack = graph::Stack::from_digestible([&layer]).unwrap();
     stack.push(platform.digest().unwrap());
-    repo.write_object(&graph::Object::Layer(layer))
-        .await
-        .unwrap();
-    repo.write_object(&graph::Object::Platform(platform))
-        .await
-        .unwrap();
+    repo.write_object(&layer).await.unwrap();
+    repo.write_object(&platform).await.unwrap();
     let resolved = resolve_stack_to_layers(&stack, Some(&repo)).await.unwrap();
     assert_eq!(resolved.len(), 1, "should deduplicate layers in resolve");
 }
@@ -52,7 +48,7 @@ async fn test_auto_merge_layers(tmpdir: tempfile::TempDir) {
             .await
             .unwrap();
         let layer = repo
-            .create_layer(&graph::Manifest::from(&manifest))
+            .create_layer(&manifest.to_graph_manifest())
             .await
             .unwrap();
         layers.push(layer);

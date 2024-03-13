@@ -19,12 +19,8 @@ pub type ManifestStreamItem = Result<(encoding::Digest, graph::Manifest)>;
 pub trait ManifestStorage: graph::Database + Sync + Send {
     /// Iterate the objects in this storage which are manifests.
     fn iter_manifests<'db>(&'db self) -> Pin<Box<dyn Stream<Item = ManifestStreamItem> + 'db>> {
-        use graph::Object;
         let stream = self.iter_objects().filter_map(|res| match res {
-            Ok((digest, obj)) => match obj {
-                Object::Manifest(manifest) => Some(Ok((digest, manifest))),
-                _ => None,
-            },
+            Ok((digest, obj)) => obj.into_manifest().map(|b| Ok((digest, b))),
             Err(err) => Some(Err(err)),
         });
         Box::pin(stream)
@@ -32,11 +28,17 @@ pub trait ManifestStorage: graph::Database + Sync + Send {
 
     /// Return the manifest identified by the given digest.
     async fn read_manifest(&self, digest: encoding::Digest) -> Result<graph::Manifest> {
-        use graph::Object;
-        match self.read_object(digest).await {
+        match self
+            .read_object(digest)
+            .await
+            .map(graph::Object::into_manifest)
+        {
             Err(err) => Err(err),
-            Ok(Object::Manifest(manifest)) => Ok(manifest),
-            Ok(_) => Err(format!("Object is not a manifest: {digest:?}").into()),
+            Ok(Some(manifest)) => Ok(manifest),
+            Ok(None) => Err(crate::Error::NotCorrectKind {
+                desired: graph::ObjectKind::Manifest,
+                digest,
+            }),
         }
     }
 }

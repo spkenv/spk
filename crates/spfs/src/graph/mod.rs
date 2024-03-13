@@ -7,12 +7,16 @@
 mod blob;
 mod database;
 mod entry;
+pub mod error;
+mod kind;
 mod layer;
 mod manifest;
-mod object;
+pub mod object;
 mod platform;
 pub mod stack;
 mod tree;
+
+use std::cell::RefCell;
 
 pub use blob::Blob;
 pub use database::{
@@ -23,9 +27,16 @@ pub use database::{
     DigestSearchCriteria,
 };
 pub use entry::Entry;
+pub use kind::{HasKind, Kind, ObjectKind};
 pub use layer::Layer;
 pub use manifest::Manifest;
-pub use object::{Object, ObjectKind};
+pub use object::{FlatObject, Object, ObjectProto};
 pub use platform::Platform;
 pub use stack::Stack;
 pub use tree::Tree;
+
+thread_local! {
+    /// A shared, thread-local builder to avoid extraneous allocations
+    /// when creating new instances of objects via [`flatbuffers`].
+    static BUILDER: RefCell<flatbuffers::FlatBufferBuilder<'static>> = RefCell::new(flatbuffers::FlatBufferBuilder::with_capacity(256));
+}

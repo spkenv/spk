@@ -5,10 +5,10 @@
 use std::io::{BufRead, Read, Write};
 use std::iter::FromIterator;
 
-use super::hash::{Digest, DIGEST_SIZE, NULL_DIGEST};
-use crate::{Error, Result};
+use crate::{Digest, Error, Result, DIGEST_SIZE, NULL_DIGEST};
 
-const INT_SIZE: usize = std::mem::size_of::<u64>();
+const INT64_SIZE: usize = std::mem::size_of::<u64>();
+const INT8_SIZE: usize = std::mem::size_of::<u8>();
 
 #[cfg(test)]
 #[path = "./binary_test.rs"]
@@ -47,13 +47,21 @@ pub fn write_int(mut writer: impl Write, value: i64) -> Result<()> {
 
 /// Read an integer from the given binary stream.
 pub fn read_int(mut reader: impl Read) -> Result<i64> {
-    let mut buf: [u8; INT_SIZE] = [0, 0, 0, 0, 0, 0, 0, 0];
+    let mut buf: [u8; INT64_SIZE] = [0, 0, 0, 0, 0, 0, 0, 0];
     reader.read_exact(&mut buf).map_err(Error::FailedRead)?;
     Ok(i64::from_be_bytes(buf))
 }
 
 /// Write an unsigned integer to the given binary stream.
-pub fn write_uint(mut writer: impl Write, value: u64) -> Result<()> {
+pub fn write_uint64(mut writer: impl Write, value: u64) -> Result<()> {
+    writer
+        .write_all(&value.to_be_bytes())
+        .map_err(Error::FailedWrite)?;
+    Ok(())
+}
+
+/// Write an unsigned integer to the given binary stream.
+pub fn write_uint8(mut writer: impl Write, value: u8) -> Result<()> {
     writer
         .write_all(&value.to_be_bytes())
         .map_err(Error::FailedWrite)?;
@@ -61,10 +69,17 @@ pub fn write_uint(mut writer: impl Write, value: u64) -> Result<()> {
 }
 
 /// Read an unsigned integer from the given binary stream.
-pub fn read_uint(mut reader: impl Read) -> Result<u64> {
-    let mut buf: [u8; INT_SIZE] = [0, 0, 0, 0, 0, 0, 0, 0];
+pub fn read_uint64(mut reader: impl Read) -> Result<u64> {
+    let mut buf: [u8; INT64_SIZE] = [0, 0, 0, 0, 0, 0, 0, 0];
     reader.read_exact(&mut buf).map_err(Error::FailedRead)?;
     Ok(u64::from_be_bytes(buf))
+}
+
+/// Read an unsigned integer from the given binary stream.
+pub fn read_uint8(mut reader: impl Read) -> Result<u8> {
+    let mut buf: [u8; INT8_SIZE] = [0];
+    reader.read_exact(&mut buf).map_err(Error::FailedRead)?;
+    Ok(u8::from_be_bytes(buf))
 }
 
 /// Write a digest to the given binary stream.
@@ -79,7 +94,7 @@ pub fn write_digest(mut writer: impl Write, digest: &Digest) -> Result<()> {
 pub fn read_digest(mut reader: impl Read) -> Result<Digest> {
     let mut buf: [u8; DIGEST_SIZE] = NULL_DIGEST;
     reader.read_exact(buf.as_mut()).map_err(Error::FailedRead)?;
-    Digest::from_bytes(&buf)
+    Ok(Digest::from_bytes(&buf)?)
 }
 
 /// Write a string to the given binary stream.

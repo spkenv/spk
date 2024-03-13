@@ -5,7 +5,6 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use encoding::Encodable;
 use futures::{FutureExt, TryFutureExt, TryStreamExt};
 use itertools::Itertools;
 use nonempty::NonEmpty;
@@ -15,7 +14,7 @@ use super::config::get_config;
 use crate::prelude::*;
 use crate::storage::fallback::FallbackProxy;
 use crate::storage::fs::{ManifestRenderPath, RenderSummary};
-use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
+use crate::{graph, runtime, storage, tracking, Error, Result};
 
 #[cfg(test)]
 #[path = "./resolve_test.rs"]
@@ -158,7 +157,7 @@ pub async fn compute_environment_manifest(
     for layer in layers {
         manifest.update(
             &repo
-                .read_manifest(layer.manifest)
+                .read_manifest(*layer.manifest())
                 .await?
                 .to_tracking_manifest(),
         )
@@ -170,21 +169,21 @@ pub async fn compute_object_manifest(
     obj: graph::Object,
     repo: &storage::RepositoryHandle,
 ) -> Result<tracking::Manifest> {
-    match obj {
-        graph::Object::Layer(obj) => Ok(repo
-            .read_manifest(obj.manifest)
+    match obj.into_enum() {
+        graph::object::Enum::Layer(obj) => Ok(repo
+            .read_manifest(*obj.manifest())
             .await?
             .to_tracking_manifest()),
-        graph::Object::Platform(obj) => {
-            let layers = resolve_stack_to_layers(&obj.stack, Some(repo)).await?;
+        graph::object::Enum::Platform(obj) => {
+            let layers = resolve_stack_to_layers(&obj.to_stack(), Some(repo)).await?;
             let mut manifest = tracking::Manifest::default();
             for layer in layers.iter() {
-                let layer_manifest = repo.read_manifest(layer.manifest).await?;
+                let layer_manifest = repo.read_manifest(*layer.manifest()).await?;
                 manifest.update(&layer_manifest.to_tracking_manifest());
             }
             Ok(manifest)
         }
-        graph::Object::Manifest(obj) => Ok(obj.to_tracking_manifest()),
+        graph::object::Enum::Manifest(obj) => Ok(obj.to_tracking_manifest()),
         obj => Err(format!("Resolve: Unhandled object of type {:?}", obj.kind()).into()),
     }
 }
@@ -250,7 +249,7 @@ where
     for (index, layer) in layers.iter().enumerate() {
         manifests.push(ResolvedManifest::Existing {
             order: index,
-            manifest: repo.read_manifest(layer.manifest).await?,
+            manifest: repo.read_manifest(*layer.manifest()).await?,
         });
     }
 
@@ -313,17 +312,12 @@ where
                         manifest.update(&next.to_tracking_manifest());
                     }
                 }
-                let manifest = graph::Manifest::from(&manifest);
+                let manifest = manifest.to_graph_manifest();
                 // Store the newly created manifest so that the render process
-                // can read it back. This little dance avoid an expensive
-                // (300 ms) clone.
-                let object = manifest.into();
-                repo.write_object(&object).await?;
-                flattened_layers.insert(object.digest().expect("Object has valid digest"));
-                match object {
-                    graph::Object::Manifest(m) => resolved_manifests.push(m),
-                    _ => unreachable!(),
-                }
+                // can read it back.
+                repo.write_object(&manifest).await?;
+                flattened_layers.insert(manifest.digest().expect("Object has valid digest"));
+                resolved_manifests.push(manifest);
             }
         }
     }
@@ -416,16 +410,17 @@ where
     let mut layers = Vec::new();
     for digest in stack.iter_bottom_up() {
         let entry = repo.read_object(digest).await?;
-        match entry {
-            graph::Object::Layer(layer) => layers.push(layer),
-            graph::Object::Platform(platform) => {
-                let mut expanded = resolve_stack_to_layers_with_repo(&platform.stack, repo).await?;
+        match entry.into_enum() {
+            graph::object::Enum::Layer(layer) => layers.push(layer),
+            graph::object::Enum::Platform(platform) => {
+                let mut expanded =
+                    resolve_stack_to_layers_with_repo(&platform.to_stack(), repo).await?;
                 layers.append(&mut expanded);
             }
-            graph::Object::Manifest(manifest) => {
+            graph::object::Enum::Manifest(manifest) => {
                 layers.push(graph::Layer::new(manifest.digest().unwrap()))
             }
-            obj => {
+            obj @ graph::object::Enum::Blob(_) => {
                 return Err(format!(
                     "Cannot resolve object into a mountable filesystem layer: {:?}",
                     obj.kind()

@@ -32,9 +32,9 @@ impl CmdRead {
         tracing::info!(target: "sentry", "using repo: {}", repo.address());
 
         let item = repo.read_ref(&self.reference.to_string()).await?;
-        use spfs::graph::Object;
-        let blob = match item {
-            Object::Blob(blob) => blob,
+        use spfs::graph::object::Enum;
+        let blob = match item.to_enum() {
+            Enum::Blob(blob) => blob,
             _ => {
                 let path = match &self.path {
                     None => {
@@ -58,7 +58,7 @@ impl CmdRead {
             }
         };
 
-        let (mut payload, filename) = repo.open_payload(blob.digest()).await?;
+        let (mut payload, filename) = repo.open_payload(*blob.digest()).await?;
         tokio::io::copy(&mut payload, &mut tokio::io::stdout())
             .await
             .map_err(|err| Error::StorageReadError("copy of payload to stdout", filename, err))?;
