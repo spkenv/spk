@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::VecDeque;
+
 use clap::Args;
 use colored::*;
 use miette::Result;
@@ -40,31 +42,36 @@ pub struct CmdInfo {
     /// Use shortened digests in the output (nicer, but slower)
     #[clap(long)]
     short: bool,
+
+    /// Follow and show child objects, depth-first
+    #[clap(long)]
+    follow: bool,
+
+    /// Remaining refs to process, used to handle recursive
+    /// --follow behavior at runtime
+    #[clap(skip)]
+    to_process: VecDeque<String>,
 }
 
 impl CmdInfo {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
 
-        if self.refs.is_empty() {
+        self.to_process.extend(self.refs.iter().cloned());
+
+        if self.to_process.is_empty() {
             self.print_global_info(&repo).await?;
         } else {
-            let number_refs = self.refs.len();
-            for (index, reference) in self.refs.iter().enumerate() {
+            while let Some(reference) = self.to_process.pop_front() {
                 if reference.starts_with(spfs::env::SPFS_DIR) {
-                    self.pretty_print_file(
-                        reference,
-                        &repo,
-                        self.logging.verbose as usize,
-                        number_refs,
-                    )
-                    .await?;
+                    self.pretty_print_file(&reference, &repo, self.logging.verbose as usize)
+                        .await?;
                 } else {
                     let item = repo.read_ref(reference.as_str()).await?;
                     self.pretty_print_ref(item, &repo, self.logging.verbose as usize)
                         .await?;
                 }
-                if index + 1 < number_refs {
+                if !self.to_process.is_empty() {
                     println!();
                 }
             }
@@ -92,7 +99,7 @@ impl CmdInfo {
 
     /// Display the spfs object locations that provide the given file
     async fn pretty_print_ref(
-        &self,
+        &mut self,
         obj: spfs::graph::Object,
         repo: &spfs::storage::RepositoryHandle,
         verbosity: usize,
@@ -112,6 +119,9 @@ impl CmdInfo {
                 println!("{}:", "stack (top-down)".bright_blue());
                 for reference in obj.stack.to_top_down() {
                     println!("  - {}", self.format_digest(reference, repo).await?);
+                    if self.follow {
+                        self.to_process.push_back(reference.to_string());
+                    }
                 }
             }
 
@@ -131,6 +141,9 @@ impl CmdInfo {
                     "manifest:".bright_blue(),
                     self.format_digest(obj.manifest, repo).await?
                 );
+                if self.follow {
+                    self.to_process.push_back(obj.manifest.to_string());
+                }
             }
 
             Object::Manifest(obj) => {
@@ -224,7 +237,6 @@ impl CmdInfo {
         filepath: &str,
         repo: &spfs::storage::RepositoryHandle,
         verbosity: usize,
-        number_refs: usize,
     ) -> Result<()> {
         let mut in_a_runtime = true;
         let found = match spfs::find_path::find_path_providers_in_spfs_runtime(filepath, repo).await
@@ -251,16 +263,9 @@ impl CmdInfo {
             if let Some(first_path) = found.first() {
                 if let Some(ObjectPathEntry::FilePath(file_entry)) = first_path.last() {
                     let number = found.len();
-                    let query = if number_refs > 1 {
-                        format!("{filepath}: ")
-                    } else {
-                        "".to_string()
-                    };
                     println!(
-                        "{}{} (in {} {}{})",
-                        query,
+                        "{} (in {number} {}{})",
                         file_entry.kind.to_string().green(),
-                        number,
                         "layer".pluralize(number),
                         if verbosity < 1 && number > 1 {
                             ", topmost 1 shown, use -v to see all"
