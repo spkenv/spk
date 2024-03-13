@@ -45,9 +45,19 @@ impl Output for Console {
     }
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub(crate) enum FilterOperator {
+    // name=value and name must be present and value must match
+    MustMatchNameValue,
+    // name?=value and if name is present then value must match, if
+    // name is not present it is considered a match.
+    OkIfNameMissing,
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct OptFilter {
     pub(crate) name: OptNameBuf,
+    pub(crate) op: FilterOperator,
     pub(crate) value: String,
 }
 
@@ -55,8 +65,16 @@ impl OptFilter {
     pub fn matches(&self, options: &OptionMap) -> bool {
         if let Some(v) = options.get(&self.name) {
             self.value == *v
-        } else {
+        } else if self.op == FilterOperator::MustMatchNameValue {
+            // name=value filters must have the name (and value)
+            // to match, not having the name means it does not match
             false
+        } else {
+            // name?=value filter matches when the name is not
+            // present. Note this means /src builds will always match
+            // this kind of filter because /src builds have empty
+            // options sets.
+            true
         }
     }
 }
@@ -65,15 +83,30 @@ impl std::str::FromStr for OptFilter {
     type Err = Error;
 
     fn from_str(value: &str) -> Result<Self> {
-        let (name, value) = value
-            .split_once('=')
-            .or_else(|| value.split_once(':'))
-            .ok_or_else(|| {
-                miette!("Invalid option filter: {value} (should be in the form NAME=VALUE)")
-            })
-            .and_then(|(name, value)| Ok((OptNameBuf::try_from(name)?, value)))?;
+        let mut op = FilterOperator::MustMatchNameValue;
+
+        // TODO: if this gets more complicated it may need to use a
+        // proper parser.
+        let (name, value) = if value.contains("?=") {
+            op = FilterOperator::OkIfNameMissing;
+            value
+                .split_once("?=")
+                .ok_or_else(|| {
+                    miette!("Invalid option filter: {value} (should be in the form NAME?=VALUE or NAME=VALUE)")
+                })
+                .and_then(|(name, value)| Ok((OptNameBuf::try_from(name)?, value)))?
+        } else {
+            value
+                .split_once('=')
+                .or_else(|| value.split_once(':'))
+                .ok_or_else(|| {
+                    miette!("Invalid option filter: {value} (should be in the form NAME=VALUE or NAME?=VALUE)")
+                })
+                .and_then(|(name, value)| Ok((OptNameBuf::try_from(name)?, value)))?
+        };
         Ok(Self {
             name,
+            op,
             value: value.to_string(),
         })
     }
@@ -101,10 +134,15 @@ pub struct Ls<Output: Default = Console> {
     #[clap(long, short)]
     deprecated: bool,
 
-    /// Only show packages with builds that match the filter, e.g. 'distro=centos'
+    /// Only show packages with builds that match the filter,
+    /// e.g. 'distro=centos'. You can use '?=' instead of '=' if the
+    /// filter should only used if the opt is present in builds.
     #[clap(long, name = "OPT=VALUE")]
     filter_by: Option<OptFilter>,
 
+    // TODO: disable the always check the host options setting, which I haven't implemented yet
+    // #[cla[(long)]
+    // nohost: bool
     /// Given a name, list versions. Given a name/version list builds.
     ///
     /// If nothing is provided, list all available packages.
