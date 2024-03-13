@@ -257,6 +257,7 @@
     "acyclical",
     "addrs",
     "alib",
+    "almalinux",
     "anys",
     "apkg",
     "argparse",
@@ -769,5 +770,6 @@
     "xdir",
     "xino",
     "ystem"
-  ]
+  ],
+  "enabled": true
 }
