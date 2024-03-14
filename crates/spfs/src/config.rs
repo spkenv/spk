@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use storage::{FromConfig, FromUrl};
 use tokio_stream::StreamExt;
 
+use crate::graph::DEFAULT_SPFS_ANNOTATION_LAYER_MAX_STRING_VALUE_SIZE;
 use crate::storage::{TagNamespaceBuf, TagStorageMut};
 use crate::{graph, runtime, storage, tracking, Error, Result};
 
@@ -322,6 +323,13 @@ pub struct Filesystem {
     /// systems that can perform read-through lookups, such as FUSE.
     #[serde(default = "Filesystem::default_secondary_repositories")]
     pub secondary_repositories: Vec<String>,
+
+    /// The size limit for an annotation before the data is stored in
+    /// a sepearate blob payload referenced in an annotation
+    /// layer. Data values smaller than or equal to this are stored
+    /// directly in the annotation layer.
+    #[serde(default = "Filesystem::default_annotation_size_limit")]
+    pub annotation_size_limit: usize,
 }
 
 impl Filesystem {
@@ -329,6 +337,13 @@ impl Filesystem {
     /// the runtime filesystem
     pub fn default_secondary_repositories() -> Vec<String> {
         vec![String::from("origin")]
+    }
+
+    /// The default size limit for a piece of annotation data before it
+    /// is stored in a separate blob payload from the annotation
+    /// layer that contains it
+    pub fn default_annotation_size_limit() -> usize {
+        DEFAULT_SPFS_ANNOTATION_LAYER_MAX_STRING_VALUE_SIZE
     }
 }
 

@@ -843,8 +843,16 @@ where
         .with_path_filter(collected_changes.as_slice())
         .commit_layer(&mut runtime)
         .await?;
+
+    let manifest_digest = match layer.manifest() {
+        Some(d) => d,
+        None => {
+            return Err(Error::String("Collected changes became a layer with no manifest. This should not happen during a binary build. Please report this as a bug".to_string()));
+        }
+    };
+
     let collected_layer = repo
-        .read_manifest(*layer.manifest())
+        .read_manifest(*manifest_digest)
         .await?
         .to_tracking_manifest();
     let manifests = split_manifest_by_component(

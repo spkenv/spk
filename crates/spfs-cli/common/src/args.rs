@@ -7,9 +7,10 @@ use std::panic::catch_unwind;
 #[cfg(feature = "sentry")]
 use std::sync::Mutex;
 
-use miette::Error;
+use miette::{Error, IntoDiagnostic, Result, WrapErr};
 #[cfg(feature = "sentry")]
 use once_cell::sync::OnceCell;
+use spfs::io::Pluralize;
 use spfs::storage::LocalRepository;
 use tracing_subscriber::prelude::*;
 
@@ -412,6 +413,62 @@ impl Logging {
             .and_then(stderr_layer)
             .with_subscriber(tracing_subscriber::Registry::default())
             .init();
+    }
+}
+
+/// Command line flags for viewing annotations in a runtime
+#[derive(Debug, Clone, clap::Args)]
+pub struct AnnotationViewing {
+    /// Output the data value for the given annotation key(s) from
+    /// the active runtime. Each value is printed on its own line
+    /// without its key.
+    #[clap(long, alias = "annotation")]
+    pub get: Option<Vec<String>>,
+
+    /// Output all the annotation keys and values from the active
+    /// runtime as a yaml dictionary
+    #[clap(long, alias = "all-annotations")]
+    pub get_all: bool,
+}
+
+impl AnnotationViewing {
+    /// Display annotation values based on the command line arguments
+    pub async fn print_data(&self, runtime: &spfs::runtime::Runtime) -> Result<()> {
+        if self.get_all {
+            let data = runtime.all_annotations().await?;
+            let keys = data
+                .keys()
+                .map(ToString::to_string)
+                .collect::<Vec<String>>();
+            let num_keys = keys.len();
+            tracing::debug!(
+                "{num_keys} annotation {}: {}",
+                "key".pluralize(num_keys),
+                keys.join(", ")
+            );
+            println!(
+                "{}",
+                serde_yaml::to_string(&data)
+                    .into_diagnostic()
+                    .wrap_err("Failed to generate yaml output")?
+            );
+        } else if let Some(keys) = &self.get {
+            tracing::debug!("--get these keys: {}", keys.join(", "));
+            for key in keys.iter() {
+                match runtime.annotation(key).await? {
+                    Some(value) => {
+                        tracing::debug!("{key} = {value}");
+                        println!("{value}");
+                    }
+                    None => {
+                        tracing::warn!("No annotation stored under: {key}");
+                        println!();
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 

@@ -2,14 +2,109 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::collections::BTreeMap;
 use std::ffi::OsString;
+use std::io;
 use std::time::Instant;
 
 use clap::{ArgGroup, Args};
-use miette::{Context, Result};
+use miette::{miette, Context, IntoDiagnostic, Result};
+use spfs::graph::object::EncodingFormat;
 use spfs::prelude::*;
+use spfs::runtime::KeyValuePair;
+use spfs::storage::FromConfig;
 use spfs::tracking::EnvSpec;
 use spfs_cli_common as cli;
+
+#[cfg(test)]
+#[path = "./cmd_run_test.rs"]
+mod cmd_run_test;
+#[cfg(test)]
+#[path = "./fixtures.rs"]
+mod fixtures;
+
+#[derive(Args, Clone, Debug)]
+pub struct Annotation {
+    /// Adds annotation key-value string data to the new runtime.
+    ///
+    /// This allows external processes to store arbitrary data in the
+    /// runtimes they create. This is most useful with durable runtimes.
+    /// The data can be retrieved by running `spfs runtime info` or
+    /// `spfs info` and using the `--get <KEY>` or `--get-all` options
+    ///
+    /// Annotation data is specified as key-value string pairs
+    /// separated by either an equals sign or colon (--annotation
+    /// name=value --annotation other:value). Multiple pairs of
+    /// annotation data can also be specified at once in yaml or json
+    /// format (--annotation '{name: value, other: value}').
+    ///
+    /// Annotation data can also be given in a json or yaml file, by
+    /// using the `--annotation-file <FILE>` argument. If given,
+    /// `--annotation` arguments will supersede anything given in
+    /// annotation files.
+    ///
+    /// If the same key is used more than once, the last key-value pair
+    /// will override the earlier values for the same key.
+    #[clap(long, value_name = "KEY:VALUE")]
+    pub annotation: Vec<String>,
+
+    /// Specify annotation key-value data from a json or yaml file
+    /// (see --annotation)
+    #[clap(long)]
+    pub annotation_file: Vec<std::path::PathBuf>,
+}
+
+impl Annotation {
+    /// Returns a list of annotation key-value pairs gathered from all
+    /// the annotation related command line arguments. The same keys,
+    /// and values, can appear multiple times in the list if specified
+    /// multiple times in various command line arguments.
+    pub fn get_data(&self) -> Result<Vec<KeyValuePair>> {
+        let mut data: Vec<KeyValuePair> = Vec::new();
+
+        for filename in self.annotation_file.iter() {
+            let reader: Box<dyn io::Read> =
+                if Ok("-".to_string()) == filename.clone().into_os_string().into_string() {
+                    // Treat '-' as "read from stdin"
+                    Box::new(io::stdin())
+                } else {
+                    Box::new(
+                        std::fs::File::open(filename)
+                            .into_diagnostic()
+                            .wrap_err(format!("Failed to open annotation file: {filename:?}"))?,
+                    )
+                };
+            let annotation: BTreeMap<String, String> = serde_yaml::from_reader(reader)
+                .into_diagnostic()
+                .wrap_err(format!(
+                    "Failed to parse as annotation data key-value pairs: {filename:?}"
+                ))?;
+            data.extend(annotation);
+        }
+
+        for pair in self.annotation.iter() {
+            let pair = pair.trim();
+            if pair.starts_with('{') {
+                let given: BTreeMap<String, String> = serde_yaml::from_str(pair)
+                    .into_diagnostic()
+                    .wrap_err("--annotation value looked like yaml, but could not be parsed")?;
+                data.extend(given);
+                continue;
+            }
+
+            let (name, value) = pair
+                .split_once('=')
+                .or_else(|| pair.split_once(':'))
+                .ok_or_else(|| {
+                    miette!("Invalid option: -annotation {pair} (should be in the form name=value)")
+                })?;
+
+            data.push((name.to_string(), value.to_string()));
+        }
+
+        Ok(data)
+    }
+}
 
 /// Run a program in a configured spfs environment
 #[derive(Debug, Args)]
@@ -50,6 +145,9 @@ pub struct CmdRun {
     /// Name of an existing durable runtime to reuse for this run
     #[clap(long, value_name = "RUNTIME_NAME")]
     pub rerun: Option<String>,
+
+    #[clap(flatten)]
+    pub annotation: Annotation,
 
     /// The tag or id of the desired runtime
     ///
@@ -144,6 +242,26 @@ impl CmdRun {
                     runtime.name(),
                     self.keep_runtime
                 );
+            }
+
+            let data = self.annotation.get_data()?;
+            if !data.is_empty() {
+                if config.storage.encoding_format == EncodingFormat::Legacy {
+                    return Err(spfs::Error::String(
+                        "Cannot use '--annotation' when spfs is configured to use the 'Legacy' encoding format".to_string(),
+                    )
+                    .into());
+                }
+
+                // These are added in reverse order so that the ones
+                // specified later on the command line will take precedence.
+                for (key, value) in data.into_iter().rev() {
+                    tracing::trace!("annotation being added: {key}: {value}");
+                    runtime
+                        .add_annotation(key, value, config.filesystem.annotation_size_limit)
+                        .await?;
+                }
+                tracing::trace!(" with annotation: {:?}", runtime);
             }
 
             let start_time = Instant::now();

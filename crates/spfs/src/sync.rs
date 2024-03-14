@@ -9,6 +9,7 @@ use once_cell::sync::OnceCell;
 use progress_bar_derive_macro::ProgressBar;
 use tokio::sync::Semaphore;
 
+use crate::graph::AnnotationValue;
 use crate::prelude::*;
 use crate::{encoding, graph, storage, tracking, Error, Result};
 
@@ -316,10 +317,34 @@ where
         }
 
         self.reporter.visit_layer(&layer);
-        let manifest = self.src.read_manifest(*layer.manifest()).await?;
-        let result = self.sync_manifest(manifest).await?;
+
+        let manifest_result = if let Some(manifest_digest) = layer.manifest() {
+            let manifest = self.src.read_manifest(*manifest_digest).await?;
+            self.sync_manifest(manifest).await?
+        } else {
+            SyncManifestResult::Skipped
+        };
+        let annotations = layer.annotations();
+        let annotation_results = if annotations.is_empty() {
+            vec![SyncObjectResult::Annotation(
+                SyncAnnotationResult::InternalValue,
+            )]
+        } else {
+            let mut results = Vec::with_capacity(annotations.len());
+            for entry in annotations {
+                results.push(SyncObjectResult::Annotation(
+                    self.sync_annotation(entry.into()).await?,
+                ));
+            }
+            results
+        };
+
         self.dest.write_object(&layer).await?;
-        let res = SyncLayerResult::Synced { layer, result };
+
+        let mut results = vec![SyncObjectResult::Manifest(manifest_result)];
+        results.extend(annotation_results);
+
+        let res = SyncLayerResult::Synced { layer, results };
         self.reporter.synced_layer(&res);
         Ok(res)
     }
@@ -358,6 +383,28 @@ where
         let res = SyncManifestResult::Synced { manifest, results };
         self.reporter.synced_manifest(&res);
         Ok(res)
+    }
+
+    async fn sync_annotation(
+        &self,
+        annotation: graph::Annotation<'_>,
+    ) -> Result<SyncAnnotationResult> {
+        match annotation.value() {
+            AnnotationValue::String(_) => Ok(SyncAnnotationResult::InternalValue),
+            AnnotationValue::Blob(digest) => {
+                if !self.processed_digests.insert(digest) {
+                    return Ok(SyncAnnotationResult::Duplicate);
+                }
+                self.reporter.visit_annotation(&annotation);
+                let sync_result = self.sync_digest(digest).await?;
+                let res = SyncAnnotationResult::Synced {
+                    digest,
+                    result: Box::new(sync_result),
+                };
+                self.reporter.synced_annotation(&res);
+                Ok(res)
+            }
+        }
     }
 
     async fn sync_entry(&self, entry: graph::Entry<'_>) -> Result<SyncEntryResult> {
@@ -533,6 +580,12 @@ pub trait SyncReporter: Send + Sync {
 
     /// Called when a manifest has finished syncing
     fn synced_manifest(&self, _result: &SyncManifestResult) {}
+
+    /// Called when an annotation has been identified to sync
+    fn visit_annotation(&self, _annotation: &graph::Annotation) {}
+
+    /// Called when an annotation has finished syncing
+    fn synced_annotation(&self, _result: &SyncAnnotationResult) {}
 
     /// Called when an entry has been identified to sync
     fn visit_entry(&self, _entry: &graph::Entry<'_>) {}
@@ -743,6 +796,7 @@ pub enum SyncObjectResult {
     Layer(SyncLayerResult),
     Blob(SyncBlobResult),
     Manifest(SyncManifestResult),
+    Annotation(SyncAnnotationResult),
 }
 
 impl SyncObjectResult {
@@ -758,6 +812,7 @@ impl SyncObjectResult {
             R::Layer(res) => res.summary(),
             R::Blob(res) => res.summary(),
             R::Manifest(res) => res.summary(),
+            R::Annotation(res) => res.summary(),
         }
     }
 }
@@ -797,7 +852,7 @@ pub enum SyncLayerResult {
     /// The layer was synced
     Synced {
         layer: graph::Layer,
-        result: SyncManifestResult,
+        results: Vec<SyncObjectResult>,
     },
 }
 
@@ -805,8 +860,8 @@ impl SyncLayerResult {
     pub fn summary(&self) -> SyncSummary {
         match self {
             Self::Skipped | Self::Duplicate => SyncSummary::skipped_one_object(),
-            Self::Synced { result, .. } => {
-                let mut summary = result.summary();
+            Self::Synced { results, .. } => {
+                let mut summary = results.iter().map(|r| r.summary()).sum();
                 summary += SyncSummary::synced_one_object();
                 summary
             }
@@ -836,6 +891,31 @@ impl SyncManifestResult {
                 summary += SyncSummary::synced_one_object();
                 summary
             }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum SyncAnnotationResult {
+    /// The annotation did not need to be synced
+    InternalValue,
+    /// The annotation was already synced in this session
+    Duplicate,
+    /// The annotation was stored in a blob and was synced
+    Synced {
+        digest: encoding::Digest,
+        result: Box<SyncObjectResult>,
+    },
+}
+
+impl SyncAnnotationResult {
+    pub fn summary(&self) -> SyncSummary {
+        match self {
+            Self::InternalValue | Self::Duplicate => SyncSummary::default(),
+            Self::Synced {
+                digest: _,
+                result: _,
+            } => SyncSummary::synced_one_object(),
         }
     }
 }

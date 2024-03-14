@@ -109,6 +109,100 @@ impl flatbuffers::SimpleToVerifyInSlice for Object {}
 pub struct ObjectUnionTableOffset {}
 
 #[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
+pub const ENUM_MIN_ANNOTATION_VALUE: u8 = 0;
+#[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
+pub const ENUM_MAX_ANNOTATION_VALUE: u8 = 2;
+#[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
+#[allow(non_camel_case_types)]
+pub const ENUM_VALUES_ANNOTATION_VALUE: [AnnotationValue; 3] = [
+  AnnotationValue::NONE,
+  AnnotationValue::AnnotationString,
+  AnnotationValue::AnnotationDigest,
+];
+
+/// Annotation data that is small enough is stored as a string in the
+/// layer, large data is stored outside the layer in a blob object
+/// pointed at by a digest
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[repr(transparent)]
+pub struct AnnotationValue(pub u8);
+#[allow(non_upper_case_globals)]
+impl AnnotationValue {
+  pub const NONE: Self = Self(0);
+  pub const AnnotationString: Self = Self(1);
+  pub const AnnotationDigest: Self = Self(2);
+
+  pub const ENUM_MIN: u8 = 0;
+  pub const ENUM_MAX: u8 = 2;
+  pub const ENUM_VALUES: &'static [Self] = &[
+    Self::NONE,
+    Self::AnnotationString,
+    Self::AnnotationDigest,
+  ];
+  /// Returns the variant's name or "" if unknown.
+  pub fn variant_name(self) -> Option<&'static str> {
+    match self {
+      Self::NONE => Some("NONE"),
+      Self::AnnotationString => Some("AnnotationString"),
+      Self::AnnotationDigest => Some("AnnotationDigest"),
+      _ => None,
+    }
+  }
+}
+impl core::fmt::Debug for AnnotationValue {
+  fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+    if let Some(name) = self.variant_name() {
+      f.write_str(name)
+    } else {
+      f.write_fmt(format_args!("<UNKNOWN {:?}>", self.0))
+    }
+  }
+}
+impl<'a> flatbuffers::Follow<'a> for AnnotationValue {
+  type Inner = Self;
+  #[inline]
+  unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    let b = flatbuffers::read_scalar_at::<u8>(buf, loc);
+    Self(b)
+  }
+}
+
+impl flatbuffers::Push for AnnotationValue {
+    type Output = AnnotationValue;
+    #[inline]
+    unsafe fn push(&self, dst: &mut [u8], _written_len: usize) {
+        flatbuffers::emplace_scalar::<u8>(dst, self.0);
+    }
+}
+
+impl flatbuffers::EndianScalar for AnnotationValue {
+  type Scalar = u8;
+  #[inline]
+  fn to_little_endian(self) -> u8 {
+    self.0.to_le()
+  }
+  #[inline]
+  #[allow(clippy::wrong_self_convention)]
+  fn from_little_endian(v: u8) -> Self {
+    let b = u8::from_le(v);
+    Self(b)
+  }
+}
+
+impl<'a> flatbuffers::Verifiable for AnnotationValue {
+  #[inline]
+  fn run_verifier(
+    v: &mut flatbuffers::Verifier, pos: usize
+  ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+    use self::flatbuffers::Verifiable;
+    u8::run_verifier(v, pos)
+  }
+}
+
+impl flatbuffers::SimpleToVerifyInSlice for AnnotationValue {}
+pub struct AnnotationValueUnionTableOffset {}
+
+#[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
 pub const ENUM_MIN_ENTRY_KIND: u8 = 0;
 #[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
 pub const ENUM_MAX_ENTRY_KIND: u8 = 5;
@@ -390,6 +484,7 @@ impl<'a> flatbuffers::Follow<'a> for Layer<'a> {
 
 impl<'a> Layer<'a> {
   pub const VT_MANIFEST: flatbuffers::VOffsetT = 4;
+  pub const VT_ANNOTATIONS: flatbuffers::VOffsetT = 6;
 
   #[inline]
   pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
@@ -401,17 +496,25 @@ impl<'a> Layer<'a> {
     args: &'args LayerArgs<'args>
   ) -> flatbuffers::WIPOffset<Layer<'bldr>> {
     let mut builder = LayerBuilder::new(_fbb);
+    if let Some(x) = args.annotations { builder.add_annotations(x); }
     if let Some(x) = args.manifest { builder.add_manifest(x); }
     builder.finish()
   }
 
 
   #[inline]
-  pub fn manifest(&self) -> &'a Digest {
+  pub fn manifest(&self) -> Option<&'a Digest> {
     // Safety:
     // Created from valid Table for this object
     // which contains a valid value in this slot
-    unsafe { self._tab.get::<Digest>(Layer::VT_MANIFEST, None).unwrap()}
+    unsafe { self._tab.get::<Digest>(Layer::VT_MANIFEST, None)}
+  }
+  #[inline]
+  pub fn annotations(&self) -> flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Annotation<'a>>> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Annotation>>>>(Layer::VT_ANNOTATIONS, None).unwrap()}
   }
 }
 
@@ -422,19 +525,22 @@ impl flatbuffers::Verifiable for Layer<'_> {
   ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
     use self::flatbuffers::Verifiable;
     v.visit_table(pos)?
-     .visit_field::<Digest>("manifest", Self::VT_MANIFEST, true)?
+     .visit_field::<Digest>("manifest", Self::VT_MANIFEST, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<Annotation>>>>("annotations", Self::VT_ANNOTATIONS, true)?
      .finish();
     Ok(())
   }
 }
 pub struct LayerArgs<'a> {
     pub manifest: Option<&'a Digest>,
+    pub annotations: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Annotation<'a>>>>>,
 }
 impl<'a> Default for LayerArgs<'a> {
   #[inline]
   fn default() -> Self {
     LayerArgs {
-      manifest: None, // required field
+      manifest: None,
+      annotations: None, // required field
     }
   }
 }
@@ -449,6 +555,10 @@ impl<'a: 'b, 'b> LayerBuilder<'a, 'b> {
     self.fbb_.push_slot_always::<&Digest>(Layer::VT_MANIFEST, manifest);
   }
   #[inline]
+  pub fn add_annotations(&mut self, annotations: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Annotation<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Layer::VT_ANNOTATIONS, annotations);
+  }
+  #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> LayerBuilder<'a, 'b> {
     let start = _fbb.start_table();
     LayerBuilder {
@@ -459,7 +569,7 @@ impl<'a: 'b, 'b> LayerBuilder<'a, 'b> {
   #[inline]
   pub fn finish(self) -> flatbuffers::WIPOffset<Layer<'a>> {
     let o = self.fbb_.end_table(self.start_);
-    self.fbb_.required(o, Layer::VT_MANIFEST,"manifest");
+    self.fbb_.required(o, Layer::VT_ANNOTATIONS,"annotations");
     flatbuffers::WIPOffset::new(o.value())
   }
 }
@@ -468,6 +578,7 @@ impl core::fmt::Debug for Layer<'_> {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     let mut ds = f.debug_struct("Layer");
       ds.field("manifest", &self.manifest());
+      ds.field("annotations", &self.annotations());
       ds.finish()
   }
 }
@@ -683,6 +794,388 @@ impl core::fmt::Debug for Blob<'_> {
     let mut ds = f.debug_struct("Blob");
       ds.field("size_", &self.size_());
       ds.field("payload", &self.payload());
+      ds.finish()
+  }
+}
+pub enum AnnotationStringOffset {}
+#[derive(Copy, Clone, PartialEq)]
+
+/// Needed because unions have to contain tables
+pub struct AnnotationString<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for AnnotationString<'a> {
+  type Inner = AnnotationString<'a>;
+  #[inline]
+  unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    Self { _tab: flatbuffers::Table::new(buf, loc) }
+  }
+}
+
+impl<'a> AnnotationString<'a> {
+  pub const VT_DATA: flatbuffers::VOffsetT = 4;
+
+  #[inline]
+  pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+    AnnotationString { _tab: table }
+  }
+  #[allow(unused_mut)]
+  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+    args: &'args AnnotationStringArgs<'args>
+  ) -> flatbuffers::WIPOffset<AnnotationString<'bldr>> {
+    let mut builder = AnnotationStringBuilder::new(_fbb);
+    if let Some(x) = args.data { builder.add_data(x); }
+    builder.finish()
+  }
+
+
+  #[inline]
+  pub fn data(&self) -> Option<&'a str> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(AnnotationString::VT_DATA, None)}
+  }
+}
+
+impl flatbuffers::Verifiable for AnnotationString<'_> {
+  #[inline]
+  fn run_verifier(
+    v: &mut flatbuffers::Verifier, pos: usize
+  ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+    use self::flatbuffers::Verifiable;
+    v.visit_table(pos)?
+     .visit_field::<flatbuffers::ForwardsUOffset<&str>>("data", Self::VT_DATA, false)?
+     .finish();
+    Ok(())
+  }
+}
+pub struct AnnotationStringArgs<'a> {
+    pub data: Option<flatbuffers::WIPOffset<&'a str>>,
+}
+impl<'a> Default for AnnotationStringArgs<'a> {
+  #[inline]
+  fn default() -> Self {
+    AnnotationStringArgs {
+      data: None,
+    }
+  }
+}
+
+pub struct AnnotationStringBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> AnnotationStringBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_data(&mut self, data: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(AnnotationString::VT_DATA, data);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> AnnotationStringBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    AnnotationStringBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<AnnotationString<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+impl core::fmt::Debug for AnnotationString<'_> {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    let mut ds = f.debug_struct("AnnotationString");
+      ds.field("data", &self.data());
+      ds.finish()
+  }
+}
+pub enum AnnotationDigestOffset {}
+#[derive(Copy, Clone, PartialEq)]
+
+/// Needed because unions have to contain tables
+pub struct AnnotationDigest<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for AnnotationDigest<'a> {
+  type Inner = AnnotationDigest<'a>;
+  #[inline]
+  unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    Self { _tab: flatbuffers::Table::new(buf, loc) }
+  }
+}
+
+impl<'a> AnnotationDigest<'a> {
+  pub const VT_DIGEST: flatbuffers::VOffsetT = 4;
+
+  #[inline]
+  pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+    AnnotationDigest { _tab: table }
+  }
+  #[allow(unused_mut)]
+  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+    args: &'args AnnotationDigestArgs<'args>
+  ) -> flatbuffers::WIPOffset<AnnotationDigest<'bldr>> {
+    let mut builder = AnnotationDigestBuilder::new(_fbb);
+    if let Some(x) = args.digest { builder.add_digest(x); }
+    builder.finish()
+  }
+
+
+  #[inline]
+  pub fn digest(&self) -> Option<&'a Digest> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<Digest>(AnnotationDigest::VT_DIGEST, None)}
+  }
+}
+
+impl flatbuffers::Verifiable for AnnotationDigest<'_> {
+  #[inline]
+  fn run_verifier(
+    v: &mut flatbuffers::Verifier, pos: usize
+  ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+    use self::flatbuffers::Verifiable;
+    v.visit_table(pos)?
+     .visit_field::<Digest>("digest", Self::VT_DIGEST, false)?
+     .finish();
+    Ok(())
+  }
+}
+pub struct AnnotationDigestArgs<'a> {
+    pub digest: Option<&'a Digest>,
+}
+impl<'a> Default for AnnotationDigestArgs<'a> {
+  #[inline]
+  fn default() -> Self {
+    AnnotationDigestArgs {
+      digest: None,
+    }
+  }
+}
+
+pub struct AnnotationDigestBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> AnnotationDigestBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_digest(&mut self, digest: &Digest) {
+    self.fbb_.push_slot_always::<&Digest>(AnnotationDigest::VT_DIGEST, digest);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> AnnotationDigestBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    AnnotationDigestBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<AnnotationDigest<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+impl core::fmt::Debug for AnnotationDigest<'_> {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    let mut ds = f.debug_struct("AnnotationDigest");
+      ds.field("digest", &self.digest());
+      ds.finish()
+  }
+}
+pub enum AnnotationOffset {}
+#[derive(Copy, Clone, PartialEq)]
+
+/// Annotation data held in a layer for use by external tools run inside a runtime
+pub struct Annotation<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for Annotation<'a> {
+  type Inner = Annotation<'a>;
+  #[inline]
+  unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    Self { _tab: flatbuffers::Table::new(buf, loc) }
+  }
+}
+
+impl<'a> Annotation<'a> {
+  pub const VT_KEY: flatbuffers::VOffsetT = 4;
+  pub const VT_DATA_TYPE: flatbuffers::VOffsetT = 6;
+  pub const VT_DATA: flatbuffers::VOffsetT = 8;
+
+  #[inline]
+  pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+    Annotation { _tab: table }
+  }
+  #[allow(unused_mut)]
+  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+    args: &'args AnnotationArgs<'args>
+  ) -> flatbuffers::WIPOffset<Annotation<'bldr>> {
+    let mut builder = AnnotationBuilder::new(_fbb);
+    if let Some(x) = args.data { builder.add_data(x); }
+    if let Some(x) = args.key { builder.add_key(x); }
+    builder.add_data_type(args.data_type);
+    builder.finish()
+  }
+
+
+  #[inline]
+  pub fn key(&self) -> &'a str {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(Annotation::VT_KEY, None).unwrap()}
+  }
+  #[inline]
+  pub fn data_type(&self) -> AnnotationValue {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<AnnotationValue>(Annotation::VT_DATA_TYPE, Some(AnnotationValue::NONE)).unwrap()}
+  }
+  #[inline]
+  pub fn data(&self) -> flatbuffers::Table<'a> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(Annotation::VT_DATA, None).unwrap()}
+  }
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn data_as_annotation_string(&self) -> Option<AnnotationString<'a>> {
+    if self.data_type() == AnnotationValue::AnnotationString {
+      let u = self.data();
+      // Safety:
+      // Created from a valid Table for this object
+      // Which contains a valid union in this slot
+      Some(unsafe { AnnotationString::init_from_table(u) })
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn data_as_annotation_digest(&self) -> Option<AnnotationDigest<'a>> {
+    if self.data_type() == AnnotationValue::AnnotationDigest {
+      let u = self.data();
+      // Safety:
+      // Created from a valid Table for this object
+      // Which contains a valid union in this slot
+      Some(unsafe { AnnotationDigest::init_from_table(u) })
+    } else {
+      None
+    }
+  }
+
+}
+
+impl flatbuffers::Verifiable for Annotation<'_> {
+  #[inline]
+  fn run_verifier(
+    v: &mut flatbuffers::Verifier, pos: usize
+  ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+    use self::flatbuffers::Verifiable;
+    v.visit_table(pos)?
+     .visit_field::<flatbuffers::ForwardsUOffset<&str>>("key", Self::VT_KEY, true)?
+     .visit_union::<AnnotationValue, _>("data_type", Self::VT_DATA_TYPE, "data", Self::VT_DATA, true, |key, v, pos| {
+        match key {
+          AnnotationValue::AnnotationString => v.verify_union_variant::<flatbuffers::ForwardsUOffset<AnnotationString>>("AnnotationValue::AnnotationString", pos),
+          AnnotationValue::AnnotationDigest => v.verify_union_variant::<flatbuffers::ForwardsUOffset<AnnotationDigest>>("AnnotationValue::AnnotationDigest", pos),
+          _ => Ok(()),
+        }
+     })?
+     .finish();
+    Ok(())
+  }
+}
+pub struct AnnotationArgs<'a> {
+    pub key: Option<flatbuffers::WIPOffset<&'a str>>,
+    pub data_type: AnnotationValue,
+    pub data: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
+}
+impl<'a> Default for AnnotationArgs<'a> {
+  #[inline]
+  fn default() -> Self {
+    AnnotationArgs {
+      key: None, // required field
+      data_type: AnnotationValue::NONE,
+      data: None, // required field
+    }
+  }
+}
+
+pub struct AnnotationBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> AnnotationBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_key(&mut self, key: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Annotation::VT_KEY, key);
+  }
+  #[inline]
+  pub fn add_data_type(&mut self, data_type: AnnotationValue) {
+    self.fbb_.push_slot::<AnnotationValue>(Annotation::VT_DATA_TYPE, data_type, AnnotationValue::NONE);
+  }
+  #[inline]
+  pub fn add_data(&mut self, data: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Annotation::VT_DATA, data);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> AnnotationBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    AnnotationBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<Annotation<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    self.fbb_.required(o, Annotation::VT_KEY,"key");
+    self.fbb_.required(o, Annotation::VT_DATA,"data");
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+impl core::fmt::Debug for Annotation<'_> {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    let mut ds = f.debug_struct("Annotation");
+      ds.field("key", &self.key());
+      ds.field("data_type", &self.data_type());
+      match self.data_type() {
+        AnnotationValue::AnnotationString => {
+          if let Some(x) = self.data_as_annotation_string() {
+            ds.field("data", &x)
+          } else {
+            ds.field("data", &"InvalidFlatbuffer: Union discriminant does not match value.")
+          }
+        },
+        AnnotationValue::AnnotationDigest => {
+          if let Some(x) = self.data_as_annotation_digest() {
+            ds.field("data", &x)
+          } else {
+            ds.field("data", &"InvalidFlatbuffer: Union discriminant does not match value.")
+          }
+        },
+        _ => {
+          let x: Option<()> = None;
+          ds.field("data", &x)
+        },
+      };
       ds.finish()
   }
 }

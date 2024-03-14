@@ -240,17 +240,19 @@ where
             .map_err(|err| err.wrap("resolve stack to layers"))?;
         let mut futures = futures::stream::FuturesOrdered::new();
         for layer in layers {
-            let digest = *layer.manifest();
-            let fut = self
-                .repo
-                .read_manifest(digest)
-                .map_err(move |err| err.wrap(format!("read manifest {digest}")))
-                .and_then(move |manifest| async move {
-                    self.render_manifest(&manifest, render_type)
-                        .await
-                        .map_err(move |err| err.wrap(format!("render manifest {digest}")))
-                });
-            futures.push_back(fut);
+            if let Some(manifest_digest) = layer.manifest() {
+                let digest = *manifest_digest;
+                let fut = self
+                    .repo
+                    .read_manifest(digest)
+                    .map_err(move |err| err.wrap(format!("read manifest {digest}")))
+                    .and_then(move |manifest| async move {
+                        self.render_manifest(&manifest, render_type)
+                            .await
+                            .map_err(move |err| err.wrap(format!("render manifest {digest}")))
+                    });
+                futures.push_back(fut);
+            }
         }
         futures.try_collect().await
     }
@@ -272,7 +274,9 @@ where
         let layers = crate::resolve::resolve_stack_to_layers_with_repo(&stack, self.repo).await?;
         let mut manifests = Vec::with_capacity(layers.len());
         for layer in layers {
-            manifests.push(self.repo.read_manifest(*layer.manifest()).await?);
+            if let Some(manifest_digest) = layer.manifest() {
+                manifests.push(self.repo.read_manifest(*manifest_digest).await?);
+            }
         }
         let mut manifest = tracking::Manifest::default();
         for next in manifests.into_iter() {

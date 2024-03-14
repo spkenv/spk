@@ -175,6 +175,7 @@ impl CmdEnter {
             // For example, the monitor may need to run fusermount to clean up
             // fuse filesystems within the runtime before shutting down.
             tracing::debug!("initializing runtime {owned:#?}");
+
             let start_time = Instant::now();
             let render_summary = spfs::initialize_runtime(&mut owned).await?;
             self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64());

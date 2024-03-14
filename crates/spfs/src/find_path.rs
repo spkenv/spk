@@ -89,13 +89,15 @@ async fn find_path_in_spfs_item(
         }
 
         graph::object::Enum::Layer(obj) => {
-            let item = repo.read_object(*obj.manifest()).await?;
-            let paths_to_file = find_path_in_spfs_item(filepath, &item, repo).await?;
-            for path in paths_to_file {
-                let mut new_path: ObjectPath = Vec::new();
-                new_path.push(ObjectPathEntry::Parent(obj.to_object()));
-                new_path.extend(path);
-                paths.push(new_path);
+            if let Some(manifest_digest) = obj.manifest() {
+                let item = repo.read_object(*manifest_digest).await?;
+                let paths_to_file = find_path_in_spfs_item(filepath, &item, repo).await?;
+                for path in paths_to_file {
+                    let mut new_path: ObjectPath = Vec::new();
+                    new_path.push(ObjectPathEntry::Parent(obj.to_object()));
+                    new_path.extend(path);
+                    paths.push(new_path);
+                }
             }
         }
 
@@ -115,9 +117,8 @@ async fn find_path_in_spfs_item(
         }
 
         graph::object::Enum::Blob(_) => {
-            // These are not examined here when searching for the
-            // filepath because the filepath will be found by walking
-            // Manifest objects.
+            // Not examined here when searching for the filepath because
+            // filepaths are only found by walking Manifest objects.
         }
     };
 

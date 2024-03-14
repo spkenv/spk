@@ -32,6 +32,7 @@ nix = { workspace = true, features = ["signal"] }
 number_prefix = "*"                                                           # we hope to match versions with indicatif
 relative-path = { workspace = true }
 serde_json = { workspace = true }
+serde_yaml = { workspace = true }
 spfs = { workspace = true }
 spfs-cli-common = { workspace = true }
 strum = { workspace = true, features = ["derive"] }
@@ -52,3 +53,7 @@ features = [
     "Win32_System_SystemInformation",
     "Win32_System_Threading",
 ]
+
+[dev-dependencies]
+rstest = { workspace = true }
+tempfile = { workspace = true }

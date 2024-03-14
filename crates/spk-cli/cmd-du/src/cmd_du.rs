@@ -354,8 +354,14 @@ impl<T: Output> Du<T> {
                                                 }
                                             }
                                             Enum::Layer(object) => {
-                                                item = repo.read_object(*object.manifest()).await?;
+                                                let manifest_digest = match object.manifest() {
+                                                    None => continue,
+                                                    Some(d) => d,
+                                                };
+                                                item = repo.read_object(*manifest_digest).await?;
                                                 next_iter_objects.push(item);
+                                                // TODO: what about annotation data stored in a blob,
+                                                // that kind of data isn't counted here?
                                             }
                                             Enum::Manifest(object) => {
                                                 let tracking_manifest = object.to_tracking_manifest();

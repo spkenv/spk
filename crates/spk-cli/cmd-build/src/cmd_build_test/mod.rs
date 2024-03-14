@@ -474,7 +474,11 @@ build:
     let layer = repo.read_layer(digest).await.unwrap();
 
     let manifest = repo
-        .read_manifest(*layer.manifest())
+        .read_manifest(
+            *layer
+                .manifest()
+                .expect("Layer should have a manifest in this test"),
+        )
         .await
         .unwrap()
         .to_tracking_manifest();
@@ -574,7 +578,11 @@ build:
     let layer = repo.read_layer(digest).await.unwrap();
 
     let manifest = repo
-        .read_manifest(*layer.manifest())
+        .read_manifest(
+            *layer
+                .manifest()
+                .expect("Layer should have a manifest in this test"),
+        )
         .await
         .unwrap()
         .to_tracking_manifest();
