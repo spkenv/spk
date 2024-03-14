@@ -99,7 +99,7 @@ async fn test_ls_shows_remote_packages_with_no_host() {
 /// `spk ls` is expected to list packages in the configured remote
 /// repositories that match the default filter for the current host
 #[tokio::test]
-async fn test_ls_shows_remote_packages_with_default_filter() {
+async fn test_ls_shows_remote_packages_with_host_default_filter() {
     let mut rt = spfs_runtime().await;
     let remote_repo = spfsrepo().await;
 
@@ -117,11 +117,16 @@ async fn test_ls_shows_remote_packages_with_default_filter() {
     let recipe = recipe!({"pkg": "my-pkg/1.0.0"});
     remote_repo.publish_recipe(&recipe).await.unwrap();
     let host_options = HOST_OPTIONS.get().unwrap();
+    let os_id = host_options.get(OptName::distro()).unwrap();
     let spec = spec!({"pkg": "my-pkg/1.0.0/BGSHW3CN",
     "build": {
-        "options": [
-            {"var": format!("distro/{}", host_options.get(OptName::distro()).unwrap()) }
-        ]
+        "options":
+         [
+             {"var": format!("{}/{}", OptName::distro(), host_options.get(OptName::distro()).unwrap()) },
+             {"var": format!("{}/{}", OptName::os(), host_options.get(OptName::os()).unwrap()) },
+             {"var": format!("{}/{}", OptName::arch(), host_options.get(OptName::arch()).unwrap()) },
+             {"var": format!("{}/{}", os_id, host_options.get(os_id).unwrap()) }
+         ]
     }});
     remote_repo
         .publish_package(
@@ -133,94 +138,7 @@ async fn test_ls_shows_remote_packages_with_default_filter() {
         .await
         .unwrap();
 
-    let mut opt = Opt::try_parse_from(["ls"]).unwrap();
-    opt.ls.run().await.unwrap();
-    assert_ne!(opt.ls.output.vec.len(), 0);
-}
-
-/// `spk ls --filter-by opt=value` is expected to list packages in the
-/// configured remote repositories that match the filter, which should
-/// override the default host distro filter
-#[tokio::test]
-async fn test_ls_shows_remote_packages_with_filter_by() {
-    let mut rt = spfs_runtime().await;
-    let remote_repo = spfsrepo().await;
-
-    // Populate the "origin" repo with one package.
-    // The "local" repo is empty.
-
-    rt.add_remote_repo(
-        "origin",
-        Remote::Address(RemoteAddress {
-            address: remote_repo.address().clone(),
-        }),
-    )
-    .unwrap();
-
-    let recipe = recipe!({"pkg": "my-pkg/1.0.0"});
-    remote_repo.publish_recipe(&recipe).await.unwrap();
-    let spec = spec!({"pkg": "my-pkg/1.0.0/BGSHW3CN",
-    "build": {
-        "options": [
-            {"var": "distro/futureOs" },
-            {"var": "testopt/testvalue" }
-        ]
-    }});
-    remote_repo
-        .publish_package(
-            &spec,
-            &vec![(Component::Run, empty_layer_digest())]
-                .into_iter()
-                .collect(),
-        )
-        .await
-        .unwrap();
-
-    let mut opt = Opt::try_parse_from(["ls", "--filter-by", "testopt=testvalue"]).unwrap();
-    opt.ls.run().await.unwrap();
-    assert_ne!(opt.ls.output.vec.len(), 0);
-}
-
-/// `spk ls --filter-by opt?=value` is expected to list packages in the
-/// configured remote repositories that match the filter, which should
-/// override the default host distro filter
-#[tokio::test]
-async fn test_ls_shows_remote_packages_with_filter_by_ok_if_name_missing() {
-    let mut rt = spfs_runtime().await;
-    let remote_repo = spfsrepo().await;
-
-    // Populate the "origin" repo with one package.
-    // The "local" repo is empty.
-
-    rt.add_remote_repo(
-        "origin",
-        Remote::Address(RemoteAddress {
-            address: remote_repo.address().clone(),
-        }),
-    )
-    .unwrap();
-
-    let recipe = recipe!({"pkg": "my-pkg/1.0.0"});
-    remote_repo.publish_recipe(&recipe).await.unwrap();
-    let spec = spec!({"pkg": "my-pkg/1.0.0/BGSHW3CN",
-    "build": {
-        "options": [
-            {"var": "testopt/testvalue" }
-        ]
-    }});
-    remote_repo
-        .publish_package(
-            &spec,
-            &vec![(Component::Run, empty_layer_digest())]
-                .into_iter()
-                .collect(),
-        )
-        .await
-        .unwrap();
-
-    // Filtering by a opt name, distro, that the package does not
-    // have. This is ok with the ?= operator.
-    let mut opt = Opt::try_parse_from(["ls", "--filter-by", "distro?=testvalue"]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "--host"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_ne!(opt.ls.output.vec.len(), 0);
 }

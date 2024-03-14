@@ -4,10 +4,11 @@
 
 use std::collections::{BTreeSet, HashSet};
 use std::fmt::Write;
+use std::sync::Arc;
 
 use clap::Args;
 use colored::Colorize;
-use miette::{miette, Error, Result};
+use miette::{miette, Result};
 use nom::combinator::all_consuming;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::{FormatComponents, FormatIdent, FormatOptionMap};
@@ -15,7 +16,7 @@ use spk_schema::foundation::ident_component::ComponentSet;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::ident::{parse_ident, AnyIdent};
 use spk_schema::ident_ops::parsing::{ident_parts, IdentParts, KNOWN_REPOSITORY_NAMES};
-use spk_schema::name::{OptName, OptNameBuf};
+use spk_schema::name::OptNameBuf;
 use spk_schema::option_map::HOST_OPTIONS;
 use spk_schema::spec_ops::WithVersion;
 use spk_schema::{Deprecate, OptionMap, Package, Spec};
@@ -46,19 +47,9 @@ impl Output for Console {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub(crate) enum FilterOperator {
-    // name=value and name must be present and value must match
-    MustMatchNameValue,
-    // name?=value and if name is present then value must match, if
-    // name is not present it is considered a match.
-    OkIfNameMissing,
-}
-
 #[derive(Debug, Clone)]
 pub(crate) struct OptFilter {
     pub(crate) name: OptNameBuf,
-    pub(crate) op: FilterOperator,
     pub(crate) value: String,
 }
 
@@ -66,50 +57,9 @@ impl OptFilter {
     pub fn matches(&self, options: &OptionMap) -> bool {
         if let Some(v) = options.get(&self.name) {
             self.value == *v
-        } else if self.op == FilterOperator::MustMatchNameValue {
-            // name=value filters must have the name (and value)
-            // to match, not having the name means it does not match
+        } else {
             false
-        } else {
-            // name?=value filter matches when the name is not
-            // present. Note this means /src builds will always match
-            // this kind of filter because /src builds have empty
-            // options sets.
-            true
         }
-    }
-}
-
-impl std::str::FromStr for OptFilter {
-    type Err = Error;
-
-    fn from_str(value: &str) -> Result<Self> {
-        let mut op = FilterOperator::MustMatchNameValue;
-
-        // TODO: if this gets more complicated it may need to use a
-        // proper parser.
-        let (name, value) = if value.contains("?=") {
-            op = FilterOperator::OkIfNameMissing;
-            value
-                .split_once("?=")
-                .ok_or_else(|| {
-                    miette!("Invalid option filter: {value} (should be in the form NAME?=VALUE or NAME=VALUE)")
-                })
-                .and_then(|(name, value)| Ok((OptNameBuf::try_from(name)?, value)))?
-        } else {
-            value
-                .split_once('=')
-                .or_else(|| value.split_once(':'))
-                .ok_or_else(|| {
-                    miette!("Invalid option filter: {value} (should be in the form NAME=VALUE or NAME?=VALUE)")
-                })
-                .and_then(|(name, value)| Ok((OptNameBuf::try_from(name)?, value)))?
-        };
-        Ok(Self {
-            name,
-            op,
-            value: value.to_string(),
-        })
     }
 }
 
@@ -135,16 +85,15 @@ pub struct Ls<Output: Default = Console> {
     #[clap(long, short)]
     deprecated: bool,
 
-    /// Only show packages with builds that match the filter,
-    /// e.g. 'distro=centos'. You can use '?=' instead of '=' if the
-    /// filter should only used if the opt is present in builds.
-    #[clap(long, name = "OPT=VALUE")]
-    filter_by: Option<OptFilter>,
-
-    /// Disable only showing items that have a build that matches the
-    /// current host's distro host option.
-    #[clap(long)]
+    /// Disable the filtering that would only show items that have a
+    /// build that matches the current host's host options.
+    #[clap(long, default_value_t = false)]
     nohost: bool,
+
+    /// Enable filtering to only show items that have a build that
+    /// matches the current host's host options. This is the default.
+    #[clap(long, default_value_t = true)]
+    host: bool,
 
     /// Given a name, list versions. Given a name/version list builds.
     ///
@@ -163,25 +112,26 @@ impl<T: Output> Run for Ls<T> {
     async fn run(&mut self) -> Result<Self::Output> {
         let repos = self.repos.get_repos_for_non_destructive_operation().await?;
 
-        if self.recursive {
-            return self.list_recursively(repos).await;
-        }
-
-        // Set the default filter to the current host's distro option.
-        // --nohost and --filter-by will override this. Note: this
-        // only uses the 'distro' option.
-        // TODO: longer term make this configurable and support multiple filters
-        if !self.nohost && self.filter_by.is_none() {
+        // Set the default filter to the all current host's host
+        // options (--host). --nohost will disable this.
+        let mut filter_by = None;
+        if !self.nohost && self.host {
             let host_options = HOST_OPTIONS.get()?;
-            if let Some(value) = host_options.get(OptName::distro()) {
-                self.filter_by = Some(OptFilter {
-                    name: OptName::distro().into(),
-                    op: FilterOperator::MustMatchNameValue,
+            let filters = host_options
+                .iter()
+                .map(|(name, value)| OptFilter {
+                    name: name.clone(),
                     value: value.to_string(),
-                });
-            }
+                })
+                .collect();
+
+            filter_by = Some(filters);
         }
-        tracing::debug!("Filter is: {:?}", self.filter_by);
+        tracing::debug!("Filter is: {:?}", filter_by);
+
+        if self.recursive {
+            return self.list_recursively(repos, &filter_by).await;
+        }
 
         let mut results = Vec::new();
         match &self.package {
@@ -189,25 +139,20 @@ impl<T: Output> Run for Ls<T> {
                 // List all the packages in the repo(s) - the set
                 // provides the sorting, but hides when a package is
                 // in multiple repos
+                if let Some(_filters) = &filter_by {
+                    return self.filter_all_top_level_packages(repos, &filter_by).await;
+                }
+
+                // Simpler without a filter
                 // TODO: should this include the repo name in the output?
                 let mut set = BTreeSet::new();
-                if let Some(_filter) = &self.filter_by {
+                for (_repo_name, repo) in repos {
                     set.extend(
-                        self.filter_all_top_level_packages(repos)
+                        repo.list_packages()
                             .await?
                             .into_iter()
                             .map(PkgNameBuf::into),
-                    );
-                } else {
-                    // Simpler without a filter
-                    for (_repo_name, repo) in repos {
-                        set.extend(
-                            repo.list_packages()
-                                .await?
-                                .into_iter()
-                                .map(PkgNameBuf::into),
-                        )
-                    }
+                    )
                 }
                 results = set.into_iter().collect();
             }
@@ -255,13 +200,9 @@ impl<T: Output> Run for Ls<T> {
                     while let Some(build) = builds.pop() {
                         match repo.read_package(&build).await {
                             Ok(spec) => {
-                                if let Some(filter) = &self.filter_by {
-                                    if !filter.matches(&spec.option_values()) {
-                                        // Skip this one
-                                        continue;
-                                    }
+                                if !self.matches_all_filters(&spec, &filter_by) {
+                                    continue;
                                 }
-
                                 builds_remaining = true;
 
                                 if spec.is_deprecated() {
@@ -329,11 +270,8 @@ impl<T: Output> Run for Ls<T> {
                             }
                         };
 
-                        if let Some(filter) = &self.filter_by {
-                            if !filter.matches(&spec.option_values()) {
-                                // Skip this one
-                                continue;
-                            }
+                        if !self.matches_all_filters(&spec, &filter_by) {
+                            continue;
                         }
 
                         if spec.is_deprecated() && !self.deprecated {
@@ -368,6 +306,7 @@ impl<T: Output> Ls<T> {
     async fn list_recursively(
         &mut self,
         repos: Vec<(String, storage::RepositoryHandle)>,
+        filter_by: &Option<Vec<OptFilter>>,
     ) -> Result<i32> {
         let search_term = self
             .package
@@ -451,11 +390,8 @@ impl<T: Output> Ls<T> {
                         }
                     };
 
-                    if let Some(filter) = &self.filter_by {
-                        if !filter.matches(&spec.option_values()) {
-                            // Skip this one
-                            continue;
-                        }
+                    if !self.matches_all_filters(&spec, filter_by) {
+                        continue;
                     }
 
                     if spec.is_deprecated() && !self.deprecated {
@@ -478,18 +414,35 @@ impl<T: Output> Ls<T> {
         Ok(0)
     }
 
+    fn matches_all_filters(&self, spec: &Arc<Spec>, filter_by: &Option<Vec<OptFilter>>) -> bool {
+        if let Some(filters) = filter_by {
+            let settings = spec.option_values();
+            for filter in filters {
+                if !filter.matches(&settings) {
+                    return false;
+                }
+            }
+        }
+        // All the filters match, or there were no filters
+        true
+    }
+
     async fn filter_all_top_level_packages(
         &mut self,
         repos: Vec<(String, storage::RepositoryHandle)>,
-    ) -> Result<HashSet<PkgNameBuf>> {
+        filter_by: &Option<Vec<OptFilter>>,
+    ) -> Result<i32> {
         let mut packages = Vec::new();
         for (index, (_repo_name, repo)) in repos.iter().enumerate() {
             packages.extend(repo.list_packages().await?.into_iter().map(|p| (p, index)));
         }
+        packages.sort_by_key(|p| p.0.to_string());
 
-        let mut results = HashSet::new();
+        let mut seen = HashSet::new();
         for (package, index) in packages {
-            if results.contains(&package) {
+            if seen.contains(&package) {
+                // Once a package have been output from one repo, this
+                // doesn't need to consider the same package in other repos.
                 continue;
             }
 
@@ -515,11 +468,8 @@ impl<T: Output> Ls<T> {
                         }
                     };
 
-                    if let Some(filter) = &self.filter_by {
-                        if !filter.matches(&spec.option_values()) {
-                            // Skip this one
-                            continue;
-                        }
+                    if !self.matches_all_filters(&spec, filter_by) {
+                        continue;
                     }
 
                     if spec.is_deprecated() && !self.deprecated {
@@ -536,13 +486,14 @@ impl<T: Output> Ls<T> {
                 // One version with a matching build is enough for
                 // this package to be counted has matching
                 if found_a_match {
-                    results.insert(package);
+                    self.output.println(package.to_string());
+                    seen.insert(package);
                     break;
                 }
             }
         }
 
-        Ok(results)
+        Ok(0)
     }
 
     async fn format_build(&self, spec: &Spec, repo: &storage::RepositoryHandle) -> Result<String> {
