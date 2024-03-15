@@ -31,7 +31,7 @@ authors = [
     "Nichol Yip <nyip@imageworks.com>",
 ]
 edition = "2021"
-version = "0.38.0"
+version = "0.40.0"
 
 [workspace.dependencies]
 arc-swap = "1.6.0"
