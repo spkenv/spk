@@ -1,6 +1,6 @@
 Name: spk
 Version: 0.40.0
-Release: 1
+Release: 1%{?dist}
 Summary: Package manager and a software runtime for studio environments
 License: NONE
 URL: https://github.com/imageworks/spk
@@ -14,6 +14,9 @@ BuildRequires: openssl-devel
 BuildRequires: python3-devel
 BuildRequires: python3-pip
 BuildRequires: fuse3-devel
+# see explicit versions from dockerfile
+# BuildRequires: flatbuffers-compiler
+# BuildRequires: protobuf-compiler
 BuildRequires: m4
 BuildRequires: cmake3
 BuildRequires: make

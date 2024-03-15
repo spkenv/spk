@@ -10,6 +10,7 @@ RUN yum install -y \
 RUN ln -s cmake3 /usr/bin/cmake
 # install rustup for the cargo tool and compile toolchain
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh /dev/stdin -y --default-toolchain=1.76.0
+ENV PATH="${PATH}:/root/.cargo/bin"
 # install protobuf compiler (protoc command)
 ENV PB_REL="https://github.com/protocolbuffers/protobuf/releases"
 RUN curl --proto '=https' --tlsv1.2 -sSfLO ${PB_REL}/download/v3.15.8/protoc-3.15.8-linux-x86_64.zip && \
@@ -21,11 +22,6 @@ ENV FB_REL=https://github.com/google/flatbuffers/releases/
 RUN curl --proto '=https' --tlsv1.2 -sSfL ${FB_REL}/download/v23.5.26/Linux.flatc.binary.g++-10.zip | funzip > /usr/bin/flatc
 RUN chmod +x /usr/bin/flatc
 ENV PATH $PATH:/root/.cargo/bin
-
-# Protobuf compiler (more recent than yum package)
-ENV PB_REL="https://github.com/protocolbuffers/protobuf/releases"
-RUN curl -LO $PB_REL/download/v3.15.8/protoc-3.15.8-linux-x86_64.zip
-RUN unzip protoc-3.15.8-linux-x86_64.zip -d /
 
 RUN mkdir -p /root/rpmbuild/{SOURCES,SPECS,RPMS,SRPMS}
 
