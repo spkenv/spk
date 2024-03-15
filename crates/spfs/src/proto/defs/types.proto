@@ -21,6 +21,8 @@ message Object {
         Tree tree = 4 [deprecated = true];
         Blob blob = 5;
         bool mask = 6 [deprecated = true];
+        // A flatbuffer containing the object
+        bytes buffer = 7;
     }
 }
 

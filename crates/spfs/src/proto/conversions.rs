@@ -136,6 +136,14 @@ impl From<super::Error> for Error {
     }
 }
 
+impl<T: graph::ObjectProto> From<&graph::FlatObject<T>> for super::Object {
+    fn from(value: &graph::FlatObject<T>) -> Self {
+        Self {
+            kind: Some(super::object::Kind::Buffer(value.inner_bytes().clone())),
+        }
+    }
+}
+
 impl From<&graph::object::Enum> for super::Object {
     fn from(source: &graph::object::Enum) -> Self {
         use super::object::Kind;
@@ -172,6 +180,7 @@ impl TryFrom<super::Object> for graph::Object {
                 "Unexpected and unsupported object kind {:?}",
                 source.kind
             ))),
+            Some(Kind::Buffer(buf)) => graph::Object::new(buf),
             None => Err(Error::String(
                 "Expected non-empty object kind in rpc message".to_string(),
             )),
