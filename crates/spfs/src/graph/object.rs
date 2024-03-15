@@ -467,6 +467,11 @@ impl<T: ObjectProto> FlatObject<T> {
             flatbuffers::root_unchecked::<'_, spfs_proto::AnyObject>(buf)
         }
     }
+
+    /// The inner bytes of this flat buffer
+    pub fn inner_bytes(&self) -> &bytes::Bytes {
+        &self.buf
+    }
 }
 
 impl<'buf, T> FlatObject<T>

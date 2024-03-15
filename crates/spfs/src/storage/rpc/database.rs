@@ -70,7 +70,7 @@ impl graph::DatabaseView for super::RpcRepository {
 impl graph::Database for super::RpcRepository {
     async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
         let request = proto::WriteObjectRequest {
-            object: Some((&obj.to_enum()).into()),
+            object: Some(obj.into()),
         };
         self.db_client
             .clone()
