@@ -21,6 +21,7 @@ nom = { workspace = true }
 nom-supreme = { workspace = true }
 spfs = { workspace = true }
 spk-cli-common = { workspace = true }
+spk-config = { workspace = true }
 spk-solve = { workspace = true }
 spk-schema = { workspace = true }
 spk-storage = { workspace = true }

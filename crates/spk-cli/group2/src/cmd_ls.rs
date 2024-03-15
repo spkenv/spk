@@ -20,7 +20,7 @@ use spk_schema::name::OptNameBuf;
 use spk_schema::option_map::HOST_OPTIONS;
 use spk_schema::spec_ops::WithVersion;
 use spk_schema::{Deprecate, OptionMap, Package, Spec};
-use spk_storage as storage;
+use {spk_config, spk_storage as storage};
 
 #[cfg(test)]
 #[path = "./cmd_ls_test.rs"]
@@ -87,12 +87,12 @@ pub struct Ls<Output: Default = Console> {
 
     /// Disable the filtering that would only show items that have a
     /// build that matches the current host's host options.
-    #[clap(long, default_value_t = false)]
+    #[clap(long, conflicts_with = "host")]
     nohost: bool,
 
     /// Enable filtering to only show items that have a build that
     /// matches the current host's host options. This is the default.
-    #[clap(long, default_value_t = true)]
+    #[clap(long)]
     host: bool,
 
     /// Given a name, list versions. Given a name/version list builds.
@@ -110,7 +110,20 @@ impl<T: Output> Run for Ls<T> {
     type Output = i32;
 
     async fn run(&mut self) -> Result<Self::Output> {
-        let repos = self.repos.get_repos_for_non_destructive_operation().await?;
+        let config = spk_config::get_config()?;
+        if config.filtering.use_host_options {
+            // If it hasn't been overridden on the command line, turn
+            // on the --host option
+            if !self.nohost {
+                self.host = true;
+            }
+        } else {
+            // If it hasn't been overridden on the command line, turn
+            // on the --host option
+            if !self.host {
+                self.nohost = true;
+            }
+        }
 
         // Set the default filter to the all current host's host
         // options (--host). --nohost will disable this.
@@ -128,6 +141,8 @@ impl<T: Output> Run for Ls<T> {
             filter_by = Some(filters);
         }
         tracing::debug!("Filter is: {:?}", filter_by);
+
+        let repos = self.repos.get_repos_for_non_destructive_operation().await?;
 
         if self.recursive {
             return self.list_recursively(repos, &filter_by).await;

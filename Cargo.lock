@@ -3885,6 +3885,7 @@ dependencies = [
  "rstest 0.18.2",
  "spfs",
  "spk-cli-common",
+ "spk-config",
  "spk-schema",
  "spk-solve",
  "spk-storage",
