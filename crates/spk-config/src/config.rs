@@ -115,9 +115,9 @@ pub struct Statsd {
 
 #[derive(Clone, Default, Debug, Deserialize, Serialize)]
 #[serde(default)]
-pub struct Filtering {
+pub struct LsFiltering {
     /// Use all current host's host options by default for filtering in ls
-    pub use_host_options: bool,
+    pub host_filtering: bool,
 }
 
 /// Configuration values for spk.
@@ -131,7 +131,7 @@ pub struct Config {
     pub solver: Solver,
     pub statsd: Statsd,
     pub metadata: Metadata,
-    pub filtering: Filtering,
+    pub ls_filtering: LsFiltering,
 }
 
 impl Config {

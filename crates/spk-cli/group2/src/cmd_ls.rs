@@ -86,12 +86,14 @@ pub struct Ls<Output: Default = Console> {
     deprecated: bool,
 
     /// Disable the filtering that would only show items that have a
-    /// build that matches the current host's host options.
+    /// build that matches the current host's host options. This
+    /// option can be configured as the default in spk's config file.
     #[clap(long, conflicts_with = "host")]
-    nohost: bool,
+    no_host: bool,
 
     /// Enable filtering to only show items that have a build that
-    /// matches the current host's host options. This is the default.
+    /// matches the current host's host options. This option can be
+    /// configured as the default in spk's config file.
     #[clap(long)]
     host: bool,
 
@@ -111,24 +113,18 @@ impl<T: Output> Run for Ls<T> {
 
     async fn run(&mut self) -> Result<Self::Output> {
         let config = spk_config::get_config()?;
-        if config.filtering.use_host_options {
-            // If it hasn't been overridden on the command line, turn
-            // on the --host option
-            if !self.nohost {
+        if config.ls_filtering.host_filtering {
+            if !self.no_host {
                 self.host = true;
             }
-        } else {
-            // If it hasn't been overridden on the command line, turn
-            // on the --host option
-            if !self.host {
-                self.nohost = true;
-            }
+        } else if !self.host {
+            self.no_host = true;
         }
 
         // Set the default filter to the all current host's host
-        // options (--host). --nohost will disable this.
+        // options (--host). --no_host will disable this.
         let mut filter_by = None;
-        if !self.nohost && self.host {
+        if !self.no_host && self.host {
             let host_options = HOST_OPTIONS.get()?;
             let filters = host_options
                 .iter()

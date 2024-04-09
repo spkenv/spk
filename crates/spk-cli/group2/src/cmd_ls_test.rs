@@ -60,7 +60,7 @@ async fn test_ls_trivially_works() {
     assert_eq!(opt.ls.output.vec.len(), 0);
 }
 
-/// `spk ls --nohost` is expected to list all packages in the configured
+/// `spk ls --no-host` is expected to list all packages in the configured
 /// remote repositories.
 #[tokio::test]
 async fn test_ls_shows_remote_packages_with_no_host() {
@@ -91,7 +91,7 @@ async fn test_ls_shows_remote_packages_with_no_host() {
         .await
         .unwrap();
 
-    let mut opt = Opt::try_parse_from(["ls", "--nohost"]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "--no-host"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_ne!(opt.ls.output.vec.len(), 0);
 }
@@ -187,7 +187,7 @@ async fn test_ls_shows_local_and_remote_packages() {
         .await
         .unwrap();
 
-    let mut opt = Opt::try_parse_from(["ls", "--nohost"]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "--no-host"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(opt.ls.output.vec.len(), 2);
 }
@@ -235,7 +235,7 @@ async fn test_ls_dash_l_shows_local_packages_only() {
         .await
         .unwrap();
 
-    let mut opt = Opt::try_parse_from(["ls", "-L", "--nohost"]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "-L", "--no-host"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(opt.ls.output.vec.len(), 1);
     assert_eq!(opt.ls.output.vec.first().unwrap(), "my-local-pkg");
@@ -285,7 +285,7 @@ async fn test_ls_dash_r_shows_local_and_remote_packages() {
         .await
         .unwrap();
 
-    let mut opt = Opt::try_parse_from(["ls", "-r", "origin", "--nohost"]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "-r", "origin", "--no-host"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(opt.ls.output.vec.len(), 2);
 }
@@ -334,7 +334,7 @@ async fn test_ls_dash_dash_no_local_repo_shows_remote_packages_only() {
         .await
         .unwrap();
 
-    let mut opt = Opt::try_parse_from(["ls", "--no-local-repo", "--nohost"]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "--no-local-repo", "--no-host"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(opt.ls.output.vec.len(), 1);
     assert_eq!(opt.ls.output.vec.first().unwrap(), "my-remote-pkg");
@@ -384,7 +384,7 @@ async fn test_ls_dash_dash_disable_repo_shows_local_packages_only() {
         .await
         .unwrap();
 
-    let mut opt = Opt::try_parse_from(["ls", "--disable-repo", "origin", "--nohost"]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "--disable-repo", "origin", "--no-host"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(opt.ls.output.vec.len(), 1);
     assert_eq!(opt.ls.output.vec.first().unwrap(), "my-local-pkg");
@@ -415,7 +415,7 @@ async fn test_ls_succeeds_for_package_with_no_version_spec() {
         .await
         .unwrap();
 
-    let mut opt = Opt::try_parse_from(["ls", "my-pkg", "--nohost"]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "my-pkg", "--no-host"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(
         opt.ls.output.warnings.len(),
@@ -455,7 +455,7 @@ async fn test_ls_hides_deprecated_version() {
         .unwrap();
 
     // `ls` without showing deprecated
-    let mut opt = Opt::try_parse_from(["ls", "my-pkg", "--nohost"]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "my-pkg", "--no-host"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(
         opt.ls.output.warnings.len(),
@@ -471,7 +471,7 @@ async fn test_ls_hides_deprecated_version() {
     );
 
     // `ls` with showing deprecated
-    let mut opt = Opt::try_parse_from(["ls", "--deprecated", "my-pkg", "--nohost"]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "--deprecated", "my-pkg", "--no-host"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(
         opt.ls.output.warnings.len(),
@@ -525,7 +525,7 @@ async fn test_ls_shows_partially_deprecated_version() {
         .unwrap();
 
     // `ls` without showing deprecated
-    let mut opt = Opt::try_parse_from(["ls", "my-pkg", "--nohost"]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "my-pkg", "--no-host"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(
         opt.ls.output.warnings.len(),
@@ -539,7 +539,7 @@ async fn test_ls_shows_partially_deprecated_version() {
     assert_eq!(opt.ls.output.vec.first().unwrap(), "1.0.0");
 
     // `ls` with showing deprecated
-    let mut opt = Opt::try_parse_from(["ls", "--deprecated", "my-pkg", "--nohost"]).unwrap();
+    let mut opt = Opt::try_parse_from(["ls", "--deprecated", "my-pkg", "--no-host"]).unwrap();
     opt.ls.run().await.unwrap();
     assert_eq!(
         opt.ls.output.warnings.len(),
@@ -603,7 +603,7 @@ async fn test_ls_succeeds_for_package_saved_with_legacy_version_tag() {
         "ls",
         "--legacy-spk-version-tags",
         "my-local-pkg",
-        "--nohost",
+        "--no-host",
     ])
     .unwrap();
     opt.ls.run().await.unwrap();
