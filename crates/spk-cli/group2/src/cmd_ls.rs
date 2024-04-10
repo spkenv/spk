@@ -113,7 +113,7 @@ impl<T: Output> Run for Ls<T> {
 
     async fn run(&mut self) -> Result<Self::Output> {
         let config = spk_config::get_config()?;
-        if config.ls_filtering.host_filtering {
+        if config.cli.ls.host_filtering {
             if !self.no_host {
                 self.host = true;
             }
