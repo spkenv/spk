@@ -122,7 +122,7 @@ impl<T: Output> Run for Ls<T> {
         }
 
         // Set the default filter to the all current host's host
-        // options (--host). --no_host will disable this.
+        // options (--host). --no-host will disable this.
         let mut filter_by = None;
         if !self.no_host && self.host {
             let host_options = HOST_OPTIONS.get()?;
