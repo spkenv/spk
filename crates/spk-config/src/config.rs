@@ -113,6 +113,20 @@ pub struct Statsd {
     pub format: String,
 }
 
+#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct Ls {
+    /// Use all current host's host options by default for filtering in ls
+    pub host_filtering: bool,
+}
+
+#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct Cli {
+    /// Entries for command line command that have configuration
+    pub ls: Ls,
+}
+
 /// Configuration values for spk.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
@@ -124,6 +138,7 @@ pub struct Config {
     pub solver: Solver,
     pub statsd: Statsd,
     pub metadata: Metadata,
+    pub cli: Cli,
 }
 
 impl Config {

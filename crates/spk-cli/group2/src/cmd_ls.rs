@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 use std::fmt::Write;
+use std::sync::Arc;
 
 use clap::Args;
 use colored::Colorize;
@@ -15,9 +16,11 @@ use spk_schema::foundation::ident_component::ComponentSet;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::ident::{parse_ident, AnyIdent};
 use spk_schema::ident_ops::parsing::{ident_parts, IdentParts, KNOWN_REPOSITORY_NAMES};
+use spk_schema::name::OptNameBuf;
+use spk_schema::option_map::HOST_OPTIONS;
 use spk_schema::spec_ops::WithVersion;
-use spk_schema::{Deprecate, Package, Spec};
-use spk_storage as storage;
+use spk_schema::{Deprecate, OptionMap, Package, Spec};
+use {spk_config, spk_storage as storage};
 
 #[cfg(test)]
 #[path = "./cmd_ls_test.rs"]
@@ -44,6 +47,22 @@ impl Output for Console {
     }
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct OptFilter {
+    pub(crate) name: OptNameBuf,
+    pub(crate) value: String,
+}
+
+impl OptFilter {
+    pub fn matches(&self, options: &OptionMap) -> bool {
+        if let Some(v) = options.get(&self.name) {
+            self.value == *v
+        } else {
+            false
+        }
+    }
+}
+
 /// List packages in one or more repositories
 #[derive(Args)]
 #[clap(visible_alias = "list")]
@@ -66,6 +85,18 @@ pub struct Ls<Output: Default = Console> {
     #[clap(long, short)]
     deprecated: bool,
 
+    /// Disable the filtering that would only show items that have a
+    /// build that matches the current host's host options. This
+    /// option can be configured as the default in spk's config file.
+    #[clap(long, conflicts_with = "host")]
+    no_host: bool,
+
+    /// Enable filtering to only show items that have a build that
+    /// matches the current host's host options. This option can be
+    /// configured as the default in spk's config file.
+    #[clap(long)]
+    host: bool,
+
     /// Given a name, list versions. Given a name/version list builds.
     ///
     /// If nothing is provided, list all available packages.
@@ -81,10 +112,36 @@ impl<T: Output> Run for Ls<T> {
     type Output = i32;
 
     async fn run(&mut self) -> Result<Self::Output> {
+        let config = spk_config::get_config()?;
+        if config.cli.ls.host_filtering {
+            if !self.no_host {
+                self.host = true;
+            }
+        } else if !self.host {
+            self.no_host = true;
+        }
+
+        // Set the default filter to the all current host's host
+        // options (--host). --no-host will disable this.
+        let mut filter_by = None;
+        if !self.no_host && self.host {
+            let host_options = HOST_OPTIONS.get()?;
+            let filters = host_options
+                .iter()
+                .map(|(name, value)| OptFilter {
+                    name: name.clone(),
+                    value: value.to_string(),
+                })
+                .collect();
+
+            filter_by = Some(filters);
+        }
+        tracing::debug!("Filter is: {:?}", filter_by);
+
         let repos = self.repos.get_repos_for_non_destructive_operation().await?;
 
         if self.recursive {
-            return self.list_recursively(repos).await;
+            return self.list_recursively(repos, &filter_by).await;
         }
 
         let mut results = Vec::new();
@@ -93,6 +150,11 @@ impl<T: Output> Run for Ls<T> {
                 // List all the packages in the repo(s) - the set
                 // provides the sorting, but hides when a package is
                 // in multiple repos
+                if let Some(_filters) = &filter_by {
+                    return self.filter_all_top_level_packages(repos, &filter_by).await;
+                }
+
+                // Simpler without a filter
                 // TODO: should this include the repo name in the output?
                 let mut set = BTreeSet::new();
                 for (_repo_name, repo) in repos {
@@ -143,15 +205,22 @@ impl<T: Output> Run for Ls<T> {
                         continue;
                     }
 
+                    let mut builds_remaining = false;
                     let mut any_deprecated = false;
                     let mut any_not_deprecated = false;
                     while let Some(build) = builds.pop() {
                         match repo.read_package(&build).await {
-                            Ok(spec) if !spec.is_deprecated() => {
-                                any_not_deprecated = true;
-                            }
-                            Ok(_) => {
-                                any_deprecated = true;
+                            Ok(spec) => {
+                                if !self.matches_all_filters(&spec, &filter_by) {
+                                    continue;
+                                }
+                                builds_remaining = true;
+
+                                if spec.is_deprecated() {
+                                    any_deprecated = true;
+                                } else {
+                                    any_not_deprecated = true;
+                                }
                             }
                             Err(err) => {
                                 self.output
@@ -162,6 +231,12 @@ impl<T: Output> Run for Ls<T> {
                             break;
                         }
                     }
+
+                    if !builds_remaining {
+                        // All the builds of this version were filtered out
+                        continue;
+                    }
+
                     let all_deprecated = any_deprecated && !any_not_deprecated;
 
                     // TODO: tempted to swap this over to call
@@ -205,6 +280,11 @@ impl<T: Output> Run for Ls<T> {
                                 continue;
                             }
                         };
+
+                        if !self.matches_all_filters(&spec, &filter_by) {
+                            continue;
+                        }
+
                         if spec.is_deprecated() && !self.deprecated {
                             // Hide deprecated packages by default
                             continue;
@@ -237,6 +317,7 @@ impl<T: Output> Ls<T> {
     async fn list_recursively(
         &mut self,
         repos: Vec<(String, storage::RepositoryHandle)>,
+        filter_by: &Option<Vec<OptFilter>>,
     ) -> Result<i32> {
         let search_term = self
             .package
@@ -319,6 +400,11 @@ impl<T: Output> Ls<T> {
                             continue;
                         }
                     };
+
+                    if !self.matches_all_filters(&spec, filter_by) {
+                        continue;
+                    }
+
                     if spec.is_deprecated() && !self.deprecated {
                         // Hide deprecated packages by default
                         continue;
@@ -336,6 +422,88 @@ impl<T: Output> Ls<T> {
                 }
             }
         }
+        Ok(0)
+    }
+
+    fn matches_all_filters(&self, spec: &Arc<Spec>, filter_by: &Option<Vec<OptFilter>>) -> bool {
+        if let Some(filters) = filter_by {
+            let settings = spec.option_values();
+            for filter in filters {
+                if !filter.matches(&settings) {
+                    return false;
+                }
+            }
+        }
+        // All the filters match, or there were no filters
+        true
+    }
+
+    async fn filter_all_top_level_packages(
+        &mut self,
+        repos: Vec<(String, storage::RepositoryHandle)>,
+        filter_by: &Option<Vec<OptFilter>>,
+    ) -> Result<i32> {
+        let mut packages = Vec::new();
+        for (index, (_repo_name, repo)) in repos.iter().enumerate() {
+            packages.extend(repo.list_packages().await?.into_iter().map(|p| (p, index)));
+        }
+        packages.sort_by_key(|p| p.0.to_string());
+
+        let mut seen = HashSet::new();
+        for (package, index) in packages {
+            if seen.contains(&package) {
+                // Once a package have been output from one repo, this
+                // doesn't need to consider the same package in other repos.
+                continue;
+            }
+
+            let (_repo_name, repo) = repos.get(index).unwrap();
+
+            let versions = {
+                let base = AnyIdent::from(package.clone());
+                repo.list_package_versions(base.name())
+                    .await?
+                    .iter()
+                    .map(|v| base.with_version((**v).clone()))
+                    .collect::<Vec<_>>()
+            };
+
+            for pkg in versions {
+                let mut found_a_match = false;
+                for build in repo.list_package_builds(pkg.as_version()).await? {
+                    let spec = match repo.read_package(&build).await {
+                        Ok(spec) => spec,
+                        Err(err) => {
+                            self.output.warn(format!("Skipping {build}: {err}"));
+                            continue;
+                        }
+                    };
+
+                    if !self.matches_all_filters(&spec, filter_by) {
+                        continue;
+                    }
+
+                    if spec.is_deprecated() && !self.deprecated {
+                        // Hide deprecated packages by default
+                        continue;
+                    }
+
+                    // One build passing the filters is enough for this
+                    // version to be counted as matching.
+                    found_a_match = true;
+                    break;
+                }
+
+                // One version with a matching build is enough for
+                // this package to be counted has matching
+                if found_a_match {
+                    self.output.println(package.to_string());
+                    seen.insert(package);
+                    break;
+                }
+            }
+        }
+
         Ok(0)
     }
 

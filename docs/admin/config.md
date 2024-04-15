@@ -248,4 +248,9 @@ environment = ""
 # This is useful in CI if the CI system has a variable that contains
 # the username of the person who triggered the build.
 # username_override_var = ""
+
+# SPK supports configuration of these command line defaults
+[cli.ls]
+# Use all current host's host options by default for filtering in ls
+host_filtering = false
 ```
