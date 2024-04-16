@@ -237,6 +237,7 @@ pub enum FileAlteration {
 
 /// Either a package name or a special reference to the current package
 #[derive(Debug, Clone, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
+#[serde(untagged)]
 pub enum NameOrCurrent {
     #[serde(rename = "Self")]
     Current,
