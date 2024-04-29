@@ -4,84 +4,35 @@
 
 use rstest::rstest;
 
-use crate::graph::entry::EntryBuf;
-use crate::{encoding, tracking};
+use super::Manifest;
+use crate::tracking::{self, EntryKind};
 
 #[rstest]
-fn test_entry_blobs_compare_name() {
-    let a = EntryBuf::build(
-        "a",
-        tracking::EntryKind::Blob,
-        0,
-        0,
-        &encoding::EMPTY_DIGEST.into(),
-    );
-    let b = EntryBuf::build(
-        "b",
-        tracking::EntryKind::Blob,
-        0,
-        0,
-        &encoding::EMPTY_DIGEST.into(),
-    );
-    assert!(a.as_entry() < b.as_entry());
-    assert!(b.as_entry() > a.as_entry());
-}
+fn test_manifest_from_tracking_manifest() {
+    // Test a situation where the first entry in a tracking manifest
+    // is a mask, the second entry is blob, the mask and blob do not
+    // have the same name, and the manifest is converted to a graph
+    // manifest. The manifest should not lose the blob in the
+    // conversion.
 
-#[rstest]
-fn test_entry_trees_compare_name() {
-    let a = EntryBuf::build(
-        "a",
-        tracking::EntryKind::Tree,
-        0,
-        0,
-        &encoding::EMPTY_DIGEST.into(),
-    );
-    let b = EntryBuf::build(
-        "b",
-        tracking::EntryKind::Tree,
-        0,
-        0,
-        &encoding::EMPTY_DIGEST.into(),
-    );
-    assert!(a.as_entry() < b.as_entry());
-    assert!(b.as_entry() > a.as_entry());
-}
+    // Set up the manifest with a mask and file with different names.
+    let mut p = tracking::Manifest::<()>::default();
+    let node = p.mkfile("pip-21.2.3.dist-info").unwrap();
+    node.kind = EntryKind::Mask;
 
-#[rstest]
-fn test_entry_compare_kind() {
-    let blob = EntryBuf::build(
-        "a",
-        tracking::EntryKind::Blob,
-        0,
-        0,
-        &encoding::EMPTY_DIGEST.into(),
-    );
-    let tree = EntryBuf::build(
-        "b",
-        tracking::EntryKind::Tree,
-        0,
-        0,
-        &encoding::EMPTY_DIGEST.into(),
-    );
-    assert!(tree.as_entry() > blob.as_entry());
-    assert!(blob.as_entry() < tree.as_entry());
-}
+    let mut t = tracking::Manifest::<()>::default();
+    t.mkfile("typing_extensions.py").unwrap();
 
-#[rstest]
-fn test_entry_compare() {
-    let root_file = EntryBuf::build(
-        "file",
-        tracking::EntryKind::Blob,
-        0,
-        0,
-        &encoding::NULL_DIGEST.into(),
-    );
-    let root_dir = EntryBuf::build(
-        "xdir",
-        tracking::EntryKind::Tree,
-        0,
-        0,
-        &encoding::NULL_DIGEST.into(),
-    );
-    assert!(root_dir.as_entry() > root_file.as_entry());
+    let mut tm = tracking::Manifest::<()>::default();
+    tm.update(&p);
+    tm.update(&t);
+
+    // Test convert to a graphing manifest, and back
+    println!("tm: {:?}", tm);
+    let gm: Manifest = tm.to_graph_manifest();
+    println!("gm: {:?}", gm);
+    let gm2tm = gm.to_tracking_manifest();
+    println!("gm2tm: {:?}", gm2tm);
+
+    assert!(tm == gm2tm);
 }
