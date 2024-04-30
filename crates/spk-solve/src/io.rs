@@ -56,6 +56,9 @@ use crate::{
     StatusLine,
 };
 
+const STOP_ON_BLOCK_FLAG: &str = "--stop-on-block";
+const BY_USER: &str = "by user";
+
 static USER_CANCELLED: Lazy<Arc<AtomicBool>> = Lazy::new(|| {
     // Initialise the USER_CANCELLED value
     let b = Arc::new(AtomicBool::new(false));
@@ -89,10 +92,16 @@ pub fn format_note(note: &Note) -> String {
     }
 }
 
-pub fn change_is_relevant_at_verbosity(change: &Change, verbosity: u8) -> bool {
+pub fn change_is_relevant_at_verbosity(
+    change: &Change,
+    verbosity: u8,
+    stop_on_block: bool,
+) -> bool {
     use Change::*;
     let relevant_level = match change {
         SetPackage(_) => 1,
+        // More relevant when stop-on-block is enabled.
+        StepBack(_) if stop_on_block => 0,
         StepBack(_) => 1,
         RequestPackage(_) => 2,
         RequestVar(_) => 2,
@@ -192,18 +201,28 @@ where
     fn check_if_user_hit_ctrlc(&self) -> Result<()> {
         // Check if the solve has been interrupted by the user (via ctrl-c)
         if USER_CANCELLED.load(Ordering::Relaxed) {
-            return Err(Error::SolverInterrupted(
-                "Solver interrupted by user ...".to_string(),
-            ));
+            return Err(Error::SolverInterrupted(format!(
+                "Solver interrupted {BY_USER} ..."
+            )));
         }
         Ok(())
     }
 
     pub fn iter(&mut self) -> impl Stream<Item = Result<String>> + '_ {
         stream! {
+            let mut stop_because_blocked = false;
             'outer: loop {
                 if let Some(next) = self.output_queue.pop_front() {
                     yield Ok(next);
+                    continue 'outer;
+                }
+
+                // Check if the solver should stop because the last
+                // decision was a step-back (BLOCKED) with stop-on-block set
+                if stop_because_blocked {
+                    yield(Err(Error::SolverInterrupted(
+                        format!("hit BLOCKED state with {STOP_ON_BLOCK_FLAG} enabled."),
+                        )));
                     continue 'outer;
                 }
 
@@ -309,13 +328,17 @@ where
                             StepBack(spk_solve_graph::StepBack { destination, .. }) => {
                                 fill = "!";
                                 new_level = destination.state_depth;
+                                // Ensures the solver will stop before the next
+                                // decision because of this (BLOCKED) change, if
+                                // stop-on-block is enabled.
+                                stop_because_blocked = self.settings.stop_on_block;
                             }
                             _ => {
                                 fill = ".";
                             }
                         }
 
-                        if !change_is_relevant_at_verbosity(change, self.verbosity) {
+                        if !change_is_relevant_at_verbosity(change, self.verbosity, self.settings.stop_on_block) {
                             continue;
                         }
 
@@ -429,6 +452,7 @@ pub struct DecisionFormatterBuilder {
     solver_to_run: MultiSolverKind,
     show_search_space_size: bool,
     compare_solvers: bool,
+    stop_on_block: bool,
 }
 
 impl Default for DecisionFormatterBuilder {
@@ -447,6 +471,7 @@ impl Default for DecisionFormatterBuilder {
             solver_to_run: MultiSolverKind::Unchanged,
             show_search_space_size: false,
             compare_solvers: false,
+            stop_on_block: false,
         }
     }
 }
@@ -535,6 +560,11 @@ impl DecisionFormatterBuilder {
         self
     }
 
+    pub fn with_stop_on_block(&mut self, enable: bool) -> &mut Self {
+        self.stop_on_block = enable;
+        self
+    }
+
     pub fn build(&self) -> DecisionFormatter {
         let too_long_seconds = if self.verbosity_increase_seconds == 0
             || (self.verbosity_increase_seconds > self.timeout && self.timeout > 0)
@@ -575,6 +605,7 @@ impl DecisionFormatterBuilder {
                 solver_to_run: self.solver_to_run.clone(),
                 show_search_space_size: self.show_search_space_size,
                 compare_solvers: self.compare_solvers,
+                stop_on_block: self.stop_on_block,
             },
         }
     }
@@ -634,6 +665,7 @@ pub(crate) struct DecisionFormatterSettings {
     pub(crate) solver_to_run: MultiSolverKind,
     pub(crate) show_search_space_size: bool,
     pub(crate) compare_solvers: bool,
+    pub(crate) stop_on_block: bool,
 }
 
 enum LoopOutcome {
@@ -723,6 +755,7 @@ impl DecisionFormatter {
                 solver_to_run: MultiSolverKind::Unchanged,
                 show_search_space_size: false,
                 compare_solvers: false,
+                stop_on_block: false,
             },
         }
     }
@@ -1089,7 +1122,7 @@ impl DecisionFormatter {
                 self.send_sentry_warning_message(
                     &runtime.solver,
                     solve_time,
-                    if mesg.contains("by user") {
+                    if mesg.contains(BY_USER) || mesg.contains(STOP_ON_BLOCK_FLAG) {
                         SentryWarning::SolverInterruptedByUser
                     } else {
                         SentryWarning::SolverInterruptedByTimeout
@@ -1097,8 +1130,13 @@ impl DecisionFormatter {
                 );
 
                 output_location.output_message(format!("{}", mesg.yellow()));
-                output_location
-                    .output_message(self.format_solve_stats(&runtime.solver, solve_time));
+                // Show the solver stats after an interruption, unless
+                // it was due to being BLOCKED with stop-on-block
+                // being set without report-time also being set.
+                if !self.settings.stop_on_block || self.settings.report_time {
+                    output_location
+                        .output_message(self.format_solve_stats(&runtime.solver, solve_time));
+                }
 
                 if self.settings.show_search_space_size {
                     // This solution is likely to be partial, empty,
