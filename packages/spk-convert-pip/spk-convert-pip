@@ -42,6 +42,10 @@ def main() -> int:
         "spk-convert-pip", description="Convert and import packages using pip"
     )
     pip_cmd.add_argument(
+        "-v", "--v", "--verbose",  action="count", dest="verbose", default=0,
+        help="Increase the verbosity of the output"
+    )
+    pip_cmd.add_argument(
         "--python-version", default="3.7", help="The version of python to install for"
     )
     pip_cmd.add_argument("--python-abi", help="The python abi to target")
@@ -88,6 +92,9 @@ def main() -> int:
     )
     original_cmd_and_args = " ".join(sys.argv)
     args = pip_cmd.parse_args()
+
+    if args.verbose > 0:
+        _LOGGER.setLevel(logging.DEBUG)
 
     specs = []
     importer = PipImporter().with_cli_args(original_cmd_and_args).recursive(args.deps)

@@ -13,3 +13,4 @@ async-trait = { workspace = true }
 clap = { workspace = true }
 spk-cli-common = { workspace = true }
 spk-cmd-env = { workspace = true }
+tracing = { workspace = true }

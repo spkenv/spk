@@ -44,6 +44,11 @@ impl Run for Convert {
 
         let mut command = vec![converter_package.clone()];
         command.extend(self.args.clone());
+        if self.verbose > 0 {
+            // Pass the verbosity level into the conversion command
+            command.push(format!("-{}", "v".repeat(self.verbose.into())));
+        }
+        tracing::debug!("Underlying command: {}", command.join(" "));
 
         let mut env = spk_cmd_env::cmd_env::Env {
             solver: self.solver.clone(),
