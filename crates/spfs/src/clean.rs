@@ -575,9 +575,15 @@ where
         };
         let repo = repo.opened().await?;
 
-        result += self
+        result += match self
             .remove_unvisited_renders_and_proxies_for_storage(None, &repo)
-            .await?;
+            .await
+        {
+            // If the repository is not setup for render storage, then we
+            // quietly ignore this entire process
+            Err(Error::NoRenderStorage(_)) => return Ok(result),
+            res => res?,
+        };
 
         let renders_for_all_users = repo.renders_for_all_users()?;
 
