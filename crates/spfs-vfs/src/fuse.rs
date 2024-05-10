@@ -170,8 +170,9 @@ impl Filesystem {
             entry.size
         };
         let nlink: u32 = if entry.is_dir() {
-            // Directory has 2 hardlinks for . and .. plus one for
-            // each subdirectory. Symlinks do not count.
+            // Directory has 2 hardlinks, one for . and one for the
+            // entry in its parent (..), plus one for each
+            // subdirectory. Symlinks do not count.
             (entry.entries.iter().filter(|(_n, e)| e.is_dir()).count() + 2) as u32
         } else {
             // Everything else just has itself
