@@ -1344,21 +1344,18 @@ impl FromStr for VersionFilter {
     type Err = Error;
 
     fn from_str(range: &str) -> Result<Self> {
-        let mut out = VersionFilter::default();
-        if range.is_empty() {
-            return Ok(out);
-        }
-        for rule_str in range.split(VERSION_RANGE_SEP) {
-            if rule_str.is_empty() {
-                return Err(Error::String(format!(
-                    "Empty segment not allowed in version range, got: {range}"
-                )));
-            }
-            let rule = VersionRange::from_str(rule_str)?;
-            out.rules.insert(rule);
-        }
+        use nom::combinator::all_consuming;
+        use nom::error::convert_error;
 
-        Ok(out)
+        all_consuming(parsing::version_range)(range)
+            .map(|(_, vr)| match vr {
+                VersionRange::Filter(f) => f,
+                vr => VersionFilter::single(vr),
+            })
+            .map_err(|err| match err {
+                nom::Err::Error(e) | nom::Err::Failure(e) => Error::String(convert_error(range, e)),
+                nom::Err::Incomplete(_) => unreachable!(),
+            })
     }
 }
 
