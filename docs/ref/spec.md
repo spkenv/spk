@@ -346,12 +346,45 @@ A build option can be one of [VariableRequest](#variablerequest), or [PackageReq
 #### PackageRequest
 
 | Field               | Type                                    | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| pkg                 | _[`RangeIdentifier`](#rangeidentifier)_ | Specifies a desired package, components and acceptable version range.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| prereleasePolicy    | _[PreReleasePolicy](#prereleasepolicy)_ | Defines how pre-release versions should be handled when resolving this request                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| inclusionPolicy     | _[InclusionPolicy](#inclusionpolicy)_   | Defines when the requested package should be included in the environment                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| fromBuildEnv        | _str_ or _bool_                         | Either true, or a template to generate this request from using the version of the package that was resolved into the build environment. This template takes the form`x.x.x`, where any _x_ is replaced by digits in the version number. For example, if `python/2.7.5` is in the build environment, the template `~x.x` would become `~2.7`. The special values of `Binary` and `API` can be used to request a binary or api compatible package to the one in the build environment, respectively. For Example, if `mypkg/1.2.3.4` is in the build environment, the template `API` would become `API:1.2.3.4`. A value of `true` works the same as `Binary`. |
-| ifPresentInBuildEnv | _bool_                                  | Either true or false; if true, then `fromBuildEnv` only applies if the package was present in the build environment. This allows different variants to have different runtime requirements.                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| pkg                 | _[`RangeIdentifier`](#rangeidentifier)_ | Specifies a desired package, components and acceptable version range.                                                                                                                                           |
+| prereleasePolicy    | _[PreReleasePolicy](#prereleasepolicy)_ | Defines how pre-release versions should be handled when resolving this request                                                                                                                                  |
+| inclusionPolicy     | _[InclusionPolicy](#inclusionpolicy)_   | Defines when the requested package should be included in the environment                                                                                                                                        |
+| fromBuildEnv        | _str_ or _bool_                         | Either true, or a template to generate this request from using the version of the package that was resolved into the build environment. See [FromBuildEnvTemplate](#frombuildenvtemplate) for more information. |
+| ifPresentInBuildEnv | _bool_                                  | Either true or false; if true, then `fromBuildEnv` only applies if the package was present in the build environment. This allows different variants to have different runtime requirements.                     |
+
+##### FromBuildEnvTemplate
+
+This template takes the form of any valid version range expression, but any
+_x_ characters that appear are replaced by digits in the version number. For
+example, if `python/2.7.5` is in the build environment, the template `~x.x`
+would become `~2.7`. The special values of `Binary` and `API` can be used to
+request a binary or API compatible package to the one in the build environment,
+respectively. For Example, if `mypkg/1.2.3.4` is in the build environment, the
+template `API` would become `API:1.2.3.4`. A value of `true` works the same as
+`Binary`.
+
+###### Advanced Usage
+
+Besides `x`, other characters are available:
+
+- 'v' - Expands to the full base version of the package.
+- 'V' - Expands to the full version of the package, including any pre/post
+  release information.
+- 'X' - Expands all the pre or post release information, depending on its
+  position in the template. It's okay if the package does not have any pre or
+  post release components.
+
+Examples:
+
+If the target package is `python/3.9.5-alpha.1+post.1,hotfix.2`, then:
+
+- `~x.x` -> `~3.9`
+- `~v` -> `~3.9.5`
+- `~V` -> `~3.9.5-alpha.1+post.1,hotfix.2`
+- `~x.x-X` -> `~3.9-alpha.1`
+- `~x.x+X` -> `~3.9+hotfix.2,post.1`
+- `~x.x-X+X` -> `~3.9-alpha1+hotfix.2,post.1`
 
 #### RangeIdentifier
 
