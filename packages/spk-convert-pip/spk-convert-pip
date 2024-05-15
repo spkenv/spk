@@ -42,7 +42,7 @@ def main() -> int:
         "spk-convert-pip", description="Convert and import packages using pip"
     )
     pip_cmd.add_argument(
-        "-v", "--v", "--verbose",  action="count", dest="verbose", default=0,
+        "-v", "--verbose",  action="count", dest="verbose", default=0,
         help="Increase the verbosity of the output"
     )
     pip_cmd.add_argument(
