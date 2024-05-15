@@ -10,7 +10,7 @@ use spk_schema::BuildIdent;
 /// Key for extra data stored in spfs runtimes by spk when creating a
 /// runtime and read back in by spk commands run inside that spfs/spk
 /// environment.
-pub const SPK_SOLVE_EXTRA_DATA_KEY: &str = "SPK_solve";
+pub const SPK_SOLVE_EXTRA_DATA_KEY: &str = "spk_solve";
 
 /// Current data structure version number for PackageToSolveData
 pub const PACKAGE_TO_SOLVE_DATA_VERSION: u32 = 1;
