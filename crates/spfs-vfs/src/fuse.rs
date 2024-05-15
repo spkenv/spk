@@ -169,6 +169,16 @@ impl Filesystem {
         } else {
             entry.size
         };
+        let nlink: u32 = if entry.is_dir() {
+            // Directory has 2 hardlinks, one for . and one for the
+            // entry in its parent (..), plus one for each
+            // subdirectory. Symlinks do not count.
+            (entry.entries.iter().filter(|(_n, e)| e.is_dir()).count() + 2) as u32
+        } else {
+            // Everything else just has itself
+            1
+        };
+
         FileAttr {
             ino: entry.user_data,
             size,
@@ -183,9 +193,7 @@ impl Filesystem {
             ctime: self.fs_creation_time,
             crtime: self.fs_creation_time,
             kind,
-            // TODO: possibly return directory link count
-            //       for all dirs below it (because of .. entries)
-            nlink: if entry.is_dir() { 2 } else { 1 },
+            nlink,
             rdev: 0,
             blksize: Self::BLOCK_SIZE,
             flags: 0,
