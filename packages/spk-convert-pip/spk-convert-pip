@@ -53,11 +53,18 @@ def main() -> int:
         default="origin",
         help="The repository to publish to. Any configured spfs repository can be named here.",
     )
-    pip_cmd.add_argument(
+    group = pip_cmd.add_mutually_exclusive_group()
+    group.add_argument(
         "--publish",
         default=None,
         action="store_true",
-        help="Also publish the packages after convert",
+        help="Also publish the packages after conversion. Does not ask if you want to publish, assumes yes",
+    )
+    group.add_argument(
+        "--no-publish",
+        default=None,
+        action="store_true",
+        help="Do not publish the packages after conversion. Does not ask if you want to publish, assumes no",
     )
     pip_cmd.add_argument(
         "--force",
@@ -98,7 +105,7 @@ def main() -> int:
         print(f"  {spec.get('pkg')}")
     print("")
 
-    if args.publish is None:
+    if args.publish is None and not args.no_publish:
         print("These packages are now available in the local repository")
         args.publish = bool(
             input("Do you want to also publish these packages? [y/N]: ").lower()
