@@ -326,27 +326,42 @@ impl<MountNamespace> RuntimeConfigurator<IsRootUser, MountNamespace>
 where
     MountNamespace: __private::CurrentThreadIsInMountNamespace,
 {
-    /// Privatize mounts in the current namespace, so that new mounts and changes
+    /// Remount key existing mount points so that new mounts and changes
     /// to existing mounts don't propagate to the parent namespace.
-    pub async fn privatize_existing_mounts(&self) -> Result<()> {
+    ///
+    /// We use MS_SLAVE for system mounts because we still want mount and
+    /// unmount events from the system to propagate into this new namespace.
+    /// We privatize any existing /spfs mount, though because we are likely
+    /// to replace it and don't want to affect any parent runtime.
+    pub async fn remove_mount_propagation(&self) -> Result<()> {
         use nix::mount::{mount, MsFlags};
 
-        tracing::debug!("privatizing existing mounts...");
+        tracing::debug!("disable sharing of new mounts...");
 
-        let mut res = mount(NONE, "/", NONE, MsFlags::MS_PRIVATE, NONE);
+        let mut res = mount(NONE, "/", NONE, MsFlags::MS_SLAVE, NONE);
         if let Err(err) = res {
             return Err(Error::wrap_nix(
                 err,
-                "Failed to privatize existing mount: /",
+                "Failed to remove propagation from existing mount: /",
             ));
         }
 
-        if self.is_mounted("/tmp").await? {
-            res = mount(NONE, "/tmp", NONE, MsFlags::MS_PRIVATE, NONE);
+        if self.is_mounted("/spfs").await? {
+            res = mount(NONE, "/spfs", NONE, MsFlags::MS_PRIVATE, NONE);
             if let Err(err) = res {
                 return Err(Error::wrap_nix(
                     err,
-                    "Failed to privatize existing mount: /tmp",
+                    "Failed to privatize existing mount: /spfs",
+                ));
+            }
+        }
+
+        if self.is_mounted("/tmp").await? {
+            res = mount(NONE, "/tmp", NONE, MsFlags::MS_SLAVE, NONE);
+            if let Err(err) = res {
+                return Err(Error::wrap_nix(
+                    err,
+                    "Failed to remove propagation from existing mount: /tmp",
                 ));
             }
         }
