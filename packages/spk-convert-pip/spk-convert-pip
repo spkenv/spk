@@ -61,7 +61,7 @@ def main() -> int:
         help="Also publish the packages after conversion. Does not ask if you want to publish, assumes yes",
     )
     group.add_argument(
-        "--no-publish", "--no",
+        "--no-publish",
         default=None,
         action="store_true",
         help="Do not publish the packages after conversion. Does not ask if you want to publish, assumes no",
