@@ -731,7 +731,7 @@ impl SessionInner {
                 )))
             })
             .await
-            .map(Arc::clone)
+            .cloned()
     }
 }
 

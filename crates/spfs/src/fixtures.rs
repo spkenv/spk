@@ -231,8 +231,9 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
 pub fn ensure(path: std::path::PathBuf, data: &str) {
     std::fs::create_dir_all(path.parent().unwrap()).expect("failed to make dirs");
     let mut file = std::fs::OpenOptions::new()
-        .create(true)
         .write(true)
+        .create(true)
+        .truncate(true)
         .open(path)
         .expect("failed to create file");
     std::io::copy(&mut data.as_bytes(), &mut file).expect("failed to write file data");

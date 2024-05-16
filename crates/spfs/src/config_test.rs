@@ -81,7 +81,7 @@ fn test_make_current_updates_config() {
     let changed_name = "changed";
 
     let mut config2 = Config::default();
-    config2.user.name = changed_name.to_owned();
+    changed_name.clone_into(&mut config2.user.name);
     config2.make_current().unwrap();
 
     let current_config = get_config().unwrap();

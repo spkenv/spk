@@ -866,8 +866,9 @@ impl Runtime {
                             );
                         }
                         OpenOptions::new()
-                            .create(true)
                             .write(true)
+                            .create(true)
+                            .truncate(true)
                             .open(mountpoint)
                             .expect("failed to make extra mount file location: {mountpoint:?}");
                     } else {

@@ -960,7 +960,7 @@ impl SetOptions {
                 // Unless already present and request option value is empty.
                 Some(_) if v.is_empty() && !update_existing_option_with_empty_value => continue,
                 // If option already existed, change the value
-                Some(value) => *value = v.to_owned(),
+                Some(value) => v.clone_into(value),
                 None => {
                     options.insert(k.to_owned(), v.to_owned());
                 }

@@ -559,11 +559,10 @@ where
     }
 
     #[async_recursion::async_recursion]
-    async fn compute_tree_node<P: AsRef<std::path::Path> + Send>(
-        &self,
-        root: Arc<std::path::PathBuf>,
-        dirname: P,
-    ) -> Result<Entry> {
+    async fn compute_tree_node<P>(&self, root: Arc<std::path::PathBuf>, dirname: P) -> Result<Entry>
+    where
+        P: AsRef<std::path::Path> + Send,
+    {
         let mut tree_node = Entry::empty_dir_with_open_perms();
         let base = dirname.as_ref();
         let read_dir = tokio::fs::read_dir(base).await.map_err(|err| {

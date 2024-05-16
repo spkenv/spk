@@ -378,7 +378,7 @@ async fn test_storage_runtime_with_annotation_all(tmpdir: tempfile::TempDir) {
 
     assert!(result.len() == 2);
     for (expected_key, expected_value) in [(key, value), (key2, value2)].iter() {
-        assert!(result.get(expected_key).is_some());
+        assert!(result.contains_key(expected_key));
         match result.get(expected_key) {
             Some(v) => {
                 assert!(v == expected_value);
@@ -447,7 +447,7 @@ async fn test_storage_runtime_with_nested_annotation_all(tmpdir: tempfile::TempD
     let result = runtime.all_annotations().await.unwrap();
     assert!(result.len() == 2);
     for (expected_key, expected_value) in [(key, value), (key2, value2)].iter() {
-        assert!(result.get(expected_key).is_some());
+        assert!(result.contains_key(expected_key));
         match result.get(expected_key) {
             Some(v) => {
                 assert!(v == expected_value);
@@ -546,7 +546,7 @@ async fn test_runtime_reset(tmpdir: tempfile::TempDir) {
         .await
         .expect("failed to create runtime in storage");
     let upper_dir = tmpdir.path().join("upper");
-    runtime.data.config.upper_dir = upper_dir.clone();
+    runtime.data.config.upper_dir.clone_from(&upper_dir);
 
     ensure(upper_dir.join("file"), "file01");
     ensure(upper_dir.join("dir/file"), "file02");

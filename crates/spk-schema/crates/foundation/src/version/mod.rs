@@ -103,14 +103,14 @@ impl TagSet {
     }
 }
 
-impl ToString for TagSet {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for TagSet {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let parts: Vec<_> = self
             .tags
             .iter()
             .map(|(name, num)| format!("{name}.{num}"))
             .collect();
-        parts.join(TAG_SET_SEP)
+        write!(f, "{}", parts.join(TAG_SET_SEP))
     }
 }
 
@@ -483,12 +483,12 @@ impl TagPath for Version {
                     .join(VERSION_SEP)
             },
             pre_sep = if self.pre.is_empty() { "" } else { "-" },
-            pre = self.pre.to_string(),
+            pre = self.pre,
             // the "+" character is not a valid spfs tag character,
             // so we 'encode' it with two dots, which is not a valid sequence
             // for spk package names
             post_sep = if self.post.is_empty() { "" } else { ".." },
-            post = self.post.to_string(),
+            post = self.post,
         ))
     }
 }

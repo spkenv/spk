@@ -54,6 +54,7 @@ async fn test_sources_subdir(_tmpdir: tempfile::TempDir) {
     let writer = std::fs::OpenOptions::new()
         .write(true)
         .create(true)
+        .truncate(true)
         .open(&tar_file)
         .unwrap();
     let mut builder = tar::Builder::new(writer);

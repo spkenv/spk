@@ -248,8 +248,8 @@ impl FsRepository {
             }
             InnerFsRepository::Closed(config) => {
                 let mut new_config = config.clone();
-                old_namespace = new_config.params.tag_namespace.clone();
-                new_config.params.tag_namespace = tag_namespace.clone();
+                old_namespace.clone_from(&new_config.params.tag_namespace);
+                new_config.params.tag_namespace.clone_from(&tag_namespace);
                 InnerFsRepository::Closed(new_config)
             }
         });

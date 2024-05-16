@@ -376,18 +376,13 @@ impl Compat {
                 if let Some(ruleset) = optruleset {
                     if ruleset.0.contains(&CompatRule::None) {
                         return Compatibility::incompatible(format!(
-                            "Not compatible with {base} [{self} at {desc}: has {}, requires {}]",
-                            b.to_string(),
-                            a.to_string()
+                            "Not compatible with {base} [{self} at {desc}: has {b}, requires {a}]",
                         ));
                     }
 
                     if !ruleset.0.contains(&required) {
                         return Compatibility::incompatible(format!(
-                            "Not {:?} compatible with {base} [{self} at {desc}: has {}, requires {}]",
-                            required,
-                            b.to_string(),
-                            a.to_string()
+                            "Not {required:?} compatible with {base} [{self} at {desc}: has {b}, requires {a}]",
                         ));
                     }
                 }

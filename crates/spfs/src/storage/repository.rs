@@ -27,11 +27,11 @@ pub enum Ref {
     TagSpec(tracking::TagSpec),
 }
 
-impl std::string::ToString for Ref {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for Ref {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Digest(d) => d.to_string(),
-            Self::TagSpec(t) => t.to_string(),
+            Ref::Digest(d) => write!(f, "{d}"),
+            Ref::TagSpec(t) => write!(f, "{t}"),
         }
     }
 }

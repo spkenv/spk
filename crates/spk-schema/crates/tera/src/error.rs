@@ -41,9 +41,7 @@ impl miette::Diagnostic for Error {
     }
 
     fn labels(&self) -> Option<Box<dyn Iterator<Item = miette::LabeledSpan> + '_>> {
-        let Some(label) = self.label.as_ref() else {
-            return None;
-        };
+        let label = self.label.as_ref()?;
         Some(Box::new(
             [miette::LabeledSpan::at(self.location, label)].into_iter(),
         ))
