@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fmt::Write;
 use std::iter::FromIterator;
 use std::sync::Arc;
@@ -26,7 +26,7 @@ use spk_schema::version::Version;
 use spk_schema::{BuildEnv, BuildIdent, Package, Spec, SpecRecipe, VersionIdent};
 use spk_storage::RepositoryHandle;
 
-use crate::{Error, Result};
+use crate::{Error, PackageSolveData, PackagesToSolveData, Result};
 
 const SOLUTION_FORMAT_EMPTY_REPORT: &str = "Nothing Installed";
 const SOLUTION_FORMAT_HEADING: &str = "Installed Packages:\n";
@@ -555,6 +555,32 @@ impl Solution {
 
         let _ = write!(out, " {SOLUTION_FORMAT_FOOTER} {number_of_packages}");
         out
+    }
+
+    /// Return a mapping of additional solve data for all the resolved
+    /// packages in the solution.
+    pub fn packages_to_solve_data(&self) -> PackagesToSolveData {
+        self.items()
+            .map(|sr| {
+                let source_repo_name = match &sr.source {
+                    PackageSource::Repository {
+                        repo,
+                        components: _,
+                    } => Some(repo.name().to_string()),
+                    PackageSource::Embedded { .. } => None,
+                    PackageSource::BuildFromSource { .. } => None,
+                    PackageSource::SpkInternalTest => None,
+                };
+                (
+                    sr.spec.ident().clone(),
+                    PackageSolveData {
+                        requested_by: sr.request.get_requesters(),
+                        source_repo_name,
+                    },
+                )
+            })
+            .collect::<BTreeMap<BuildIdent, PackageSolveData>>()
+            .into()
     }
 }
 

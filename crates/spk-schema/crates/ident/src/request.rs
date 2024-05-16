@@ -571,7 +571,7 @@ where
 /// What made a PkgRequest, was it the command line, a test or a
 /// package build such as one resolved during a solve, or another
 /// package build resolved during a solve.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum RequestedBy {
     /// From the command line
     CommandLine,
@@ -638,7 +638,7 @@ impl std::fmt::Display for RequestedBy {
 }
 
 /// A desired package and set of restrictions on how it's selected.
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct PkgRequest {
     pub pkg: RangeIdent,
     #[serde(

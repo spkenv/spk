@@ -17,6 +17,7 @@ migration-to-components = [
 colored = { workspace = true }
 console = { workspace = true }
 itertools = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 spfs = { workspace = true }
 spk-schema = { workspace = true }
 spk-storage = { workspace = true }

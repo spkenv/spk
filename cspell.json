@@ -330,6 +330,7 @@
     "depvalue",
     "depvar",
     "depver",
+    "derserializer",
     "devel",
     "devs",
     "devtoolset",

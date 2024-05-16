@@ -18,6 +18,7 @@ migration-to-components = [
 async-stream = "0.3"
 futures = { workspace = true }
 relative-path = { workspace = true }
+serde_json = { workspace = true }
 spfs = { workspace = true }
 spk-schema = { workspace = true }
 spk-storage = { workspace = true }
