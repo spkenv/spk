@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use spk_schema::ident::RequestedBy;
 use spk_schema::BuildIdent;
 
@@ -30,9 +30,21 @@ pub struct PackageSolveData {
 #[derive(Default, Serialize, Deserialize)]
 pub struct PackagesToSolveData {
     /// For tracking data structure changes
+    #[serde(deserialize_with = "ensure_version")]
     version: u32,
     /// Resolved package id to solve data mapping
     data: BTreeMap<BuildIdent, PackageSolveData>,
+}
+
+fn ensure_version<'de, D>(derserializer: D) -> std::result::Result<u32, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let version = u32::deserialize(derserializer)?;
+    if version != PACKAGE_TO_SOLVE_DATA_VERSION {
+        return Err(serde::de::Error::custom(format!("PackagesToSolveData version mismatch. Required version {PACKAGE_TO_SOLVE_DATA_VERSION} but data is version {version}")));
+    }
+    Ok(version)
 }
 
 impl PackagesToSolveData {
