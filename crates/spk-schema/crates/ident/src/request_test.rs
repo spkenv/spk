@@ -314,6 +314,25 @@ fn test_var_request_pinned_roundtrip() {
 #[case("1.2.3.4.5", "API", "API:1.2.3.4.5")]
 #[case("1.2.3", "API:x.x", "API:1.2")]
 #[case("1.2.3", "true", "Binary:1.2.3")]
+#[case::v_expands_into_base_version("1.2.3+r.1", "v", "1.2.3")]
+#[case::capital_v_expands_into_full_version("1.2.3+r.1", "V", "1.2.3+r.1")]
+#[case::capital_x_in_post_position_expands_all_post_releases(
+    "1.2.3+r.1,s.2",
+    "x.x+X",
+    "1.2+r.1,s.2"
+)]
+#[case::capital_x_in_post_position_with_no_actual_post_release("1.2.3", "x.x+X", "1.2")]
+#[case::capital_x_in_pre_and_post_position_with_no_actual_post_release_expected_order(
+    "1.2.3", "x.x-X+X", "1.2"
+)]
+#[case::capital_x_in_pre_and_post_position_with_no_actual_post_release_unexpected_order(
+    "1.2.3", "x.x+X-X", "1.2"
+)]
+#[case::v_in_post_release_do_not_expand_to_version("1.2.3+v.1", "x.x.x+v.2", "1.2.3+v.2")]
+#[should_panic]
+#[case::x_in_pre_release_position_is_not_allowed("1.2.3-r.1", "x.x-x", "n/a")]
+#[should_panic]
+#[case::x_in_post_release_position_is_not_allowed("1.2.3+r.1", "x.x+x", "n/a")]
 fn test_pkg_request_pin_rendering(
     #[case] version: &str,
     #[case] pin: &str,

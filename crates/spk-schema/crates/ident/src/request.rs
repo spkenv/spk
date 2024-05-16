@@ -834,14 +834,69 @@ impl PkgRequest {
                 self.rendered_to_pkgrequest(rendered)
             }
             Some(pin) => {
-                let mut digits = pkg.version().parts.iter().chain(std::iter::repeat(&0));
+                enum ScannerMode {
+                    Base,
+                    Pre,
+                    Post,
+                }
+                let mut scanner_mode = ScannerMode::Base;
+                let version = pkg.version();
+                let mut digits = version.parts.iter().chain(std::iter::repeat(&0));
+
                 let mut rendered = Vec::with_capacity(pin.len());
                 for char in pin.chars() {
-                    if char == 'x' {
-                        rendered.extend(digits.next().unwrap().to_string().chars());
-                    } else {
-                        rendered.push(char);
+                    match (char, &scanner_mode) {
+                        ('x', ScannerMode::Base) => {
+                            rendered.extend(digits.next().unwrap().to_string().chars());
+                        }
+                        ('x', ScannerMode::Pre) => {
+                            return Err(Error::String(
+                                "'x' in pre-release position not supported; try 'X' instead"
+                                    .to_string(),
+                            ));
+                        }
+                        ('x', ScannerMode::Post) => {
+                            return Err(Error::String(
+                                "'x' in post-release position not supported; try 'X' instead"
+                                    .to_string(),
+                            ));
+                        }
+                        ('X', ScannerMode::Pre) => {
+                            rendered.extend(version.pre.to_string().chars());
+                        }
+                        ('X', ScannerMode::Post) => {
+                            rendered.extend(version.post.to_string().chars());
+                        }
+                        ('v', ScannerMode::Base) => {
+                            rendered.extend(version.base_normalized().chars());
+                        }
+                        ('V', ScannerMode::Base) => {
+                            rendered.extend(version.to_string().chars());
+                        }
+                        (x, _) => {
+                            match x {
+                                '-' => scanner_mode = ScannerMode::Pre,
+                                '+' => scanner_mode = ScannerMode::Post,
+                                _ => {}
+                            };
+                            rendered.push(x);
+                        }
                     }
+                }
+
+                loop {
+                    // Remove trailing '+', e.g., if `+X` was used but the package
+                    // had no post-release components.
+                    if rendered.last() == Some(&'+') {
+                        rendered.pop();
+                        continue;
+                    }
+                    // Similarly, remove any trailing '-'.
+                    if rendered.last() == Some(&'-') {
+                        rendered.pop();
+                        continue;
+                    }
+                    break;
                 }
 
                 self.rendered_to_pkgrequest(rendered)
