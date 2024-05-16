@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use spk_schema::ident::RequestedBy;
 use spk_schema::BuildIdent;
 
@@ -26,7 +26,7 @@ pub struct PackageSolveData {
 }
 
 /// The extra solve data for all the resolve packages for saving in
-/// the spfs runtime's created by spk after a solver run
+/// the spfs runtimes created by spk after a solver run
 #[derive(Default, Serialize, Deserialize)]
 pub struct PackagesToSolveData {
     /// For tracking data structure changes
