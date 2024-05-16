@@ -168,7 +168,7 @@ impl Object {
                     }
                     Enum::Manifest(object) => {
                         for node in object.to_tracking_manifest().walk_abs("/spfs") {
-                            total_size += node.entry.size
+                            total_size += node.entry.size()
                         }
                     }
                     Enum::Blob(object) => total_size += object.size(),

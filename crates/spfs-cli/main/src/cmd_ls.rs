@@ -166,7 +166,7 @@ impl TotalSize for Entry {
         if self.is_dir() {
             self.entries.values().map(|e| e.total_size()).sum()
         } else {
-            self.size
+            self.size()
         }
     }
 }

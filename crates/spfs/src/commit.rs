@@ -395,7 +395,7 @@ impl tracking::ComputeManifestReporter for ConsoleCommitReporter {
         bars.entries.inc(1);
         if entry.kind.is_blob() {
             bars.blobs.inc_length(1);
-            bars.bytes.inc_length(entry.size);
+            bars.bytes.inc_length(entry.size());
         }
     }
 }
@@ -403,8 +403,13 @@ impl tracking::ComputeManifestReporter for ConsoleCommitReporter {
 impl CommitReporter for ConsoleCommitReporter {
     fn committed_blob(&self, result: &CommitBlobResult) {
         let bars = self.get_bars();
-        bars.bytes.inc(result.node().entry.size);
-        bars.blobs.inc(1);
+        if result.node().entry.kind.is_blob() {
+            bars.bytes.inc(result.node().entry.size());
+            bars.blobs.inc(1);
+        } else {
+            debug_assert!(false, "committed_blob called with non-blob entry");
+            bars.blobs.inc(1);
+        }
     }
 }
 

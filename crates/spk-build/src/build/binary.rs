@@ -376,7 +376,7 @@ where
                 continue;
             };
             let entry = environment_filesystem.mknod(&path, entry)?;
-            if !matches!(entry.kind, EntryKind::Blob) {
+            if !matches!(entry.kind, EntryKind::Blob(_)) {
                 continue;
             }
 

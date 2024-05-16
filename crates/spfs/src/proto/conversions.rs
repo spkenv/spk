@@ -377,7 +377,7 @@ impl<'buf> From<&graph::Entry<'buf>> for super::Entry {
     fn from(source: &graph::Entry) -> Self {
         let kind = match source.kind() {
             tracking::EntryKind::Tree => super::EntryKind::Tree as i32,
-            tracking::EntryKind::Blob => super::EntryKind::Blob as i32,
+            tracking::EntryKind::Blob(_) => super::EntryKind::Blob as i32,
             tracking::EntryKind::Mask => super::EntryKind::Mask as i32,
         };
         Self {

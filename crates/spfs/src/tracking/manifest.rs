@@ -601,7 +601,6 @@ where
         while let Some((file_name, entry)) = stream.try_next().await? {
             tree_node.entries.insert(file_name, entry);
         }
-        tree_node.size = tree_node.entries.len() as u64;
         Ok(tree_node)
     }
 
@@ -650,6 +649,17 @@ where
 
         let mut entry: Entry;
         let file_type = stat_result.file_type();
+
+        let file_size: u64;
+        #[cfg(unix)]
+        {
+            file_size = stat_result.size();
+        }
+        #[cfg(windows)]
+        {
+            file_size = stat_result.file_size();
+        }
+
         if file_type.is_symlink() {
             let _permit = self.blob_semaphore.acquire().await;
             debug_assert!(
@@ -669,6 +679,7 @@ where
                 })?
                 .into_bytes();
             entry = Entry::empty_symlink();
+            entry.kind = EntryKind::Blob(file_size);
             entry.object = self
                 .hasher
                 .hash_blob(Box::pin(std::io::Cursor::new(link_target)))
@@ -693,17 +704,16 @@ where
                 })?)
                 .with_permissions(entry.mode);
 
+            entry.kind = EntryKind::Blob(file_size);
             entry.object = self.hasher.hash_blob(Box::pin(reader)).await?;
         }
 
         #[cfg(unix)]
         {
             entry.mode = stat_result.mode();
-            entry.size = stat_result.size();
         }
         #[cfg(windows)]
         {
-            entry.size = stat_result.file_size();
             // use the same default posix permissions as git uses
             // for files created on windows
             entry.mode = 0o644;

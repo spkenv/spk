@@ -128,9 +128,9 @@ impl Mount {
             kind,
             object,
             mode,
-            size,
             entries,
             user_data: _,
+            legacy_size,
         } = entry;
 
         let inode = self.allocate_inode();
@@ -142,9 +142,9 @@ impl Mount {
             kind,
             object,
             mode,
-            size,
             entries,
             user_data: inode,
+            legacy_size,
         });
         self.inodes.insert(inode, Arc::clone(&entry));
         entry
@@ -152,8 +152,8 @@ impl Mount {
 
     fn attr_from_entry(&self, entry: &Entry<u64>) -> u32 {
         let mut attrs = match entry.kind {
-            EntryKind::Blob if entry.is_symlink() => FILE_ATTRIBUTE_REPARSE_POINT.0,
-            EntryKind::Blob => FILE_ATTRIBUTE_NORMAL.0,
+            EntryKind::Blob(_) if entry.is_symlink() => FILE_ATTRIBUTE_REPARSE_POINT.0,
+            EntryKind::Blob(_) => FILE_ATTRIBUTE_NORMAL.0,
             EntryKind::Tree => FILE_ATTRIBUTE_DIRECTORY.0,
             // we do not allocate nodes for mask files
             EntryKind::Mask => unreachable!(),
@@ -270,7 +270,7 @@ impl winfsp::filesystem::FileSystemContext for Mount {
         let info = file_info.as_mut();
         info.file_attributes = attributes;
         info.index_number = entry.user_data;
-        info.file_size = entry.size;
+        info.file_size = entry.size();
         info.ea_size = 0;
         info.creation_time = now;
         info.change_time = now;
@@ -365,7 +365,7 @@ impl winfsp::filesystem::FileSystemContext for Mount {
                 let attributes = self.attr_from_entry(entry);
                 info.file_attributes = attributes;
                 info.index_number = entry.user_data;
-                info.file_size = entry.size;
+                info.file_size = entry.size();
                 info.ea_size = 0;
                 info.creation_time = now;
                 info.change_time = now;

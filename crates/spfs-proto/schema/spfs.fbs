@@ -76,6 +76,7 @@ table Entry {
     kind:EntryKind;
     object:Digest (required);
     mode:uint32;
+    // Size should only be present for blob entries
     size:uint64;
     name:string (required);
 }

@@ -87,8 +87,8 @@ pub fn format_diffs<'a, U1: 'a, U2: 'a>(
             if a.object != b.object {
                 abouts.push("content".to_string());
             }
-            if a.size != b.size {
-                abouts.push(format!("size {{{}=>{}}}", a.size, b.size));
+            if a.size() != b.size() {
+                abouts.push(format!("size {{{}=>{}}}", a.size(), b.size()));
             }
         }
         let about = if !abouts.is_empty() {
@@ -188,7 +188,7 @@ pub async fn pretty_print_filepath(
                     unix_mode::to_string(entry.mode),
                     entry.kind.to_string().green(),
                     format_digest(entry.object, digest_format.clone()).await?,
-                    format_size(entry.size),
+                    format_size(entry.size()),
                 );
             }
         }

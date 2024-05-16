@@ -70,7 +70,7 @@ impl<'buf> Entry<'buf> {
             name,
             entry.kind,
             entry.mode,
-            entry.size,
+            entry.size_for_legacy_encode(),
             &entry.object,
         )
     }
@@ -82,7 +82,7 @@ impl<'buf> Entry<'buf> {
 
     pub fn kind(&self) -> tracking::EntryKind {
         match self.0.kind() {
-            spfs_proto::EntryKind::Blob => tracking::EntryKind::Blob,
+            spfs_proto::EntryKind::Blob => tracking::EntryKind::Blob(self.0.size_()),
             spfs_proto::EntryKind::Tree => tracking::EntryKind::Tree,
             spfs_proto::EntryKind::Mask => tracking::EntryKind::Mask,
             _ => unreachable!("internally valid entry buffer"),
@@ -96,7 +96,10 @@ impl<'buf> Entry<'buf> {
 
     #[inline]
     pub fn size(&self) -> u64 {
-        self.0.size_()
+        match self.0.kind() {
+            spfs_proto::EntryKind::Blob => self.0.size_(),
+            _ => 0,
+        }
     }
 
     #[inline]
@@ -117,6 +120,15 @@ impl<'buf> Entry<'buf> {
     #[inline]
     pub fn is_regular_file(&self) -> bool {
         unix_mode::is_file(self.mode())
+    }
+
+    /// Return the size of the blob or the legacy size for non-blobs.
+    ///
+    /// This is required to preserve backwards compatibility with how digests
+    /// are calculated for non-blob entries.
+    #[inline]
+    pub fn size_for_legacy_encode(&self) -> u64 {
+        self.0.size_()
     }
 }
 
@@ -148,7 +160,8 @@ impl<'buf1, 'buf2> PartialOrd<Entry<'buf2>> for Entry<'buf1> {
 
 impl<'buf> Ord for Entry<'buf> {
     fn cmp(&self, other: &Entry<'buf>) -> std::cmp::Ordering {
-        if self.kind() == other.kind() {
+        // Note that the Entry's size does not factor into the comparison.
+        if self.0.kind() == other.0.kind() {
             self.name().cmp(other.name())
         } else {
             self.kind().cmp(&other.kind())
@@ -171,7 +184,7 @@ impl<'buf> Entry<'buf> {
         encoding::write_digest(&mut writer, self.object())?;
         self.kind().encode(&mut writer)?;
         encoding::write_uint64(&mut writer, self.mode() as u64)?;
-        encoding::write_uint64(&mut writer, self.size())?;
+        encoding::write_uint64(&mut writer, self.size_for_legacy_encode())?;
         encoding::write_string(writer, self.name())?;
         Ok(())
     }
@@ -182,10 +195,13 @@ impl<'buf> Entry<'buf> {
     ) -> Result<flatbuffers::WIPOffset<spfs_proto::Entry<'builder>>> {
         // fields in the same order as above
         let object = encoding::read_digest(&mut reader)?;
-        let kind = tracking::EntryKind::decode(&mut reader)?;
+        let mut kind = tracking::EntryKind::decode(&mut reader)?;
         let mode = encoding::read_uint64(&mut reader)? as u32;
         let size = encoding::read_uint64(&mut reader)?;
         let name = encoding::read_string(reader)?;
+        if kind.is_blob() {
+            kind = tracking::EntryKind::Blob(size);
+        }
         Ok(Self::build(builder, &name, kind, mode, size, &object))
     }
 }
@@ -204,6 +220,36 @@ impl EntryBuf {
         name: &str,
         kind: tracking::EntryKind,
         mode: u32,
+        object: &encoding::Digest,
+    ) -> Self {
+        crate::graph::BUILDER.with_borrow_mut(|builder| {
+            let name = builder.create_string(name);
+            let e = spfs_proto::Entry::create(
+                builder,
+                &EntryArgs {
+                    kind: kind.into(),
+                    object: Some(object),
+                    mode,
+                    size_: {
+                        match kind {
+                            tracking::EntryKind::Blob(size) => size,
+                            _ => 0,
+                        }
+                    },
+                    name: Some(name),
+                },
+            );
+            builder.finish_minimal(e);
+            let bytes = builder.finished_data().into();
+            builder.reset();
+            Self(bytes)
+        })
+    }
+
+    pub fn build_with_legacy_size(
+        name: &str,
+        kind: tracking::EntryKind,
+        mode: u32,
         size: u64,
         object: &encoding::Digest,
     ) -> Self {
@@ -215,7 +261,12 @@ impl EntryBuf {
                     kind: kind.into(),
                     object: Some(object),
                     mode,
-                    size_: size,
+                    size_: {
+                        match kind {
+                            tracking::EntryKind::Blob(size) => size,
+                            _ => size,
+                        }
+                    },
                     name: Some(name),
                 },
             );
