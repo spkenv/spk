@@ -78,7 +78,7 @@ impl RangeIdent {
             name: ident.name().to_owned(),
             version: VersionFilter::single(version_range),
             components: components.into_iter().collect(),
-            build: ident.build().map(Clone::clone),
+            build: ident.build().cloned(),
         }
     }
 
@@ -200,7 +200,7 @@ impl RangeIdent {
         if other.build.is_none() {
             Ok(())
         } else if self.build == other.build || self.build.is_none() {
-            self.build = other.build.clone();
+            self.build.clone_from(&other.build);
             Ok(())
         } else {
             Err(Error::String(format!(

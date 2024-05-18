@@ -784,7 +784,7 @@ impl Solver {
         Ok(Compatibility::Compatible)
     }
 
-    fn validate_package<P: Package>(
+    fn validate_package<P>(
         &self,
         state: &State,
         spec: &P,

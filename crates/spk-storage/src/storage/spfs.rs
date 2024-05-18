@@ -563,7 +563,7 @@ where
 
         self.caches
             .package
-            .insert(pkg.clone(), r.as_ref().map(Arc::clone).into());
+            .insert(pkg.clone(), r.as_ref().cloned().into());
         r
     }
 
@@ -748,7 +748,7 @@ where
 
         self.caches
             .package_versions
-            .insert(name.to_owned(), r.as_ref().map(|b| b.clone()).into());
+            .insert(name.to_owned(), r.as_ref().cloned().into());
         r
     }
 
@@ -771,7 +771,7 @@ where
 
         self.caches
             .list_build_components
-            .insert(pkg.to_owned(), r.as_ref().map(|v| v.clone()).into());
+            .insert(pkg.to_owned(), r.as_ref().cloned().into());
         r
     }
 
@@ -811,7 +811,7 @@ where
 
         self.caches
             .package
-            .insert(pkg.clone(), r.as_ref().map(Arc::clone).into());
+            .insert(pkg.clone(), r.as_ref().cloned().into());
         r
     }
 
@@ -837,7 +837,7 @@ where
 
         self.caches
             .recipe
-            .insert(pkg.clone(), r.as_ref().map(Arc::clone).into());
+            .insert(pkg.clone(), r.as_ref().cloned().into());
         r
     }
 
@@ -1162,7 +1162,7 @@ where
 
         self.caches
             .tag_spec
-            .insert(tag_spec.clone(), r.as_ref().map(|el| el.clone()).into());
+            .insert(tag_spec.clone(), r.as_ref().cloned().into());
         r
     }
 

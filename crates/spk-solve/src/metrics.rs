@@ -129,11 +129,11 @@ impl FromStr for StatsdFormat {
     }
 }
 
-impl ToString for StatsdFormat {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for StatsdFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            StatsdFormat::Statsd => STATSD_FORMAT.to_string(),
-            StatsdFormat::Librato => LIBRATO_FORMAT.to_string(),
+            StatsdFormat::Statsd => write!(f, "{}", STATSD_FORMAT),
+            StatsdFormat::Librato => write!(f, "{}", LIBRATO_FORMAT),
         }
     }
 }

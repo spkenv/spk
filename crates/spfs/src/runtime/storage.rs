@@ -720,7 +720,7 @@ impl Runtime {
         let layer_digest = layer.digest()?;
         self.push_digest(layer_digest);
 
-        tracing::debug!("pushed layer with list of annotions to storage: {layer_digest}.");
+        tracing::debug!("pushed layer with list of annotations to storage: {layer_digest}.");
         Ok(())
     }
 
@@ -754,7 +754,7 @@ impl Runtime {
         let layer_digest = layer.digest()?;
         self.push_digest(layer_digest);
 
-        tracing::debug!("pushed layer with annotion to storage: {layer_digest}.");
+        tracing::debug!("pushed layer with annotation to storage: {layer_digest}.");
         Ok(())
     }
 
@@ -866,8 +866,9 @@ impl Runtime {
                             );
                         }
                         OpenOptions::new()
-                            .create(true)
                             .write(true)
+                            .create(true)
+                            .truncate(true)
                             .open(mountpoint)
                             .expect("failed to make extra mount file location: {mountpoint:?}");
                     } else {

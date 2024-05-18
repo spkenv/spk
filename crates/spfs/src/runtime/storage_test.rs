@@ -196,7 +196,7 @@ async fn test_storage_runtime_with_annotation(tmpdir: tempfile::TempDir) {
         .expect("failed to create runtime in storage");
 
     // Test - insert data
-    let key = "somefield".to_string();
+    let key = "some_field".to_string();
     let value = "some value".to_string();
     assert!(runtime
         .add_annotation(key.clone(), value.clone(), limit)
@@ -204,7 +204,7 @@ async fn test_storage_runtime_with_annotation(tmpdir: tempfile::TempDir) {
         .is_ok());
 
     // Test - insert some more data
-    let value2 = "someothervalue".to_string();
+    let value2 = "some other value".to_string();
     assert!(runtime
         .add_annotation(key.clone(), value2, limit)
         .await
@@ -247,9 +247,9 @@ async fn test_storage_runtime_add_annotations_list(tmpdir: tempfile::TempDir) {
         .expect("failed to create runtime in storage");
 
     // Test - insert data
-    let key = "somefield".to_string();
+    let key = "some_field".to_string();
     let value = "some value".to_string();
-    let key2 = "someotherfield".to_string();
+    let key2 = "some_other_field".to_string();
     let value2 = "some other value".to_string();
 
     let annotations: Vec<KeyValuePair> =
@@ -293,7 +293,7 @@ async fn test_storage_runtime_with_nested_annotation(tmpdir: tempfile::TempDir) 
     );
 
     // make an annotation layer
-    let key = "somefield".to_string();
+    let key = "some_field".to_string();
     let value = "somevalue".to_string();
     let annotation_value = AnnotationValue::String(value.clone());
     let layer = Layer::new_with_annotation(key.clone(), annotation_value);
@@ -350,7 +350,7 @@ async fn test_storage_runtime_with_annotation_all(tmpdir: tempfile::TempDir) {
         .expect("failed to create runtime in storage");
 
     // Test - insert two distinct data values
-    let key = "somefield".to_string();
+    let key = "some_field".to_string();
     let value = "somevalue".to_string();
 
     assert!(runtime
@@ -358,7 +358,7 @@ async fn test_storage_runtime_with_annotation_all(tmpdir: tempfile::TempDir) {
         .await
         .is_ok());
 
-    let key2 = "somefield2".to_string();
+    let key2 = "some_field2".to_string();
     let value2 = "somevalue2".to_string();
     assert!(runtime
         .add_annotation(key2.clone(), value2.clone(), limit)
@@ -378,7 +378,7 @@ async fn test_storage_runtime_with_annotation_all(tmpdir: tempfile::TempDir) {
 
     assert!(result.len() == 2);
     for (expected_key, expected_value) in [(key, value), (key2, value2)].iter() {
-        assert!(result.get(expected_key).is_some());
+        assert!(result.contains_key(expected_key));
         match result.get(expected_key) {
             Some(v) => {
                 assert!(v == expected_value);
@@ -400,13 +400,13 @@ async fn test_storage_runtime_with_nested_annotation_all(tmpdir: tempfile::TempD
     );
 
     // make two distinct data values
-    let key = "somefield".to_string();
+    let key = "some_field".to_string();
     let value = "somevalue".to_string();
     let annotation_value = AnnotationValue::String(value.clone());
     let layer = Layer::new_with_annotation(key.clone(), annotation_value);
     repo.write_object(&layer.clone()).await.unwrap();
 
-    let key2 = "somefield2".to_string();
+    let key2 = "some_field2".to_string();
     let value2 = "somevalue2".to_string();
     let annotation_value2 = AnnotationValue::String(value2.clone());
     let layer2 = Layer::new_with_annotation(key2.clone(), annotation_value2);
@@ -447,7 +447,7 @@ async fn test_storage_runtime_with_nested_annotation_all(tmpdir: tempfile::TempD
     let result = runtime.all_annotations().await.unwrap();
     assert!(result.len() == 2);
     for (expected_key, expected_value) in [(key, value), (key2, value2)].iter() {
-        assert!(result.get(expected_key).is_some());
+        assert!(result.contains_key(expected_key));
         match result.get(expected_key) {
             Some(v) => {
                 assert!(v == expected_value);
@@ -546,7 +546,7 @@ async fn test_runtime_reset(tmpdir: tempfile::TempDir) {
         .await
         .expect("failed to create runtime in storage");
     let upper_dir = tmpdir.path().join("upper");
-    runtime.data.config.upper_dir = upper_dir.clone();
+    runtime.data.config.upper_dir.clone_from(&upper_dir);
 
     ensure(upper_dir.join("file"), "file01");
     ensure(upper_dir.join("dir/file"), "file02");

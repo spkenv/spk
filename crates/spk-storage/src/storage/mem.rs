@@ -198,6 +198,8 @@ where
         &self,
         pkg: &BuildIdent,
     ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>> {
+        // https://github.com/rust-lang/rust-clippy/issues/12560
+        #[allow(clippy::map_clone)]
         self.packages
             .read()
             .await
@@ -334,7 +336,7 @@ where
             .ok_or_else(|| Error::PackageNotFound(pkg.to_any()))?
             .get(pkg.build())
             .ok_or_else(|| Error::PackageNotFound(pkg.to_any()))
-            .map(Arc::clone)
+            .cloned()
     }
 
     async fn read_recipe(&self, pkg: &VersionIdent) -> Result<Arc<Self::Recipe>> {
@@ -344,7 +346,7 @@ where
             .get(pkg.name())
             .ok_or_else(|| Error::PackageNotFound(pkg.to_any(None)))?
             .get(pkg.version())
-            .map(Arc::clone)
+            .cloned()
             .ok_or_else(|| Error::PackageNotFound(pkg.to_any(None)))
     }
 

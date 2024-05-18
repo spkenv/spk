@@ -248,7 +248,7 @@ impl<'de> Deserialize<'de> for Opt {
                                 map.next_value()?;
                             if pkg_name_with_components.default.is_some() {
                                 check_existing_default(&self)?;
-                                self.default = pkg_name_with_components.default.clone();
+                                self.default.clone_from(&pkg_name_with_components.default);
                             }
                             self.pkg = Some(pkg_name_with_components);
                         }

@@ -54,7 +54,9 @@ impl<'de> Deserialize<'de> for EmbeddedPackagesList {
                 let mut default_build_spec = BuildSpec::default();
                 let mut default_install_spec = InstallSpec::default();
                 while let Some(embedded) = seq.next_element::<super::v0::Spec<AnyIdent>>()? {
-                    default_build_spec.options = embedded.build.options.clone();
+                    default_build_spec
+                        .options
+                        .clone_from(&embedded.build.options);
                     if default_build_spec != embedded.build {
                         return Err(serde::de::Error::custom(
                             "embedded packages can only specify build.options",

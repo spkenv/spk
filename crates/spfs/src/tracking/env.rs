@@ -288,10 +288,10 @@ where
     }
 }
 
-impl std::string::ToString for EnvSpec {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for EnvSpec {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let items: Vec<_> = self.items.iter().map(|i| i.to_string()).collect();
-        items.join(ENV_SPEC_SEPARATOR)
+        write!(f, "{}", items.join(ENV_SPEC_SEPARATOR))
     }
 }
 
