@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+// This trait causes dead code warnings when the server feature is not enabled.
+#[allow(dead_code)]
 pub(crate) trait RpcResult: Sized {
     type Ok;
     type Result;
