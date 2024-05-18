@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::path::Path;
+use std::env;
+use std::path::{Path, PathBuf};
 
 fn main() {
     println!("cargo:rerun-if-changed=schema/spfs.fbs");
@@ -12,10 +13,12 @@ fn main() {
         None => flatc_rust::Flatc::from_env_path(),
     };
 
+    let out_dir = env::var("OUT_DIR").unwrap();
+
     cmd.run(flatc_rust::Args {
         lang: "rust",
         inputs: &[Path::new("schema/spfs.fbs")],
-        out_dir: Path::new("src/"),
+        out_dir: &PathBuf::from(out_dir),
         ..Default::default()
     })
     .expect("schema compiler command");
