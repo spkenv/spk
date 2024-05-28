@@ -12,6 +12,8 @@ pub use error::{Error, Result};
 use miette::Diagnostic;
 use thiserror::Error;
 
+use crate::spec_ops::EnvName;
+
 #[cfg(test)]
 #[path = "./name_test.rs"]
 mod name_test;
@@ -261,6 +263,12 @@ impl OptNameBuf {
         }
 
         unsafe { OptNameBuf::from_string(new_name) }
+    }
+}
+
+impl EnvName for OptNameBuf {
+    fn env_name(&self) -> String {
+        self.0.replace('-', "_")
     }
 }
 
