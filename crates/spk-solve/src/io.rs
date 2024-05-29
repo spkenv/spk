@@ -56,6 +56,9 @@ use crate::{
     StatusLine,
 };
 
+const STOP_ON_BLOCK_FLAG: &str = "--stop-on-block";
+const BY_USER: &str = "by user";
+
 static USER_CANCELLED: Lazy<Arc<AtomicBool>> = Lazy::new(|| {
     // Initialise the USER_CANCELLED value
     let b = Arc::new(AtomicBool::new(false));
@@ -97,14 +100,9 @@ pub fn change_is_relevant_at_verbosity(
     use Change::*;
     let relevant_level = match change {
         SetPackage(_) => 1,
-        StepBack(_) => {
-            // More relevant when stop-on-block is enabled.
-            if stop_on_block {
-                0
-            } else {
-                1
-            }
-        }
+        // More relevant when stop-on-block is enabled.
+        StepBack(_) if stop_on_block => 0,
+        StepBack(_) => 1,
         RequestPackage(_) => 2,
         RequestVar(_) => 2,
         SetOptions(_) => 3,
@@ -203,9 +201,9 @@ where
     fn check_if_user_hit_ctrlc(&self) -> Result<()> {
         // Check if the solve has been interrupted by the user (via ctrl-c)
         if USER_CANCELLED.load(Ordering::Relaxed) {
-            return Err(Error::SolverInterrupted(
-                "Solver interrupted by user ...".to_string(),
-            ));
+            return Err(Error::SolverInterrupted(format!(
+                "Solver interrupted {BY_USER} ..."
+            )));
         }
         Ok(())
     }
@@ -223,7 +221,7 @@ where
                 // decision was a step-back (BLOCKED) with stop-on-block set
                 if stop_because_blocked {
                     yield(Err(Error::SolverInterrupted(
-                        "hit BLOCKED state with '--stop-on-block' enabled.".to_string(),
+                        format!("hit BLOCKED state with {STOP_ON_BLOCK_FLAG} enabled."),
                         )));
                     continue 'outer;
                 }
@@ -1124,7 +1122,7 @@ impl DecisionFormatter {
                 self.send_sentry_warning_message(
                     &runtime.solver,
                     solve_time,
-                    if mesg.contains("by user") || mesg.contains("--stop-on-block") {
+                    if mesg.contains(BY_USER) || mesg.contains(STOP_ON_BLOCK_FLAG) {
                         SentryWarning::SolverInterruptedByUser
                     } else {
                         SentryWarning::SolverInterruptedByTimeout
