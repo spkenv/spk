@@ -206,7 +206,7 @@ where
         let relevant_level = match change {
             SetPackage(_) => 1,
             // More relevant when stop-on-block is enabled.
-            StepBack(_) if stop_on_block => 0,
+            StepBack(_) if self.settings.stop_on_block || self.settings.step_on_block => 0,
             StepBack(_) => 1,
             RequestPackage(_) => 2,
             RequestVar(_) => 2,
