@@ -82,7 +82,7 @@ pub trait Recipe:
         P: Package;
 
     /// Return the metadata for this package.
-    fn metadata(&self) -> Meta;
+    fn metadata(&self) -> &Meta;
 }
 
 impl<T> Recipe for std::sync::Arc<T>
@@ -142,7 +142,7 @@ where
         (**self).generate_binary_build(variant, build_env)
     }
 
-    fn metadata(&self) -> Meta {
+    fn metadata(&self) -> &Meta {
         (**self).metadata()
     }
 }
@@ -204,7 +204,7 @@ where
         (**self).generate_binary_build(variant, build_env)
     }
 
-    fn metadata(&self) -> Meta {
+    fn metadata(&self) -> &Meta {
         (**self).metadata()
     }
 }

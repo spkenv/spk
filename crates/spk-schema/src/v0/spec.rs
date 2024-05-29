@@ -652,8 +652,8 @@ impl Recipe for Spec<VersionIdent> {
         Ok(updated.map_ident(|i| i.into_build(Build::BuildId(digest))))
     }
 
-    fn metadata(&self) -> Meta {
-        self.meta.clone()
+    fn metadata(&self) -> &Meta {
+        &self.meta
     }
 }
 

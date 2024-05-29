@@ -369,7 +369,7 @@ impl Recipe for SpecRecipe {
         }
     }
 
-    fn metadata(&self) -> Meta {
+    fn metadata(&self) -> &Meta {
         match self {
             SpecRecipe::V0Package(r) => r.metadata(),
             SpecRecipe::V0Platform(r) => r.metadata(),

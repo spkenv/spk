@@ -285,8 +285,8 @@ impl Recipe for Platform {
         spec.generate_binary_build(variant, build_env)
     }
 
-    fn metadata(&self) -> Meta {
-        self.meta.clone()
+    fn metadata(&self) -> &Meta {
+        &self.meta
     }
 }
 
