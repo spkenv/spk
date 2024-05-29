@@ -48,6 +48,13 @@ impl Meta {
         "Unlicensed".into()
     }
 
+    pub fn has_label_with_value(&self, label: &str, value: &str) -> bool {
+        if let Some(label_value) = self.labels.get(label) {
+            return *label_value == value;
+        }
+        false
+    }
+
     pub fn update_metadata(&mut self, global_config: &Metadata) -> Result<i32> {
         for config in global_config.global.iter() {
             let cmd = &config.command;

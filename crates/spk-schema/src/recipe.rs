@@ -11,6 +11,7 @@ use spk_schema_ident::VersionIdent;
 use crate::foundation::ident_build::BuildId;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::{Named, Versioned};
+use crate::metadata::Meta;
 use crate::{InputVariant, Package, RequirementsList, Result, TestStage, Variant};
 
 /// Return the resolved packages from a solution.
@@ -79,6 +80,9 @@ pub trait Recipe:
         V: InputVariant,
         E: BuildEnv<Package = P>,
         P: Package;
+
+    /// Return the metadata for this package.
+    fn metadata(&self) -> &Meta;
 }
 
 impl<T> Recipe for std::sync::Arc<T>
@@ -137,6 +141,10 @@ where
     {
         (**self).generate_binary_build(variant, build_env)
     }
+
+    fn metadata(&self) -> &Meta {
+        (**self).metadata()
+    }
 }
 
 impl<T> Recipe for &T
@@ -194,5 +202,9 @@ where
         P: Package,
     {
         (**self).generate_binary_build(variant, build_env)
+    }
+
+    fn metadata(&self) -> &Meta {
+        (**self).metadata()
     }
 }

@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
+use std::str::FromStr;
 use std::sync::Arc;
 
 use spk_schema::foundation::format::{FormatComponents, FormatIdent};
 use spk_schema::foundation::ident_component::ComponentSet;
-use spk_schema::{AnyIdent, BuildIdent, Package, Recipe};
+use spk_schema::{AnyIdent, BuildIdent, Package, Recipe, VersionIdent};
 use spk_storage as storage;
 use storage::{with_cache_policy, CachePolicy};
 
@@ -15,6 +16,29 @@ use crate::{Error, Result};
 #[cfg(test)]
 #[path = "./publish_test.rs"]
 mod publish_test;
+
+/// Contains label=value data for use with publishing
+#[derive(Debug, Clone)]
+pub struct PublishLabel {
+    label: String,
+    value: String,
+}
+
+impl FromStr for PublishLabel {
+    type Err = crate::Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        if let Some((label, value)) = s.split_once('=') {
+            return Ok(Self {
+                label: label.to_string(),
+                value: value.to_string(),
+            });
+        }
+        Err(Error::String(format!(
+            "Invalid: {s} is not in 'label=value' format"
+        )))
+    }
+}
 
 /// Manages the publishing of packages from one repo to another.
 ///
@@ -26,6 +50,7 @@ pub struct Publisher {
     from: Arc<storage::RepositoryHandle>,
     to: Arc<storage::RepositoryHandle>,
     skip_source_packages: bool,
+    allow_existing_label: Option<PublishLabel>,
     force: bool,
 }
 
@@ -42,6 +67,7 @@ impl Publisher {
             from: source,
             to: destination,
             skip_source_packages: false,
+            allow_existing_label: None,
             force: false,
         }
     }
@@ -64,10 +90,37 @@ impl Publisher {
         self
     }
 
+    /// Allow publishing builds when the version already exists and
+    /// the existing version recipe contains the given metadata label
+    /// and value.
+    pub fn allow_existing_with_label(mut self, existing_label: Option<PublishLabel>) -> Self {
+        self.allow_existing_label = existing_label;
+        self
+    }
+
     /// Forcefully publishing a package will overwrite an existing publish if it exists.
     pub fn force(mut self, force: bool) -> Self {
         self.force = force;
         self
+    }
+
+    async fn allow_existing_version(&self, dest_recipe_ident: &VersionIdent) -> Result<bool> {
+        if let Some(label) = &self.allow_existing_label {
+            let dest_recipe = self.to.read_recipe(dest_recipe_ident).await?;
+            let result = dest_recipe
+                .metadata()
+                .has_label_with_value(&label.label, &label.value);
+            if !result {
+                tracing::debug!(
+                    "Package version does not have '{}={}' in its metadata",
+                    label.label,
+                    label.value
+                );
+            }
+            Ok(result)
+        } else {
+            Ok(false)
+        }
     }
 
     /// Publish the identified package as configured.
@@ -101,15 +154,22 @@ impl Publisher {
                         Ok(_) => {
                             // Do nothing if no errors.
                         }
-                        Err(spk_storage::Error::VersionExists(_)) => {
-                            match pkg.build() {
-                                Some(_) => (), // If build provided, we can silently fail.
-                                None => {
-                                    return Err(format!(
-                                        "Failed to publish recipe {}: Version exists",
-                                        recipe.ident(),
-                                    )
-                                    .into());
+                        Err(spk_storage::Error::VersionExists(dest_recipe_ident)) => {
+                            if self.allow_existing_version(&dest_recipe_ident).await? {
+                                // The existing version was generated and published by a
+                                // conversion process, e.g. spk convert pip/spk-convert-pip,
+                                // so allow these builds to be published.
+                                tracing::info!("Package version exists, allow-existing-with-label specified, and matched: publishing new builds allowed");
+                            } else {
+                                match pkg.build() {
+                                    Some(_) => (), // If build provided, we can silently fail.
+                                    None => {
+                                        return Err(format!(
+                                            "Failed to publish recipe {}: Version exists",
+                                            recipe.ident(),
+                                        )
+                                        .into());
+                                    }
                                 }
                             }
                         }

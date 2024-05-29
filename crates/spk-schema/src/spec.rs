@@ -20,6 +20,7 @@ use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{PkgRequest, Request, Satisfy, VarRequest};
+use crate::metadata::Meta;
 use crate::{
     v0,
     BuildEnv,
@@ -365,6 +366,13 @@ impl Recipe for SpecRecipe {
             SpecRecipe::V0Platform(r) => r
                 .generate_binary_build(variant, build_env)
                 .map(Spec::V0Package),
+        }
+    }
+
+    fn metadata(&self) -> &Meta {
+        match self {
+            SpecRecipe::V0Package(r) => r.metadata(),
+            SpecRecipe::V0Platform(r) => r.metadata(),
         }
     }
 }

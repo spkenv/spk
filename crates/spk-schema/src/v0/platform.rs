@@ -284,6 +284,10 @@ impl Recipe for Platform {
 
         spec.generate_binary_build(variant, build_env)
     }
+
+    fn metadata(&self) -> &Meta {
+        &self.meta
+    }
 }
 
 // A private visitor struct that may be extended to aid linting in future.

@@ -20,7 +20,7 @@ pub use env::{configure_logging, current_env, spk_exe};
 pub use error::{Error, Result, TestError};
 pub use exec::build_required_packages;
 use once_cell::sync::Lazy;
-pub use publish::Publisher;
+pub use publish::{PublishLabel, Publisher};
 pub use with_version_and_build_set::{DefaultBuildStrategy, DefaultVersionStrategy};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
