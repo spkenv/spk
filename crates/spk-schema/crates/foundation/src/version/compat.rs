@@ -395,6 +395,14 @@ impl Compat {
         for (i, rule) in self.parts.iter().enumerate() {
             let a = base.parts.get(i);
             let b = other.parts.get(i);
+
+            if a.is_none() {
+                // Handle case where "3.10" is specified and other is "3.10.10".
+                // Since 3 == 3 and 10 == 10 and no other version parts are
+                // specified, we consider these compatible.
+                return Compatibility::Compatible;
+            }
+
             if rule.0.contains(&CompatRule::None) {
                 match (a, b) {
                     (Some(a), Some(b)) if a != b => {
