@@ -196,7 +196,9 @@ where
         let _ = std::io::stdout().flush();
 
         if let Err(err) = std::io::stdin().read_line(&mut _input) {
-            return Err(Error::String(err.to_string()));
+            // If there's some stdin can't be read, it is probably
+            // better to continue with the solve than error out.
+            tracing::warn!("{err}");
         }
         Ok(())
     }
@@ -349,7 +351,7 @@ where
                                 new_level = destination.state_depth;
                                 // Ensures the solver will stop before the next
                                 // decision because of this (BLOCKED) change, if
-                                // stop-on-block is enabled.
+                                // stop-on-block or step-on-block are enabled.
                                 stop_because_blocked = self.settings.stop_on_block;
                                 step_because_blocked = self.settings.step_on_block;
                             }
