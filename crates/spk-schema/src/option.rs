@@ -9,6 +9,7 @@ use indexmap::set::IndexSet;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_component::ComponentBTreeSetBuf;
 use spk_schema_foundation::option_map::Stringified;
+use spk_schema_foundation::version::Compat;
 use spk_schema_ident::{NameAndValue, PinnableValue, RangeIdent};
 
 use crate::foundation::name::{OptName, OptNameBuf, PkgName, PkgNameBuf};
@@ -181,6 +182,7 @@ impl TryFrom<Request> for Opt {
                 choices: Default::default(),
                 inheritance: Default::default(),
                 description,
+                compat: None,
                 value: None,
             })),
         }
@@ -214,6 +216,7 @@ impl<'de> Deserialize<'de> for Opt {
             var: Option<OptNameBuf>,
             choices: Option<IndexSet<String>>,
             inheritance: Option<Inheritance>,
+            compat: Option<Compat>,
 
             // Both
             default: Option<String>,
@@ -280,6 +283,9 @@ impl<'de> Deserialize<'de> for Opt {
                         "description" => {
                             self.description = Some(map.next_value::<Stringified>()?.0);
                         }
+                        "compat" => {
+                            self.compat = Some(map.next_value::<Compat>()?);
+                        }
                         _ => {
                             // unrecognized fields are explicitly ignored in case
                             // they were added in a newer version of spk. We assume
@@ -305,6 +311,7 @@ impl<'de> Deserialize<'de> for Opt {
                         inheritance: self.inheritance.unwrap_or_default(),
                         default: self.default.unwrap_or_default(),
                         description: self.description,
+                        compat: self.compat,
                         value: self.value,
                     })),
                     (Some(_), Some(_)) => Err(serde::de::Error::custom(
@@ -328,6 +335,7 @@ pub struct VarOpt {
     pub choices: IndexSet<String>,
     pub inheritance: Inheritance,
     pub description: Option<String>,
+    pub compat: Option<Compat>,
     value: Option<String>,
 }
 
@@ -385,6 +393,7 @@ impl VarOpt {
             choices: IndexSet::default(),
             inheritance: Inheritance::default(),
             description: None,
+            compat: None,
             value: None,
         })
     }
@@ -464,6 +473,8 @@ struct VarOptSchema {
     inheritance: Inheritance,
     #[serde(skip_serializing_if = "String::is_empty")]
     description: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    compat: Option<Compat>,
     #[serde(rename = "static", skip_serializing_if = "String::is_empty")]
     value: String,
 }
@@ -478,6 +489,7 @@ impl Serialize for VarOpt {
             choices: self.choices.iter().map(String::to_owned).collect(),
             inheritance: self.inheritance,
             description: self.description.clone().unwrap_or_default(),
+            compat: self.compat.clone(),
             value: self.value.clone().unwrap_or_default(),
         };
         if !self.default.is_empty() {
