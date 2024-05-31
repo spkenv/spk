@@ -4,12 +4,14 @@
 
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
+use std::str::FromStr;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::name::PkgName;
 use spk_schema_foundation::option_map::{OptionMap, Stringified, HOST_OPTIONS};
+use spk_schema_foundation::version::Compat;
 use strum::Display;
 
 use super::{v0, Opt, ValidationSpec};
@@ -68,7 +70,16 @@ impl AutoHostVars {
     pub fn host_options(&self) -> Result<Vec<Opt>> {
         let all_host_options = HOST_OPTIONS.get()?;
 
-        let mut names_added = self.names_added();
+        let mut settings = Vec::new();
+        let names_to_add = self.names_added();
+        for (name, _value) in all_host_options.iter() {
+            if !names_to_add.contains(&OptName::new(name)?) {
+                continue;
+            }
+            let opt = Opt::Var(VarOpt::new(name)?);
+            settings.push(opt)
+        }
+
         let distro_name;
         let fallback_name: OptNameBuf;
         if AutoHostVars::Distro == *self {
@@ -76,14 +87,30 @@ impl AutoHostVars {
                 Some(distro) => {
                     distro_name = distro.clone();
                     match OptName::new(&distro_name) {
-                        Ok(name) => _ = names_added.insert(name),
+                        Ok(name) => {
+                            let mut var_opt = VarOpt::new(name.to_owned())?;
+                            // Allow packages built on Rocky 7.3 to run on
+                            // Rocky 7.4 by giving the "rocky" option a compat
+                            // value.
+                            // XXX: hard coded distro names as a proof of
+                            // concept
+                            if distro_name == "centos"
+                                || distro_name == "rocky"
+                                || distro_name == "ubuntu"
+                            {
+                                var_opt.compat = Some(
+                                    Compat::from_str("x.ab").expect("valid Compat expression"),
+                                );
+                            }
+                            settings.push(Opt::Var(var_opt));
+                        }
                         Err(err) => {
                             fallback_name = OptNameBuf::new_lossy(&distro_name);
                             tracing::warn!("Reported distro id ({}) is not a valid var option name: {err}. A {} var will be used instead.",
                                            distro_name.to_string(),
                                            fallback_name);
 
-                            _ = names_added.insert(&fallback_name);
+                            settings.push(Opt::Var(VarOpt::new(&fallback_name)?));
                         }
                     }
                 }
@@ -92,16 +119,8 @@ impl AutoHostVars {
                         "No distro name set by host. A {}= will be used instead.",
                         OptName::unknown_distro()
                     );
-                    _ = names_added.insert(OptName::unknown_distro());
+                    settings.push(Opt::Var(VarOpt::new(OptName::unknown_distro().to_owned())?));
                 }
-            }
-        }
-
-        let mut settings = Vec::new();
-        for (name, _value) in all_host_options.iter() {
-            if names_added.contains(&OptName::new(name)?) {
-                let opt = Opt::Var(VarOpt::new(name)?);
-                settings.push(opt)
             }
         }
 
