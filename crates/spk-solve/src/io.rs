@@ -92,25 +92,6 @@ pub fn format_note(note: &Note) -> String {
     }
 }
 
-pub fn change_is_relevant_at_verbosity(
-    change: &Change,
-    verbosity: u8,
-    stop_on_block: bool,
-) -> bool {
-    use Change::*;
-    let relevant_level = match change {
-        SetPackage(_) => 1,
-        // More relevant when stop-on-block is enabled.
-        StepBack(_) if stop_on_block => 0,
-        StepBack(_) => 1,
-        RequestPackage(_) => 2,
-        RequestVar(_) => 2,
-        SetOptions(_) => 3,
-        SetPackageBuild(_) => 1,
-    };
-    verbosity >= relevant_level
-}
-
 /// How long to wait before showing the solver status bar.
 const STATUS_BAR_DELAY: Duration = Duration::from_secs(5);
 
@@ -208,17 +189,57 @@ where
         Ok(())
     }
 
+    fn wait_for_user_to_hit_enter(&self) -> Result<()> {
+        let mut _input = String::new();
+
+        use std::io::Write;
+        let _ = std::io::stdout().flush();
+
+        if let Err(err) = std::io::stdin().read_line(&mut _input) {
+            // If there's some stdin can't be read, it is probably
+            // better to continue with the solve than error out.
+            tracing::warn!("{err}");
+        }
+        Ok(())
+    }
+
+    pub fn change_is_relevant_at_verbosity(&self, change: &Change) -> bool {
+        use Change::*;
+        let relevant_level = match change {
+            SetPackage(_) => 1,
+            // More relevant when stop-on-block is enabled.
+            StepBack(_) if self.settings.stop_on_block || self.settings.step_on_block => 0,
+            StepBack(_) => 1,
+            RequestPackage(_) => 2,
+            RequestVar(_) => 2,
+            SetOptions(_) => 3,
+            SetPackageBuild(_) => 1,
+        };
+        self.verbosity >= relevant_level
+    }
+
     pub fn iter(&mut self) -> impl Stream<Item = Result<String>> + '_ {
         stream! {
             let mut stop_because_blocked = false;
+            let mut step_because_blocked = false;
             'outer: loop {
                 if let Some(next) = self.output_queue.pop_front() {
                     yield Ok(next);
                     continue 'outer;
                 }
 
-                // Check if the solver should stop because the last
-                // decision was a step-back (BLOCKED) with stop-on-block set
+                // Check if the solver should pause because the last
+                // decision was a step-back (BLOCKED) with step-on-block set
+                if step_because_blocked {
+                    yield(Ok(format!("{}", "Pausing at BLOCKED state. Press 'Enter' to continue.".to_string().yellow())));
+                    if let Err(err) = self.wait_for_user_to_hit_enter() {
+                        yield(Err(err));
+                    }
+                    step_because_blocked = false;
+                }
+
+                // Check if the solver should stop because the last decision
+                // was a step-back (BLOCKED) with stop-on-block set
                 if stop_because_blocked {
                     yield(Err(Error::SolverInterrupted(
                         format!("hit BLOCKED state with {STOP_ON_BLOCK_FLAG} enabled."),
@@ -330,15 +351,16 @@ where
                                 new_level = destination.state_depth;
                                 // Ensures the solver will stop before the next
                                 // decision because of this (BLOCKED) change, if
-                                // stop-on-block is enabled.
+                                // stop-on-block or step-on-block are enabled.
                                 stop_because_blocked = self.settings.stop_on_block;
+                                step_because_blocked = self.settings.step_on_block;
                             }
                             _ => {
                                 fill = ".";
                             }
                         }
 
-                        if !change_is_relevant_at_verbosity(change, self.verbosity, self.settings.stop_on_block) {
+                        if !self.change_is_relevant_at_verbosity(change) {
                             continue;
                         }
 
@@ -453,6 +475,7 @@ pub struct DecisionFormatterBuilder {
     show_search_space_size: bool,
     compare_solvers: bool,
     stop_on_block: bool,
+    step_on_block: bool,
 }
 
 impl Default for DecisionFormatterBuilder {
@@ -472,6 +495,7 @@ impl Default for DecisionFormatterBuilder {
             show_search_space_size: false,
             compare_solvers: false,
             stop_on_block: false,
+            step_on_block: false,
         }
     }
 }
@@ -565,6 +589,11 @@ impl DecisionFormatterBuilder {
         self
     }
 
+    pub fn with_step_on_block(&mut self, enable: bool) -> &mut Self {
+        self.step_on_block = enable;
+        self
+    }
+
     pub fn build(&self) -> DecisionFormatter {
         let too_long_seconds = if self.verbosity_increase_seconds == 0
             || (self.verbosity_increase_seconds > self.timeout && self.timeout > 0)
@@ -606,6 +635,7 @@ impl DecisionFormatterBuilder {
                 show_search_space_size: self.show_search_space_size,
                 compare_solvers: self.compare_solvers,
                 stop_on_block: self.stop_on_block,
+                step_on_block: self.step_on_block,
             },
         }
     }
@@ -666,6 +696,7 @@ pub(crate) struct DecisionFormatterSettings {
     pub(crate) show_search_space_size: bool,
     pub(crate) compare_solvers: bool,
     pub(crate) stop_on_block: bool,
+    pub(crate) step_on_block: bool,
 }
 
 enum LoopOutcome {
@@ -756,6 +787,7 @@ impl DecisionFormatter {
                 show_search_space_size: false,
                 compare_solvers: false,
                 stop_on_block: false,
+                step_on_block: false,
             },
         }
     }
