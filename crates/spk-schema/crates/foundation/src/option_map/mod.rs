@@ -14,6 +14,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 use crate::name::{OptName, OptNameBuf, PkgName};
+use crate::spec_ops::EnvName;
 
 mod error;
 mod format;
@@ -186,7 +187,7 @@ impl OptionMap {
     pub fn to_environment(&self) -> HashMap<String, String> {
         let mut out = HashMap::default();
         for (name, value) in self.iter() {
-            let var_name = format!("SPK_OPT_{name}");
+            let var_name = format!("SPK_OPT_{}", name.env_name());
             out.insert(var_name, value.into());
         }
         out
