@@ -54,7 +54,7 @@ where
     // durable runtime upperdir edits.
     tar_repo.remove_durable_dir().await?;
 
-    let mut target_repo =
+    let target_repo =
         super::SpfsRepository::try_from(NameAndRepositoryWithTagStrategy::<_, _, S>::new(
             "archive",
             spfs::storage::RepositoryHandle::from(tar_repo),
@@ -170,8 +170,8 @@ where
     }
 
     tracing::info!(path=?filename, "building archive");
-    use std::ops::DerefMut;
-    if let spfs::storage::RepositoryHandle::Tar(tar) = target_repo.deref_mut() {
+    use std::ops::Deref;
+    if let spfs::storage::RepositoryHandle::Tar(tar) = target_repo.deref() {
         tar.flush()?;
     }
     Ok(())

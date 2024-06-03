@@ -98,8 +98,10 @@ async fn test_upgrade_changes_tags(tmpdir: tempfile::TempDir) {
 
     // publish an "old style" package spec and build
     let mut old_path = spfs::tracking::TagSpec::from_str(
-        repo.build_package_tag::<NormalizedTagStrategy, _>(&ident)
-            .as_str(),
+        SpfsRepository::<NormalizedTagStrategy>::build_package_tag::<NormalizedTagStrategy, _>(
+            &ident,
+        )
+        .as_str(),
     )
     .unwrap();
     spfs_repo
@@ -107,7 +109,7 @@ async fn test_upgrade_changes_tags(tmpdir: tempfile::TempDir) {
         .await
         .unwrap();
     old_path = spfs::tracking::TagSpec::from_str(
-        repo.build_spec_tag::<NormalizedTagStrategy, _>(&ident)
+        SpfsRepository::<NormalizedTagStrategy>::build_spec_tag::<NormalizedTagStrategy, _>(&ident)
             .as_str(),
     )
     .unwrap();

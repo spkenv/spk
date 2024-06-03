@@ -4440,6 +4440,7 @@ dependencies = [
 name = "spk-storage"
 version = "0.40.0"
 dependencies = [
+ "arc-swap",
  "async-trait",
  "colored",
  "dashmap",

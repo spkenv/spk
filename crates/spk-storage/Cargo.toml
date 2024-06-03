@@ -12,6 +12,7 @@ legacy-spk-version-tags = []
 migration-to-components = ["spk-schema/migration-to-components"]
 
 [dependencies]
+arc-swap = { workspace = true }
 async-trait = { workspace = true }
 colored = { workspace = true }
 dashmap = "5.4.0"
