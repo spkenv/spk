@@ -159,6 +159,8 @@ fn test_version_range_is_satisfied_recipe(
 #[case("Binary:1.38.0", spec!({"pkg": "test/1.38.0+r.3/JRSXNRF4", "compat": "x.x.x+ab"}), true)]
 // smaller numbers are not compatible
 #[case("Binary:5.12.2.1", spec!({"pkg": "test/5.12.2/JRSXNRF4", "compat": "x.x.ab"}), false)]
+// asking for "3.10" is expected to allow "3.10.10"
+#[case::under_specified_version_and_x_compat("API:3.10", spec!({"pkg": "test/3.10.10/JRSXNRF4", "compat": "x.x.x"}), true)]
 fn test_version_range_is_satisfied_spec(
     #[case] range: &str,
     #[case] spec: Spec,
