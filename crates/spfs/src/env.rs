@@ -283,6 +283,8 @@ where
     }
 
     /// Check if the identified directory is an active mount point.
+    ///
+    /// Returns false in the case where the path or its parent do not exist.
     async fn is_mounted<P: Into<PathBuf>>(&self, target: P) -> Result<bool> {
         let target = target.into();
         let parent = match target.parent() {
@@ -292,11 +294,9 @@ where
 
         // A new thread created while holding _guard will be inside the same
         // mount namespace...
-        let stat_parent_thread =
-            std::thread::spawn(move || nix::sys::stat::stat(&parent).map_err(Error::from));
+        let stat_parent_thread = std::thread::spawn(move || nix::sys::stat::stat(&parent));
 
-        let stat_target_thread =
-            std::thread::spawn(move || nix::sys::stat::stat(&target).map_err(Error::from));
+        let stat_target_thread = std::thread::spawn(move || nix::sys::stat::stat(&target));
 
         let (st_parent, st_target) = tokio::task::spawn_blocking(move || {
             let st_parent = stat_parent_thread.join();
@@ -306,9 +306,22 @@ where
         .await?;
 
         let st_parent =
-            st_parent.map_err(|_| Error::String("Failed to stat parent".to_owned()))??;
+            match st_parent.map_err(|_| Error::String("Failed to stat parent".to_owned()))? {
+                // the parent not existing means the child also doesn't exist
+                // and so cannot be considered as mounted
+                Err(nix::errno::Errno::ENOENT) => {
+                    return Ok(false);
+                }
+                r => r?,
+            };
         let st_target =
-            st_target.map_err(|_| Error::String("Failed to stat target".to_owned()))??;
+            match st_target.map_err(|_| Error::String("Failed to stat target".to_owned()))? {
+                // a non-existent directory is considered not mounted
+                Err(nix::errno::Errno::ENOENT) => {
+                    return Ok(false);
+                }
+                r => r?,
+            };
 
         Ok(st_target.st_dev != st_parent.st_dev)
     }
@@ -326,27 +339,42 @@ impl<MountNamespace> RuntimeConfigurator<IsRootUser, MountNamespace>
 where
     MountNamespace: __private::CurrentThreadIsInMountNamespace,
 {
-    /// Privatize mounts in the current namespace, so that new mounts and changes
+    /// Remount key existing mount points so that new mounts and changes
     /// to existing mounts don't propagate to the parent namespace.
-    pub async fn privatize_existing_mounts(&self) -> Result<()> {
+    ///
+    /// We use MS_SLAVE for system mounts because we still want mount and
+    /// unmount events from the system to propagate into this new namespace.
+    /// We privatize any existing /spfs mount, though because we are likely
+    /// to replace it and don't want to affect any parent runtime.
+    pub async fn remove_mount_propagation(&self) -> Result<()> {
         use nix::mount::{mount, MsFlags};
 
-        tracing::debug!("privatizing existing mounts...");
+        tracing::debug!("disable sharing of new mounts...");
 
-        let mut res = mount(NONE, "/", NONE, MsFlags::MS_PRIVATE, NONE);
+        let mut res = mount(NONE, "/", NONE, MsFlags::MS_SLAVE, NONE);
         if let Err(err) = res {
             return Err(Error::wrap_nix(
                 err,
-                "Failed to privatize existing mount: /",
+                "Failed to remove propagation from existing mount: /",
             ));
         }
 
-        if self.is_mounted("/tmp").await? {
-            res = mount(NONE, "/tmp", NONE, MsFlags::MS_PRIVATE, NONE);
+        if self.is_mounted(SPFS_DIR).await? {
+            res = mount(NONE, SPFS_DIR, NONE, MsFlags::MS_PRIVATE, NONE);
             if let Err(err) = res {
                 return Err(Error::wrap_nix(
                     err,
-                    "Failed to privatize existing mount: /tmp",
+                    "Failed to privatize existing mount: /spfs",
+                ));
+            }
+        }
+
+        if self.is_mounted("/tmp").await? {
+            res = mount(NONE, "/tmp", NONE, MsFlags::MS_SLAVE, NONE);
+            if let Err(err) = res {
+                return Err(Error::wrap_nix(
+                    err,
+                    "Failed to remove propagation from existing mount: /tmp",
                 ));
             }
         }

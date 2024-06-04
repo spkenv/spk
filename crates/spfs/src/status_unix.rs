@@ -221,7 +221,7 @@ pub async fn initialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSumma
     rt.save_state_to_storage().await?;
 
     let with_root = in_namespace.become_root()?;
-    with_root.privatize_existing_mounts().await?;
+    with_root.remove_mount_propagation().await?;
     with_root.ensure_mount_targets_exist(&rt.config)?;
     match rt.config.mount_backend {
         runtime::MountBackend::OverlayFsWithRenders => {
