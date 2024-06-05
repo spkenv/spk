@@ -1078,6 +1078,14 @@ pub struct DecisionFormatterSettings {
     /// comparing them.
     #[clap(long)]
     compare_solvers: bool,
+
+    /// Stop the solver the first time it is BLOCKED.
+    #[clap(long, alias = "stop")]
+    stop_on_block: bool,
+
+    /// Pause the solver each time it is blocked, until the user hits Enter.
+    #[clap(long, alias = "step")]
+    step_on_block: bool,
 }
 
 impl DecisionFormatterSettings {
@@ -1115,6 +1123,8 @@ impl DecisionFormatterSettings {
             .with_status_bar(self.status_bar)
             .with_solver_to_run(self.solver_to_run.into())
             .with_search_space_size(self.show_search_size)
+            .with_stop_on_block(self.stop_on_block)
+            .with_step_on_block(self.step_on_block)
             .with_compare_solvers(self.compare_solvers);
         Ok(builder)
     }
