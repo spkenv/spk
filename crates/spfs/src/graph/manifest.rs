@@ -119,6 +119,19 @@ impl Manifest {
         manifest
     }
 
+    pub(super) fn digest_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
+        self.root().digest_encode(&mut writer)?;
+        // this method encodes the root tree first, and does not
+        // include it in the count of remaining trees since at least
+        // one root is always required
+        encoding::write_uint64(&mut writer, self.proto().trees().len() as u64 - 1)?;
+        // skip the root tree when saving the rest
+        for tree in self.iter_trees().skip(1) {
+            tree.digest_encode(writer)?;
+        }
+        Ok(())
+    }
+
     pub(super) fn legacy_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
         self.root().legacy_encode(&mut writer)?;
         // this method encodes the root tree first, and does not

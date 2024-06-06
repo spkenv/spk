@@ -219,9 +219,9 @@ impl<T: ObjectProto> encoding::Digestible for FlatObject<T> {
             }
         }
         match variant {
-            Enum::Platform(obj) => obj.legacy_encode(&mut hasher)?,
-            Enum::Layer(obj) => obj.legacy_encode(&mut hasher)?,
-            Enum::Manifest(obj) => obj.legacy_encode(&mut hasher)?,
+            Enum::Platform(obj) => obj.digest_encode(&mut hasher)?,
+            Enum::Layer(obj) => obj.digest_encode(&mut hasher)?,
+            Enum::Manifest(obj) => obj.digest_encode(&mut hasher)?,
             Enum::Blob(_obj) => unreachable!("handled above"),
         }
         Ok(hasher.digest())

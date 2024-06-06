@@ -119,7 +119,8 @@ impl Layer {
         children
     }
 
-    pub(super) fn legacy_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
+    pub(super) fn digest_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
+        // Includes any annotations regardless of whether EncodingFormat setting
         let annotations = self.annotations();
         let result = if let Some(manifest_digest) = self.manifest() {
             let manifest_result =
@@ -139,6 +140,19 @@ impl Layer {
             Err(Error::String(
                 "Invalid Layer object for legacy encoding, it has no manifest or annotation data"
                     .to_string(),
+            ))
+        };
+
+        result
+    }
+
+    pub(super) fn legacy_encode(&self, writer: &mut impl std::io::Write) -> Result<()> {
+        // Legacy encoded layers do not support writing annotations
+        let result = if let Some(manifest_digest) = self.manifest() {
+            encoding::write_digest(writer, manifest_digest).map_err(Error::Encoding)
+        } else {
+            Err(Error::String(
+                "Invalid Layer object for legacy encoding, it has no manifest data".to_string(),
             ))
         };
 
