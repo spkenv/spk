@@ -459,6 +459,34 @@ impl Version {
         }
         !self.parts.iter().any(|x| x > &0)
     }
+
+    /// Like `to_string` but normalize the base version as it would be for its
+    /// spfs tag path.
+    pub fn to_storage_string(&self) -> String {
+        format!(
+            "{}{}{}{}{}",
+            self.parts
+                .iter_for_storage()
+                .map(|p| p.to_string())
+                .join(VERSION_SEP),
+            {
+                if self.pre.is_empty() {
+                    ""
+                } else {
+                    "-"
+                }
+            },
+            self.pre,
+            {
+                if self.post.is_empty() {
+                    ""
+                } else {
+                    "+"
+                }
+            },
+            self.post,
+        )
+    }
 }
 
 impl MetadataPath for Version {
