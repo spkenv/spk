@@ -23,6 +23,7 @@ use spk_schema::foundation::format::{
     FormatIdent,
     FormatOptionMap,
     FormatRequest,
+    FormatSolution,
 };
 use spk_schema::prelude::*;
 use spk_solve_graph::{
@@ -31,6 +32,7 @@ use spk_solve_graph::{
     Graph,
     Node,
     Note,
+    State,
     DUPLICATE_REQUESTS_COUNT,
     REQUESTS_FOR_SAME_PACKAGE_COUNT,
 };
@@ -193,16 +195,134 @@ where
         Ok(())
     }
 
-    fn wait_for_user_to_hit_enter(&self) -> Result<()> {
-        let mut _input = String::new();
+    fn wait_for_user_selection(&self) -> Result<String> {
+        let mut input = String::new();
 
         use std::io::Write;
         let _ = std::io::stdout().flush();
 
-        if let Err(err) = std::io::stdin().read_line(&mut _input) {
+        if let Err(err) = std::io::stdin().read_line(&mut input) {
             // If there's some stdin can't be read, it is probably
             // better to continue with the solve than error out.
             tracing::warn!("{err}");
+        }
+        Ok(input)
+    }
+
+    fn show_resolved_packages(&self, state: &Arc<State>) {
+        match state.as_solution() {
+            Err(err) => {
+                tracing::error!("{err}")
+            }
+            Ok(solution) => {
+                // Can't use this without access to the solver repos and async-ing this method
+                // solution
+                //     .format_solution_with_highest_versions(
+                //         self.settings.verbosity,
+                //         runtime.solver.repositories(),
+                //         false,
+                //     )
+                //     .await?
+                tracing::info!(
+                    "{}",
+                    format!(
+                        "{}{}",
+                        self.settings.heading_prefix,
+                        solution.format_solution(self.settings.verbosity)
+                    )
+                );
+            }
+        }
+    }
+
+    fn show_unresolved_requests(&self, state: &Arc<State>) {
+        let unresolved_requests = state
+            .get_unresolved_requests()
+            .iter()
+            .map(|(n, r)| {
+                r.format_request(
+                    None.as_ref(),
+                    n,
+                    &FormatChangeOptions {
+                        verbosity: self.verbosity,
+                        level: self.level,
+                    },
+                )
+            })
+            .collect::<Vec<String>>();
+        tracing::info!(
+            "{}\n  {}\nNumber of Unresolved Requests: {}",
+            "Unresolved Requests:".yellow(),
+            unresolved_requests.join("\n  "),
+            unresolved_requests.len()
+        );
+    }
+
+    fn show_var_requests(&self, state: &Arc<State>) {
+        let vars = state
+            .get_var_requests()
+            .iter()
+            .map(|v| format!("{}: {}", v.var, v.value.as_pinned().unwrap_or_default()))
+            .collect::<Vec<String>>();
+        tracing::info!(
+            "{}\n  {}\nNumber of Var Requests: {:?}",
+            "Var Requests:".yellow(),
+            vars.join("\n  "),
+            vars.len()
+        );
+    }
+
+    fn show_options(&self, state: &Arc<State>) {
+        let options = state.get_option_map();
+        tracing::info!(
+            "{}\n  {}\nNumber of Options: {}",
+            "Options:".yellow(),
+            options.format_option_map().replace(", ", "\n  "),
+            options.len()
+        );
+    }
+
+    fn show_state(&self, state: &Arc<State>) {
+        self.show_resolved_packages(state);
+        self.show_unresolved_requests(state);
+        self.show_var_requests(state);
+        self.show_options(state);
+    }
+
+    fn show_state_menu(&self, current_state: &Option<Arc<State>>) -> Result<()> {
+        // TODO: change the timeout that auto-increases the verbosity,
+        // maybe disable if/when this menu is active?
+        if let Some(state) = current_state {
+            // Simplistic menu for now
+            let mut done = false;
+            while !done {
+                // Show menu
+                println!("Enter a letter to proceed:");
+                println!(" (r) Show resolved packages");
+                println!(" (u) Show unresolved requests");
+                println!(" (v) Show var requests");
+                println!(" (o) Show options");
+                println!(" (s,a) Show state [all of the above]");
+                println!(" (any other) Continue solving");
+                print!("Solver> ");
+
+                // Get selection
+                let response = self.wait_for_user_selection()?;
+                let selection = match response.to_lowercase().chars().next() {
+                    None => continue,
+                    Some(c) => c,
+                };
+
+                // Act on the selection
+                match selection {
+                    'r' => self.show_resolved_packages(state),
+                    'u' => self.show_unresolved_requests(state),
+                    'v' => self.show_var_requests(state),
+                    'o' => self.show_options(state),
+                    's' | 'a' => self.show_state(state),
+                    _ => done = true,
+                }
+            }
         }
         Ok(())
     }
@@ -226,11 +346,7 @@ where
         stream! {
             let mut stop_because_blocked = false;
             let mut step_because_blocked = false;
-            // Used to avoid decision pauses related to setting up the
-            // initial state when using --step-on-decision. It'll be
-            // replaced by the current state when displaying the state
-            // when paused it added in future
-            let mut made_a_decision = false;
+            let mut current_state: Option<Arc<State>> = None;
             'outer: loop {
                 if let Some(next) = self.output_queue.pop_front() {
                     yield Ok(next);
@@ -240,8 +356,8 @@ where
                 // Check if the solver should pause because the last
                 // decision was a step-back (BLOCKED) with step-on-block set
                 if step_because_blocked {
-                    yield(Ok(format!("{}", "Pausing at BLOCKED state. Press 'Enter' to continue.".to_string().yellow())));
-                    if let Err(err) = self.wait_for_user_to_hit_enter() {
+                    yield(Ok(format!("{}", "Paused at BLOCKED state.".to_string().yellow())));
+                    if let Err(err) = self.show_state_menu(&current_state) {
                         yield(Err(err));
                     }
                     step_because_blocked = false;
@@ -250,15 +366,19 @@ where
                 // Check if the solver should stop because the last decision
                 // was a step-back (BLOCKED) with stop-on-block set
                 if stop_because_blocked {
+                    yield(Ok("Hit at BLOCKED state. Stopping after the menu.".to_string()));
+                    if let Err(err) = self.show_state_menu(&current_state) {
+                        yield(Err(err));
+                    }
                     yield(Err(Error::SolverInterrupted(
-                        format!("hit BLOCKED state with {STOP_ON_BLOCK_FLAG} enabled."),
-                        )));
+                        format!("At BLOCKED state with {STOP_ON_BLOCK_FLAG} enabled. Stopping."),
+                    )));
                     continue 'outer;
                 }
 
-                if self.settings.step_on_decision && made_a_decision {
-                    yield(Ok(format!("{}", "Pausing. Press 'Enter' to continue.".to_string().yellow())));
-                    if let Err(err) = self.wait_for_user_to_hit_enter() {
+                if self.settings.step_on_decision && current_state.is_some() {
+                    yield(Ok(format!("{}", "Pausing after decision.".to_string().yellow())));
+                    if let Err(err) = self.show_state_menu(&current_state) {
                         yield(Err(err));
                     }
                 }
@@ -279,8 +399,7 @@ where
                             continue 'outer;
                         }
                     };
-
-                    made_a_decision = true;
+                    current_state = Some(Arc::clone(&node.state));
 
                     self.render_statusbar(&node)?;
 
