@@ -222,6 +222,11 @@ where
         stream! {
             let mut stop_because_blocked = false;
             let mut step_because_blocked = false;
+            // Used to avoid decision pauses related to setting up the
+            // initial state when using --step-on-decision. It'll be
+            // replaced by the current state when displaying the state
+            // when paused it added in future
+            let mut made_a_decision = false;
             'outer: loop {
                 if let Some(next) = self.output_queue.pop_front() {
                     yield Ok(next);
@@ -247,6 +252,13 @@ where
                     continue 'outer;
                 }
 
+                if self.settings.step_on_decision && made_a_decision {
+                    yield(Ok(format!("{}", "Pausing. Press 'Enter' to continue.".to_string().yellow())));
+                    if let Err(err) = self.wait_for_user_to_hit_enter() {
+                        yield(Err(err));
+                    }
+                }
+
                 while self.output_queue.is_empty() {
                     // First, check if the solver has taken too long or the
                     // user has interrupted the solver
@@ -263,6 +275,8 @@ where
                             continue 'outer;
                         }
                     };
+
+                    made_a_decision = true;
 
                     self.render_statusbar(&node)?;
 
@@ -476,6 +490,7 @@ pub struct DecisionFormatterBuilder {
     compare_solvers: bool,
     stop_on_block: bool,
     step_on_block: bool,
+    step_on_decision: bool,
 }
 
 impl Default for DecisionFormatterBuilder {
@@ -496,6 +511,7 @@ impl Default for DecisionFormatterBuilder {
             compare_solvers: false,
             stop_on_block: false,
             step_on_block: false,
+            step_on_decision: false,
         }
     }
 }
@@ -594,6 +610,11 @@ impl DecisionFormatterBuilder {
         self
     }
 
+    pub fn with_step_on_decision(&mut self, enable: bool) -> &mut Self {
+        self.step_on_decision = enable;
+        self
+    }
+
     pub fn build(&self) -> DecisionFormatter {
         let too_long_seconds = if self.verbosity_increase_seconds == 0
             || (self.verbosity_increase_seconds > self.timeout && self.timeout > 0)
@@ -636,6 +657,7 @@ impl DecisionFormatterBuilder {
                 compare_solvers: self.compare_solvers,
                 stop_on_block: self.stop_on_block,
                 step_on_block: self.step_on_block,
+                step_on_decision: self.step_on_decision,
             },
         }
     }
@@ -697,6 +719,7 @@ pub(crate) struct DecisionFormatterSettings {
     pub(crate) compare_solvers: bool,
     pub(crate) stop_on_block: bool,
     pub(crate) step_on_block: bool,
+    pub(crate) step_on_decision: bool,
 }
 
 enum LoopOutcome {
@@ -788,6 +811,7 @@ impl DecisionFormatter {
                 compare_solvers: false,
                 stop_on_block: false,
                 step_on_block: false,
+                step_on_decision: false,
             },
         }
     }
