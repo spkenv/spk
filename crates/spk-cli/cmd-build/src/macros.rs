@@ -39,7 +39,8 @@ macro_rules! try_build_package {
         // Leak `filename` for convenience.
         let filename = Box::leak(Box::new($tmpdir.path().join($filename)));
         {
-            let mut file = File::create(&filename).unwrap();
+            let mut file = std::fs::File::create(&filename).unwrap();
+            use std::io::Write;
             file.write_all($recipe).unwrap();
         }
 
@@ -63,6 +64,7 @@ macro_rules! try_build_package {
 
     ($tmpdir:ident, $filename:ident $(,$extra_build_args:expr)* $(,)?) => {{
         // Build the package so it can be tested.
+        use clap::Parser;
         let mut opt = $crate::macros::BuildOpt::try_parse_from([
             "build",
             // Don't exec a new process to move into a new runtime, this confuses
@@ -73,6 +75,7 @@ macro_rules! try_build_package {
             $filename,
         ])
         .unwrap();
+        use spk_cli_common::Run;
         ($filename, opt.build.run().await)
     }};
 }

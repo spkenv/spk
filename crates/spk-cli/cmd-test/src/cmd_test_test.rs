@@ -2,9 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::fs::File;
-use std::io::Write;
-
 use clap::Parser;
 use rstest::rstest;
 use spk_cli_common::Run;

@@ -8,7 +8,6 @@ use std::io::Write;
 use clap::Parser;
 use rstest::rstest;
 use spfs::storage::prelude::*;
-use spk_cli_common::Run;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::option_map;
 use spk_schema::ident::version_ident;
