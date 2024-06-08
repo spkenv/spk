@@ -11,11 +11,12 @@ use std::sync::Arc;
 use futures::StreamExt;
 use relative_path::RelativePathBuf;
 use spfs::prelude::*;
-use spfs::tracking::{DiffMode, EntryKind};
+use spfs::tracking::DiffMode;
 use spk_exec::{
     pull_resolved_runtime_layers,
     resolve_runtime_layers,
     solution_to_resolved_runtime_layers,
+    ConflictingPackagePair,
 };
 use spk_schema::foundation::env::data_path;
 use spk_schema::foundation::format::FormatIdent;
@@ -39,7 +40,6 @@ use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
 use spk_solve::{BoxedResolverCallback, Named, ResolverCallback, Solver};
 use spk_storage as storage;
-use tokio::pin;
 
 use crate::report::{BuildOutputReport, BuildReport, BuildSetupReport};
 use crate::validation::{Report, Validator};
@@ -78,11 +78,6 @@ pub enum BuildSource {
     /// a local codebase
     LocalPath(PathBuf),
 }
-
-/// A pair of packages that are in conflict for some reason,
-/// e.g. because they both provide one or more of the same files.
-#[derive(Eq, Hash, PartialEq)]
-struct ConflictingPackagePair(BuildIdent, BuildIdent);
 
 /// A struct with the two variants needed to calculate a build digest for a
 /// package as well as build the package.
@@ -349,73 +344,12 @@ where
             tokio::spawn(async move { Ok(resolved_layers_copy.layers()) })
         };
 
-        let mut environment_filesystem = spfs::tracking::Manifest::new(
-            // we expect this to be replaced, but the source build for this package
-            // seems like one of the most reasonable default owners for the root
-            // of this manifest until then
-            spfs::tracking::Entry::empty_dir_with_open_perms_with_data(
+        let environment_filesystem = resolved_layers
+            .get_environment_filesystem(
                 self.recipe.ident().to_build(Build::Source),
-            ),
-        );
-
-        // Warn about possibly unexpected shadowed files in the layer stack.
-        let mut warning_found = false;
-        let entries = resolved_layers.iter_entries();
-        pin!(entries);
-
-        while let Some(entry) = entries.next().await {
-            let (path, entry, resolved_layer) = match entry {
-                Err(spk_exec::Error::NonSpfsLayerInResolvedLayers) => continue,
-                Err(err) => return Err(err.into()),
-                Ok(entry) => entry,
-            };
-
-            let entry = entry.and_user_data(resolved_layer.spec.ident().to_owned());
-            let Some(previous) = environment_filesystem.get_path(&path).cloned() else {
-                environment_filesystem.mknod(&path, entry)?;
-                continue;
-            };
-            let entry = environment_filesystem.mknod(&path, entry)?;
-            if !matches!(entry.kind, EntryKind::Blob(_)) {
-                continue;
-            }
-
-            // Ignore when the shadowing is from different components
-            // of the same package.
-            if entry.user_data == previous.user_data {
-                continue;
-            }
-
-            // The layer order isn't necessarily meaningful in terms
-            // of spk package dependency ordering (at the time of
-            // writing), so phrase this in a way that doesn't suggest
-            // one layer "owns" the file more than the other.
-            warning_found = true;
-            tracing::warn!(
-                "File {path} found in more than one package: {} and {}",
-                previous.user_data,
-                entry.user_data
-            );
-
-            // Track the packages involved for later use
-            let pkg_a = previous.user_data.clone();
-            let pkg_b = entry.user_data.clone();
-            let packages_key = if pkg_a < pkg_b {
-                ConflictingPackagePair(pkg_a, pkg_b)
-            } else {
-                ConflictingPackagePair(pkg_b, pkg_a)
-            };
-            let counter = self.conflicting_packages.entry(packages_key).or_default();
-            counter.insert(path.clone());
-        }
-        if warning_found {
-            tracing::warn!("Conflicting files were detected");
-            tracing::warn!(" > This can cause undefined runtime behavior");
-            tracing::warn!(" > It should be addressed by:");
-            tracing::warn!("   - not using these packages together");
-            tracing::warn!("   - removing the file from one of them");
-            tracing::warn!("   - using alternate versions or components");
-        }
+                &mut self.conflicting_packages,
+            )
+            .await?;
 
         runtime.status.stack.extend(
             pull_task
