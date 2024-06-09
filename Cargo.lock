@@ -4172,15 +4172,22 @@ name = "spk-exec"
 version = "0.40.0"
 dependencies = [
  "async-stream",
+ "clap 4.5.0",
  "futures",
  "miette",
  "relative-path",
+ "rstest 0.18.2",
  "serde_json",
  "spfs",
+ "spk-cli-common",
+ "spk-cmd-build",
  "spk-schema",
  "spk-solve",
+ "spk-solve-macros",
  "spk-storage",
+ "tempfile",
  "thiserror",
+ "tokio",
  "tracing",
 ]
 

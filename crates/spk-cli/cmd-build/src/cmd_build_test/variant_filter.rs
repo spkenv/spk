@@ -2,13 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::fs::File;
-use std::io::Write;
-
 use clap::Parser;
 use rstest::rstest;
 use spk_cli_common::flags::VariantLocation;
-use spk_cli_common::{BuildArtifact, Run};
+use spk_cli_common::BuildArtifact;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::option_map;
 use spk_schema::opt_name;

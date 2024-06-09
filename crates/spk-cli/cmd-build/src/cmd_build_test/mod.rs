@@ -8,7 +8,6 @@ use std::io::Write;
 use clap::Parser;
 use rstest::rstest;
 use spfs::storage::prelude::*;
-use spk_cli_common::Run;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::option_map;
 use spk_schema::ident::version_ident;
@@ -503,6 +502,20 @@ async fn test_package_with_circular_dep_does_not_collect_file_removals(tmpdir: t
     // build).
     let rt = spfs_runtime().await;
 
+    // This extra package "empty" helps create the situation that ends up with
+    // file removals getting collected in a real world example.
+    build_package!(
+        tmpdir,
+        "empty.spk.yaml",
+        br#"
+api: v0/package
+pkg: empty/1.0.0
+build:
+  script:
+    - mkdir $PREFIX/subdir
+"#
+    );
+
     build_package!(
         tmpdir,
         "circ.spk.yaml",
@@ -512,30 +525,13 @@ pkg: circ/1.0.0
 build:
   script:
     - echo "1.0.0" > $PREFIX/version.txt
-    - echo "hello world" > $PREFIX/hello.txt
+    - mkdir -p $PREFIX/subdir/v1
+    - echo "hello world" > $PREFIX/subdir/v1/hello.txt
 "#
     );
 
-    build_package!(
-        tmpdir,
-        "middle.spk.yaml",
-        br#"
-api: v0/package
-pkg: middle/1.0.0
-build:
-  options:
-    - pkg: circ
-  script:
-    - "true"
-install:
-  requirements:
-    - pkg: circ
-      fromBuildEnv: true
-"#,
-    );
-
-    // This build deletes a file that is owned by the previous build. It should
-    // not be collected as part of the new build.
+    // This build deletes a subdir that is owned by the previous build. It should
+    // not be collected (as a mask) as part of the new build.
     build_package!(
         tmpdir,
         "circ.spk.yaml",
@@ -544,10 +540,13 @@ api: v0/package
 pkg: circ/2.0.0
 build:
   options:
-    - pkg: middle
+    - pkg: circ
+    - pkg: empty
   script:
     - echo "2.0.0" > $PREFIX/version.txt
-    - rm $PREFIX/hello.txt
+    - rm -rf $PREFIX/subdir/v1
+    - mkdir -p $PREFIX/subdir/v2
+    - echo "hello world" > $PREFIX/subdir/v2/hello.txt
   validation:
     rules:
       - allow: RecursiveBuild
@@ -587,10 +586,10 @@ build:
         .unwrap()
         .to_tracking_manifest();
 
-    let entry = manifest.get_path("hello.txt");
+    let entry = manifest.get_path("subdir/v1");
     assert!(
         entry.is_none(),
-        "should not capture file deleted in new build"
+        "should not capture entry deleted in new build"
     );
 }
 

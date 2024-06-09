@@ -22,6 +22,9 @@ pub enum Error {
     Error(#[from] spfs::Error),
     #[error(transparent)]
     #[diagnostic(forward(0))]
+    BuildManifest(#[from] spfs::tracking::manifest::MkError),
+    #[error(transparent)]
+    #[diagnostic(forward(0))]
     SpkStorageError(#[from] spk_storage::Error),
     #[error("Error: {0}")]
     String(String),

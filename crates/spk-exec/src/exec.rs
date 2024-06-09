@@ -2,24 +2,34 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use async_stream::try_stream;
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use relative_path::RelativePathBuf;
 use spfs::encoding::Digest;
 use spfs::prelude::*;
-use spfs::tracking::Entry;
+use spfs::tracking::{Entry, EntryKind};
 use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::prelude::*;
 use spk_schema::Spec;
 use spk_solve::solution::{PackageSource, Solution, SPK_SOLVE_EXTRA_DATA_KEY};
-use spk_solve::RepositoryHandle;
+use spk_solve::{BuildIdent, RepositoryHandle};
 use spk_storage as storage;
+use tokio::pin;
 
 use crate::{Error, Result};
+
+#[cfg(test)]
+#[path = "./exec_test.rs"]
+mod exec_test;
+
+/// A pair of packages that are in conflict for some reason,
+/// e.g. because they both provide one or more of the same files.
+#[derive(Eq, Hash, PartialEq)]
+pub struct ConflictingPackagePair(BuildIdent, BuildIdent);
 
 /// A single layer of a resolved solution.
 #[derive(Clone)]
@@ -75,6 +85,95 @@ impl ResolvedLayers {
     /// Return the resolved layers as a list of digests.
     pub fn layers(&self) -> Vec<Digest> {
         self.0.iter().map(|l| l.digest).collect()
+    }
+
+    /// Compute a [`spfs::tracking::Manifest`] from a [`ResolvedLayers`].
+    ///
+    /// If any shadowed files are detected a warning will be logged. Because the
+    /// layers in a Solution are in an arbitrary order, the Manifest's contents
+    /// can be unpredictable if multiple layers contain overlapping entries.
+    pub async fn get_environment_filesystem(
+        &self,
+        ident: BuildIdent,
+        conflicting_packages: &mut HashMap<ConflictingPackagePair, HashSet<RelativePathBuf>>,
+    ) -> Result<spfs::tracking::Manifest<BuildIdent>> {
+        let mut environment_filesystem = spfs::tracking::Manifest::new(
+            // we expect this to be replaced, but the source build for this package
+            // seems like one of the most reasonable default owners for the root
+            // of this manifest until then
+            spfs::tracking::Entry::empty_dir_with_open_perms_with_data(ident),
+        );
+
+        // Warn about possibly unexpected shadowed files in the layer stack.
+        let mut warning_found = false;
+        let entries = self.iter_entries();
+        pin!(entries);
+
+        while let Some(entry) = entries.next().await {
+            let (path, entry, resolved_layer) = match entry {
+                Err(Error::NonSpfsLayerInResolvedLayers) => continue,
+                Err(err) => return Err(err),
+                Ok(entry) => entry,
+            };
+
+            let mut entry = entry.and_user_data(resolved_layer.spec.ident().to_owned());
+            let Some(previous) = environment_filesystem.get_path(&path).cloned() else {
+                environment_filesystem.mknod(&path, entry)?;
+                continue;
+            };
+            // If old and new entries are both Trees, then merge them to
+            // properly mimic overlayfs behavior.
+            if previous.kind == EntryKind::Tree && entry.kind == EntryKind::Tree {
+                for (previous_entry_name, previous_entry) in previous.entries.into_iter() {
+                    entry
+                        .entries
+                        .entry(previous_entry_name)
+                        .or_insert(previous_entry);
+                }
+            }
+            let entry = environment_filesystem.mknod(&path, entry)?;
+            if !matches!(entry.kind, EntryKind::Blob(_)) {
+                continue;
+            }
+
+            // Ignore when the shadowing is from different components
+            // of the same package.
+            if entry.user_data == previous.user_data {
+                continue;
+            }
+
+            // The layer order isn't necessarily meaningful in terms
+            // of spk package dependency ordering (at the time of
+            // writing), so phrase this in a way that doesn't suggest
+            // one layer "owns" the file more than the other.
+            warning_found = true;
+            tracing::warn!(
+                "File {path} found in more than one package: {} and {}",
+                previous.user_data,
+                entry.user_data
+            );
+
+            // Track the packages involved for later use
+            let pkg_a = previous.user_data.clone();
+            let pkg_b = entry.user_data.clone();
+            let packages_key = if pkg_a < pkg_b {
+                ConflictingPackagePair(pkg_a, pkg_b)
+            } else {
+                ConflictingPackagePair(pkg_b, pkg_a)
+            };
+            let counter = conflicting_packages.entry(packages_key).or_default();
+            counter.insert(path.clone());
+        }
+        if warning_found {
+            tracing::warn!("Conflicting files were detected");
+            tracing::warn!(" > This can cause undefined runtime behavior");
+            tracing::warn!(" > It should be addressed by:");
+            tracing::warn!("   - not using these packages together");
+            tracing::warn!("   - removing the file from one of them");
+            tracing::warn!("   - using alternate versions or components");
+        }
+
+        Ok(environment_filesystem)
     }
 }
 

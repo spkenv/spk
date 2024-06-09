@@ -124,6 +124,8 @@ pub fn compute_diff<U1: Clone>(a: &Manifest<U1>, b: &Manifest<U1>) -> Vec<Diff<U
             match diff_path(a, b, &entry.path) {
                 Some(d) => changes.push(d),
                 None => tracing::debug!(
+                    // XXX this is not the only reason `diff_path` may return
+                    // None.
                     "path was missing from both manifests during diff, this should be impossible"
                 ),
             }
@@ -148,6 +150,15 @@ fn diff_path<U1: Clone, U2: Clone>(
             mode: DiffMode::Removed(a_entry.clone()),
             path: path.clone(),
         }),
+
+        (None, Some(b_entry)) if b_entry.kind == EntryKind::Mask => {
+            debug_assert!(
+                false,
+                "detected a mask entry that deletes something that doesn't exist"
+            );
+            // Can't return `a` as documented since the left side is None.
+            None
+        }
 
         (None, Some(e)) => Some(Diff {
             mode: DiffMode::Added(e.clone()),

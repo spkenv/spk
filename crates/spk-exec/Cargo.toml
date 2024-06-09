@@ -17,12 +17,21 @@ migration-to-components = [
 [dependencies]
 async-stream = "0.3"
 futures = { workspace = true }
+miette = { workspace = true }
 relative-path = { workspace = true }
 serde_json = { workspace = true }
 spfs = { workspace = true }
 spk-schema = { workspace = true }
-spk-storage = { workspace = true }
 spk-solve = { workspace = true }
+spk-storage = { workspace = true }
 thiserror = { workspace = true }
-miette = { workspace = true }
+tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }
+
+[dev-dependencies]
+clap = { workspace = true }
+rstest = { workspace = true }
+spk-cli-common = { workspace = true }
+spk-cmd-build = { workspace = true }
+spk-solve-macros = { workspace = true }
+tempfile = { workspace = true }

@@ -617,6 +617,7 @@ where
                 // Assume so if `dir_entry` says it is a character device.
                 match dir_entry.metadata().await {
                     Ok(meta) if crate::runtime::is_removed_entry(&meta) => {
+                        tracing::trace!(" >    mask: {:?}", path.as_ref());
                         let entry = Entry::mask();
                         self.reporter.computed_entry(&entry);
                         return Ok(entry);
@@ -686,6 +687,7 @@ where
         } else if file_type.is_dir() {
             entry = self.compute_tree_node(root, path).await?;
         } else if runtime::is_removed_entry(&stat_result) {
+            tracing::trace!(" >    mask: {:?}", path.as_ref());
             entry = Entry::mask();
         } else if !stat_result.is_file() {
             return Err(format!("unsupported special file: {:?}", path.as_ref()).into());
