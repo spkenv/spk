@@ -120,7 +120,7 @@ impl Layer {
     }
 
     pub(super) fn digest_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
-        // Includes any annotations regardless of whether EncodingFormat setting
+        // Includes any annotations regardless of the EncodingFormat setting
         let annotations = self.annotations();
         let result = if let Some(manifest_digest) = self.manifest() {
             let manifest_result =
