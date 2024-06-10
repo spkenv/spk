@@ -148,6 +148,11 @@ impl Layer {
 
     pub(super) fn legacy_encode(&self, writer: &mut impl std::io::Write) -> Result<()> {
         // Legacy encoded layers do not support writing annotations
+        if !self.annotations().is_empty() {
+            return Err(Error::String(
+                "Invalid Layer object for legacy encoding, it has annotation data. Annotations are not supported with legacy encoding".to_string(),
+            ));
+        }
         let result = if let Some(manifest_digest) = self.manifest() {
             encoding::write_digest(writer, manifest_digest).map_err(Error::Encoding)
         } else {
