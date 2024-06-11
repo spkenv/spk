@@ -9,6 +9,7 @@ use async_stream::try_stream;
 use futures::{Stream, StreamExt};
 use relative_path::RelativePathBuf;
 use spfs::encoding::Digest;
+use spfs::graph::object::EncodingFormat;
 use spfs::prelude::*;
 use spfs::tracking::{Entry, EntryKind};
 use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
@@ -298,18 +299,21 @@ pub async fn setup_runtime(rt: &mut spfs::runtime::Runtime, solution: &Solution)
         resolve_runtime_layers(rt.config.mount_backend.requires_localization(), solution).await?;
     rt.status.stack = spfs::graph::Stack::from_iter(stack);
 
-    // Store additional solve data all the resolved packages as extra
-    // data in the spfs runtime so future spk commands run inside the
-    // runtime can access it.
-    let solve_data = serde_json::to_string(&solution.packages_to_solve_data())
-        .map_err(|err| Error::String(err.to_string()))?;
     let spfs_config = spfs::Config::current()?;
-    rt.add_annotation(
-        SPK_SOLVE_EXTRA_DATA_KEY.to_string(),
-        solve_data,
-        spfs_config.filesystem.annotation_size_limit,
-    )
-    .await?;
+    // Annotations are only supported with FlatFileBuffers
+    if spfs_config.storage.encoding_format == EncodingFormat::FlatBuffers {
+        // Store additional solve data all the resolved packages as extra
+        // data in the spfs runtime so future spk commands run inside the
+        // runtime can access it.
+        let solve_data = serde_json::to_string(&solution.packages_to_solve_data())
+            .map_err(|err| Error::String(err.to_string()))?;
+        rt.add_annotation(
+            SPK_SOLVE_EXTRA_DATA_KEY.to_string(),
+            solve_data,
+            spfs_config.filesystem.annotation_size_limit,
+        )
+        .await?;
+    }
 
     rt.save_state_to_storage().await?;
     spfs::remount_runtime(rt).await?;

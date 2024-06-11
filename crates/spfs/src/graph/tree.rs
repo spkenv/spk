@@ -37,6 +37,18 @@ impl<'buf> Tree<'buf> {
         self.entries().find(|entry| entry.name() == name.as_ref())
     }
 
+    pub(super) fn digest_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
+        let mut entries: Vec<_> = self.entries().collect();
+        encoding::write_uint64(&mut writer, entries.len() as u64)?;
+        // this is not the default sort mode for entries but
+        // matches the existing compatible encoding order
+        entries.sort_unstable_by_key(|e| e.name());
+        for entry in entries.into_iter() {
+            entry.digest_encode(writer)?;
+        }
+        Ok(())
+    }
+
     pub(super) fn legacy_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
         let mut entries: Vec<_> = self.entries().collect();
         encoding::write_uint64(&mut writer, entries.len() as u64)?;

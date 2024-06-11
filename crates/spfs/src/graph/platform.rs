@@ -55,6 +55,19 @@ impl Platform {
         self.iter_bottom_up().copied().collect()
     }
 
+    pub(super) fn digest_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
+        // use a vec to know the name ahead of time and
+        // avoid iterating the stack twice
+        let digests = self.iter_bottom_up().collect::<Vec<_>>();
+        encoding::write_uint64(&mut writer, digests.len() as u64)?;
+        // for historical reasons, and to remain backward-compatible, platform
+        // stacks are stored in reverse (top-down) order
+        for digest in digests.into_iter().rev() {
+            encoding::write_digest(&mut writer, digest)?;
+        }
+        Ok(())
+    }
+
     pub(super) fn legacy_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
         // use a vec to know the name ahead of time and
         // avoid iterating the stack twice

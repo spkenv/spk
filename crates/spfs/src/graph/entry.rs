@@ -180,6 +180,15 @@ impl<'buf> encoding::Digestible for Entry<'buf> {
 }
 
 impl<'buf> Entry<'buf> {
+    pub(super) fn digest_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
+        encoding::write_digest(&mut writer, self.object())?;
+        self.kind().encode(&mut writer)?;
+        encoding::write_uint64(&mut writer, self.mode() as u64)?;
+        encoding::write_uint64(&mut writer, self.size_for_legacy_encode())?;
+        encoding::write_string(writer, self.name())?;
+        Ok(())
+    }
+
     pub(super) fn legacy_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
         encoding::write_digest(&mut writer, self.object())?;
         self.kind().encode(&mut writer)?;
