@@ -73,13 +73,14 @@ impl ToAddress for Config {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct RpcRepository {
     address: url::Url,
     pub(super) repo_client: RepositoryClient<tonic::transport::Channel>,
     pub(super) tag_client: TagServiceClient<tonic::transport::Channel>,
     pub(super) db_client: DatabaseServiceClient<tonic::transport::Channel>,
     pub(super) payload_client: PayloadServiceClient<tonic::transport::Channel>,
+    pub(super) http_client: hyper::Client<hyper::client::HttpConnector, hyper::Body>,
     /// the namespace to use for tag resolution. If set, then this is treated
     /// as "chroot" of the real tag root.
     tag_namespace: Option<TagNamespaceBuf>,
@@ -139,6 +140,7 @@ impl RpcRepository {
             tag_client,
             db_client,
             payload_client,
+            http_client: hyper::Client::new(),
             tag_namespace: config.params.tag_namespace,
         })
     }

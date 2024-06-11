@@ -51,7 +51,6 @@ impl storage::PayloadStorage for super::RpcRepository {
             .await?
             .into_inner()
             .to_result()?;
-        let client = hyper::Client::new();
         let compressed_reader = async_compression::tokio::bufread::BzEncoder::new(reader);
         let stream = tokio_util::codec::FramedRead::new(
             compressed_reader,
@@ -65,7 +64,7 @@ impl storage::PayloadStorage for super::RpcRepository {
             .map_err(|err| {
                 crate::Error::String(format!("Failed to build upload request: {err:?}"))
             })?;
-        let resp = client.request(request).await.map_err(|err| {
+        let resp = self.http_client.request(request).await.map_err(|err| {
             crate::Error::String(format!("Failed to send upload request: {err:?}"))
         })?;
         if !resp.status().is_success() {
@@ -99,7 +98,6 @@ impl storage::PayloadStorage for super::RpcRepository {
             .await?
             .into_inner()
             .to_result()?;
-        let client = hyper::Client::new();
         let url_str = option
             .locations
             .first()
@@ -113,7 +111,7 @@ impl storage::PayloadStorage for super::RpcRepository {
             .map_err(|err| {
                 crate::Error::String(format!("Failed to build download request: {err:?}"))
             })?;
-        let resp = client.request(req).await.map_err(|err| {
+        let resp = self.http_client.request(req).await.map_err(|err| {
             crate::Error::String(format!("Failed to send download request: {err:?}"))
         })?;
         if !resp.status().is_success() {
