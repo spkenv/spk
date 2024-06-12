@@ -35,7 +35,7 @@ pub use database::{
 pub use entry::Entry;
 pub use kind::{HasKind, Kind, ObjectKind};
 pub use layer::{KeyAnnotationValuePair, Layer};
-pub use manifest::Manifest;
+pub use manifest::{Manifest, ManifestTreeCache};
 pub use object::{FlatObject, Object, ObjectProto};
 pub use platform::Platform;
 pub use stack::Stack;
