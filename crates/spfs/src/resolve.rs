@@ -274,7 +274,7 @@ where
             let rendered_dir = repo.manifest_render_path(manifest.manifest())?;
             overlay_dirs.push(rendered_dir);
         }
-        if crate::env::get_overlay_args(runtime, overlay_dirs).is_ok() {
+        if crate::env::get_overlay_args(runtime, &overlay_dirs).is_ok() {
             break;
         }
         // Cut the number of layers in half...

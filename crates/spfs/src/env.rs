@@ -525,7 +525,7 @@ where
     pub(crate) async fn mount_env_overlayfs<P: AsRef<Path>>(
         &self,
         rt: &runtime::Runtime,
-        lowerdirs: impl IntoIterator<Item = P>,
+        lowerdirs: &[P],
     ) -> Result<()> {
         tracing::debug!("mounting the overlay filesystem...");
         let overlay_args = get_overlay_args(rt, lowerdirs)?;
@@ -1094,7 +1094,7 @@ impl OverlayMountOptions {
 /// `prefix` is prepended to the generated overlay args.
 pub(crate) fn get_overlay_args<P: AsRef<Path>>(
     rt: &runtime::Runtime,
-    lowerdirs: impl IntoIterator<Item = P>,
+    lowerdirs: &[P],
 ) -> Result<String> {
     // Allocate a large buffer up front to avoid resizing/copying.
     let mut args = String::with_capacity(4096);
@@ -1105,12 +1105,18 @@ pub(crate) fn get_overlay_args<P: AsRef<Path>>(
         args.push(',');
     }
 
+    // Have to put the lowerdir directories on the command line in
+    // reverse order that they given so that the overlayfs will apply
+    // them in the order we want (because it goes right to left, where
+    // rightmost on the command line is the bottom layer). For more
+    // details see:
+    // https://docs.kernel.org/filesystems/overlayfs.html#multiple-lower-layers
     args.push_str("lowerdir=");
-    args.push_str(&rt.config.lower_dir.to_string_lossy());
-    for path in lowerdirs.into_iter() {
+    for path in lowerdirs.iter().rev() {
         args.push(':');
         args.push_str(&path.as_ref().to_string_lossy());
     }
+    args.push_str(&rt.config.lower_dir.to_string_lossy());
 
     args.push_str(",upperdir=");
     args.push_str(&rt.config.upper_dir.to_string_lossy());
