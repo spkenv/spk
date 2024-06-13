@@ -9,6 +9,9 @@
 
 #![deny(missing_docs)]
 
+mod error;
+pub use error::Error;
+
 #[cfg(all(unix, feature = "fuse-backend"))]
 mod fuse;
 #[cfg(all(windows, feature = "winfsp-backend"))]
