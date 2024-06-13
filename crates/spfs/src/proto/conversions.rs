@@ -180,7 +180,12 @@ impl TryFrom<super::Object> for graph::Object {
                 "Unexpected and unsupported object kind {:?}",
                 source.kind
             ))),
-            Some(Kind::Buffer(buf)) => graph::Object::new(buf),
+            Some(Kind::Buffer(buf)) => {
+                // Object data passed via RPC is always passed in flatbuffers
+                // format, despite the header possibly claiming to be in
+                // legacy format.
+                graph::Object::new_from_flatbuffers_payload(buf)
+            }
             None => Err(Error::String(
                 "Expected non-empty object kind in rpc message".to_string(),
             )),

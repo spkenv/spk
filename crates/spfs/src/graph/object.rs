@@ -113,6 +113,36 @@ impl Object {
         }
     }
 
+    /// Create an object from the encoded bytes.
+    ///
+    /// In memory, objects always use the latest flatbuffer
+    /// format. The given bytes may be discarded or reconstructed
+    /// if a conversion is necessary, but the header is preserved
+    /// in order to ensure that the object does not change it's
+    /// digest unless explicitly marked to do so.
+    ///
+    /// Unlike [`Object::new`] this constructor doesn't respect the header and
+    /// treats the payload as flatbuffers encoded data.
+    pub fn new_from_flatbuffers_payload<B: Into<bytes::Bytes>>(buf: B) -> crate::Result<Self> {
+        let bytes = buf.into();
+        let header = Header::new(&bytes)?;
+        let Some(_kind) = header.object_kind() else {
+            return Err(ObjectError::UnexpectedKind(header.object_kind_number()).into());
+        };
+        let Some(_format) = header.encoding_format() else {
+            return Err(ObjectError::UnknownEncoding(header.encoding_format_number()).into());
+        };
+        // all we need to do with a flatbuffer is validate it, without
+        // any need to change or reallocate the buffer
+        flatbuffers::root::<spfs_proto::AnyObject>(&bytes[Header::SIZE..])
+            .map_err(ObjectError::InvalidFlatbuffer)?;
+        Ok(Object {
+            buf: bytes,
+            offset: 0,
+            _t: PhantomData,
+        })
+    }
+
     /// Constructs a new [`Object`] instance from the provided flatbuffer.
     ///
     /// # Safety
