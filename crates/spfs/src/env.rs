@@ -1125,10 +1125,9 @@ pub(crate) fn get_overlay_args<P: AsRef<Path>>(
     // https://docs.kernel.org/filesystems/overlayfs.html#multiple-lower-layers
     args.push_str("lowerdir=");
     for path in lowerdirs.iter().rev() {
-        args.push(':');
         args.push_str(&path.as_ref().to_string_lossy());
+        args.push(':');
     }
-    args.push(':');
     args.push_str(&rt.config.lower_dir.to_string_lossy());
 
     args.push_str(",upperdir=");
