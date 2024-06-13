@@ -92,7 +92,7 @@ async fn test_auto_merge_layers_with_edit(tmpdir: tempfile::TempDir) {
         .expect("open local repository");
     let repo = Arc::new(fs_repo.clone().into());
 
-    // Set up the layers. They all have the same file in them
+    // Set up the layers with different contents
     let mut layers = Vec::with_capacity(NUM_LAYERS + 1);
     for num in 0..NUM_LAYERS {
         let data_dir = tmpdir.path().join("work").join(format!("dir_{num}"));
@@ -108,7 +108,8 @@ async fn test_auto_merge_layers_with_edit(tmpdir: tempfile::TempDir) {
         layers.push(layer);
     }
 
-    // Add the top most layer with the edit
+    // Add the top most layer with the edit on the same file that is
+    // in the previous layer
     let same_as_prev_layer = NUM_LAYERS - 1;
     let data_dir = tmpdir
         .path()
@@ -157,7 +158,9 @@ async fn test_auto_merge_layers_with_edit(tmpdir: tempfile::TempDir) {
         let mut writer: Vec<u8> = vec![];
         tokio::io::copy(&mut payload, &mut writer).await.unwrap();
         let contents = String::from_utf8(writer).unwrap();
-        println!("contents: {contents}");
-        assert!(contents == expected_contents);
+        assert_eq!(
+            contents, expected_contents,
+            "top layer's file's edit should have been retained"
+        );
     }
 }

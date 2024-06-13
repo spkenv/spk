@@ -522,6 +522,12 @@ where
         Ok(())
     }
 
+    /// Mounts an overlayfs built up from the given lowerdirs.
+    ///
+    /// This first entry in lowerdirs will be treated as the top-most
+    /// layer, with each following entry being for the layer under the
+    /// previous, and the last entry being the bottom-most layer in
+    /// the overlay stack.
     pub(crate) async fn mount_env_overlayfs<P: AsRef<Path>>(
         &self,
         rt: &runtime::Runtime,
@@ -1091,7 +1097,9 @@ impl OverlayMountOptions {
 /// This returns an error if the arguments would exceed the legal size limit
 /// (if known).
 ///
-/// `prefix` is prepended to the generated overlay args.
+/// `lowerdirs` must be ordered so first entry is the topmost dir, the
+/// subsequent entries are the dirs below that, on down to the
+/// last entry being the bottom-most dir in the overlayfs.
 pub(crate) fn get_overlay_args<P: AsRef<Path>>(
     rt: &runtime::Runtime,
     lowerdirs: &[P],
@@ -1116,6 +1124,7 @@ pub(crate) fn get_overlay_args<P: AsRef<Path>>(
         args.push(':');
         args.push_str(&path.as_ref().to_string_lossy());
     }
+    args.push(':');
     args.push_str(&rt.config.lower_dir.to_string_lossy());
 
     args.push_str(",upperdir=");
