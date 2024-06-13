@@ -524,10 +524,12 @@ where
 
     /// Mounts an overlayfs built up from the given lowerdirs.
     ///
-    /// This first entry in lowerdirs will be treated as the top-most
-    /// layer, with each following entry being for the layer under the
-    /// previous, and the last entry being the bottom-most layer in
-    /// the overlay stack.
+    /// This first entry in lowerdirs should be the one you expect to
+    /// be the bottom-most layer in the overlayfs stack. Each
+    /// following entry will be placed on top of the previous one,
+    /// with the last entry in lowerdirs becoming the top-most layer
+    /// in the overlay stack. The top-most layer will "win" in the
+    /// event of two dirs having the same file(s).
     pub(crate) async fn mount_env_overlayfs<P: AsRef<Path>>(
         &self,
         rt: &runtime::Runtime,
@@ -1097,9 +1099,11 @@ impl OverlayMountOptions {
 /// This returns an error if the arguments would exceed the legal size limit
 /// (if known).
 ///
-/// `lowerdirs` must be ordered so first entry is the topmost dir, the
-/// subsequent entries are the dirs below that, on down to the
-/// last entry being the bottom-most dir in the overlayfs.
+/// `lowerdirs` must be ordered so first entry is the first one to be
+/// applied, so the bottom-most layer in the overlayfs, the next entry
+/// will go on top of that, and so on, until the last entry that will
+/// become the top-most layer in the overlayfs stack. The top-most entry
+/// will "win" when two of the dirs have the same file(s).
 pub(crate) fn get_overlay_args<P: AsRef<Path>>(
     rt: &runtime::Runtime,
     lowerdirs: &[P],
