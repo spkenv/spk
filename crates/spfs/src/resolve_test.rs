@@ -135,7 +135,7 @@ async fn test_auto_merge_layers_with_edit(tmpdir: tempfile::TempDir) {
         runtime.push_digest(layer.digest().unwrap());
     }
 
-    // Test - merging layers doesn't lose the eidt
+    // Test - merging layers doesn't lose the edit
     let dirs = crate::resolve::resolve_overlay_dirs(&mut runtime, &fs_repo, true)
         .await
         .expect("resolve overlay dirs successfully");
