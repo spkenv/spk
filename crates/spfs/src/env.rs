@@ -522,21 +522,23 @@ where
         Ok(())
     }
 
-    /// Mounts an overlayfs built up from the given lowerdirs.
+    /// Mounts an overlayfs built up from the given list of rendered
+    /// layered directories (layerdirs).
     ///
-    /// This first entry in lowerdirs should be the one you expect to
+    /// This first entry in layerdirs should be the one you expect to
     /// be the bottom-most layer in the overlayfs stack. Each
     /// following entry will be placed on top of the previous one,
-    /// with the last entry in lowerdirs becoming the top-most layer
-    /// in the overlay stack. The top-most layer will "win" in the
-    /// event of two dirs having the same file(s).
+    /// with the last entry in layerdirs becoming the top-most layer
+    /// in the overlay stack. The top-most layer (the closest to the
+    /// end of the layersdir list) will "win" in the event of two dirs
+    /// having the same file(s).
     pub(crate) async fn mount_env_overlayfs<P: AsRef<Path>>(
         &self,
         rt: &runtime::Runtime,
-        lowerdirs: &[P],
+        layerdirs: &[P],
     ) -> Result<()> {
         tracing::debug!("mounting the overlay filesystem...");
-        let overlay_args = get_overlay_args(rt, lowerdirs)?;
+        let overlay_args = get_overlay_args(rt, layerdirs)?;
         let mount = super::resolve::which("mount").unwrap_or_else(|| "/usr/bin/mount".into());
         tracing::debug!("{mount:?} -t overlay -o {overlay_args} none {SPFS_DIR}",);
         // for some reason, the overlay mount process creates a bad filesystem if the
