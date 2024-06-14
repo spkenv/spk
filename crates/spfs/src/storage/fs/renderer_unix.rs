@@ -414,8 +414,9 @@ where
             self.reporter.visit_entry(entry);
         }
 
+        let manifest_tree_cache = manifest.get_tree_cache();
         let mut res = self
-            .render_into_dir_fd(root_dir, root_node, manifest, render_type)
+            .render_into_dir_fd(root_dir, &root_node, &manifest_tree_cache, render_type)
             .await;
         if let Err(Error::StorageWriteError(_, p, _)) = &mut res {
             *p = target_dir.join(p.as_path());
@@ -429,8 +430,8 @@ where
     async fn render_into_dir_fd<Fd>(
         &self,
         root_dir_fd: Fd,
-        tree: graph::Tree<'async_recursion>,
-        manifest: &graph::Manifest,
+        tree: &graph::Tree<'async_recursion>,
+        manifest_tree_cache: &graph::ManifestTreeCache,
         render_type: RenderType,
     ) -> Result<()>
     where
@@ -458,7 +459,7 @@ where
                     let mut root_path = PathBuf::from(entry.name());
                     match entry.kind() {
                         tracking::EntryKind::Tree => {
-                            let tree = manifest.get_tree(entry.object()).ok_or_else(|| {
+                            let tree = manifest_tree_cache.get(entry.object()).ok_or_else(|| {
                                 Error::String(format!("Failed to render: manifest is internally inconsistent (missing child tree {})", *entry.object()))
                             })?;
 
@@ -475,7 +476,7 @@ where
                                 .render_into_dir_fd(
                                     child_dir.as_raw_fd(),
                                     tree,
-                                    manifest,
+                                    manifest_tree_cache,
                                     render_type,
                                 )
                                 .await;

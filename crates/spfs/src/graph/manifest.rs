@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::io::BufRead;
 
 use spfs_proto::ManifestArgs;
@@ -18,6 +18,9 @@ mod manifest_test;
 
 /// A manifest holds the state of a filesystem tree.
 pub type Manifest = super::object::FlatObject<spfs_proto::Manifest<'static>>;
+
+/// A mapping of digest to tree in a manifest.
+pub type ManifestTreeCache<'a> = HashMap<encoding::Digest, Tree<'a>>;
 
 impl Default for Manifest {
     fn default() -> Self {
@@ -73,6 +76,29 @@ impl Manifest {
         children.into_iter().collect()
     }
 
+    /// Return the trees of this Manifest mapped by digest.
+    ///
+    /// It is expensive to find a tree in a manifest by digest. If multiple
+    /// trees need to be accessed by digest, it is faster to use this method
+    /// instead of [`Manifest::get_tree`].
+    pub fn get_tree_cache(&self) -> ManifestTreeCache {
+        let mut tree_cache = HashMap::new();
+        for tree in self.iter_trees() {
+            let Ok(digest) = tree.digest() else {
+                tracing::warn!("Undigestible tree found in manifest");
+                continue;
+            };
+            tree_cache.insert(digest, tree);
+        }
+        tree_cache
+    }
+
+    /// Return the tree in this manifest with the given digest.
+    ///
+    /// # Warning
+    ///
+    /// This can be very slow to call repeatedly on the same manifest. See
+    /// [`Manifest::get_tree_cache`].
     pub fn get_tree(&self, digest: &encoding::Digest) -> Option<Tree<'_>> {
         self.iter_trees()
             .find(|t| t.digest().ok().as_ref() == Some(digest))
@@ -85,9 +111,15 @@ impl Manifest {
 
     /// Convert this manifest into a more workable form for editing.
     pub fn to_tracking_manifest(&self) -> tracking::Manifest {
+        let tree_cache = self.get_tree_cache();
+
         let mut root = tracking::Entry::empty_dir_with_open_perms();
 
-        fn iter_tree(source: &Manifest, tree: Tree<'_>, parent: &mut tracking::Entry) {
+        fn iter_tree(
+            tree_cache: &ManifestTreeCache,
+            tree: &Tree<'_>,
+            parent: &mut tracking::Entry,
+        ) {
             for entry in tree.entries() {
                 let mut new_entry = tracking::Entry {
                     kind: entry.kind(),
@@ -100,9 +132,9 @@ impl Manifest {
                 if entry.kind().is_tree() {
                     new_entry.object = encoding::NULL_DIGEST.into();
                     iter_tree(
-                        source,
-                        source
-                            .get_tree(entry.object())
+                        tree_cache,
+                        tree_cache
+                            .get(entry.object())
                             .expect("manifest is internally inconsistent (missing child tree)"),
                         &mut new_entry,
                     )
@@ -111,7 +143,7 @@ impl Manifest {
             }
         }
 
-        iter_tree(self, self.root(), &mut root);
+        iter_tree(&tree_cache, &self.root(), &mut root);
         let mut manifest = tracking::Manifest::new(root);
         // ensure that the manifest will round-trip in the case of it
         // being converted back into this type
