@@ -215,7 +215,9 @@ where
                 tracing::error!("{err}")
             }
             Ok(solution) => {
-                // Can't use this without access to the solver repos and async-ing this method
+                // Can't use this without access to the solver repos
+                // and async-ing this method. Could look at enabling
+                // this in future.
                 // solution
                 //     .format_solution_with_highest_versions(
                 //         self.settings.verbosity,
@@ -289,22 +291,41 @@ where
         self.show_options(state);
     }
 
-    fn show_state_menu(&self, current_state: &Option<Arc<State>>) -> Result<()> {
-        // TODO: change the timeout that auto-increases the verbosity,
-        // maybe disable if/when this menu is active?
+    fn show_full_menu(&self, prompt_prefix: &str) {
+        println!("{} Enter a letter for an action:", prompt_prefix.yellow());
+        println!(" ? - Print help (these details)");
+        println!(" r - Show resolved packages");
+        println!(" u - Show unresolved requests");
+        println!(" v - Show var requests");
+        println!(" o - Show options");
+        println!(" s, a - Show state [all of the above]");
+        println!(" c - Run solver to completion, removes step/stop");
+        println!(" Ctrl-c - Interrupt this program");
+        println!(" any other - Continue solving");
+    }
+
+    fn remove_step_and_stop_setting(&mut self) {
+        self.settings.stop_on_block = false;
+        self.settings.step_on_block = false;
+        self.settings.step_on_decision = false;
+    }
+
+    fn show_state_menu(
+        &mut self,
+        current_state: &Option<Arc<State>>,
+        prompt_prefix: String,
+    ) -> Result<()> {
+        // TODO: change the timeout that auto-increases the verbosity
+        // or disable when this menu is active
         if let Some(state) = current_state {
             // Simplistic menu for now
             let mut done = false;
             while !done {
-                // Show menu
-                println!("Enter a letter to proceed:");
-                println!(" (r) Show resolved packages");
-                println!(" (u) Show unresolved requests");
-                println!(" (v) Show var requests");
-                println!(" (o) Show options");
-                println!(" (s,a) Show state [all of the above]");
-                println!(" (any other) Continue solving");
-                print!("Solver> ");
+                // Show a compressed version of the menu
+                print!(
+                    "{} Select one of [r,u,v,o,s,a,c,?,C-c]> ",
+                    prompt_prefix.yellow()
+                );
 
                 // Get selection
                 let response = self.wait_for_user_selection()?;
@@ -315,11 +336,22 @@ where
 
                 // Act on the selection
                 match selection {
+                    '?' => self.show_full_menu(&prompt_prefix),
                     'r' => self.show_resolved_packages(state),
                     'u' => self.show_unresolved_requests(state),
                     'v' => self.show_var_requests(state),
                     'o' => self.show_options(state),
                     's' | 'a' => self.show_state(state),
+                    'c' => {
+                        self.remove_step_and_stop_setting();
+                        done = true;
+                    }
+                    // TODO: could look at adding other things in future:
+                    // - show dep graph image based on current resolved/unresolved
+                    // - a breakpoint for a request, with  continue till such request
+                    // - launch spk env based on current resolved packages
+                    // - rewind the solve
+                    // - save/restore point for the solve, for use in tests
                     _ => done = true,
                 }
             }
@@ -356,8 +388,9 @@ where
                 // Check if the solver should pause because the last
                 // decision was a step-back (BLOCKED) with step-on-block set
                 if step_because_blocked {
-                    yield(Ok(format!("{}", "Paused at BLOCKED state.".to_string().yellow())));
-                    if let Err(err) = self.show_state_menu(&current_state) {
+                    if let Err(err) = self.show_state_menu(&current_state,
+                                                           "Paused at BLOCKED state.".to_string()
+                    ) {
                         yield(Err(err));
                     }
                     step_because_blocked = false;
@@ -366,8 +399,7 @@ where
                 // Check if the solver should stop because the last decision
                 // was a step-back (BLOCKED) with stop-on-block set
                 if stop_because_blocked {
-                    yield(Ok("Hit at BLOCKED state. Stopping after the menu.".to_string()));
-                    if let Err(err) = self.show_state_menu(&current_state) {
+                    if let Err(err) = self.show_state_menu(&current_state, "Hit at BLOCKED state. Stopping after menu.".to_string()) {
                         yield(Err(err));
                     }
                     yield(Err(Error::SolverInterrupted(
@@ -377,8 +409,7 @@ where
                 }
 
                 if self.settings.step_on_decision && current_state.is_some() {
-                    yield(Ok(format!("{}", "Pausing after decision.".to_string().yellow())));
-                    if let Err(err) = self.show_state_menu(&current_state) {
+                    if let Err(err) = self.show_state_menu(&current_state, "Pausing after decision.".to_string()) {
                         yield(Err(err));
                     }
                 }
