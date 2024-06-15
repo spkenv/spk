@@ -9,7 +9,7 @@ showVisitedLinks = false
 themeVariant = "blue"
 
 [outputs]
-home = [ "HTML", "RSS", "JSON"]
+home = ["HTML", "RSS", "JSON"]
 
 [markup.goldmark.renderer]
 unsafe = true # for raw html
