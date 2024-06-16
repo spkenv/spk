@@ -34,6 +34,10 @@ use spfs::tracking::{Entry, EntryKind, EnvSpec, Manifest};
 use spfs::OsError;
 use tokio::io::AsyncReadExt;
 
+use crate::Error;
+
+type Result<T> = std::result::Result<T, Error>;
+
 /// Options to configure the FUSE filesystem and
 /// its behavior at runtime
 #[derive(Debug, Clone)]
@@ -157,12 +161,12 @@ impl Filesystem {
         }
     }
 
-    fn attr_from_entry(&self, entry: &Entry<u64>) -> FileAttr {
+    fn attr_from_entry(&self, entry: &Entry<u64>) -> Result<FileAttr> {
         let kind = match entry.kind {
             EntryKind::Blob(_) if entry.is_symlink() => FileType::Symlink,
             EntryKind::Blob(_) => FileType::RegularFile,
             EntryKind::Tree => FileType::Directory,
-            EntryKind::Mask => unreachable!(),
+            EntryKind::Mask => return Err(Error::EntryIsMask),
         };
         let size = if entry.is_dir() {
             entry.entries.len() as u64
@@ -179,7 +183,7 @@ impl Filesystem {
             1
         };
 
-        FileAttr {
+        Ok(FileAttr {
             ino: entry.user_data,
             size,
             perm: entry.mode as u16, // truncate the non-perm bits
@@ -197,7 +201,7 @@ impl Filesystem {
             rdev: 0,
             blksize: Self::BLOCK_SIZE,
             flags: 0,
-        }
+        })
     }
 }
 
@@ -281,7 +285,10 @@ impl Filesystem {
             return;
         };
 
-        let attr = self.attr_from_entry(entry);
+        let Ok(attr) = self.attr_from_entry(entry) else {
+            reply.error(libc::ENOENT);
+            return;
+        };
         reply.entry(&self.ttl, &attr, 0);
     }
 
@@ -296,7 +303,10 @@ impl Filesystem {
             return;
         };
 
-        let attr = self.attr_from_entry(inode.value());
+        let Ok(attr) = self.attr_from_entry(inode.value()) else {
+            reply.error(libc::ENOENT);
+            return;
+        };
         reply.attr(&self.ttl, &attr);
     }
 
@@ -595,7 +605,9 @@ impl Filesystem {
         for (name, entry) in remaining {
             let ino = entry.user_data;
             let next_offset = ino as i64;
-            let attr = self.attr_from_entry(entry);
+            let Ok(attr) = self.attr_from_entry(entry) else {
+                continue;
+            };
             tracing::trace!("readdirplus add {name}");
             let buffer_full = reply.add(ino, next_offset, name, &self.ttl, &attr, 0);
             if buffer_full {
