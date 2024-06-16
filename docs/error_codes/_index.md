@@ -4,6 +4,8 @@ summary: Application error code documentation and help
 weight: 999
 ---
 
+Both spfs and spk have defined error codes that are produced. These codes can be looked up on this page for help understanding and debugging them.
+
 ## Spk Errors
 
 ### Build Validation Errors

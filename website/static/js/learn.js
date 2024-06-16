@@ -231,12 +231,13 @@ jQuery(document).ready(function() {
     $('code').each(function() {
         var code = $(this),
             text = code.text();
+        code.addClass("tooltipped tooltipped-s");
+        code.attr("aria-label", "Copy...");
 
-        if (text.length > 5) {
             if (!clipInit) {
-                var text, clip = new ClipboardJS('.copy-to-clipboard', {
+            var text, clip = new ClipboardJS('code', {
                     text: function(trigger) {
-                        text = $(trigger).prev('code').text();
+                    text = $(trigger).text();
                         return text.replace(/^\$\s/gm, '');
                     }
                 });
@@ -244,26 +245,22 @@ jQuery(document).ready(function() {
                 var inPre;
                 clip.on('success', function(e) {
                     e.clearSelection();
-                    inPre = $(e.trigger).parent().prop('tagName') == 'PRE';
-                    $(e.trigger).attr('aria-label', 'Copied to clipboard!').addClass('tooltipped tooltipped-' + (inPre ? 'w' : 's'));
+                $(e.trigger).attr('aria-label', 'Copied!');
                 });
 
                 clip.on('error', function(e) {
-                    inPre = $(e.trigger).parent().prop('tagName') == 'PRE';
-                    $(e.trigger).attr('aria-label', fallbackMessage(e.action)).addClass('tooltipped tooltipped-' + (inPre ? 'w' : 's'));
-                    $(document).one('copy', function(){
-                        $(e.trigger).attr('aria-label', 'Copied to clipboard!').addClass('tooltipped tooltipped-' + (inPre ? 'w' : 's'));
+                $(e.trigger).attr('aria-label', fallbackMessage(e.action));
+                $(document).one('copy', function() {
+                    $(e.trigger).attr('aria-label', 'Copied!');
                     });
                 });
 
                 clipInit = true;
             }
 
-            code.after('<span class="copy-to-clipboard" title="Copy to clipboard" />');
-            code.next('.copy-to-clipboard').on('mouseleave', function() {
-                $(this).attr('aria-label', null).removeClass('tooltipped tooltipped-s tooltipped-w');
+        code.on('mouseleave', function() {
+            $(this).attr('aria-label', "Copy...");
             });
-        }
     });
 
     // allow keyboard control for prev/next links
