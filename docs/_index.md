@@ -9,7 +9,7 @@ alt="SPK Logo" src="/images/spk_black.png"/>
 
 The **S**oftware **P**ackaging **K**it (SPK) provides package management and a software runtime for studio environments.
 
-<div style="text-align: center; width: 100%">{{% button href="/use" %}}Getting Started{{% /button %}} {{% button href="/ref/spec" %}}Yaml Reference{{% /button %}} {{% button href="/error_codes" %}}Error Codes{{% /button %}}</div>
+<div style="text-align: center; width: 100%">{{% button href="./use" %}}Getting Started{{% /button %}} {{% button href="./ref/spec" %}}Yaml Reference{{% /button %}} {{% button href="./error_codes" %}}Error Codes{{% /button %}}</div>
 
 Driven by the unique requirements of the film, vfx, and animation industries, SPK has a few primary goals:
 
