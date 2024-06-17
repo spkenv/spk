@@ -86,17 +86,25 @@ fn test_digest_with_salting() {
 }
 
 #[rstest]
-fn test_digest_with_encoding() {
+#[case::legacy(DigestStrategy::Legacy)]
+#[case::kind_and_salt(DigestStrategy::WithKindAndSalt)]
+fn test_digest_with_encoding(#[case] digest_strategy: DigestStrategy) {
     // check that two objects with the same digest strategy
     // can be saved with two different encoding methods and
     // still yield the same result
     let legacy_platform = Platform::builder()
-        .with_header(|h| h.with_encoding_format(EncodingFormat::Legacy))
+        .with_header(|h| {
+            h.with_digest_strategy(digest_strategy)
+                .with_encoding_format(EncodingFormat::Legacy)
+        })
         .build()
         .digest()
         .unwrap();
     let flatbuf_platform = Platform::builder()
-        .with_header(|h| h.with_encoding_format(EncodingFormat::FlatBuffers))
+        .with_header(|h| {
+            h.with_digest_strategy(digest_strategy)
+                .with_encoding_format(EncodingFormat::FlatBuffers)
+        })
         .build()
         .digest()
         .unwrap();

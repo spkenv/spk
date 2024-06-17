@@ -141,6 +141,8 @@ async fn test_commit_broken_link(
 #[case::tar(tmprepo("tar"))]
 #[cfg_attr(feature = "server", case::rpc(tmprepo("rpc")))]
 #[tokio::test]
+// This test just needs the config to not change while it is running.
+#[serial_test::serial(config)]
 async fn test_commit_dir(
     #[case]
     #[future]
