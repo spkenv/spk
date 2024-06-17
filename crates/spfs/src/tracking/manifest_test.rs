@@ -80,6 +80,8 @@ async fn test_manifest_sorting(tmpdir: tempfile::TempDir) {
 }
 #[rstest]
 #[tokio::test]
+// This test just needs the config to not change while it is running.
+#[serial_test::serial(config)]
 async fn test_layer_manifests(tmpdir: tempfile::TempDir) {
     let a_dir = tmpdir.path().join("a");
     ensure(a_dir.join("a.txt"), "a");

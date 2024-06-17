@@ -207,6 +207,8 @@ async fn test_sync_missing_from_source(
 #[case::tar(tmprepo("tar"), tmprepo("tar"))]
 #[cfg_attr(feature = "server", case::rpc(tmprepo("rpc"), tmprepo("rpc")))]
 #[tokio::test]
+// This test just needs the config to not change while it is running.
+#[serial_test::serial(config)]
 async fn test_sync_through_tar(
     #[case]
     #[future]
