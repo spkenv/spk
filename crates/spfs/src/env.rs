@@ -522,13 +522,23 @@ where
         Ok(())
     }
 
+    /// Mounts an overlayfs built up from the given list of rendered
+    /// layered directories (layer_dirs).
+    ///
+    /// This first entry in layer_dirs should be the one you expect to
+    /// be the bottom-most layer in the overlayfs stack. Each
+    /// following entry will be placed on top of the previous one,
+    /// with the last entry in layer_dirs becoming the top-most layer
+    /// in the overlayfs stack. In the event that multiple layer
+    /// directories contain the same file, the one that comes later in
+    /// the slice will provide the contents of that file.
     pub(crate) async fn mount_env_overlayfs<P: AsRef<Path>>(
         &self,
         rt: &runtime::Runtime,
-        lowerdirs: impl IntoIterator<Item = P>,
+        layer_dirs: &[P],
     ) -> Result<()> {
         tracing::debug!("mounting the overlay filesystem...");
-        let overlay_args = get_overlay_args(rt, lowerdirs)?;
+        let overlay_args = get_overlay_args(rt, layer_dirs)?;
         let mount = super::resolve::which("mount").unwrap_or_else(|| "/usr/bin/mount".into());
         tracing::debug!("{mount:?} -t overlay -o {overlay_args} none {SPFS_DIR}",);
         // for some reason, the overlay mount process creates a bad filesystem if the
@@ -1086,15 +1096,21 @@ impl OverlayMountOptions {
     }
 }
 
-/// Get the overlayfs arguments for the given list of lower layer directories.
+/// Get the overlayfs arguments for the given list of layer directories.
 ///
 /// This returns an error if the arguments would exceed the legal size limit
 /// (if known).
 ///
-/// `prefix` is prepended to the generated overlay args.
+/// `layer_dirs` must be ordered so the first entry is the first one
+/// to be applied, so the bottom-most layer in the overlayfs stack.
+/// The next entry will go on top of that, and so on, until the last
+/// entry, which will become the top-most layer in the overlayfs
+/// stack. In the event that multiple entries contain the same file,
+/// the one that is later in the slice will provide the contents of
+/// that file.
 pub(crate) fn get_overlay_args<P: AsRef<Path>>(
     rt: &runtime::Runtime,
-    lowerdirs: impl IntoIterator<Item = P>,
+    layer_dirs: &[P],
 ) -> Result<String> {
     // Allocate a large buffer up front to avoid resizing/copying.
     let mut args = String::with_capacity(4096);
@@ -1105,12 +1121,18 @@ pub(crate) fn get_overlay_args<P: AsRef<Path>>(
         args.push(',');
     }
 
+    // Have to put the lowerdir directories on the command line in
+    // reverse order that they given so that the overlayfs will apply
+    // them in the order we want (because it goes right to left, where
+    // the rightmost on the command line is the bottom layer, and the
+    // leftmost is on the top). For more details see:
+    // https://docs.kernel.org/filesystems/overlayfs.html#multiple-lower-layers
     args.push_str("lowerdir=");
-    args.push_str(&rt.config.lower_dir.to_string_lossy());
-    for path in lowerdirs.into_iter() {
-        args.push(':');
+    for path in layer_dirs.iter().rev() {
         args.push_str(&path.as_ref().to_string_lossy());
+        args.push(':');
     }
+    args.push_str(&rt.config.lower_dir.to_string_lossy());
 
     args.push_str(",upperdir=");
     args.push_str(&rt.config.upper_dir.to_string_lossy());
