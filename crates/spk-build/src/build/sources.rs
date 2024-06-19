@@ -136,7 +136,7 @@ where
     std::fs::create_dir_all(source_dir)
         .map_err(|err| Error::DirectoryCreateError(source_dir.to_owned(), err))?;
 
-    let env = super::binary::get_package_build_env(spec);
+    let env = spec.get_build_env();
     for source in spec.sources().iter() {
         let target_dir = match source.subdir() {
             Some(subdir) => subdir.to_path(source_dir),

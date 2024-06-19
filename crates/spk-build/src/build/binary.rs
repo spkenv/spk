@@ -23,7 +23,6 @@ use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
-use spk_schema::foundation::version::VERSION_SEP;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy, VersionIdent};
 use spk_schema::variant::Override;
 use spk_schema::{
@@ -638,7 +637,7 @@ where
         let mut cmd = cmd.into_std();
         cmd.envs(self.environment.drain());
         cmd.envs(options.as_ref().to_environment());
-        cmd.envs(get_package_build_env(package));
+        cmd.envs(package.get_build_env());
         cmd.env("PREFIX", &self.prefix);
         // force the base environment to be setup using bash, so that the
         // spfs startup and build environment are predictable and consistent
@@ -719,43 +718,6 @@ where
         }
         Ok(())
     }
-}
-
-/// Return the environment variables to be set for a build of the given package spec.
-pub fn get_package_build_env<P>(spec: &P) -> HashMap<String, String>
-where
-    P: Package,
-{
-    let mut env = HashMap::with_capacity(8);
-    env.insert("SPK_PKG".to_string(), spec.ident().to_string());
-    env.insert("SPK_PKG_NAME".to_string(), spec.name().to_string());
-    env.insert("SPK_PKG_VERSION".to_string(), spec.version().to_string());
-    env.insert(
-        "SPK_PKG_BUILD".to_string(),
-        spec.ident().build().to_string(),
-    );
-    env.insert(
-        "SPK_PKG_VERSION_MAJOR".to_string(),
-        spec.version().major().to_string(),
-    );
-    env.insert(
-        "SPK_PKG_VERSION_MINOR".to_string(),
-        spec.version().minor().to_string(),
-    );
-    env.insert(
-        "SPK_PKG_VERSION_PATCH".to_string(),
-        spec.version().patch().to_string(),
-    );
-    env.insert(
-        "SPK_PKG_VERSION_BASE".to_string(),
-        spec.version()
-            .parts
-            .iter()
-            .map(u32::to_string)
-            .collect::<Vec<_>>()
-            .join(VERSION_SEP),
-    );
-    env
 }
 
 /// Commit changes discovered in the runtime as a package.

@@ -17,7 +17,6 @@ pub use build::{
     build_spec_path,
     commit_component_layers,
     component_marker_path,
-    get_package_build_env,
     source_package_path,
     validate_source_changeset,
     BinaryPackageBuilder,

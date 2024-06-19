@@ -77,3 +77,23 @@ fn test_multiple_ops_cause_error(#[case] op: &str) {
     let result: Result<EnvOp, _> = serde_yaml::from_str(op);
     assert!(result.is_err(), "should fail to parse multiple ops");
 }
+
+#[rstest]
+#[case(r#"{set: SPK_TEST_VAR, value: "no expansion"}"#, &[], "no expansion")]
+// double dollar sign becomes un-expanded single dollar sign
+#[case(r#"{set: SPK_TEST_VAR, value: "$$ESCAPED"}"#, &[("ESCAPED", "nope")], "$ESCAPED")]
+#[case(r#"{set: SPK_TEST_VAR, value: "$VALUE"}"#, &[("VALUE", "value")], "value")]
+#[case(r#"{set: SPK_TEST_VAR, value: "${VALUE}"}"#, &[("VALUE", "value")], "value")]
+#[case(r#"{set: SPK_TEST_VAR, value: "${VALUE1}.${VALUE2}"}"#, &[("VALUE1", "value1"), ("VALUE2", "value2")], "value1.value2")]
+fn test_var_expansion(#[case] op: &str, #[case] vars: &[(&str, &str)], #[case] expected: &str) {
+    use std::collections::HashMap;
+
+    let op: EnvOp = serde_yaml::from_str(op).unwrap();
+    let expanded = op.to_expanded(
+        &vars
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect::<HashMap<_, _>>(),
+    );
+    assert_eq!(expanded.value().unwrap(), expected);
+}
