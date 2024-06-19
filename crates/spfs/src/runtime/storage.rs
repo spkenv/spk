@@ -1271,15 +1271,15 @@ impl Storage {
                 match self
                     .inner
                     .read_ref(digest.to_string().as_str())
-                    .await?
-                    .into_enum()
+                    .await
+                    .map(|fo| fo.into_enum())
                 {
-                    Enum::Platform(platform) => {
+                    Ok(Enum::Platform(platform)) => {
                         for reference in platform.iter_bottom_up() {
                             next_iter_digests.push(*reference);
                         }
                     }
-                    Enum::Layer(layer) => {
+                    Ok(Enum::Layer(layer)) => {
                         for entry in layer.annotations() {
                             let annotation: Annotation = entry.into();
                             if annotation.key() == key {
@@ -1287,6 +1287,9 @@ impl Storage {
                                 return Ok(Some(value));
                             }
                         }
+                    }
+                    Err(err) => {
+                        tracing::trace!(?err, ?digest, "read_ref failed");
                     }
                     _ => {
                         // None of the other objects contain Annotation
@@ -1313,21 +1316,24 @@ impl Storage {
                 match self
                     .inner
                     .read_ref(digest.to_string().as_str())
-                    .await?
-                    .into_enum()
+                    .await
+                    .map(|fo| fo.into_enum())
                 {
-                    Enum::Platform(platform) => {
+                    Ok(Enum::Platform(platform)) => {
                         for reference in platform.iter_bottom_up() {
                             next_iter_digests.push(*reference);
                         }
                     }
-                    Enum::Layer(layer) => {
+                    Ok(Enum::Layer(layer)) => {
                         for entry in layer.annotations() {
                             let annotation: Annotation = entry.into();
                             let key = annotation.key().to_string();
                             let value = self.find_annotation_value(&annotation).await?;
                             key_value_pairs.push((key, value));
                         }
+                    }
+                    Err(err) => {
+                        tracing::trace!(?err, ?digest, "read_ref failed");
                     }
                     _ => {
                         // None of the other objects could contain
