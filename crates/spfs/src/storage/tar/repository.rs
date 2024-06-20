@@ -13,7 +13,7 @@ use futures::Stream;
 use relative_path::RelativePath;
 use tar::{Archive, Builder};
 
-use crate::config::ToAddress;
+use crate::config::{pathbuf_deserialize_with_tilde_expansion, ToAddress};
 use crate::graph::ObjectProto;
 use crate::prelude::*;
 use crate::storage::fs::DURABLE_EDITS_DIR;
@@ -32,6 +32,7 @@ use crate::{encoding, graph, storage, tracking, Error, Result};
 /// Configuration for a tar repository
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct Config {
+    #[serde(deserialize_with = "pathbuf_deserialize_with_tilde_expansion::deserialize")]
     pub path: std::path::PathBuf,
 }
 

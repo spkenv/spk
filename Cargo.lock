@@ -3479,6 +3479,7 @@ dependencies = [
  "serde_qs",
  "serde_yaml 0.9.27",
  "serial_test",
+ "shellexpand",
  "spfs-encoding",
  "spfs-proto",
  "static_assertions",
