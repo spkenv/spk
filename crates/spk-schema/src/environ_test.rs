@@ -68,3 +68,12 @@ fn test_yaml_round_trip(#[case] op: &str) {
     let op2: EnvOp = serde_yaml::from_str(&yaml).unwrap();
     assert_eq!(op2, op, "should be the same after sending through yaml");
 }
+
+/// Test that ambiguous/overlapping op definitions cause a parse error instead
+/// of silently ignoring some of the configuration.
+#[rstest]
+#[case("{set: SPK_TEST_VAR, append: SPK_TEST_VAR, value: simple")]
+fn test_multiple_ops_cause_error(#[case] op: &str) {
+    let result: Result<EnvOp, _> = serde_yaml::from_str(op);
+    assert!(result.is_err(), "should fail to parse multiple ops");
+}

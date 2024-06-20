@@ -24,7 +24,8 @@ const OP_SET: &str = "set";
 const OP_NAMES: &[&str] = &[OP_APPEND, OP_COMMENT, OP_PREPEND, OP_SET];
 
 /// The set of operation types for use in deserialization
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, strum::Display)]
+#[strum(serialize_all = "lowercase")]
 pub enum OpKind {
     Append,
     Comment,
@@ -197,30 +198,55 @@ impl<'de> Deserialize<'de> for EnvOp {
                 while let Some(key) = map.next_key::<String>()? {
                     match key.as_str() {
                         OP_PREPEND => {
+                            if let Some((existing_op, _)) = &self.op_and_var {
+                                return Err(serde::de::Error::custom(format!(
+                                    "encountered {key} but operation already defined as {existing_op}",
+                                )));
+                            }
                             self.op_and_var = Some((
                                 OpKind::Prepend,
                                 ConfKind::Operation(map.next_value::<Stringified>()?.0),
                             ));
                         }
                         OP_PRIORITY => {
+                            if let Some((existing_op, _)) = &self.op_and_var {
+                                return Err(serde::de::Error::custom(format!(
+                                    "encountered {key} but operation already defined as {existing_op}",
+                                )));
+                            }
                             self.op_and_var = Some((
                                 OpKind::Priority,
                                 ConfKind::Priority(map.next_value::<u8>()?),
                             ));
                         }
                         OP_COMMENT => {
+                            if let Some((existing_op, _)) = &self.op_and_var {
+                                return Err(serde::de::Error::custom(format!(
+                                    "encountered {key} but operation already defined as {existing_op}",
+                                )));
+                            }
                             self.op_and_var = Some((
                                 OpKind::Comment,
                                 ConfKind::Operation(map.next_value::<Stringified>()?.0),
                             ));
                         }
                         OP_APPEND => {
+                            if let Some((existing_op, _)) = &self.op_and_var {
+                                return Err(serde::de::Error::custom(format!(
+                                    "encountered {key} but operation already defined as {existing_op}",
+                                )));
+                            }
                             self.op_and_var = Some((
                                 OpKind::Append,
                                 ConfKind::Operation(map.next_value::<Stringified>()?.0),
                             ));
                         }
                         OP_SET => {
+                            if let Some((existing_op, _)) = &self.op_and_var {
+                                return Err(serde::de::Error::custom(format!(
+                                    "encountered {key} but operation already defined as {existing_op}",
+                                )));
+                            }
                             self.op_and_var = Some((
                                 OpKind::Set,
                                 ConfKind::Operation(map.next_value::<Stringified>()?.0),
