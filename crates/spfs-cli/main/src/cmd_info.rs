@@ -6,6 +6,7 @@ use std::collections::VecDeque;
 
 use clap::Args;
 use colored::*;
+use futures::TryFutureExt;
 use miette::Result;
 use spfs::env::SPFS_DIR;
 use spfs::find_path::ObjectPathEntry;
@@ -230,12 +231,18 @@ impl CmdInfo {
         println!(" {}: {}", "editable".bright_blue(), runtime.status.editable);
         println!("{}:", "stack (top-down)".bright_blue());
         for digest in runtime.status.stack.to_top_down() {
-            print!("  - {}, ", self.format_digest(digest, repo).await?);
-            let object = repo.read_ref(digest.to_string().as_str()).await?;
-            println!(
-                "Size: {}",
-                self.human_readable(object.calculate_object_size(repo).await?),
-            );
+            // Don't print anything until we know nothing in here is going to
+            // fail, so output doesn't get scrambled up.
+            let formatted_digest = self.format_digest(digest, repo).await?;
+            // Items in the stack may not be present in the local repo,
+            // therefore print "unknown" if the size cannot be determined.
+            let object_size = repo
+                .read_ref(digest.to_string().as_str())
+                .and_then(|obj| async move { obj.calculate_object_size(repo).await })
+                .await
+                .map(|size| self.human_readable(size))
+                .unwrap_or_else(|_| "unknown".to_string());
+            println!("  - {formatted_digest}, Size: {object_size}",);
         }
         println!();
 
