@@ -20,7 +20,7 @@ use crate::runtime;
     case("tcsh", "test.csh", "echo hi; setenv TEST_VALUE 'spfs-test-value'")
 )]
 #[tokio::test]
-#[serial_test::serial] // env and config manipulation must be reliable
+#[serial_test::serial(env)] // env and config manipulation must be reliable
 async fn test_shell_initialization_startup_scripts(
     shell: &str,
     startup_script: &str,
@@ -99,7 +99,7 @@ async fn test_shell_initialization_startup_scripts(
 
 #[rstest(shell, case("bash"), case("tcsh"))]
 #[tokio::test]
-#[serial_test::serial] // env and config manipulation must be reliable
+#[serial_test::serial(env)] // env and config manipulation must be reliable
 async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempfile::TempDir) {
     init_logging();
     let shell_path = match which(shell) {
@@ -154,7 +154,7 @@ async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempf
 #[cfg(unix)]
 #[rstest(shell, case("bash"), case("tcsh"))]
 #[tokio::test]
-#[serial_test::serial] // env manipulation must be reliable
+#[serial_test::serial(env)] // env manipulation must be reliable
 async fn test_find_alternate_bash(shell: &str, tmpdir: tempfile::TempDir) {
     init_logging();
     let original_path = std::env::var("PATH").unwrap_or_default();

@@ -13,13 +13,13 @@ use rstest::rstest;
 use spfs_encoding::Digestible;
 
 use super::{makedirs_with_perms, Data, Storage};
-use crate::encoding;
 use crate::fixtures::*;
-use crate::graph::object::EncodingFormat;
+use crate::graph::object::{DigestStrategy, EncodingFormat};
 use crate::graph::{AnnotationValue, Layer, Platform};
 use crate::runtime::storage::{LiveLayerApiVersion, LiveLayerContents};
 use crate::runtime::{BindMount, KeyValuePair, LiveLayer, LiveLayerFile};
 use crate::storage::prelude::Database;
+use crate::{encoding, Config};
 
 #[rstest]
 fn test_bindmount_creation() {
@@ -176,9 +176,22 @@ async fn test_storage_create_runtime(tmpdir: tempfile::TempDir) {
         .is_err());
 }
 
-#[rstest]
+#[rstest(
+    write_encoding_format => [EncodingFormat::Legacy, EncodingFormat::FlatBuffers],
+    write_digest_strategy => [DigestStrategy::Legacy, DigestStrategy::WithKindAndSalt],
+)]
 #[tokio::test]
-async fn test_storage_runtime_with_annotation(tmpdir: tempfile::TempDir) {
+#[serial_test::serial(config)]
+async fn test_storage_runtime_with_annotation(
+    tmpdir: tempfile::TempDir,
+    write_encoding_format: EncodingFormat,
+    write_digest_strategy: DigestStrategy,
+) {
+    let mut config = Config::default();
+    config.storage.encoding_format = write_encoding_format;
+    config.storage.digest_strategy = write_digest_strategy;
+    config.make_current().unwrap();
+
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
         crate::storage::fs::FsRepository::create(root)
@@ -198,10 +211,22 @@ async fn test_storage_runtime_with_annotation(tmpdir: tempfile::TempDir) {
     // Test - insert data
     let key = "some_field".to_string();
     let value = "some value".to_string();
-    assert!(runtime
+    match runtime
         .add_annotation(key.clone(), value.clone(), limit)
         .await
-        .is_ok());
+    {
+        Ok(_) if write_encoding_format == EncodingFormat::Legacy => {
+            panic!("Writing annotations should fail when using EncodingFormat::Legacy")
+        }
+        Ok(_) => {}
+        Err(_) if write_encoding_format == EncodingFormat::Legacy => {
+            // This error is expected
+            return;
+        }
+        Err(e) => {
+            panic!("Error adding annotations: {e}")
+        }
+    };
 
     // Test - insert some more data
     let value2 = "some other value".to_string();
@@ -213,12 +238,8 @@ async fn test_storage_runtime_with_annotation(tmpdir: tempfile::TempDir) {
     // Test - retrieve data - the first inserted data should be the
     // what is retrieved because of how adding to the runtime stack
     // works.
-    if EncodingFormat::default() == EncodingFormat::Legacy {
-        if (runtime.annotation(&key).await).is_ok() {
-            panic!("This should fail when EncodingFormat::Legacy is the default")
-        }
-        // Don't run the rest of the test when EncodingFormat::Legacy is used
-        return;
+    if write_encoding_format == EncodingFormat::Legacy {
+        unreachable!();
     };
 
     let result = runtime.annotation(&key).await.unwrap();
@@ -227,9 +248,22 @@ async fn test_storage_runtime_with_annotation(tmpdir: tempfile::TempDir) {
     assert!(value == *result.unwrap());
 }
 
-#[rstest]
+#[rstest(
+    write_encoding_format => [EncodingFormat::Legacy, EncodingFormat::FlatBuffers],
+    write_digest_strategy => [DigestStrategy::Legacy, DigestStrategy::WithKindAndSalt],
+)]
 #[tokio::test]
-async fn test_storage_runtime_add_annotations_list(tmpdir: tempfile::TempDir) {
+#[serial_test::serial(config)]
+async fn test_storage_runtime_add_annotations_list(
+    tmpdir: tempfile::TempDir,
+    write_encoding_format: EncodingFormat,
+    write_digest_strategy: DigestStrategy,
+) {
+    let mut config = Config::default();
+    config.storage.encoding_format = write_encoding_format;
+    config.storage.digest_strategy = write_digest_strategy;
+    config.make_current().unwrap();
+
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
         crate::storage::fs::FsRepository::create(root)
@@ -255,35 +289,54 @@ async fn test_storage_runtime_add_annotations_list(tmpdir: tempfile::TempDir) {
     let annotations: Vec<KeyValuePair> =
         vec![(key.clone(), value.clone()), (key2.clone(), value2.clone())];
 
-    assert!(runtime.add_annotations(annotations, limit).await.is_ok());
+    match runtime.add_annotations(annotations, limit).await {
+        Ok(_) if write_encoding_format == EncodingFormat::Legacy => {
+            panic!("Writing annotations should fail when using EncodingFormat::Legacy")
+        }
+        Ok(_) => {}
+        Err(_) if write_encoding_format == EncodingFormat::Legacy => {
+            // This error is expected
+            return;
+        }
+        Err(e) => {
+            panic!("Error adding annotations: {e}")
+        }
+    };
 
     // Test - retrieve data both pieces of data
     let result = runtime.annotation(&key).await.unwrap();
-    if EncodingFormat::default() == EncodingFormat::Legacy {
-        assert!(
-            result.is_none(),
-            "No annotation should be found under Legacy encoding"
-        );
+    if write_encoding_format == EncodingFormat::Legacy {
+        unreachable!()
     } else {
         assert!(result.is_some());
         assert!(value == *result.unwrap());
     }
 
     let result2 = runtime.annotation(&key2).await.unwrap();
-    if EncodingFormat::default() == EncodingFormat::Legacy {
-        assert!(
-            result2.is_none(),
-            "No annotation should be found under Legacy encoding"
-        );
+    if write_encoding_format == EncodingFormat::Legacy {
+        unreachable!()
     } else {
         assert!(result2.is_some());
         assert!(value2 == *result2.unwrap());
     }
 }
 
-#[rstest]
+#[rstest(
+    write_encoding_format => [EncodingFormat::Legacy, EncodingFormat::FlatBuffers],
+    write_digest_strategy => [DigestStrategy::Legacy, DigestStrategy::WithKindAndSalt],
+)]
 #[tokio::test]
-async fn test_storage_runtime_with_nested_annotation(tmpdir: tempfile::TempDir) {
+#[serial_test::serial(config)]
+async fn test_storage_runtime_with_nested_annotation(
+    tmpdir: tempfile::TempDir,
+    write_encoding_format: EncodingFormat,
+    write_digest_strategy: DigestStrategy,
+) {
+    let mut config = Config::default();
+    config.storage.encoding_format = write_encoding_format;
+    config.storage.digest_strategy = write_digest_strategy;
+    config.make_current().unwrap();
+
     // Setup the objects needed for the runtime used in the test
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
@@ -297,7 +350,19 @@ async fn test_storage_runtime_with_nested_annotation(tmpdir: tempfile::TempDir) 
     let value = "somevalue".to_string();
     let annotation_value = AnnotationValue::String(value.clone());
     let layer = Layer::new_with_annotation(key.clone(), annotation_value);
-    repo.write_object(&layer).await.unwrap();
+    match repo.write_object(&layer).await {
+        Ok(_) if write_encoding_format == EncodingFormat::Legacy => {
+            panic!("Writing annotations should fail when using EncodingFormat::Legacy")
+        }
+        Ok(_) => {}
+        Err(_) if write_encoding_format == EncodingFormat::Legacy => {
+            // This error is expected
+            return;
+        }
+        Err(e) => {
+            panic!("Error adding annotations: {e}")
+        }
+    };
 
     // make a platform that contains the annotation layer
     let layers: Vec<encoding::Digest> = vec![layer.digest().unwrap()];
@@ -314,12 +379,8 @@ async fn test_storage_runtime_with_nested_annotation(tmpdir: tempfile::TempDir) 
         .expect("failed to create runtime in storage");
     runtime.push_digest(platform.digest().unwrap());
 
-    if EncodingFormat::default() == EncodingFormat::Legacy {
-        if (runtime.annotation(&key).await).is_ok() {
-            panic!("This should fail when EncodingFormat::Legacy is the default")
-        }
-        // Don't run the rest of the test when EncodingFormat::Legacy is used
-        return;
+    if write_encoding_format == EncodingFormat::Legacy {
+        unreachable!();
     };
 
     // Test - retrieve the data even though it is nested inside a
@@ -330,9 +391,22 @@ async fn test_storage_runtime_with_nested_annotation(tmpdir: tempfile::TempDir) 
     assert!(value == *result.unwrap());
 }
 
-#[rstest]
+#[rstest(
+    write_encoding_format => [EncodingFormat::Legacy, EncodingFormat::FlatBuffers],
+    write_digest_strategy => [DigestStrategy::Legacy, DigestStrategy::WithKindAndSalt],
+)]
 #[tokio::test]
-async fn test_storage_runtime_with_annotation_all(tmpdir: tempfile::TempDir) {
+#[serial_test::serial(config)]
+async fn test_storage_runtime_with_annotation_all(
+    tmpdir: tempfile::TempDir,
+    write_encoding_format: EncodingFormat,
+    write_digest_strategy: DigestStrategy,
+) {
+    let mut config = Config::default();
+    config.storage.encoding_format = write_encoding_format;
+    config.storage.digest_strategy = write_digest_strategy;
+    config.make_current().unwrap();
+
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
         crate::storage::fs::FsRepository::create(root)
@@ -353,10 +427,22 @@ async fn test_storage_runtime_with_annotation_all(tmpdir: tempfile::TempDir) {
     let key = "some_field".to_string();
     let value = "somevalue".to_string();
 
-    assert!(runtime
+    match runtime
         .add_annotation(key.clone(), value.clone(), limit)
         .await
-        .is_ok());
+    {
+        Ok(_) if write_encoding_format == EncodingFormat::Legacy => {
+            panic!("Writing annotations should fail when using EncodingFormat::Legacy")
+        }
+        Ok(_) => {}
+        Err(_) if write_encoding_format == EncodingFormat::Legacy => {
+            // This error is expected
+            return;
+        }
+        Err(e) => {
+            panic!("Error adding annotations: {e}")
+        }
+    };
 
     let key2 = "some_field2".to_string();
     let value2 = "somevalue2".to_string();
@@ -366,12 +452,8 @@ async fn test_storage_runtime_with_annotation_all(tmpdir: tempfile::TempDir) {
         .is_ok());
 
     // Test - get all the data back out
-    if EncodingFormat::default() == EncodingFormat::Legacy {
-        if (runtime.all_annotations().await).is_ok() {
-            panic!("This should fail when EncodingFormat::Legacy is the default")
-        }
-        // Don't run the rest of the test when EncodingFormat::Legacy is used
-        return;
+    if write_encoding_format == EncodingFormat::Legacy {
+        unreachable!();
     };
 
     let result = runtime.all_annotations().await.unwrap();
@@ -388,9 +470,22 @@ async fn test_storage_runtime_with_annotation_all(tmpdir: tempfile::TempDir) {
     }
 }
 
-#[rstest]
+#[rstest(
+    write_encoding_format => [EncodingFormat::Legacy, EncodingFormat::FlatBuffers],
+    write_digest_strategy => [DigestStrategy::Legacy, DigestStrategy::WithKindAndSalt],
+)]
 #[tokio::test]
-async fn test_storage_runtime_with_nested_annotation_all(tmpdir: tempfile::TempDir) {
+#[serial_test::serial(config)]
+async fn test_storage_runtime_with_nested_annotation_all(
+    tmpdir: tempfile::TempDir,
+    write_encoding_format: EncodingFormat,
+    write_digest_strategy: DigestStrategy,
+) {
+    let mut config = Config::default();
+    config.storage.encoding_format = write_encoding_format;
+    config.storage.digest_strategy = write_digest_strategy;
+    config.make_current().unwrap();
+
     // setup the objects needed for the runtime used in the test
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
@@ -404,7 +499,19 @@ async fn test_storage_runtime_with_nested_annotation_all(tmpdir: tempfile::TempD
     let value = "somevalue".to_string();
     let annotation_value = AnnotationValue::String(value.clone());
     let layer = Layer::new_with_annotation(key.clone(), annotation_value);
-    repo.write_object(&layer.clone()).await.unwrap();
+    match repo.write_object(&layer.clone()).await {
+        Ok(_) if write_encoding_format == EncodingFormat::Legacy => {
+            panic!("Writing annotations should fail when using EncodingFormat::Legacy")
+        }
+        Ok(_) => {}
+        Err(_) if write_encoding_format == EncodingFormat::Legacy => {
+            // This error is expected
+            return;
+        }
+        Err(e) => {
+            panic!("Error adding annotations: {e}")
+        }
+    };
 
     let key2 = "some_field2".to_string();
     let value2 = "somevalue2".to_string();
@@ -436,12 +543,8 @@ async fn test_storage_runtime_with_nested_annotation_all(tmpdir: tempfile::TempD
 
     // Test - get all the data back out even thought it is nested at
     // different levels in different platform objects in the runtime
-    if EncodingFormat::default() == EncodingFormat::Legacy {
-        if (runtime.all_annotations().await).is_ok() {
-            panic!("This should fail when EncodingFormat::Legacy is the default")
-        }
-        // Don't run the rest of the test when EncodingFormat::Legacy is used
-        return;
+    if write_encoding_format == EncodingFormat::Legacy {
+        unreachable!();
     };
 
     let result = runtime.all_annotations().await.unwrap();

@@ -9,13 +9,27 @@ use rstest::rstest;
 use super::was_render_completed;
 use crate::encoding::prelude::*;
 use crate::fixtures::*;
+use crate::graph::object::{DigestStrategy, EncodingFormat};
 use crate::storage::fs::{FsRepository, OpenFsRepository};
 use crate::storage::{Repository, RepositoryHandle};
-use crate::tracking;
+use crate::{tracking, Config};
 
-#[rstest]
+#[rstest(
+    write_encoding_format => [EncodingFormat::Legacy, EncodingFormat::FlatBuffers],
+    write_digest_strategy => [DigestStrategy::Legacy, DigestStrategy::WithKindAndSalt],
+)]
 #[tokio::test]
-async fn test_render_manifest(tmpdir: tempfile::TempDir) {
+#[serial_test::serial(config)]
+async fn test_render_manifest(
+    tmpdir: tempfile::TempDir,
+    write_encoding_format: EncodingFormat,
+    write_digest_strategy: DigestStrategy,
+) {
+    let mut config = Config::default();
+    config.storage.encoding_format = write_encoding_format;
+    config.storage.digest_strategy = write_digest_strategy;
+    config.make_current().unwrap();
+
     let storage = OpenFsRepository::create(tmpdir.path().join("storage"))
         .await
         .unwrap();
@@ -52,9 +66,22 @@ async fn test_render_manifest(tmpdir: tempfile::TempDir) {
     assert_eq!(actual.digest().unwrap(), expected.digest().unwrap());
 }
 
-#[rstest]
+#[rstest(
+    write_encoding_format => [EncodingFormat::Legacy, EncodingFormat::FlatBuffers],
+    write_digest_strategy => [DigestStrategy::Legacy, DigestStrategy::WithKindAndSalt],
+)]
 #[tokio::test]
-async fn test_render_manifest_with_repo(tmpdir: tempfile::TempDir) {
+#[serial_test::serial(config)]
+async fn test_render_manifest_with_repo(
+    tmpdir: tempfile::TempDir,
+    write_encoding_format: EncodingFormat,
+    write_digest_strategy: DigestStrategy,
+) {
+    let mut config = Config::default();
+    config.storage.encoding_format = write_encoding_format;
+    config.storage.digest_strategy = write_digest_strategy;
+    config.make_current().unwrap();
+
     let tmprepo = Arc::new(
         FsRepository::create(tmpdir.path().join("repo"))
             .await
