@@ -671,15 +671,14 @@ where
                 if !node.entry.kind.is_mask() {
                     continue;
                 }
-                let relative_fullpath = node.path.to_path("");
-                if let Some(parent) = relative_fullpath.parent() {
+                let fullpath = node.path.to_path("/");
+                if let Some(parent) = fullpath.parent() {
                     tracing::trace!(?parent, "build parent dir for mask");
                     runtime::makedirs_with_perms(parent, 0o777)
                         .map_err(|err| Error::RuntimeWriteError(parent.to_owned(), err))?;
                 }
                 tracing::trace!(?node.path, "Creating file mask");
 
-                let fullpath = node.path.to_path("/");
                 let existing = std::fs::symlink_metadata(&fullpath).ok();
                 if let Some(meta) = existing {
                     if runtime::is_removed_entry(&meta) {

@@ -1510,6 +1510,12 @@ pub fn makedirs_with_perms<P: AsRef<Path>>(dirname: P, perms: u32) -> std::io::R
     #[cfg(unix)]
     let perms = std::fs::Permissions::from_mode(perms);
 
+    if !dirname.is_absolute() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "path must be absolute".to_string(),
+        ));
+    }
     if dirname
         .components()
         .any(|c| matches!(c, Component::ParentDir))
