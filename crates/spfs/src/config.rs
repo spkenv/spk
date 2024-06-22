@@ -75,9 +75,27 @@ impl Default for User {
     }
 }
 
+/// Expand tilde ~/paths and deserialize into a PathBuf.
+pub(crate) mod pathbuf_deserialize_with_tilde_expansion {
+    use serde::{Deserialize, Deserializer};
+
+    pub(crate) fn deserialize<'de, D>(deserializer: D) -> Result<std::path::PathBuf, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value.starts_with('~') {
+            let expanded = shellexpand::tilde(&value);
+            return Ok(std::path::PathBuf::from(expanded.as_ref()));
+        }
+        Ok(std::path::PathBuf::from(value))
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Storage {
+    #[serde(deserialize_with = "pathbuf_deserialize_with_tilde_expansion::deserialize")]
     pub root: PathBuf,
     /// If true, when rendering payloads, allow hard links even if the payload
     /// is owned by a different user than the current user. Only applies to

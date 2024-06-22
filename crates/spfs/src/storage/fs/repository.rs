@@ -16,7 +16,7 @@ use arc_swap::ArcSwap;
 use super::hash_store::PROXY_DIRNAME;
 use super::migrations::{MigrationError, MigrationResult};
 use super::FsHashStore;
-use crate::config::ToAddress;
+use crate::config::{pathbuf_deserialize_with_tilde_expansion, ToAddress};
 use crate::runtime::makedirs_with_perms;
 use crate::storage::prelude::*;
 use crate::storage::{
@@ -35,6 +35,7 @@ pub const DURABLE_EDITS_DIR: &str = "durable_edits";
 /// Configuration for an fs repository
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct Config {
+    #[serde(deserialize_with = "pathbuf_deserialize_with_tilde_expansion::deserialize")]
     pub path: std::path::PathBuf,
     #[serde(flatten)]
     pub params: Params,

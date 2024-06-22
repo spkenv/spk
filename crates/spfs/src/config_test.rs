@@ -4,7 +4,7 @@
 
 use rstest::rstest;
 
-use super::{Config, RemoteConfig};
+use super::{Config, Remote, RemoteConfig, RepositoryConfig};
 use crate::storage::prelude::*;
 use crate::storage::RepositoryHandle;
 use crate::{get_config, load_config};
@@ -71,6 +71,51 @@ async fn test_config_get_remote() {
 )]
 fn test_remote_config_or_address(#[case] source: &str) {
     let _config: Config = serde_json::from_str(source).expect("config should have loaded properly");
+}
+
+#[rstest]
+fn test_config_expands_tilde_in_paths() {
+    let source = r#"
+{
+    "storage": {
+        "root": "~/root"
+    },
+    "remote": {
+        "fs": {
+            "scheme": "fs",
+            "path": "~/path"
+        },
+        "tar": {
+            "scheme": "tar",
+            "path": "~/tar"
+        }
+    }
+}"#;
+    let config: Config = serde_json::from_str(source).expect("config is valid");
+    assert!(!config.storage.root.to_string_lossy().starts_with('~'));
+    assert!(config.storage.root.is_absolute());
+
+    let remote = config.remote.get("fs").expect("fs remote should exist");
+    let path = match remote {
+        Remote::Config(remote_config) => match &remote_config.inner {
+            RepositoryConfig::Fs(fs_config) => &fs_config.path,
+            _ => panic!("Not a RepositoryConfig::Fs"),
+        },
+        _ => panic!("Missing configuration"),
+    };
+    assert!(!path.to_string_lossy().starts_with('~'));
+    assert!(path.is_absolute());
+
+    let remote = config.remote.get("tar").expect("tar remote should exist");
+    let path = match remote {
+        Remote::Config(remote_config) => match &remote_config.inner {
+            RepositoryConfig::Tar(tar_config) => &tar_config.path,
+            _ => panic!("Not a RepositoryConfig::Fs"),
+        },
+        _ => panic!("Missing configuration"),
+    };
+    assert!(!path.to_string_lossy().starts_with('~'));
+    assert!(path.is_absolute());
 }
 
 #[rstest]
