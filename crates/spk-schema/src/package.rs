@@ -3,9 +3,11 @@
 // https://github.com/imageworks/spk
 
 use std::borrow::Cow;
+use std::collections::HashMap;
 
 use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::spec_ops::{Named, Versioned};
+use spk_schema_foundation::version::VERSION_SEP;
 use spk_schema_ident::BuildIdent;
 
 use super::RequirementsList;
@@ -60,6 +62,40 @@ pub trait Package:
 
     /// Identify the requirements for a build of this package.
     fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList>>;
+
+    /// Return the environment variables to be set for a build of the given package spec.
+    fn get_build_env(&self) -> HashMap<String, String> {
+        let mut env = HashMap::with_capacity(8);
+        env.insert("SPK_PKG".to_string(), self.ident().to_string());
+        env.insert("SPK_PKG_NAME".to_string(), self.name().to_string());
+        env.insert("SPK_PKG_VERSION".to_string(), self.version().to_string());
+        env.insert(
+            "SPK_PKG_BUILD".to_string(),
+            self.ident().build().to_string(),
+        );
+        env.insert(
+            "SPK_PKG_VERSION_MAJOR".to_string(),
+            self.version().major().to_string(),
+        );
+        env.insert(
+            "SPK_PKG_VERSION_MINOR".to_string(),
+            self.version().minor().to_string(),
+        );
+        env.insert(
+            "SPK_PKG_VERSION_PATCH".to_string(),
+            self.version().patch().to_string(),
+        );
+        env.insert(
+            "SPK_PKG_VERSION_BASE".to_string(),
+            self.version()
+                .parts
+                .iter()
+                .map(u32::to_string)
+                .collect::<Vec<_>>()
+                .join(VERSION_SEP),
+        );
+        env
+    }
 
     /// Requests that must be met to use this package
     fn runtime_requirements(&self) -> Cow<'_, RequirementsList>;

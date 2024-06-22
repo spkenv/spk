@@ -53,7 +53,8 @@ macro_rules! try_build_package {
         // Leak `filename` for convenience.
         let filename = Box::leak(Box::new($tmpdir.path().join($filename)));
         {
-            let mut file = File::create(&filename).unwrap();
+            let mut file = std::fs::File::create(&filename).unwrap();
+            use std::io::Write;
             file.write_all($recipe.as_bytes()).unwrap();
         }
 

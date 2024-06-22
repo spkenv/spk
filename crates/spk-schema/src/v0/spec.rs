@@ -569,16 +569,6 @@ impl Recipe for Spec<VersionIdent> {
 
         updated.meta.update_metadata(&config.metadata)?;
 
-        // Expand env variables from EnvOp.
-        let mut updated_ops = Vec::new();
-        let build_env_vars = build_env.env_vars();
-        for op in updated.install.environment.iter() {
-            updated_ops.push(op.to_expanded(&build_env_vars));
-        }
-
-        updated.install.environment.clear();
-        updated.install.environment.append(&mut updated_ops);
-
         let mut missing_build_requirements = HashMap::new();
         let mut missing_runtime_requirements: HashMap<OptNameBuf, (String, Option<String>)> =
             HashMap::new();
@@ -649,7 +639,18 @@ impl Recipe for Spec<VersionIdent> {
         // by `build_env`. The digest is expected to be based solely on the
         // input options and recipe.
         let digest = self.build_digest(variant.input_variant())?;
-        Ok(updated.map_ident(|i| i.into_build(Build::BuildId(digest))))
+        let mut build = updated.map_ident(|i| i.into_build(Build::BuildId(digest)));
+
+        // Expand env variables from EnvOp.
+        let mut updated_ops = Vec::new();
+        let mut build_env_vars = build_env.env_vars();
+        build_env_vars.extend(build.get_build_env());
+        for op in build.install.environment.iter() {
+            updated_ops.push(op.to_expanded(&build_env_vars));
+        }
+        build.install.environment = updated_ops;
+
+        Ok(build)
     }
 
     fn metadata(&self) -> &Meta {

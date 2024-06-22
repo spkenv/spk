@@ -2,9 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/imageworks/spk
 
-use std::fs::File;
-use std::io::Write;
-
 use clap::Parser;
 use rstest::rstest;
 use spfs::storage::prelude::*;
@@ -18,6 +15,7 @@ use spk_storage::fixtures::*;
 use super::Build;
 use crate::{build_package, try_build_package};
 
+mod environment;
 mod variant_filter;
 
 #[derive(Parser)]
