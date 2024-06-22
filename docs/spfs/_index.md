@@ -4,7 +4,7 @@ chapter: true
 ---
 
 <img style="max-width: 200px"
-alt="SPFS Logo" src="/images/spfs_black.png"/>
+alt="SPFS Logo" src="../images/spfs_black.png"/>
 ---
 
 The **S**oftware **P**latform **F**ile**S**ystem (SPFS) is a tool for isolating, capturing and distributing software runtime environments. In many ways, what it provides is like a lightweight container combined with the functionality of git. SPFS delivers some of the benefits of a container runtime without creating too much isolation from the host environment.
