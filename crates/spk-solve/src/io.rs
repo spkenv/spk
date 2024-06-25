@@ -486,6 +486,7 @@ pub struct DecisionFormatterBuilder {
     max_frequent_errors: usize,
     status_bar: bool,
     solver_to_run: MultiSolverKind,
+    solver_to_show: MultiSolverKind,
     show_search_space_size: bool,
     compare_solvers: bool,
     stop_on_block: bool,
@@ -507,6 +508,7 @@ impl Default for DecisionFormatterBuilder {
             max_frequent_errors: 0,
             status_bar: false,
             solver_to_run: MultiSolverKind::Unchanged,
+            solver_to_show: MultiSolverKind::Unchanged,
             show_search_space_size: false,
             compare_solvers: false,
             stop_on_block: false,
@@ -590,6 +592,11 @@ impl DecisionFormatterBuilder {
         self
     }
 
+    pub fn with_solver_to_show(&mut self, kind: MultiSolverKind) -> &mut Self {
+        self.solver_to_show = kind;
+        self
+    }
+
     pub fn with_search_space_size(&mut self, enable: bool) -> &mut Self {
         self.show_search_space_size = enable;
         self
@@ -653,6 +660,7 @@ impl DecisionFormatterBuilder {
                 max_frequent_errors: self.max_frequent_errors,
                 status_bar: self.status_bar,
                 solver_to_run: self.solver_to_run.clone(),
+                solver_to_show: self.solver_to_show.clone(),
                 show_search_space_size: self.show_search_space_size,
                 compare_solvers: self.compare_solvers,
                 stop_on_block: self.stop_on_block,
@@ -715,6 +723,7 @@ pub(crate) struct DecisionFormatterSettings {
     pub(crate) max_frequent_errors: usize,
     pub(crate) status_bar: bool,
     pub(crate) solver_to_run: MultiSolverKind,
+    pub(crate) solver_to_show: MultiSolverKind,
     pub(crate) show_search_space_size: bool,
     pub(crate) compare_solvers: bool,
     pub(crate) stop_on_block: bool,
@@ -807,6 +816,7 @@ impl DecisionFormatter {
                 max_frequent_errors: 5,
                 status_bar: false,
                 solver_to_run: MultiSolverKind::Unchanged,
+                solver_to_show: MultiSolverKind::Unchanged,
                 show_search_space_size: false,
                 compare_solvers: false,
                 stop_on_block: false,
@@ -930,7 +940,7 @@ impl DecisionFormatter {
         for solver_settings in solvers {
             let mut task_formatter = self.clone();
             if self.settings.solver_to_run.is_multi()
-                && solver_settings.solver_kind != MultiSolverKind::Unchanged
+                && self.settings.solver_to_show != solver_settings.solver_kind
             {
                 // Hide the output from all the solvers except the
                 // unchanged one. The output from the unchanged solver
@@ -1086,7 +1096,7 @@ impl DecisionFormatter {
                         };
                         let name = solver_kind.cli_name();
 
-                        tracing::info!("The {solver_kind} solver found {solver_outcome}, but its output was disabled. To see its output, rerun the spk command with '--solver-to-run {name}'" );
+                        tracing::info!("The {solver_kind} solver found {solver_outcome}, but its output was disabled. To see its output, rerun the spk command with '--solver-to-show {name}' or `--solver-to-run {name}`" );
                     }
 
                     if self.settings.compare_solvers {
