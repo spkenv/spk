@@ -58,7 +58,7 @@ mv %{buildroot}/usr/local/bin/spk %{buildroot}/usr/local/bin/spk-%{version}
 %caps(cap_net_admin+ep) /usr/local/bin/spfs-monitor
 %caps(cap_chown,cap_fowner+ep) /usr/local/bin/spfs-render
 %caps(cap_sys_chroot,cap_sys_admin+ep) /usr/local/bin/spfs-join
-%caps(cap_setuid,cap_chown,cap_mknod,cap_sys_admin,cap_fowner+ep) /usr/local/bin/spfs-enter
+%caps(cap_dac_override,cap_setuid,cap_chown,cap_mknod,cap_sys_admin,cap_fowner+ep) /usr/local/bin/spfs-enter
 %caps(cap_sys_admin+ep) /usr/local/bin/spfs-fuse
 
 %post
