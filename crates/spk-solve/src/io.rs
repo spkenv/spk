@@ -59,6 +59,10 @@ use crate::{
 const STOP_ON_BLOCK_FLAG: &str = "--stop-on-block";
 const BY_USER: &str = "by user";
 
+const CLI_SOLVER: &str = "cli";
+const IMPOSSIBLE_CHECKS_SOLVER: &str = "check";
+const ALL_SOLVERS: &str = "all";
+
 static USER_CANCELLED: Lazy<Arc<AtomicBool>> = Lazy::new(|| {
     // Initialise the USER_CANCELLED value
     let b = Arc::new(AtomicBool::new(false));
@@ -533,6 +537,8 @@ impl DecisionFormatterBuilder {
             timeout: cfg.solve_timeout,
             long_solves_threshold: cfg.long_solve_threshold,
             max_frequent_errors: cfg.max_frequent_errors,
+            solver_to_run: MultiSolverKind::from_config_run_value(&cfg.solver_to_run),
+            solver_to_show: MultiSolverKind::from_config_output_value(&cfg.solver_to_show),
             ..Default::default()
         }
     }
@@ -755,9 +761,32 @@ impl MultiSolverKind {
     /// Return the command line option value for this MultiSolveKind
     fn cli_name(&self) -> &'static str {
         match self {
-            MultiSolverKind::Unchanged => "cli",
-            MultiSolverKind::AllImpossibleChecks => "checks",
-            MultiSolverKind::All => "all",
+            MultiSolverKind::Unchanged => CLI_SOLVER,
+            MultiSolverKind::AllImpossibleChecks => IMPOSSIBLE_CHECKS_SOLVER,
+            MultiSolverKind::All => ALL_SOLVERS,
+        }
+    }
+
+    /// Return the MultiSolverKind setting for a solver to run from a
+    /// config value. This will fallback to MultiSolverKind:Cli if the
+    /// given value is invalid.
+    fn from_config_run_value(value: &String) -> MultiSolverKind {
+        match value.to_lowercase().as_ref() {
+            CLI_SOLVER => MultiSolverKind::Unchanged,
+            IMPOSSIBLE_CHECKS_SOLVER => MultiSolverKind::AllImpossibleChecks,
+            ALL_SOLVERS => MultiSolverKind::All,
+            _ => MultiSolverKind::Unchanged,
+        }
+    }
+
+    /// Return the MultiSolverKind setting for a solver to output from a
+    /// config value. This will fallback to MultiSolverKind:Cli if the
+    /// given value is invalid.
+    fn from_config_output_value(value: &String) -> MultiSolverKind {
+        match value.to_lowercase().as_ref() {
+            CLI_SOLVER => MultiSolverKind::Unchanged,
+            IMPOSSIBLE_CHECKS_SOLVER => MultiSolverKind::AllImpossibleChecks,
+            _ => MultiSolverKind::Unchanged,
         }
     }
 }

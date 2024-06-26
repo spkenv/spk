@@ -1085,11 +1085,11 @@ pub struct DecisionFormatterSettings {
     /// the (cli) solver is displayed. even if the result ultimately
     /// comes from the (checks) solver. To run only one solver, use
     /// `--solver-to-run <cli|checks>`.
-    #[clap(long, value_enum, default_value_t = SolverToRun::All, env = "SPK_SOLVER_TO_RUN")]
+    #[clap(long, env = "SPK_SOLVER__SOLVER_TO_RUN", value_enum, default_value_t = SolverToRun::All)]
     pub solver_to_run: SolverToRun,
     /// Control what solver's output is shown when multiple solvers
     /// (all) are being run.
-    #[clap(long, value_enum, default_value_t = SolverToShow::Cli, env = "SPK_SOLVER_TO_SHOW")]
+    #[clap(long, env = "SPK_SOLVER__SOLVER_TO_SHOW", value_enum, default_value_t = SolverToShow::Cli)]
     pub solver_to_show: SolverToShow,
 
     /// Display a report on of the search space size for the resolved solution.

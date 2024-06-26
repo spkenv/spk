@@ -95,6 +95,12 @@ pub struct Solver {
     /// Comma-separated list of option names to promote to the front of the
     /// resolve order.
     pub request_priority_order: String,
+
+    /// Name of the solver, or all, to run when performing a solve
+    pub solver_to_run: String,
+
+    /// Name of the solver whose output to show  when multiple solvers are being run.
+    pub solver_to_show: String,
 }
 
 #[derive(Clone, Default, Debug, Deserialize, Serialize)]
