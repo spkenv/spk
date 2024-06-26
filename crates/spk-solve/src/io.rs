@@ -770,7 +770,7 @@ impl MultiSolverKind {
     /// Return the MultiSolverKind setting for a solver to run from a
     /// config value. This will fallback to MultiSolverKind:Cli if the
     /// given value is invalid.
-    fn from_config_run_value(value: &String) -> MultiSolverKind {
+    fn from_config_run_value(value: &str) -> MultiSolverKind {
         match value.to_lowercase().as_ref() {
             CLI_SOLVER => MultiSolverKind::Unchanged,
             IMPOSSIBLE_CHECKS_SOLVER => MultiSolverKind::AllImpossibleChecks,
@@ -782,7 +782,7 @@ impl MultiSolverKind {
     /// Return the MultiSolverKind setting for a solver to output from a
     /// config value. This will fallback to MultiSolverKind:Cli if the
     /// given value is invalid.
-    fn from_config_output_value(value: &String) -> MultiSolverKind {
+    fn from_config_output_value(value: &str) -> MultiSolverKind {
         match value.to_lowercase().as_ref() {
             CLI_SOLVER => MultiSolverKind::Unchanged,
             IMPOSSIBLE_CHECKS_SOLVER => MultiSolverKind::AllImpossibleChecks,
