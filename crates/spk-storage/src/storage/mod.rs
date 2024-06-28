@@ -20,4 +20,5 @@ pub use self::spfs::{
     remote_repository,
     NameAndRepositoryWithTagStrategy,
     SpfsRepository,
+    SpfsRepositoryHandle,
 };

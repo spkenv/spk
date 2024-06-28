@@ -3,29 +3,18 @@
 // https://github.com/imageworks/spk
 
 use rstest::rstest;
-use spfs::config::Remote;
 use spfs::prelude::*;
-use spfs::RemoteAddress;
 use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_schema::foundation::option_map;
 use spk_schema::ident_ops::NormalizedTagStrategy;
 use spk_schema::{recipe, Package};
 use spk_storage::fixtures::*;
+use spk_storage::SpfsRepositoryHandle;
 
 #[rstest]
 #[tokio::test]
 async fn test_export_works_with_missing_builds() {
-    let mut rt = spfs_runtime().await;
-
-    // exporting requires a configured "origin" repo.
-    let remote_repo = spfsrepo().await;
-    rt.add_remote_repo(
-        "origin",
-        Remote::Address(RemoteAddress {
-            address: remote_repo.address().clone(),
-        }),
-    )
-    .unwrap();
+    let rt = spfs_runtime().await;
 
     let spec = recipe!(
         {
@@ -53,7 +42,7 @@ async fn test_export_works_with_missing_builds() {
     // Now that these two builds are created, remove the `spk/pkg` tags for one
     // of them. The publish is still expected to succeed; it should publish
     // the remaining valid build.
-    match &*rt.tmprepo {
+    let repo = match &*rt.tmprepo {
         spk_storage::RepositoryHandle::SPFS(spfs) => {
             for spec in [
                 format!("{}", blue_spec.ident().build()),
@@ -66,13 +55,15 @@ async fn test_export_works_with_missing_builds() {
                 .unwrap();
                 spfs.remove_tag_stream(&tag).await.unwrap();
             }
+            SpfsRepositoryHandle::Normalized(spfs)
         }
         _ => panic!("only implemented for spfs repos"),
-    }
+    };
 
     let filename = rt.tmpdir.path().join("archive.spk");
     filename.ensure();
     spk_storage::export_package::<NormalizedTagStrategy>(
+        &[repo],
         red_spec.ident().clone().to_version().to_any(None),
         &filename,
     )

@@ -6,10 +6,11 @@ use std::sync::Arc;
 
 use clap::{Args, ValueHint};
 use colored::Colorize;
-use miette::Result;
+use miette::{bail, Result};
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::ident_ops::{NormalizedTagStrategy, VerbatimTagStrategy};
 use spk_storage as storage;
+use storage::SpfsRepositoryHandle;
 
 #[cfg(test)]
 #[path = "./cmd_export_test.rs"]
@@ -54,14 +55,26 @@ impl Run for Export {
         let options = self.options.get_options()?;
 
         let names_and_repos = self.repos.get_repos_for_non_destructive_operation().await?;
-        let repos = names_and_repos
+        let repo_handles = names_and_repos
             .into_iter()
             .map(|(_, r)| Arc::new(r))
             .collect::<Vec<_>>();
+        let repos = repo_handles
+            .iter()
+            .map(|repo| match &**repo {
+                storage::RepositoryHandle::SPFS(repo) => Ok(SpfsRepositoryHandle::Normalized(repo)),
+                storage::RepositoryHandle::SPFSWithVerbatimTags(repo) => {
+                    Ok(SpfsRepositoryHandle::Verbatim(repo))
+                }
+                storage::RepositoryHandle::Mem(_) | storage::RepositoryHandle::Runtime(_) => {
+                    bail!("Only spfs repositories are supported")
+                }
+            })
+            .collect::<Result<Vec<_>>>()?;
 
         let pkg = self
             .requests
-            .parse_idents(&options, [self.package.as_str()], &repos)
+            .parse_idents(&options, [self.package.as_str()], repo_handles.as_slice())
             .await?
             .pop()
             .unwrap();
@@ -73,12 +86,11 @@ impl Run for Export {
         let filename = self.filename.clone().unwrap_or_else(|| {
             std::path::PathBuf::from(format!("{}_{}{build}.spk", pkg.name(), pkg.version()))
         });
-        // TODO: this doesn't take the repos as an argument, but probably
-        // should. It assumes/uses 'local' and 'origin' repos internally.
         let res = if self.legacy_spk_version_tags_for_writes {
-            storage::export_package::<VerbatimTagStrategy>(&pkg, &filename).await
+            storage::export_package::<VerbatimTagStrategy>(repos.as_slice(), &pkg, &filename).await
         } else {
-            storage::export_package::<NormalizedTagStrategy>(&pkg, &filename).await
+            storage::export_package::<NormalizedTagStrategy>(repos.as_slice(), &pkg, &filename)
+                .await
         };
         if let Err(spk_storage::Error::PackageNotFound(_)) = res {
             tracing::warn!("Ensure that you are specifying at least a package and");
