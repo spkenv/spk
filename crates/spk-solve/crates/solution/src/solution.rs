@@ -483,8 +483,28 @@ impl Solution {
         };
 
         let number_of_packages = required_items.len();
-        let mut max_widths: Vec<usize> = vec![0, 0, 0, 0];
-        let mut data: Vec<Vec<(usize, String)>> = Vec::with_capacity(number_of_packages);
+        let mut data: Vec<Vec<(usize, String)>> = Vec::with_capacity(number_of_packages + 1);
+
+        let package_heading = String::from("Package");
+        let highest_heading = String::from("Highest");
+        let package_heading_width = console::measure_text_width(&package_heading);
+        let highest_heading_width = console::measure_text_width(&highest_heading);
+
+        let mut header: Vec<(usize, String)> = vec![
+            (package_heading_width, package_heading),
+            (highest_heading_width, highest_heading),
+        ];
+        if verbosity == 1 {
+            // Zero because not padding this column
+            header.push((0, String::from("Requested by")));
+        }
+        if verbosity > 1 {
+            // Zero because not padding this column
+            header.push((0, String::from("Requested by and Build options")));
+        }
+        data.push(header);
+
+        let mut max_widths: Vec<usize> = vec![package_heading_width, highest_heading_width, 0, 0];
 
         // This only pads the first 2 columns at the moment: the
         // packages and the highest_versions. The remaining columns
