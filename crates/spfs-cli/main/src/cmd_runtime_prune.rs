@@ -32,11 +32,6 @@ pub struct CmdRuntimePrune {
     #[clap(long)]
     ignore_monitor: bool,
 
-    /// Allow durable runtimes to be removed, normally they will not
-    /// be removed by pruning
-    #[clap(long)]
-    remove_durable: bool,
-
     /// Remove runtimes started before last reboot
     #[clap(long)]
     from_before_boot: bool,
@@ -126,10 +121,10 @@ impl CmdRuntimePrune {
                         continue;
                     }
 
-                    if runtime.is_durable() && !self.remove_durable {
-                        tracing::info!("Won't delete, the runtime is marked as durable and");
-                        tracing::info!(" > '--remove-durable' was not specified");
-                        tracing::info!(" > use --remove-durable to remove durable runtimes");
+                    if runtime.is_durable() {
+                        // Durable runtimes are not considered trash
+                        // runtimes, they are not suitable for pruning.
+                        tracing::info!("Won't delete {}, the runtime is durable. Use `spk runtime rm` to delete it.", runtime.name());
                         continue;
                     }
 
