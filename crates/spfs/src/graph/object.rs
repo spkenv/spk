@@ -60,7 +60,7 @@ impl Object {
     /// In memory, objects always use the latest flatbuffer
     /// format. The given bytes may be discarded or reconstructed
     /// if a conversion is necessary, but the header is preserved
-    /// in order to ensure that the object does not change it's
+    /// in order to ensure that the object does not change its
     /// digest unless explicitly marked to do so.
     pub fn new<B: Into<bytes::Bytes>>(buf: B) -> crate::Result<Self> {
         let bytes = buf.into();
@@ -118,7 +118,7 @@ impl Object {
     /// In memory, objects always use the latest flatbuffer
     /// format. The given bytes may be discarded or reconstructed
     /// if a conversion is necessary, but the header is preserved
-    /// in order to ensure that the object does not change it's
+    /// in order to ensure that the object does not change its
     /// digest unless explicitly marked to do so.
     ///
     /// Unlike [`Object::new`] this constructor doesn't respect the header and
