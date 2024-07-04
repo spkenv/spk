@@ -1133,7 +1133,7 @@ pub struct DecisionFormatterSettings {
 
     /// Capture each solver's output to a separate file each time a
     /// solver is run. The files will be in the current directory and
-    /// named `solver_YYYYmmdd_HHMMSS_<solverkind>`.
+    /// named `solver_YYYYmmdd_HHMMSS_<solver_kind>`.
     #[clap(long)]
     output_to_file: bool,
 }
