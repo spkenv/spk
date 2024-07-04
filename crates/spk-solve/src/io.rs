@@ -5,9 +5,12 @@
 use std::cmp::max;
 use std::collections::VecDeque;
 use std::fmt::{Display, Write};
+use std::fs::File;
+use std::io::{BufWriter, Write as IOWrite};
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use async_stream::stream;
@@ -62,6 +65,9 @@ const BY_USER: &str = "by user";
 const CLI_SOLVER: &str = "cli";
 const IMPOSSIBLE_CHECKS_SOLVER: &str = "check";
 const ALL_SOLVERS: &str = "all";
+
+const UNABLE_TO_GET_OUTPUT_FILE_LOCK: &str = "Unable to get lock to write solver output to file";
+const UNABLE_TO_WRITE_OUTPUT_MESSAGE: &str = "Unable to write solver output message to file";
 
 static USER_CANCELLED: Lazy<Arc<AtomicBool>> = Lazy::new(|| {
     // Initialise the USER_CANCELLED value
@@ -496,6 +502,7 @@ pub struct DecisionFormatterBuilder {
     stop_on_block: bool,
     step_on_block: bool,
     step_on_decision: bool,
+    output_to_file: bool,
 }
 
 impl Default for DecisionFormatterBuilder {
@@ -518,6 +525,7 @@ impl Default for DecisionFormatterBuilder {
             stop_on_block: false,
             step_on_block: false,
             step_on_decision: false,
+            output_to_file: false,
         }
     }
 }
@@ -628,6 +636,11 @@ impl DecisionFormatterBuilder {
         self
     }
 
+    pub fn with_output_to_file(&mut self, enable: bool) -> &mut Self {
+        self.output_to_file = enable;
+        self
+    }
+
     pub fn build(&self) -> DecisionFormatter {
         let too_long_seconds = if self.verbosity_increase_seconds == 0
             || (self.verbosity_increase_seconds > self.timeout && self.timeout > 0)
@@ -672,6 +685,7 @@ impl DecisionFormatterBuilder {
                 stop_on_block: self.stop_on_block,
                 step_on_block: self.step_on_block,
                 step_on_decision: self.step_on_decision,
+                output_to_file: self.output_to_file,
             },
         }
     }
@@ -700,17 +714,100 @@ impl Pluralize for str {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 enum OutputKind {
     Println,
     Tracing,
+    LogFile(Arc<Mutex<dyn IOWrite + Send + Sync>>),
+    PrintlnAndToFile(Arc<Mutex<dyn IOWrite + Send + Sync>>),
+    TracingAndToFile(Arc<Mutex<dyn IOWrite + Send + Sync>>),
 }
 
 impl OutputKind {
-    fn output_message(&self, message: String) {
+    fn output_message(&mut self, message: String) {
         match self {
             OutputKind::Println => println!("{message}"),
             OutputKind::Tracing => tracing::info!("{message}"),
+            OutputKind::LogFile(f) => {
+                let mut file_lock = f.lock().expect(UNABLE_TO_GET_OUTPUT_FILE_LOCK);
+                file_lock
+                    .write_all(message.as_bytes())
+                    .expect(UNABLE_TO_WRITE_OUTPUT_MESSAGE);
+                file_lock
+                    .write_all("\n".as_bytes())
+                    .expect("Unable to write solver output newline to file");
+            }
+            OutputKind::PrintlnAndToFile(f) => {
+                let mut file_lock = f.lock().expect(UNABLE_TO_GET_OUTPUT_FILE_LOCK);
+                file_lock
+                    .write_all(message.as_bytes())
+                    .expect(UNABLE_TO_WRITE_OUTPUT_MESSAGE);
+                file_lock
+                    .write_all("\n".as_bytes())
+                    .expect(UNABLE_TO_WRITE_OUTPUT_MESSAGE);
+                println!("{message}");
+            }
+            OutputKind::TracingAndToFile(f) => {
+                let mut file_lock = f.lock().expect(UNABLE_TO_GET_OUTPUT_FILE_LOCK);
+                file_lock
+                    .write_all(message.as_bytes())
+                    .expect(UNABLE_TO_WRITE_OUTPUT_MESSAGE);
+                file_lock
+                    .write_all("\n".as_bytes())
+                    .expect(UNABLE_TO_WRITE_OUTPUT_MESSAGE);
+                tracing::info!("{message}");
+            }
+        }
+    }
+
+    /// Make a new output kind that uses the given output_file.
+    fn with_file(&self, output_file: Arc<Mutex<dyn IOWrite + Send + Sync>>) -> Self {
+        match self {
+            OutputKind::Println => OutputKind::PrintlnAndToFile(output_file),
+            OutputKind::Tracing => OutputKind::TracingAndToFile(output_file),
+            OutputKind::LogFile(_) => OutputKind::LogFile(output_file),
+            OutputKind::PrintlnAndToFile(_) => OutputKind::PrintlnAndToFile(output_file),
+            OutputKind::TracingAndToFile(_) => OutputKind::TracingAndToFile(output_file),
+        }
+    }
+
+    /// Given a Println or Tracing output kind, this will ensure the
+    /// new output kind returned is one that includes Println or Tracing
+    /// respectively, as well as the output kind's existing file
+    /// output if any.
+    ///
+    /// This will error if any other output kind is given as the parameter.
+    fn include_output(&self, other_output: &OutputKind) -> Result<Self> {
+        match other_output {
+            OutputKind::Println => match self {
+                OutputKind::Println => Ok(self.clone()),
+                OutputKind::Tracing => Err(Error::NotSupported(
+                    "Cannot add Println output kind to a Tracing output kind. It".to_string(),
+                )),
+                OutputKind::LogFile(f) => Ok(OutputKind::PrintlnAndToFile(f.clone())),
+                OutputKind::PrintlnAndToFile(_) => Ok(self.clone()),
+                OutputKind::TracingAndToFile(_) => Err(Error::NotSupported(
+                    "Cannot add Println output kind to a TrackingAndToFile output kind. It"
+                        .to_string(),
+                )),
+            },
+            OutputKind::Tracing => match self {
+                OutputKind::Println => Err(Error::NotSupported(
+                    "Cannot add Tracing output kind to a Println output kind. It".to_string(),
+                )),
+                OutputKind::Tracing => Ok(self.clone()),
+                OutputKind::LogFile(f) => Ok(OutputKind::TracingAndToFile(f.clone())),
+                OutputKind::PrintlnAndToFile(_) => Err(Error::NotSupported(
+                    "Cannot add Tracing output kind to a PrintlnAndToFile output kind. It"
+                        .to_string(),
+                )),
+                OutputKind::TracingAndToFile(_) => Ok(self.clone()),
+            },
+            _ => {
+                // OutputKinds other than Println or Tracing are not
+                // valid for combining with the current output kind here.
+                Err(Error::NotSupported("OutputKind::ensure_output must be called with a Println or Tracing other_output. Including other kinds".to_string()))
+            }
         }
     }
 }
@@ -735,6 +832,7 @@ pub(crate) struct DecisionFormatterSettings {
     pub(crate) stop_on_block: bool,
     pub(crate) step_on_block: bool,
     pub(crate) step_on_decision: bool,
+    pub(crate) output_to_file: bool,
 }
 
 enum LoopOutcome {
@@ -815,6 +913,7 @@ struct SolverTaskDone {
     pub(crate) verbosity: u8,
     pub(crate) solver_kind: MultiSolverKind,
     pub(crate) can_ignore_failure: bool,
+    pub(crate) output_location: OutputKind,
 }
 
 struct SolverResult {
@@ -851,6 +950,7 @@ impl DecisionFormatter {
                 stop_on_block: false,
                 step_on_block: false,
                 step_on_decision: false,
+                output_to_file: false,
             },
         }
     }
@@ -868,8 +968,8 @@ impl DecisionFormatter {
     }
 
     /// Run the solver runtime to completion, printing each step to
-    /// stdout as appropriate. This does run multiple solvers and won't
-    /// benefit from running solvers in parallel.
+    /// stdout as appropriate. This does not run multiple solvers and
+    /// won't benefit from running solvers in parallel.
     pub async fn run_and_print_decisions(
         &self,
         runtime: &mut SolverRuntime,
@@ -878,14 +978,13 @@ impl DecisionFormatter {
         // runs a solve. Once 'spk info' no longer runs a solve we may
         // be able to remove this method.
         let start = Instant::now();
-        let output_to = OutputKind::Println;
-        let loop_outcome = self.run_solver_loop(runtime, output_to).await;
+        let loop_outcome = self.run_solver_loop(runtime, OutputKind::Println).await;
         let solve_time = start.elapsed();
 
         #[cfg(feature = "statsd")]
         self.send_solver_end_metrics(solve_time);
 
-        self.check_and_output_solver_results(loop_outcome, solve_time, runtime, output_to)
+        self.check_and_output_solver_results(loop_outcome, solve_time, runtime, OutputKind::Println)
             .await
     }
 
@@ -902,7 +1001,7 @@ impl DecisionFormatter {
     }
 
     /// Run the solver runtime to completion, logging each step as a
-    /// tracing info-level event as appropriate. This does run
+    /// tracing info-level event as appropriate. This does not run
     /// multiple solver and won't benefit from running solvers in
     /// parallel.
     pub async fn run_and_log_decisions(
@@ -912,14 +1011,13 @@ impl DecisionFormatter {
         // Note: this is not currently used directly. We may be able
         // to remove this method.
         let start = Instant::now();
-        let output_to = OutputKind::Tracing;
-        let loop_outcome = self.run_solver_loop(runtime, output_to).await;
+        let loop_outcome = self.run_solver_loop(runtime, OutputKind::Tracing).await;
         let solve_time = start.elapsed();
 
         #[cfg(feature = "statsd")]
         self.send_solver_end_metrics(solve_time);
 
-        self.check_and_output_solver_results(loop_outcome, solve_time, runtime, output_to)
+        self.check_and_output_solver_results(loop_outcome, solve_time, runtime, OutputKind::Tracing)
             .await
     }
 
@@ -959,27 +1057,55 @@ impl DecisionFormatter {
         }
     }
 
+    fn create_solver_output_file(
+        &self,
+        solver_kind: &MultiSolverKind,
+    ) -> Arc<Mutex<BufWriter<File>>> {
+        let datetime = chrono::Local::now();
+        let filename = PathBuf::from(format!(
+            "./solver_{}_{}",
+            datetime.format("%Y%m%d_%H%M%S"),
+            solver_kind.to_string().replace(' ', "-")
+        ));
+        Arc::new(Mutex::new(BufWriter::new(
+            File::create(filename).expect("Unable to create solver output log file"),
+        )))
+    }
+
     fn launch_solver_tasks(
         &self,
         solvers: Vec<SolverTaskSettings>,
-        output_location: OutputKind,
+        output_location: &OutputKind,
     ) -> FuturesUnordered<tokio::task::JoinHandle<SolverTaskDone>> {
         let tasks = FuturesUnordered::new();
 
         for solver_settings in solvers {
             let mut task_formatter = self.clone();
-            if self.settings.solver_to_run.is_multi()
+
+            let solver_output_location = if self.settings.solver_to_run.is_multi()
                 && self.settings.solver_to_show != solver_settings.solver_kind
             {
-                // Hide the output from all the solvers except the
-                // unchanged one. The output from the unchanged solver
-                // is enough to show the user that something is
-                // happening. If one of the later solvers finishes
-                // first, a message will be printed explaining how to
-                // run that solver on its own to see its output.
-                task_formatter.settings.verbosity = 0;
+                // A background solver. Its output is hidden, unless
+                // outputting to a file has been enabled. The output
+                // from the foreground solver is enough to show the
+                // user that something is happening.
                 task_formatter.settings.status_bar = false;
-            }
+                if self.settings.output_to_file {
+                    let f = self.create_solver_output_file(&solver_settings.solver_kind);
+                    OutputKind::LogFile(f)
+                } else {
+                    task_formatter.settings.verbosity = 0;
+                    output_location.clone()
+                }
+            } else if self.settings.output_to_file {
+                // The foreground solver, but also with file logging
+                let f = self.create_solver_output_file(&solver_settings.solver_kind);
+                output_location.with_file(f)
+            } else {
+                // The foreground solver, without file logging
+                output_location.clone()
+            };
+
             let mut task_solver_runtime = solver_settings.solver.run();
 
             let task = async move {
@@ -988,7 +1114,7 @@ impl DecisionFormatter {
 
                 let start = Instant::now();
                 let loop_outcome = task_formatter
-                    .run_solver_loop(&mut task_solver_runtime, output_location)
+                    .run_solver_loop(&mut task_solver_runtime, solver_output_location.clone())
                     .await;
 
                 SolverTaskDone {
@@ -998,6 +1124,7 @@ impl DecisionFormatter {
                     verbosity: task_formatter.settings.verbosity,
                     solver_kind: solver_settings.solver_kind,
                     can_ignore_failure: solver_settings.ignore_failure,
+                    output_location: solver_output_location.clone(),
                 }
             };
 
@@ -1061,9 +1188,9 @@ impl DecisionFormatter {
     async fn run_multi_solve(
         &self,
         solvers: Vec<SolverTaskSettings>,
-        output_location: OutputKind,
+        initial_output_location: OutputKind,
     ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
-        let mut tasks = self.launch_solver_tasks(solvers, output_location);
+        let mut tasks = self.launch_solver_tasks(solvers, &initial_output_location);
         let mut solver_results = Vec::new();
 
         while let Some(result) = tasks.next().await {
@@ -1075,6 +1202,7 @@ impl DecisionFormatter {
                     verbosity,
                     solver_kind,
                     can_ignore_failure,
+                    output_location,
                 }) => {
                     // If the solver that finished first is one we can
                     // ignore failures from and it failed, then ignore
@@ -1108,12 +1236,17 @@ impl DecisionFormatter {
                         tracing::debug!("{solver_kind} solver {ending}. {tasks_action}");
                     }
 
+                    // Make sure the output location for result is
+                    // visible, even if the solver that finished first
+                    // was one whose output was being hidden.
+                    let solver_output_location =
+                        output_location.include_output(&initial_output_location)?;
                     let result = self
                         .check_and_output_solver_results(
                             loop_outcome,
                             solve_time,
                             &mut runtime,
-                            output_location,
+                            solver_output_location,
                         )
                         .await;
 
@@ -1169,7 +1302,7 @@ impl DecisionFormatter {
     async fn run_solver_loop(
         &self,
         runtime: &mut SolverRuntime,
-        output_location: OutputKind,
+        mut output_location: OutputKind,
     ) -> LoopOutcome {
         // This block exists to shorten the scope of `runtime`'s borrow.
         let loop_outcome = {
@@ -1205,7 +1338,7 @@ impl DecisionFormatter {
         loop_outcome: LoopOutcome,
         solve_time: Duration,
         runtime: &mut SolverRuntime,
-        output_location: OutputKind,
+        mut output_location: OutputKind,
     ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
         match loop_outcome {
             LoopOutcome::Interrupted(mesg) => {

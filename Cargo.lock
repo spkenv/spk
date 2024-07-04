@@ -4448,6 +4448,7 @@ dependencies = [
  "async-recursion",
  "async-stream",
  "async-trait",
+ "chrono",
  "colored",
  "console",
  "crossterm",

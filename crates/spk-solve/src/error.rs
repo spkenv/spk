@@ -57,6 +57,8 @@ pub enum Error {
     SpkStorageError(#[from] spk_storage::Error),
     #[error("Error: {0}")]
     String(String),
+    #[error("Error: {0} is not supported")]
+    NotSupported(String),
 }
 
 #[derive(Diagnostic, Debug, Error)]

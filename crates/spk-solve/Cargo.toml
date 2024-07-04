@@ -29,6 +29,7 @@ statsd = ["dep:statsd"]
 async-recursion = "1.0"
 async-stream = "0.3"
 async-trait = { workspace = true }
+chrono = { workspace = true }
 colored = { workspace = true }
 console = { workspace = true }
 crossterm = "0.24"

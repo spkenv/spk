@@ -1130,6 +1130,12 @@ pub struct DecisionFormatterSettings {
     /// Pause the solver each time it makes a decision, until the user hits Enter.
     #[clap(long, alias = "decision")]
     step_on_decision: bool,
+
+    /// Capture each solver's output to a separate file each time a
+    /// solver is run. The files will be in the current directory and
+    /// named `solver_YYYYmmdd_HHMMSS_<solverkind>`.
+    #[clap(long)]
+    output_to_file: bool,
 }
 
 impl DecisionFormatterSettings {
@@ -1171,6 +1177,7 @@ impl DecisionFormatterSettings {
             .with_stop_on_block(self.stop_on_block)
             .with_step_on_block(self.step_on_block)
             .with_step_on_decision(self.step_on_decision)
+            .with_output_to_file(self.output_to_file)
             .with_compare_solvers(self.compare_solvers);
         Ok(builder)
     }
