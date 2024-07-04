@@ -29,6 +29,10 @@ pub struct CmdCommit {
     #[clap(long)]
     path: Option<PathBuf>,
 
+    /// Combine existing items into a platform, use a '+' to join multiple
+    #[clap(long = "ref")]
+    reference: Option<String>,
+
     /// Hash the files while committing, rather than before.
     ///
     /// This option can improve commit times when a large number of the
@@ -65,11 +69,11 @@ pub struct CmdCommit {
     )]
     pub max_concurrent_branches: usize,
 
-    /// The desired object type to create, skip this when giving --path
+    /// The desired object type to create, skip this when giving --path or --ref
     #[clap(
         value_parser = ["layer", "platform"],
-        conflicts_with_all = &["path", "remote"],
-        required_unless_present = "path",
+        conflicts_with_all = &["path", "remote", "reference"],
+        required_unless_present_any = &["path", "reference"]
     )]
     kind: Option<String>,
 
@@ -135,8 +139,20 @@ impl CmdCommit {
                 .await?
                 .into());
         }
-        // no path given, commit the current runtime
 
+        if let Some(reference) = &self.reference {
+            let env_spec = spfs::tracking::EnvSpec::parse(reference)?;
+            let mut digests = spfs::graph::Stack::default();
+            for env_item in env_spec.iter() {
+                let env_item = env_item.to_string();
+                let digest = repo.resolve_ref(env_item.as_ref()).await?;
+                digests.push(digest);
+            }
+
+            return Ok(repo.create_platform(digests).await?.into());
+        }
+
+        // no path or reference given, commit the current runtime
         let mut runtime = spfs::active_runtime().await?;
 
         if !runtime.status.editable {
