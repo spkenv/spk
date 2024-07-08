@@ -36,6 +36,7 @@ mod flags_test;
 
 static SPK_NO_RUNTIME: &str = "SPK_NO_RUNTIME";
 static SPK_KEEP_RUNTIME: &str = "SPK_KEEP_RUNTIME";
+static SPK_OUTPUT_TO_FILE: &str = "SPK_OUTPUT_TO_FILE";
 
 #[derive(Args, Clone)]
 pub struct Runtime {
@@ -1134,7 +1135,7 @@ pub struct DecisionFormatterSettings {
     /// Capture each solver's output to a separate file each time a
     /// solver is run. The files will be in the current directory and
     /// named `solver_YYYYmmdd_HHMMSS_<solver_kind>`.
-    #[clap(long)]
+    #[clap(long, env = SPK_OUTPUT_TO_FILE)]
     output_to_file: bool,
 }
 
