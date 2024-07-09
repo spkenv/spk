@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::path::PathBuf;
+
 use colored::Colorize;
 use miette::Diagnostic;
 use spk_schema::foundation::format::FormatError;
@@ -59,6 +61,8 @@ pub enum Error {
     String(String),
     #[error("Error: {0} is not supported")]
     NotSupported(String),
+    #[error("Error: Solver log file not created: {1} - {0}")]
+    SolverLogFileIOError(#[source] std::io::Error, PathBuf),
 }
 
 #[derive(Diagnostic, Debug, Error)]

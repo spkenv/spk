@@ -36,7 +36,8 @@ mod flags_test;
 
 static SPK_NO_RUNTIME: &str = "SPK_NO_RUNTIME";
 static SPK_KEEP_RUNTIME: &str = "SPK_KEEP_RUNTIME";
-static SPK_OUTPUT_TO_FILE: &str = "SPK_OUTPUT_TO_FILE";
+static SPK_OUTPUT_TO_DIR: &str = "SPK_OUTPUT_TO_DIR";
+static SPK_OUTPUT_TO_DIR_MIN_VERBOSITY: &str = "SPK_OUTPUT_TO_DIR_MIN_VERBOSITY";
 
 #[derive(Args, Clone)]
 pub struct Runtime {
@@ -1132,11 +1133,17 @@ pub struct DecisionFormatterSettings {
     #[clap(long, alias = "decision")]
     step_on_decision: bool,
 
-    /// Capture each solver's output to a separate file each time a
-    /// solver is run. The files will be in the current directory and
-    /// named `solver_YYYYmmdd_HHMMSS_<solver_kind>`.
-    #[clap(long, env = SPK_OUTPUT_TO_FILE)]
-    output_to_file: bool,
+    /// Set to capture each solver's output to a separate file in each
+    /// time a solver is run. The files will be in the the given
+    /// directory and named `spk_solver_run_YYYYmmdd_HHMMSS_<solver_kind>`.
+    #[clap(long, env = SPK_OUTPUT_TO_DIR, value_hint = ValueHint::FilePath)]
+    output_to_dir: Option<std::path::PathBuf>,
+
+    /// Set the minimum verbosity for solver's when outputting to a
+    /// file. Has no affect unless --output-to-file is also specified.
+    /// Verbosities set (-v) higher than this minimum will override it.
+    #[clap(long, default_value_t=2, env = SPK_OUTPUT_TO_DIR_MIN_VERBOSITY)]
+    output_to_dir_min_verbosity: u8,
 }
 
 impl DecisionFormatterSettings {
@@ -1178,7 +1185,8 @@ impl DecisionFormatterSettings {
             .with_stop_on_block(self.stop_on_block)
             .with_step_on_block(self.step_on_block)
             .with_step_on_decision(self.step_on_decision)
-            .with_output_to_file(self.output_to_file)
+            .with_output_to_dir(self.output_to_dir.clone())
+            .with_output_to_dir_min_verbosity(self.output_to_dir_min_verbosity)
             .with_compare_solvers(self.compare_solvers);
         Ok(builder)
     }

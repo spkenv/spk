@@ -7,7 +7,7 @@ use std::collections::VecDeque;
 use std::fmt::{Display, Write};
 use std::fs::File;
 use std::io::{BufWriter, Write as IOWrite};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -502,7 +502,8 @@ pub struct DecisionFormatterBuilder {
     stop_on_block: bool,
     step_on_block: bool,
     step_on_decision: bool,
-    output_to_file: bool,
+    output_to_dir: Option<PathBuf>,
+    output_to_dir_min_verbosity: u8,
 }
 
 impl Default for DecisionFormatterBuilder {
@@ -525,7 +526,8 @@ impl Default for DecisionFormatterBuilder {
             stop_on_block: false,
             step_on_block: false,
             step_on_decision: false,
-            output_to_file: false,
+            output_to_dir: None,
+            output_to_dir_min_verbosity: 2,
         }
     }
 }
@@ -636,8 +638,13 @@ impl DecisionFormatterBuilder {
         self
     }
 
-    pub fn with_output_to_file(&mut self, enable: bool) -> &mut Self {
-        self.output_to_file = enable;
+    pub fn with_output_to_dir(&mut self, dir: Option<PathBuf>) -> &mut Self {
+        self.output_to_dir = dir;
+        self
+    }
+
+    pub fn with_output_to_dir_min_verbosity(&mut self, minimum_verbosity: u8) -> &mut Self {
+        self.output_to_dir_min_verbosity = minimum_verbosity;
         self
     }
 
@@ -685,7 +692,8 @@ impl DecisionFormatterBuilder {
                 stop_on_block: self.stop_on_block,
                 step_on_block: self.step_on_block,
                 step_on_decision: self.step_on_decision,
-                output_to_file: self.output_to_file,
+                output_to_dir: self.output_to_dir.clone(),
+                output_to_dir_min_verbosity: self.output_to_dir_min_verbosity,
             },
         }
     }
@@ -832,7 +840,8 @@ pub(crate) struct DecisionFormatterSettings {
     pub(crate) stop_on_block: bool,
     pub(crate) step_on_block: bool,
     pub(crate) step_on_decision: bool,
-    pub(crate) output_to_file: bool,
+    pub(crate) output_to_dir: Option<PathBuf>,
+    pub(crate) output_to_dir_min_verbosity: u8,
 }
 
 enum LoopOutcome {
@@ -950,7 +959,8 @@ impl DecisionFormatter {
                 stop_on_block: false,
                 step_on_block: false,
                 step_on_decision: false,
-                output_to_file: false,
+                output_to_dir: None,
+                output_to_dir_min_verbosity: 2,
             },
         }
     }
@@ -1059,25 +1069,30 @@ impl DecisionFormatter {
 
     fn create_solver_output_file(
         &self,
+        dir: &Path,
         solver_kind: &MultiSolverKind,
-    ) -> Arc<Mutex<BufWriter<File>>> {
+    ) -> Result<Arc<Mutex<BufWriter<File>>>> {
         let datetime = chrono::Local::now();
-        let filename = PathBuf::from(format!(
-            "./solver_{}_{}",
+
+        let mut filepath = dir.to_path_buf();
+        filepath.push(format!(
+            "spk_solver_run_{}_{}",
             datetime.format("%Y%m%d_%H%M%S"),
             solver_kind.to_string().replace(' ', "-")
         ));
-        Arc::new(Mutex::new(BufWriter::new(
-            File::create(filename).expect("Unable to create solver output log file"),
-        )))
+
+        let file =
+            File::create(filepath.clone()).map_err(|e| Error::SolverLogFileIOError(e, filepath))?;
+        Ok(Arc::new(Mutex::new(BufWriter::new(file))))
     }
 
     fn launch_solver_tasks(
         &self,
         solvers: Vec<SolverTaskSettings>,
         output_location: &OutputKind,
-    ) -> FuturesUnordered<tokio::task::JoinHandle<SolverTaskDone>> {
+    ) -> Result<FuturesUnordered<tokio::task::JoinHandle<SolverTaskDone>>> {
         let tasks = FuturesUnordered::new();
+        let min_file_output_verbosity = self.settings.output_to_dir_min_verbosity;
 
         for solver_settings in solvers {
             let mut task_formatter = self.clone();
@@ -1090,20 +1105,32 @@ impl DecisionFormatter {
                 // from the foreground solver is enough to show the
                 // user that something is happening.
                 task_formatter.settings.status_bar = false;
-                if self.settings.output_to_file {
-                    let f = self.create_solver_output_file(&solver_settings.solver_kind);
-                    OutputKind::LogFile(f)
-                } else {
-                    task_formatter.settings.verbosity = 0;
-                    output_location.clone()
+                match &self.settings.output_to_dir {
+                    Some(dir) => {
+                        task_formatter.settings.verbosity =
+                            max(min_file_output_verbosity, task_formatter.settings.verbosity);
+                        let f =
+                            self.create_solver_output_file(dir, &solver_settings.solver_kind)?;
+                        OutputKind::LogFile(f)
+                    }
+                    None => {
+                        // Hide this solver's output from a non-file output.
+                        task_formatter.settings.verbosity = 0;
+                        output_location.clone()
+                    }
                 }
-            } else if self.settings.output_to_file {
-                // The foreground solver, but also with file logging
-                let f = self.create_solver_output_file(&solver_settings.solver_kind);
-                output_location.with_file(f)
             } else {
-                // The foreground solver, without file logging
-                output_location.clone()
+                // The foreground solver's output is always visible
+                match &self.settings.output_to_dir {
+                    Some(dir) => {
+                        task_formatter.settings.verbosity =
+                            max(min_file_output_verbosity, task_formatter.settings.verbosity);
+                        let f =
+                            self.create_solver_output_file(dir, &solver_settings.solver_kind)?;
+                        output_location.with_file(f)
+                    }
+                    None => output_location.clone(),
+                }
             };
 
             let mut task_solver_runtime = solver_settings.solver.run();
@@ -1131,7 +1158,7 @@ impl DecisionFormatter {
             tasks.push(tokio::spawn(task));
         }
 
-        tasks
+        Ok(tasks)
     }
 
     fn stop_solver_tasks_without_waiting(
@@ -1190,7 +1217,7 @@ impl DecisionFormatter {
         solvers: Vec<SolverTaskSettings>,
         initial_output_location: OutputKind,
     ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
-        let mut tasks = self.launch_solver_tasks(solvers, &initial_output_location);
+        let mut tasks = self.launch_solver_tasks(solvers, &initial_output_location)?;
         let mut solver_results = Vec::new();
 
         while let Some(result) = tasks.next().await {
