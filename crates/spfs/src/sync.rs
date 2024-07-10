@@ -642,6 +642,13 @@ impl SyncReporter for ConsoleSyncReporter {
         bars.payloads.inc(1);
         bars.bytes.inc(result.summary().synced_payload_bytes);
     }
+
+    fn synced_env(&self, _result: &SyncEnvResult) {
+        let bars = self.get_bars();
+        bars.manifests.abandon();
+        bars.payloads.abandon();
+        bars.bytes.abandon();
+    }
 }
 
 #[derive(ProgressBar)]
