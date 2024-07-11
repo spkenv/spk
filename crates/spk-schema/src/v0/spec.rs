@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::ident_component::ComponentBTreeSet;
 use spk_schema_foundation::name::PkgNameBuf;
-use spk_schema_foundation::option_map::Stringified;
+use spk_schema_foundation::option_map::{OptFilter, Stringified};
 use spk_schema_ident::{AnyIdent, BuildIdent, Ident, RangeIdent, VersionIdent};
 
 use super::variant_spec::VariantSpecEntryKey;
@@ -234,6 +234,19 @@ impl Package for Spec<BuildIdent> {
             opts.insert(opt.full_name().to_owned(), opt.get_value(None));
         }
         opts
+    }
+
+    fn matches_all_filters(&self, filter_by: &Option<Vec<OptFilter>>) -> bool {
+        if let Some(filters) = filter_by {
+            let settings = self.option_values();
+            for filter in filters {
+                if !filter.matches(&settings) {
+                    return false;
+                }
+            }
+        }
+        // All the filters match, or there were no filters
+        true
     }
 
     fn sources(&self) -> &Vec<SourceSpec> {

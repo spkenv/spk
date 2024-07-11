@@ -33,7 +33,8 @@ const SOLUTION_FORMAT_HEADING: &str = "Installed Packages:\n";
 const SOLUTION_FORMAT_FOOTER: &str = "Number of Packages:";
 
 const PACKAGE_COLUMN: usize = 0;
-const HIGHEST_VERSION_COLUMN: usize = 1;
+const VERSION_COLUMN: usize = 1;
+const HIGHEST_VERSION_COLUMN: usize = 2;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PackageSource {
@@ -486,12 +487,15 @@ impl Solution {
         let mut data: Vec<Vec<(usize, String)>> = Vec::with_capacity(number_of_packages + 1);
 
         let package_heading = String::from("Package");
-        let highest_heading = String::from("Highest");
+        let version_heading = String::from("Version");
+        let highest_heading = String::from("Newest");
         let package_heading_width = console::measure_text_width(&package_heading);
+        let version_heading_width = console::measure_text_width(&version_heading);
         let highest_heading_width = console::measure_text_width(&highest_heading);
 
         let mut header: Vec<(usize, String)> = vec![
             (package_heading_width, package_heading),
+            (version_heading_width, version_heading),
             (highest_heading_width, highest_heading),
         ];
         if verbosity == 1 {
@@ -504,7 +508,13 @@ impl Solution {
         }
         data.push(header);
 
-        let mut max_widths: Vec<usize> = vec![package_heading_width, highest_heading_width, 0, 0];
+        let mut max_widths: Vec<usize> = vec![
+            package_heading_width,
+            version_heading_width,
+            highest_heading_width,
+            0,
+            0,
+        ];
 
         // This only pads the first 2 columns at the moment: the
         // packages and the highest_versions. The remaining columns
@@ -521,14 +531,23 @@ impl Solution {
             }
             line.push((l, package));
 
+            // Get the request's solved version
+            let version = req.spec.ident().version().to_string();
+
+            let l = console::measure_text_width(&version);
+            if l > max_widths[VERSION_COLUMN] {
+                max_widths[VERSION_COLUMN] = l;
+            }
+            line.push((l, version));
+
             // Add whether this request is for the highest version of
             // the package, or what the highest version of the package is.
             let highest_label = match highest_versions.get(req.spec.name()) {
                 Some(highest_version) => {
                     if *req.spec.ident().version() == **highest_version {
-                        "highest".green()
+                        "-".dimmed()
                     } else {
-                        highest_version.to_string().yellow()
+                        highest_version.to_string().dimmed()
                     }
                 }
                 None => "".black(),
@@ -567,7 +586,7 @@ impl Solution {
                 }
                 let padding = " ".repeat(max_width - length);
 
-                let _ = write!(out, "{value}{padding} ");
+                let _ = write!(out, "{value}{padding}  ");
             }
 
             out.push('\n');

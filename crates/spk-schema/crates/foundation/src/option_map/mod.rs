@@ -17,9 +17,11 @@ use crate::name::{OptName, OptNameBuf, PkgName};
 use crate::spec_ops::EnvName;
 
 mod error;
+mod filters;
 mod format;
 
 pub use error::{Error, Result};
+pub use filters::{get_host_options_filters, OptFilter};
 
 #[cfg(test)]
 #[path = "./option_map_test.rs"]

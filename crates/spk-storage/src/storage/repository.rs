@@ -10,6 +10,7 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName};
 use spk_schema::foundation::version::Version;
 use spk_schema::ident_build::{Build, EmbeddedSource, InvalidBuildError};
+use spk_schema::option_map::get_host_options_filters;
 use spk_schema::{BuildIdent, Deprecate, Package, PackageMut, VersionIdent};
 
 use self::internal::RepositoryExt;
@@ -221,6 +222,8 @@ pub trait Repository: Storage + Sync {
     /// named package. Versions with all their builds deprecated are
     /// excluded.
     async fn highest_package_version(&self, name: &PkgName) -> Result<Option<Arc<Version>>> {
+        let filter_by = get_host_options_filters();
+
         let versions: Arc<Vec<Arc<Version>>> = self.list_package_versions(name).await?;
         // Not all repo implementations will return a sorted list from
         // list_package_versions, and this needs them reverse sorted.
@@ -237,7 +240,7 @@ pub trait Repository: Storage + Sync {
             }
             for build in builds {
                 match self.read_package(&build).await {
-                    Ok(spec) if !spec.is_deprecated() => {
+                    Ok(spec) if !spec.is_deprecated() && spec.matches_all_filters(&filter_by) => {
                         // Found an active build for this version, so
                         // it's the highest version
                         return Ok(Some(Arc::clone(version)));

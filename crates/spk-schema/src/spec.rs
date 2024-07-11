@@ -12,6 +12,7 @@ use format_serde_error::SerdeError;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_build::{Build, BuildId};
 use spk_schema_foundation::ident_component::Component;
+use spk_schema_foundation::option_map::OptFilter;
 use spk_schema_foundation::SerdeYamlError;
 use spk_schema_ident::{BuildIdent, VersionIdent};
 
@@ -571,6 +572,12 @@ impl Package for Spec {
     fn option_values(&self) -> OptionMap {
         match self {
             Spec::V0Package(spec) => spec.option_values(),
+        }
+    }
+
+    fn matches_all_filters(&self, filter_by: &Option<Vec<OptFilter>>) -> bool {
+        match self {
+            Spec::V0Package(spec) => spec.matches_all_filters(filter_by),
         }
     }
 
