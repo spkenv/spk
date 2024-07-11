@@ -10,7 +10,12 @@ use std::sync::Arc;
 
 use clap::{Args, ValueEnum, ValueHint};
 use miette::{bail, miette, Context, IntoDiagnostic, Result};
-use solve::{DecisionFormatter, DecisionFormatterBuilder, MultiSolverKind};
+use solve::{
+    DecisionFormatter,
+    DecisionFormatterBuilder,
+    MultiSolverKind,
+    DEFAULT_SOLVER_RUN_FILE_PREFIX,
+};
 use spfs::runtime::LiveLayerFile;
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::ident_build::Build;
@@ -38,6 +43,7 @@ static SPK_NO_RUNTIME: &str = "SPK_NO_RUNTIME";
 static SPK_KEEP_RUNTIME: &str = "SPK_KEEP_RUNTIME";
 static SPK_OUTPUT_TO_DIR: &str = "SPK_OUTPUT_TO_DIR";
 static SPK_OUTPUT_TO_DIR_MIN_VERBOSITY: &str = "SPK_OUTPUT_TO_DIR_MIN_VERBOSITY";
+static SPK_OUTPUT_FILE_PREFIX: &str = "SPK_OUTPUT_FILE_PREFIX";
 
 #[derive(Args, Clone)]
 pub struct Runtime {
@@ -1135,15 +1141,23 @@ pub struct DecisionFormatterSettings {
 
     /// Set to capture each solver's output to a separate file in each
     /// time a solver is run. The files will be in the the given
-    /// directory and named `spk_solver_run_YYYYmmdd_HHMMSS_<solver_kind>`.
+    /// directory and named
+    /// `<solver_file_prefix>_YYYYmmdd_HHMMSS_nnnnnnnn_<solver_kind>`. See
+    /// --output-file-prefix for the default prefix and how to override it.
     #[clap(long, env = SPK_OUTPUT_TO_DIR, value_hint = ValueHint::FilePath)]
     output_to_dir: Option<std::path::PathBuf>,
 
     /// Set the minimum verbosity for solver's when outputting to a
     /// file. Has no affect unless --output-to-file is also specified.
-    /// Verbosities set (-v) higher than this minimum will override it.
+    /// Verbosity set (-v) higher than this minimum will override it.
     #[clap(long, default_value_t=2, env = SPK_OUTPUT_TO_DIR_MIN_VERBOSITY)]
     output_to_dir_min_verbosity: u8,
+
+    /// Override the default solver output filename prefix. The
+    /// current date, time, and solver kind name will be appended to
+    /// this prefix to produce the file name for each solver.
+    #[clap(long, default_value_t=String::from(DEFAULT_SOLVER_RUN_FILE_PREFIX), env = SPK_OUTPUT_FILE_PREFIX)]
+    output_file_prefix: String,
 }
 
 impl DecisionFormatterSettings {
@@ -1187,6 +1201,7 @@ impl DecisionFormatterSettings {
             .with_step_on_decision(self.step_on_decision)
             .with_output_to_dir(self.output_to_dir.clone())
             .with_output_to_dir_min_verbosity(self.output_to_dir_min_verbosity)
+            .with_output_file_prefix(self.output_file_prefix.clone())
             .with_compare_solvers(self.compare_solvers);
         Ok(builder)
     }

@@ -5,8 +5,8 @@
 use std::cmp::max;
 use std::collections::VecDeque;
 use std::fmt::{Display, Write};
-use std::fs::File;
-use std::io::{BufWriter, Write as IOWrite};
+use std::fs::{File, OpenOptions};
+use std::io::{BufWriter, ErrorKind, Write as IOWrite};
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -68,6 +68,9 @@ const ALL_SOLVERS: &str = "all";
 
 const UNABLE_TO_GET_OUTPUT_FILE_LOCK: &str = "Unable to get lock to write solver output to file";
 const UNABLE_TO_WRITE_OUTPUT_MESSAGE: &str = "Unable to write solver output message to file";
+
+pub const DEFAULT_SOLVER_RUN_FILE_PREFIX: &str = "spk_solver_run";
+const DEFAULT_SOLVER_TEST_FILE_PREFIX: &str = "spk_solver_test";
 
 static USER_CANCELLED: Lazy<Arc<AtomicBool>> = Lazy::new(|| {
     // Initialise the USER_CANCELLED value
@@ -504,6 +507,7 @@ pub struct DecisionFormatterBuilder {
     step_on_decision: bool,
     output_to_dir: Option<PathBuf>,
     output_to_dir_min_verbosity: u8,
+    output_file_prefix: String,
 }
 
 impl Default for DecisionFormatterBuilder {
@@ -528,6 +532,7 @@ impl Default for DecisionFormatterBuilder {
             step_on_decision: false,
             output_to_dir: None,
             output_to_dir_min_verbosity: 2,
+            output_file_prefix: String::from(DEFAULT_SOLVER_RUN_FILE_PREFIX),
         }
     }
 }
@@ -648,6 +653,11 @@ impl DecisionFormatterBuilder {
         self
     }
 
+    pub fn with_output_file_prefix(&mut self, prefix: String) -> &mut Self {
+        self.output_file_prefix = prefix;
+        self
+    }
+
     pub fn build(&self) -> DecisionFormatter {
         let too_long_seconds = if self.verbosity_increase_seconds == 0
             || (self.verbosity_increase_seconds > self.timeout && self.timeout > 0)
@@ -694,6 +704,7 @@ impl DecisionFormatterBuilder {
                 step_on_decision: self.step_on_decision,
                 output_to_dir: self.output_to_dir.clone(),
                 output_to_dir_min_verbosity: self.output_to_dir_min_verbosity,
+                output_file_prefix: self.output_file_prefix.clone(),
             },
         }
     }
@@ -842,6 +853,7 @@ pub(crate) struct DecisionFormatterSettings {
     pub(crate) step_on_decision: bool,
     pub(crate) output_to_dir: Option<PathBuf>,
     pub(crate) output_to_dir_min_verbosity: u8,
+    pub(crate) output_file_prefix: String,
 }
 
 enum LoopOutcome {
@@ -961,6 +973,7 @@ impl DecisionFormatter {
                 step_on_decision: false,
                 output_to_dir: None,
                 output_to_dir_min_verbosity: 2,
+                output_file_prefix: String::from(DEFAULT_SOLVER_TEST_FILE_PREFIX),
             },
         }
     }
@@ -1072,18 +1085,32 @@ impl DecisionFormatter {
         dir: &Path,
         solver_kind: &MultiSolverKind,
     ) -> Result<Arc<Mutex<BufWriter<File>>>> {
-        let datetime = chrono::Local::now();
+        // Makes a new solver output file by trying to make a file
+        // using the current times until it finds a file name that
+        // doesn't already exist.
+        loop {
+            let datetime = chrono::Local::now();
 
-        let mut filepath = dir.to_path_buf();
-        filepath.push(format!(
-            "spk_solver_run_{}_{}",
-            datetime.format("%Y%m%d_%H%M%S"),
-            solver_kind.to_string().replace(' ', "-")
-        ));
+            let mut filepath = dir.to_path_buf();
+            filepath.push(format!(
+                "{}_{}_{}",
+                self.settings.output_file_prefix,
+                datetime.format("%Y%m%d_%H%M%S_%f"),
+                solver_kind.to_string().replace(' ', "-")
+            ));
 
-        let file =
-            File::create(filepath.clone()).map_err(|e| Error::SolverLogFileIOError(e, filepath))?;
-        Ok(Arc::new(Mutex::new(BufWriter::new(file))))
+            match OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(filepath.clone())
+            {
+                Ok(f) => {
+                    return Ok(Arc::new(Mutex::new(BufWriter::new(f))));
+                }
+                Err(e) if e.kind() == ErrorKind::AlreadyExists => {}
+                Err(e) => return Err(Error::SolverLogFileIOError(e, filepath)),
+            };
+        }
     }
 
     fn launch_solver_tasks(
