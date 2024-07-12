@@ -242,7 +242,8 @@ pub trait Repository: Storage + Sync {
                 match self.read_package(&build).await {
                     Ok(spec)
                         if !spec.is_deprecated()
-                            && (name == "stdfs" || spec.matches_all_filters(&filter_by)) =>
+                            && !spec.ident().is_source()
+                            && spec.matches_all_filters(&filter_by) =>
                     {
                         // Found an active build for this version, so
                         // it's the highest version

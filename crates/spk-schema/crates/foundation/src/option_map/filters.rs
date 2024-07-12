@@ -17,7 +17,9 @@ impl OptFilter {
         if let Some(v) = options.get(&self.name) {
             self.value == *v
         } else {
-            false
+            // Not having an option with the filter's name is
+            // considered a match.
+            true
         }
     }
 }
