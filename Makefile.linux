@@ -60,7 +60,7 @@ check-copyrights: check-copyrights-exist check-copyrights-spacing
 .PHONY: check-copyrights-exist
 check-copyrights-exist:
 	# basic check to ensure that the copyright appears in each source file
-	grep -LR --include="*.rs" "// Copyright (c) Sony Pictures Imageworks, et al." ./crates/ || exit 1
+	grep -LR --include="*.rs" "// Copyright (c) Contributors to the SPK project." ./crates/ || exit 1
 
 .PHONY: check-copyrights-spacing
 check-copyrights-spacing:
