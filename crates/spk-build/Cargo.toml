@@ -30,6 +30,7 @@ spk-exec = { workspace = true }
 spk-solve = { workspace = true }
 spk-schema = { workspace = true }
 spk-storage = { workspace = true }
+spdx = { workspace = true }
 strum = { workspace = true }
 thiserror = { workspace = true }
 miette = { workspace = true }

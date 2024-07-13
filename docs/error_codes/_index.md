@@ -58,6 +58,21 @@ This validation is triggered when a description is not provided for strong inher
 
 In cases where a description is not required, see the documentation section on [build variable description]({{< ref "../use/spec" >}}#buildvariabledescription)
 
+#### `spk::build::validation::spdx_license`
+
+This validation is triggered when a valid spdx license is not provided. By default, a license is not required, but when given it must be from the [SPDX License List](https://spdx.org/licenses/).
+
+In cases where a custom license string is needed, reverse the default validation like so:
+
+```yaml
+...
+
+build:
+  validation:
+    - deny: SpdxLicense
+...
+```
+
 ## Spfs Errors
 
 ### `spfs::generic`

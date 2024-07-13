@@ -10,6 +10,7 @@ mod error;
 mod inherit_requirements;
 mod long_var_description;
 mod recursive_build;
+mod spdx_license;
 mod strong_inheritance_var_desc;
 mod validator;
 
@@ -21,5 +22,6 @@ pub use error::{Error, Result};
 pub use inherit_requirements::InheritRequirementsValidator;
 pub use long_var_description::LongVarDescriptionValidator;
 pub use recursive_build::RecursiveBuildValidator;
+pub use spdx_license::SpdxLicenseValidator;
 pub use strong_inheritance_var_desc::StrongInheritanceVarDescriptionValidator;
 pub use validator::{Outcome, Report, Status, Subject, Validator};

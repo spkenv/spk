@@ -71,6 +71,9 @@ impl ValidationSpec {
     /// The default rules assumed for all packages
     pub fn default_rules() -> Vec<ValidationRule> {
         vec![
+            ValidationRule::Allow {
+                condition: ValidationMatcher::SpdxLicense,
+            },
             ValidationRule::Deny {
                 condition: ValidationMatcher::EmptyPackage,
             },
@@ -223,6 +226,7 @@ pub enum ValidationMatcher {
     InheritRequirements {
         packages: Vec<PkgNameBuf>,
     },
+    SpdxLicense,
 }
 
 #[derive(
@@ -314,6 +318,7 @@ impl<'de> Deserialize<'de> for ValidationRule {
                 let kind = map.next_value::<Kind>()?;
                 match kind {
                     Kind::EmptyPackage => Ok(ValidationMatcher::EmptyPackage),
+                    Kind::SpdxLicense => Ok(ValidationMatcher::SpdxLicense),
                     Kind::CollectAllFiles => Ok(ValidationMatcher::EmptyPackage),
                     Kind::StrongInheritanceVarDescription => {
                         Ok(ValidationMatcher::StrongInheritanceVarDescription)
@@ -386,6 +391,7 @@ impl Serialize for ValidationRule {
             | ValidationMatcher::CollectAllFiles
             | ValidationMatcher::StrongInheritanceVarDescription
             | ValidationMatcher::LongVarDescription
+            | ValidationMatcher::SpdxLicense
             | ValidationMatcher::EmptyPackage => {}
             ValidationMatcher::InheritRequirements { packages } => {
                 if !packages.is_empty() {

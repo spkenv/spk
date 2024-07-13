@@ -562,6 +562,12 @@ impl Package for Spec {
         }
     }
 
+    fn metadata(&self) -> &crate::metadata::Meta {
+        match self {
+            Spec::V0Package(spec) => spec.metadata(),
+        }
+    }
+
     fn option_values(&self) -> OptionMap {
         match self {
             Spec::V0Package(spec) => spec.option_values(),

@@ -89,6 +89,7 @@ serde_json = "1.0"
 serde_yaml = "0.9.25"
 serial_test = "3.1"
 shellexpand = "3.1.0"
+spdx = "0.10"
 spfs = { path = "crates/spfs" }
 spfs-cli-common = { path = "crates/spfs-cli/common" }
 spfs-encoding = { path = "crates/spfs-encoding" }

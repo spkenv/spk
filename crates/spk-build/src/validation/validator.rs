@@ -42,6 +42,10 @@ macro_rules! rule_to_validator {
         let kind = spk_schema::validation::ValidationRuleDiscriminants::from($rule);
         #[allow(unused_braces)]
         match $rule.condition() {
+            ValidationMatcher::SpdxLicense => {
+                let $bind = super::SpdxLicenseValidator { kind };
+                $op
+            }
             ValidationMatcher::EmptyPackage => {
                 let $bind = super::EmptyPackageValidator { kind };
                 $op

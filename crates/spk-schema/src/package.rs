@@ -32,6 +32,9 @@ pub trait Package:
     /// This includes the version and optional build
     fn ident(&self) -> &BuildIdent;
 
+    /// The additional metadata attached to this package
+    fn metadata(&self) -> &crate::metadata::Meta;
+
     /// The values for this packages options used for this build.
     fn option_values(&self) -> OptionMap;
 
@@ -142,6 +145,10 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
         (**self).ident()
     }
 
+    fn metadata(&self) -> &crate::metadata::Meta {
+        (**self).metadata()
+    }
+
     fn option_values(&self) -> OptionMap {
         (**self).option_values()
     }
@@ -214,6 +221,10 @@ impl<T: Package + Send + Sync> Package for Box<T> {
         (**self).ident()
     }
 
+    fn metadata(&self) -> &crate::metadata::Meta {
+        (**self).metadata()
+    }
+
     fn option_values(&self) -> OptionMap {
         (**self).option_values()
     }
@@ -284,6 +295,10 @@ impl<T: Package + Send + Sync> Package for &T {
 
     fn ident(&self) -> &BuildIdent {
         (**self).ident()
+    }
+
+    fn metadata(&self) -> &crate::metadata::Meta {
+        (**self).metadata()
     }
 
     fn option_values(&self) -> OptionMap {
