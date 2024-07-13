@@ -1,6 +1,6 @@
 // Copyright (c) Sony Pictures Imageworks, et al.
 // SPDX-License-Identifier: Apache-2.0
-// https://github.com/imageworks/spk
+// https://github.com/spkenv/spk
 
 use std::cmp::min;
 use std::collections::BTreeMap;
@@ -971,7 +971,7 @@ impl PkgRequest {
     pub fn restrict(&mut self, other: &PkgRequest) -> Result<()> {
         // The default is None. It acts like ExcludeAll, but both
         // IncludeAll and ExcludeAll take precedence over it. See:
-        // https://github.com/imageworks/spk/issues/839
+        // https://github.com/spkenv/spk/issues/839
         self.prerelease_policy = match (self.prerelease_policy, other.prerelease_policy) {
             (Some(a), Some(b)) => Some(min(a, b)),
             (a, b) => a.or(b),

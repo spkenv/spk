@@ -66,4 +66,4 @@ check-copyrights-exist:
 check-copyrights-spacing:
 	# basic check to ensure that the copyright notice is followed by
 	# a blank line, as this ensures good automated import management
-	grep -zLRP --include="*.rs" "// https://github.com/imageworks/spk\s{2}" ./crates/ || exit 1
+	grep -zLRP --include="*.rs" "// https://github.com/spkenv/spk\s{2}" ./crates/ || exit 1

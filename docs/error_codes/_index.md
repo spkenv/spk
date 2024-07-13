@@ -62,7 +62,7 @@ In cases where a description is not required, see the documentation section on [
 
 ### `spfs::generic`
 
-This is a generic error code that has no more specific information or help documentation attached. If you encounter one of these, please reach out for help by submitting an issue on [github](https://github.com/imageworks/spk).
+This is a generic error code that has no more specific information or help documentation attached. If you encounter one of these, please reach out for help by submitting an issue on [github](https://github.com/spkenv/spk).
 
 ### `spfs::could_not_create_spfs_dir`
 

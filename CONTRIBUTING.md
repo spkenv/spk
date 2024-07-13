@@ -1,6 +1,6 @@
 <!-- Copyright (c) Sony Pictures Imageworks, et al. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-<!-- https://github.com/imageworks/spk -->
+<!-- https://github.com/spkenv/spk -->
 
 # Contributing to SPK
 
@@ -19,7 +19,7 @@ process.
 
 * **Bug reports / Issue tracking**:
 
-  Please use [GitHub Issues](https://github.com/imageworks/spk/issues).
+  Please use [GitHub Issues](https://github.com/spkenv/spk/issues).
 
   Eventually, the spk, spfs, and spawn repos will all be merged into a single
   repository. In the mean time, please use the spfs and spawn issues only
@@ -95,30 +95,28 @@ Howto](https://help.github.com/articles/using-pull-requests/).
 All code must be formally reviewed before being merged into the official
 repository. The protocol is like this:
 
-1. Get a GitHub account, fork imageworks/spk (or spfs or spawn) to create your
-own repository on GitHub. During the time that we are keeping the imageworks
-repos private (prior to announced public release of the open source project), please ensure that your own fork is also private.
+1. Get a GitHub account, fork spkenv/spk to create your
+own repository on GitHub.
 
-2. Clone your repo to get a repository on your local machine, and you
-   probably want to add a remote to the imageworks repo as well. From the
+1. Clone your repo to get a repository on your local machine, and you
+   probably want to add a remote to the spkenv repo as well. From the
    command line, this probably looks like:
 
    ```
    $ git clone https://github.com/YOUR_GITHUB_USERID/spk.git
    $ cd spk
-   $ git remote add imageworks https://github.com/imageworks/spk.git
+   $ git remote add spkenv https://github.com/spkenv/spk.git
    $ git fetch --all
    ```
 
-3. Edit, compile, and test your changes in a topic branch:
+2. Edit, compile, and test your changes in a topic branch:
 
    ```
    $ git checkout -b mytopic main
    $ ... do your edits ...
    ```
 
-4. Push your changes to your fork (each unrelated pull request to a separate
-"topic branch", please).
+3. Push your changes to your fork (each unrelated pull request to a separate "topic branch", please).
 
    ```
    $ git add ...files you changed...
@@ -126,19 +124,19 @@ repos private (prior to announced public release of the open source project), pl
    $ git push origin mytopic
    ```
 
-5. Make a "pull request" on GitHub for your patch.
+4. Make a "pull request" on GitHub for your patch.
 
-6. If your patch will induce a major compatibility break, or has a design
+5. If your patch will induce a major compatibility break, or has a design
 component that deserves extended discussion or debate among the wider spk
 community, then it may be prudent to email spk-dev pointing everybody to
 the pull request URL and discussing any issues you think are important.
 
-7. The reviewer will look over the code and critique on the "comments" area,
+1. The reviewer will look over the code and critique on the "comments" area,
 or discuss in email. Reviewers may ask for changes, explain problems they
 found, congratulate the author on a clever solution, etc. But until somebody
 clicks the "approve" button in the review section, the code should not be
 committed. Sometimes this takes a few rounds of give and take. Please don't
 take it hard if your first try is not accepted. It happens to all of us.
 
-8. After approval, one of the senior developers (with commit approval to the
+1. After approval, one of the senior developers (with commit approval to the
 official main repository) will merge your fixes into the main branch.

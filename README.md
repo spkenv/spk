@@ -1,6 +1,6 @@
 <!-- Copyright (c) Sony Pictures Imageworks, et al. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-<!-- https://github.com/imageworks/spk -->
+<!-- https://github.com/spkenv/spk -->
 
 
 <img width="200px"
@@ -40,19 +40,19 @@ SPK/SPFS/spawn are distributed using the [Apache-2.0 license](LICENSE.txt).
 `spawn` is the application launcher for spk packages.
 
 These are spread over two code bases at the moment, but may
-be merged into a single project, [spk](https://github.com/imageworks/spk).
-Please refer to [spk](https://github.com/imageworks/spk) for almost all
+be merged into a single project, [spk](https://github.com/spkenv/spk).
+Please refer to [spk](https://github.com/spkenv/spk) for almost all
 information about staging the open source project, that's where the
 developer documentation and communication will live, including
-[Contributing to SPK](https://github.com/imageworks/spk/CONTRIBUTING.md).
+[Contributing to SPK](https://github.com/spkenv/spk/CONTRIBUTING.md).
 
 ## Contributing
 
-Please read [Contributing to SPK](https://github.com/imageworks/spk/CONTRIBUTING.md).
+Please read [Contributing to SPK](https://github.com/spkenv/spk/CONTRIBUTING.md).
 
 ## Development plan
 
-Please read [SPK open source development plan](https://github.com/imageworks/spk/OPEN_SOURCE_PLAN.md).
+Please read [SPK open source development plan](https://github.com/spkenv/spk/OPEN_SOURCE_PLAN.md).
 
 ## Development
 

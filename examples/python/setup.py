@@ -1,6 +1,6 @@
 # Copyright (c) Sony Pictures Imageworks, et al.
 # SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
+# https://github.com/spkenv/spk
 
 """
 The setup.py file is a command line application built with setuptools.
