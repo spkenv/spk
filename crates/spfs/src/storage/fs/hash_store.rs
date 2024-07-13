@@ -137,7 +137,8 @@ impl FsHashStore {
             while let Some(name) = subdir.next_entry().await.map_err(|err| Error::StorageReadError("next_entry on hash store directory", entry.path(), err))? {
                 let digest_str = format!("{entry_filename}{}", name.file_name().to_string_lossy());
                 if digest_str.ends_with(".completed") {
-                    // We're operating on a renders store.
+                    // We're operating on a renders store. These files used to be created
+                    // to mark the render as completed before we used atomic renames.
                     continue;
                 }
 

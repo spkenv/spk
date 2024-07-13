@@ -66,7 +66,7 @@ impl OpenFsRepository {
             None => return false,
         };
         let rendered_dir = renders.build_digest_path(&digest);
-        was_render_completed(rendered_dir)
+        was_render_completed(rendered_dir).await
     }
 
     pub fn iter_rendered_manifests<'db>(
@@ -118,7 +118,6 @@ impl OpenFsRepository {
             };
         }
 
-        unmark_render_completed(&dirpath).await?;
         open_perms_and_remove_all(&working_dirpath).await
     }
 
@@ -319,7 +318,7 @@ where
     ) -> Result<PathBuf> {
         let render_store = self.repo.render_store()?;
         let rendered_dirpath = render_store.renders.build_digest_path(&manifest.digest()?);
-        if was_render_completed(&rendered_dirpath) {
+        if was_render_completed(&rendered_dirpath).await {
             tracing::trace!(path = ?rendered_dirpath, "render already completed");
             return Ok(rendered_dirpath);
         }
@@ -374,7 +373,6 @@ where
             },
         }
 
-        mark_render_completed(&rendered_dirpath).await?;
         Ok(rendered_dirpath)
     }
 
@@ -1013,61 +1011,6 @@ pub async fn open_perms_and_remove_all(root: &Path) -> Result<()> {
     Ok(())
 }
 
-fn was_render_completed<P: AsRef<Path>>(render_path: P) -> bool {
-    let mut name = render_path
-        .as_ref()
-        .file_name()
-        .expect("must have a file name")
-        .to_os_string();
-    name.push(".completed");
-    let marker_path = render_path.as_ref().with_file_name(name);
-    marker_path.exists()
-}
-
-/// panics if the given path does not have a directory name
-async fn mark_render_completed<P: AsRef<Path>>(render_path: P) -> Result<()> {
-    let mut name = render_path
-        .as_ref()
-        .file_name()
-        .expect("must have a file name")
-        .to_os_string();
-    name.push(".completed");
-    let marker_path = render_path.as_ref().with_file_name(name);
-    // create if it doesn't exist but don't fail if it already exists (no exclusive open)
-    tokio::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(&marker_path)
-        .await
-        .map_err(|err| {
-            Error::StorageWriteError(
-                "open render completed marker path for write",
-                marker_path,
-                err,
-            )
-        })?;
-    Ok(())
-}
-
-async fn unmark_render_completed<P: AsRef<Path>>(render_path: P) -> Result<()> {
-    let mut name = render_path
-        .as_ref()
-        .file_name()
-        .expect("must have a file name")
-        .to_os_string();
-    name.push(".completed");
-    let marker_path = render_path.as_ref().with_file_name(name);
-    if let Err(err) = tokio::fs::remove_file(&marker_path).await {
-        match err.kind() {
-            std::io::ErrorKind::NotFound => Ok(()),
-            _ => Err(Error::StorageWriteError(
-                "remove file on render completed marker",
-                marker_path,
-                err,
-            )),
-        }
-    } else {
-        Ok(())
-    }
+async fn was_render_completed<P: AsRef<Path>>(render_path: P) -> bool {
+    tokio::fs::try_exists(render_path).await.unwrap_or_default()
 }
