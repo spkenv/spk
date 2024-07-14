@@ -711,7 +711,7 @@ impl Solver {
                         if !&compat {
                             notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
                                 spec.ident().to_any(),
-                                format!("recipe is not valid: {compat}"),
+                                format!("building from source is not possible with this recipe: {compat}"),
                             )));
                             self.number_builds_skipped += 1;
                             continue;
@@ -722,7 +722,7 @@ impl Solver {
                                 notes.push(Note::SkipPackageNote(
                                     SkipPackageNote::new_from_message(
                                         spec.ident().to_any(),
-                                        format!("cannot resolve build env: {err}"),
+                                        format!("cannot resolve build env for source build: {err}"),
                                     ),
                                 ));
                                 self.number_builds_skipped += 1;
@@ -738,7 +738,7 @@ impl Solver {
                         if !&compat {
                             notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
                                 spec.ident().to_any(),
-                                format!("built package would still be invalid: {compat}"),
+                                format!("building from source not possible: {compat}"),
                             )));
                             self.number_builds_skipped += 1;
                             continue;
@@ -753,7 +753,7 @@ impl Solver {
                                 notes.push(Note::SkipPackageNote(
                                     SkipPackageNote::new_from_message(
                                         spec.ident().to_any(),
-                                        format!("cannot build package: {err}"),
+                                        format!("cannot build package from source: {err}"),
                                     ),
                                 ));
                                 self.number_builds_skipped += 1;
