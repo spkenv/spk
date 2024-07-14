@@ -307,7 +307,7 @@ impl<T> Manifest<T> {
 #[derive(Diagnostic, Debug, thiserror::Error)]
 #[diagnostic(
     url(
-        "https://getspk.io/error_codes#{}",
+        "https://spkenv.dev/error_codes#{}",
         self.code().unwrap_or_else(|| Box::new("spk::generic"))
     )
 )]

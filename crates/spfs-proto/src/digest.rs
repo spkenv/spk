@@ -177,7 +177,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(thiserror::Error, Diagnostic, Debug)]
 #[diagnostic(
     url(
-        "https://getspk.io/error_codes#{}",
+        "https://spkenv.dev/error_codes#{}",
         self.code().unwrap_or_else(|| Box::new("spfs::generic"))
     )
 )]

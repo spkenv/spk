@@ -10,7 +10,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Diagnostic, Debug, Error)]
 #[diagnostic(
     url(
-        "https://getspk.io/error_codes#{}",
+        "https://spkenv.dev/error_codes#{}",
         self.code().unwrap_or_else(|| Box::new("spk::generic"))
     )
 )]
@@ -61,7 +61,7 @@ pub enum Error {
 
     #[error("Use of obsolete validators via 'build.validation.disabled'")]
     #[diagnostic(
-        help = "Replace them with the new 'build.validation.rules', as appropriate. http://getspk.io/ref/spec/#validationspec"
+        help = "Replace them with the new 'build.validation.rules', as appropriate. http://spkenv.dev/ref/spec/#validationspec"
     )]
     UseOfObsoleteValidators,
 }
