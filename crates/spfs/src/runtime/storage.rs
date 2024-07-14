@@ -1501,43 +1501,62 @@ fn runtime_tag<S: std::fmt::Display>(
 }
 
 /// Recursively create the given directory with the appropriate permissions.
+///
+/// Returns EINVAL if the path contains any parent dir components, ie '..')
 pub fn makedirs_with_perms<P: AsRef<Path>>(dirname: P, perms: u32) -> std::io::Result<()> {
+    use std::path::Component;
+
     let dirname = dirname.as_ref();
     #[cfg(unix)]
     let perms = std::fs::Permissions::from_mode(perms);
-    let mut path = PathBuf::from("/");
-    for component in dirname.components() {
-        path = match component {
-            std::path::Component::Normal(component) => path.join(component),
-            std::path::Component::ParentDir => path
-                .parent()
-                .ok_or_else(|| {
-                    std::io::Error::new(
-                        std::io::ErrorKind::InvalidInput,
-                        "cannot traverse below root, too many '..' references".to_string(),
-                    )
-                })?
-                .to_path_buf(),
-            _ => continue,
-        };
+
+    if !dirname.is_absolute() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "path must be absolute".to_string(),
+        ));
+    }
+    if dirname
+        .components()
+        .any(|c| matches!(c, Component::ParentDir))
+    {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "path cannot contain '..' references".to_string(),
+        ));
+    }
+
+    let mut to_create = Vec::new();
+    let mut path = Some(dirname);
+    while let Some(current) = path {
         // even though checking existence first is not
         // needed, it is required to trigger the automounter
         // in cases when the desired path is in that location
-        match std::fs::symlink_metadata(&path) {
-            Ok(_) => {}
-            Err(_) => {
-                if let Err(err) = std::fs::create_dir(&path) {
-                    match err.kind() {
-                        std::io::ErrorKind::AlreadyExists => (),
-                        _ => return Err(err),
-                    }
+        match std::fs::symlink_metadata(current) {
+            Ok(_) => break,
+            Err(err) => match err.kind() {
+                std::io::ErrorKind::NotFound => {
+                    to_create.push(current);
+                    path = current.parent();
+                    continue;
                 }
-                // not fatal, so it's worth allowing things to continue
-                // even though it could cause permission issues later on
-                #[cfg(unix)]
-                let _ = std::fs::set_permissions(&path, perms.clone());
-            }
+                // will fail later on with a better error, but it appears to exist
+                std::io::ErrorKind::PermissionDenied => break,
+                _ => return Err(err),
+            },
         }
+    }
+    while let Some(path) = to_create.pop() {
+        if let Err(err) = std::fs::create_dir(path) {
+            match err.kind() {
+                std::io::ErrorKind::AlreadyExists => {}
+                _ => return Err(err),
+            }
+        };
+        // not fatal, so it's worth allowing things to continue
+        // even though it could cause permission issues later on
+        #[cfg(unix)]
+        let _ = std::fs::set_permissions(path, perms.clone());
     }
     Ok(())
 }

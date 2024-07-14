@@ -171,7 +171,6 @@ impl PlatformBuilder {
     /// use the data to fill and complete this builder
     pub fn legacy_decode(self, mut reader: &mut impl std::io::Read) -> Result<Platform> {
         let num_layers = encoding::read_uint64(&mut reader)?;
-        tracing::error!("read {} layers in platform", num_layers);
         let mut layers = Vec::with_capacity(num_layers as usize);
         for _ in 0..num_layers {
             layers.push(encoding::read_digest(&mut reader)?);
