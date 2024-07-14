@@ -394,10 +394,10 @@ where
         let res = match annotation.value() {
             AnnotationValue::String(_) => CheckAnnotationResult::InternalValue,
             AnnotationValue::Blob(d) => {
-                let blob = self.repo.read_blob(d).await?;
+                let blob = self.repo.read_blob(*d).await?;
                 let result = unsafe { self.check_blob(&blob).await? };
                 CheckAnnotationResult::Checked {
-                    digest: d,
+                    digest: *d,
                     result,
                     repaired: false,
                 }

@@ -23,16 +23,29 @@ pub(crate) fn convert_from_datetime(source: &chrono::DateTime<chrono::Utc>) -> s
     }
 }
 
-pub fn convert_digest(source: Option<super::Digest>) -> Result<encoding::Digest> {
+pub fn convert_digest_ref(source: Option<&super::Digest>) -> Result<&encoding::Digest> {
     source
         .ok_or_else(|| Error::String("Expected non-null digest in rpc message".into()))?
         .try_into()
 }
 
+pub fn convert_digest(source: Option<super::Digest>) -> Result<encoding::Digest> {
+    Ok(*convert_digest_ref(source.as_ref())?)
+}
+
 impl TryFrom<super::Digest> for encoding::Digest {
     type Error = Error;
     fn try_from(source: super::Digest) -> Result<Self> {
-        Ok(Self::from_bytes(source.bytes.as_slice())?)
+        Ok(*<&encoding::Digest>::try_from(&source)?)
+    }
+}
+
+impl<'a> TryFrom<&'a super::Digest> for &'a encoding::Digest {
+    type Error = Error;
+    fn try_from(source: &'a super::Digest) -> Result<Self> {
+        Ok(encoding::Digest::from_bytes_shared(
+            source.bytes.as_slice(),
+        )?)
     }
 }
 
@@ -238,8 +251,8 @@ impl TryFrom<super::Layer> for graph::Layer {
         if let Some(manifest_digest) = digest {
             if !source.annotations.is_empty() {
                 let mut annotations: Vec<graph::KeyAnnotationValuePair> = Vec::new();
-                for a in source.annotations.into_iter() {
-                    annotations.push((a.key.clone(), a.value.try_into()?));
+                for a in source.annotations.iter() {
+                    annotations.push((&a.key, a.value.as_ref().try_into()?));
                 }
                 // A spfs filesystem layer with some annotations
                 Ok(Self::new_with_manifest_and_annotations(
@@ -252,8 +265,8 @@ impl TryFrom<super::Layer> for graph::Layer {
             }
         } else if !source.annotations.is_empty() {
             let mut annotations: Vec<graph::KeyAnnotationValuePair> = Vec::new();
-            for a in source.annotations.into_iter() {
-                annotations.push((a.key.clone(), a.value.try_into()?));
+            for a in source.annotations.iter() {
+                annotations.push((&a.key, a.value.as_ref().try_into()?));
             }
 
             // An annotation only layer
@@ -351,20 +364,22 @@ impl From<&graph::Annotation<'_>> for super::Annotation {
         Self {
             key: source.key().to_string(),
             value: match source.value() {
-                graph::AnnotationValue::String(s) => Some(Value::Data(s.clone())),
-                graph::AnnotationValue::Blob(d) => Some(Value::Digest(d.into())),
+                graph::AnnotationValue::String(s) => Some(Value::Data(s.to_string())),
+                graph::AnnotationValue::Blob(d) => Some(Value::Digest(d.into_owned().into())),
             },
         }
     }
 }
 
-impl TryFrom<Option<super::annotation::Value>> for graph::AnnotationValue {
+impl<'a> TryFrom<Option<&'a super::annotation::Value>> for graph::AnnotationValue<'a> {
     type Error = Error;
-    fn try_from(source: Option<super::annotation::Value>) -> Result<Self> {
+    fn try_from(source: Option<&'a super::annotation::Value>) -> Result<Self> {
         use super::annotation::Value;
         match source {
-            Some(Value::Data(s)) => Ok(graph::AnnotationValue::String(s.clone())),
-            Some(Value::Digest(d)) => Ok(graph::AnnotationValue::Blob(convert_digest(Some(d))?)),
+            Some(Value::Data(s)) => Ok(graph::AnnotationValue::string(s)),
+            Some(Value::Digest(d)) => {
+                Ok(graph::AnnotationValue::blob(convert_digest_ref(Some(d))?))
+            }
             None => Ok(graph::AnnotationValue::String(Default::default())),
         }
     }

@@ -11,7 +11,7 @@ use clap::{ArgGroup, Args};
 use miette::{miette, Context, IntoDiagnostic, Result};
 use spfs::graph::object::EncodingFormat;
 use spfs::prelude::*;
-use spfs::runtime::KeyValuePair;
+use spfs::runtime::KeyValuePairBuf;
 use spfs::storage::FromConfig;
 use spfs::tracking::EnvSpec;
 use spfs_cli_common as cli;
@@ -59,8 +59,8 @@ impl Annotation {
     /// the annotation related command line arguments. The same keys,
     /// and values, can appear multiple times in the list if specified
     /// multiple times in various command line arguments.
-    pub fn get_data(&self) -> Result<Vec<KeyValuePair>> {
-        let mut data: Vec<KeyValuePair> = Vec::new();
+    pub fn get_data(&self) -> Result<Vec<KeyValuePairBuf>> {
+        let mut data: Vec<KeyValuePairBuf> = Vec::new();
 
         for filename in self.annotation_file.iter() {
             let reader: Box<dyn io::Read> =
@@ -258,7 +258,7 @@ impl CmdRun {
                 for (key, value) in data.into_iter().rev() {
                     tracing::trace!("annotation being added: {key}: {value}");
                     runtime
-                        .add_annotation(key, value, config.filesystem.annotation_size_limit)
+                        .add_annotation(&key, &value, config.filesystem.annotation_size_limit)
                         .await?;
                 }
                 tracing::trace!(" with annotation: {:?}", runtime);

@@ -308,8 +308,8 @@ pub async fn setup_runtime(rt: &mut spfs::runtime::Runtime, solution: &Solution)
         let solve_data = serde_json::to_string(&solution.packages_to_solve_data())
             .map_err(|err| Error::String(err.to_string()))?;
         rt.add_annotation(
-            SPK_SOLVE_EXTRA_DATA_KEY.to_string(),
-            solve_data,
+            SPK_SOLVE_EXTRA_DATA_KEY,
+            &solve_data,
             spfs_config.filesystem.annotation_size_limit,
         )
         .await?;

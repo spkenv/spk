@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::borrow::Cow;
 use std::fmt::Display;
 
 use crate::{encoding, Result};
@@ -25,27 +26,35 @@ enum AnnotationValueKind {
 
 /// Wrapper for the ways annotation values are stored
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub enum AnnotationValue {
+pub enum AnnotationValue<'a> {
     /// In the Annotation object as a string
-    String(String),
+    String(Cow<'a, str>),
     /// In a separate blob payload pointed at by the digest
-    Blob(encoding::Digest),
+    Blob(Cow<'a, encoding::Digest>),
 }
 
-impl Default for AnnotationValue {
+impl Default for AnnotationValue<'static> {
     fn default() -> Self {
-        AnnotationValue::String(Default::default())
+        AnnotationValue::string("")
     }
 }
 
-impl AnnotationValue {
+impl<'a> AnnotationValue<'a> {
+    pub fn string<S: Into<Cow<'a, str>>>(s: S) -> Self {
+        Self::String(s.into())
+    }
+
+    pub fn blob<D: Into<Cow<'a, encoding::Digest>>>(d: D) -> Self {
+        Self::Blob(d.into())
+    }
+
     pub fn build(
-        &self,
+        self,
         builder: &mut flatbuffers::FlatBufferBuilder<'_>,
     ) -> flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset> {
         match self {
             AnnotationValue::String(data_string) => {
-                let string_data = builder.create_string(data_string.as_ref());
+                let string_data = builder.create_string(&data_string);
                 spfs_proto::AnnotationString::create(
                     builder,
                     &spfs_proto::AnnotationStringArgs {
@@ -57,7 +66,7 @@ impl AnnotationValue {
             AnnotationValue::Blob(data_digest) => spfs_proto::AnnotationDigest::create(
                 builder,
                 &spfs_proto::AnnotationDigestArgs {
-                    digest: Some(data_digest),
+                    digest: Some(&data_digest),
                 },
             )
             .as_union_value(),
@@ -87,7 +96,7 @@ impl AnnotationValue {
         match self {
             AnnotationValue::String(v) => {
                 encoding::write_uint8(&mut writer, AnnotationValueKind::String as u8)?;
-                Ok(encoding::write_string(writer, v.as_str())?)
+                Ok(encoding::write_string(writer, v)?)
             }
             AnnotationValue::Blob(v) => {
                 encoding::write_uint8(&mut writer, AnnotationValueKind::Blob as u8)?;
@@ -97,7 +106,7 @@ impl AnnotationValue {
     }
 }
 
-impl Display for AnnotationValue {
+impl<'a> Display for AnnotationValue<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             AnnotationValue::String(v) => {
@@ -147,7 +156,7 @@ impl<'buf> Annotation<'buf> {
             }
         } else if let Some(data) = self.0.data_as_annotation_digest() {
             match data.digest() {
-                Some(d) => AnnotationValue::Blob(*d),
+                Some(d) => AnnotationValue::Blob(Cow::Borrowed(d)),
                 None => {
                     panic!("This should not happen because the data type was AnnotationValueDigest")
                 }

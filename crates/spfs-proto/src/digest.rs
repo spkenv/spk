@@ -88,7 +88,7 @@ impl Digest {
         self.0
     }
 
-    /// Create a digest from the provided bytes.
+    /// Create an owned digest from the provided bytes.
     ///
     /// The exact [`DIGEST_SIZE`] number of bytes must
     /// be given.
@@ -96,6 +96,21 @@ impl Digest {
         match digest_bytes.try_into() {
             Err(_err) => Err(Error::InvalidDigestLength(digest_bytes.len())),
             Ok(bytes) => Ok(Self(bytes)),
+        }
+    }
+
+    /// Create a digest reference from the provided bytes.
+    ///
+    /// The exact [`DIGEST_SIZE`] number of bytes must
+    /// be given.
+    pub fn from_bytes_shared(digest_bytes: &[u8]) -> Result<&Self> {
+        match digest_bytes.len() {
+            DIGEST_SIZE => unsafe {
+                // Safety: buffer must contain a valid digest. We just checked
+                // the length and any sequence of bytes is a valid digest.
+                Ok(flatbuffers::follow_cast_ref::<Digest>(digest_bytes, 0))
+            },
+            len => Err(Error::InvalidDigestLength(len)),
         }
     }
 

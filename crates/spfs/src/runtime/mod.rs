@@ -25,6 +25,7 @@ pub use storage::{
     Config,
     Data,
     KeyValuePair,
+    KeyValuePairBuf,
     LiveLayer,
     LiveLayerFile,
     MountBackend,

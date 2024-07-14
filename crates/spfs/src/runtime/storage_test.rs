@@ -211,10 +211,7 @@ async fn test_storage_runtime_with_annotation(
     // Test - insert data
     let key = "some_field".to_string();
     let value = "some value".to_string();
-    match runtime
-        .add_annotation(key.clone(), value.clone(), limit)
-        .await
-    {
+    match runtime.add_annotation(&key, &value, limit).await {
         Ok(_) if write_encoding_format == EncodingFormat::Legacy => {
             panic!("Writing annotations should fail when using EncodingFormat::Legacy")
         }
@@ -230,10 +227,7 @@ async fn test_storage_runtime_with_annotation(
 
     // Test - insert some more data
     let value2 = "some other value".to_string();
-    assert!(runtime
-        .add_annotation(key.clone(), value2, limit)
-        .await
-        .is_ok());
+    assert!(runtime.add_annotation(&key, &value2, limit).await.is_ok());
 
     // Test - retrieve data - the first inserted data should be the
     // what is retrieved because of how adding to the runtime stack
@@ -286,8 +280,7 @@ async fn test_storage_runtime_add_annotations_list(
     let key2 = "some_other_field".to_string();
     let value2 = "some other value".to_string();
 
-    let annotations: Vec<KeyValuePair> =
-        vec![(key.clone(), value.clone()), (key2.clone(), value2.clone())];
+    let annotations: Vec<KeyValuePair> = vec![(&key, &value), (&key2, &value2)];
 
     match runtime.add_annotations(annotations, limit).await {
         Ok(_) if write_encoding_format == EncodingFormat::Legacy => {
@@ -346,10 +339,10 @@ async fn test_storage_runtime_with_nested_annotation(
     );
 
     // make an annotation layer
-    let key = "some_field".to_string();
-    let value = "somevalue".to_string();
-    let annotation_value = AnnotationValue::String(value.clone());
-    let layer = Layer::new_with_annotation(key.clone(), annotation_value);
+    let key = "some_field";
+    let value = "somevalue";
+    let annotation_value = AnnotationValue::string(value);
+    let layer = Layer::new_with_annotation(key, annotation_value);
     match repo.write_object(&layer).await {
         Ok(_) if write_encoding_format == EncodingFormat::Legacy => {
             panic!("Writing annotations should fail when using EncodingFormat::Legacy")
@@ -385,10 +378,10 @@ async fn test_storage_runtime_with_nested_annotation(
 
     // Test - retrieve the data even though it is nested inside a
     // platform object in the runtime.
-    let result = runtime.annotation(&key).await.unwrap();
+    let result = runtime.annotation(key).await.unwrap();
     assert!(result.is_some());
 
-    assert!(value == *result.unwrap());
+    assert!(value == result.unwrap());
 }
 
 #[rstest(
@@ -424,13 +417,10 @@ async fn test_storage_runtime_with_annotation_all(
         .expect("failed to create runtime in storage");
 
     // Test - insert two distinct data values
-    let key = "some_field".to_string();
-    let value = "somevalue".to_string();
+    let key = "some_field";
+    let value = "somevalue";
 
-    match runtime
-        .add_annotation(key.clone(), value.clone(), limit)
-        .await
-    {
+    match runtime.add_annotation(key, value, limit).await {
         Ok(_) if write_encoding_format == EncodingFormat::Legacy => {
             panic!("Writing annotations should fail when using EncodingFormat::Legacy")
         }
@@ -444,12 +434,9 @@ async fn test_storage_runtime_with_annotation_all(
         }
     };
 
-    let key2 = "some_field2".to_string();
-    let value2 = "somevalue2".to_string();
-    assert!(runtime
-        .add_annotation(key2.clone(), value2.clone(), limit)
-        .await
-        .is_ok());
+    let key2 = "some_field2";
+    let value2 = "somevalue2";
+    assert!(runtime.add_annotation(key2, value2, limit).await.is_ok());
 
     // Test - get all the data back out
     if write_encoding_format == EncodingFormat::Legacy {
@@ -460,8 +447,8 @@ async fn test_storage_runtime_with_annotation_all(
 
     assert!(result.len() == 2);
     for (expected_key, expected_value) in [(key, value), (key2, value2)].iter() {
-        assert!(result.contains_key(expected_key));
-        match result.get(expected_key) {
+        assert!(result.contains_key(*expected_key));
+        match result.get(*expected_key) {
             Some(v) => {
                 assert!(v == expected_value);
             }
@@ -495,10 +482,10 @@ async fn test_storage_runtime_with_nested_annotation_all(
     );
 
     // make two distinct data values
-    let key = "some_field".to_string();
-    let value = "somevalue".to_string();
-    let annotation_value = AnnotationValue::String(value.clone());
-    let layer = Layer::new_with_annotation(key.clone(), annotation_value);
+    let key = "some_field";
+    let value = "somevalue";
+    let annotation_value = AnnotationValue::string(value);
+    let layer = Layer::new_with_annotation(key, annotation_value);
     match repo.write_object(&layer.clone()).await {
         Ok(_) if write_encoding_format == EncodingFormat::Legacy => {
             panic!("Writing annotations should fail when using EncodingFormat::Legacy")
@@ -513,10 +500,10 @@ async fn test_storage_runtime_with_nested_annotation_all(
         }
     };
 
-    let key2 = "some_field2".to_string();
-    let value2 = "somevalue2".to_string();
-    let annotation_value2 = AnnotationValue::String(value2.clone());
-    let layer2 = Layer::new_with_annotation(key2.clone(), annotation_value2);
+    let key2 = "some_field2";
+    let value2 = "somevalue2";
+    let annotation_value2 = AnnotationValue::string(value2);
+    let layer2 = Layer::new_with_annotation(key2, annotation_value2);
     repo.write_object(&layer2.clone()).await.unwrap();
 
     // make a platform with one annotation layer
@@ -550,8 +537,8 @@ async fn test_storage_runtime_with_nested_annotation_all(
     let result = runtime.all_annotations().await.unwrap();
     assert!(result.len() == 2);
     for (expected_key, expected_value) in [(key, value), (key2, value2)].iter() {
-        assert!(result.contains_key(expected_key));
-        match result.get(expected_key) {
+        assert!(result.contains_key(*expected_key));
+        match result.get(*expected_key) {
             Some(v) => {
                 assert!(v == expected_value);
             }

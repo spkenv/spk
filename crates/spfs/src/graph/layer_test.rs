@@ -36,10 +36,7 @@ fn test_layer_encoding_annotation_only(
     config.storage.digest_strategy = write_digest_strategy;
     config.make_current().unwrap();
 
-    let expected = Layer::new_with_annotation(
-        "key".to_string(),
-        AnnotationValue::String("value".to_string()),
-    );
+    let expected = Layer::new_with_annotation("key", AnnotationValue::string("value"));
 
     let mut stream = Vec::new();
     match expected.encode(&mut stream) {
@@ -80,10 +77,7 @@ fn test_layer_encoding_manifest_and_annotations(
 
     let expected = Layer::new_with_manifest_and_annotations(
         encoding::EMPTY_DIGEST.into(),
-        vec![(
-            "key".to_string(),
-            AnnotationValue::String("value".to_string()),
-        )],
+        vec![("key", AnnotationValue::string("value"))],
     );
     println!("Expected: {:?}", expected);
 
