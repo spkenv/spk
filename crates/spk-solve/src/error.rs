@@ -60,7 +60,7 @@ pub enum Error {
     #[error("Error: {0}")]
     String(String),
     #[error("Error: {0} is not supported")]
-    NotSupported(String),
+    IncludingThisOutputNotSupported(String),
     #[error("Error: Solver log file not created: {1} - {0}")]
     SolverLogFileIOError(#[source] std::io::Error, PathBuf),
 }

@@ -800,23 +800,23 @@ impl OutputKind {
         match other_output {
             OutputKind::Println => match self {
                 OutputKind::Println => Ok(self.clone()),
-                OutputKind::Tracing => Err(Error::NotSupported(
+                OutputKind::Tracing => Err(Error::IncludingThisOutputNotSupported(
                     "Cannot add Println output kind to a Tracing output kind. It".to_string(),
                 )),
                 OutputKind::LogFile(f) => Ok(OutputKind::PrintlnAndToFile(f.clone())),
                 OutputKind::PrintlnAndToFile(_) => Ok(self.clone()),
-                OutputKind::TracingAndToFile(_) => Err(Error::NotSupported(
+                OutputKind::TracingAndToFile(_) => Err(Error::IncludingThisOutputNotSupported(
                     "Cannot add Println output kind to a TrackingAndToFile output kind. It"
                         .to_string(),
                 )),
             },
             OutputKind::Tracing => match self {
-                OutputKind::Println => Err(Error::NotSupported(
+                OutputKind::Println => Err(Error::IncludingThisOutputNotSupported(
                     "Cannot add Tracing output kind to a Println output kind. It".to_string(),
                 )),
                 OutputKind::Tracing => Ok(self.clone()),
                 OutputKind::LogFile(f) => Ok(OutputKind::TracingAndToFile(f.clone())),
-                OutputKind::PrintlnAndToFile(_) => Err(Error::NotSupported(
+                OutputKind::PrintlnAndToFile(_) => Err(Error::IncludingThisOutputNotSupported(
                     "Cannot add Tracing output kind to a PrintlnAndToFile output kind. It"
                         .to_string(),
                 )),
@@ -825,7 +825,7 @@ impl OutputKind {
             _ => {
                 // OutputKinds other than Println or Tracing are not
                 // valid for combining with the current output kind here.
-                Err(Error::NotSupported("OutputKind::ensure_output must be called with a Println or Tracing other_output. Including other kinds".to_string()))
+                Err(Error::IncludingThisOutputNotSupported("OutputKind::ensure_output must be called with a Println or Tracing other_output. Including other kinds".to_string()))
             }
         }
     }
