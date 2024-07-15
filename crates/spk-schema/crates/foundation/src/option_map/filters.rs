@@ -43,18 +43,3 @@ pub fn get_host_options_filters() -> Option<Vec<OptFilter>> {
         Some(filters)
     }
 }
-
-// /// Returns true if the spec's options match all the given option
-// /// filters, otherwise false
-// pub fn matches_all_filters(spec: &Arc<Spec>, filter_by: &Option<Vec<OptFilter>>) -> bool {
-//     if let Some(filters) = filter_by {
-//         let settings = spec.option_values();
-//         for filter in filters {
-//             if !filter.matches(&settings) {
-//                 return false;
-//             }
-//         }
-//     }
-//     // All the filters match, or there were no filters
-//     true
-// }
