@@ -1147,7 +1147,7 @@ pub struct DecisionFormatterSettings {
     #[clap(long, env = SPK_OUTPUT_TO_DIR, value_hint = ValueHint::FilePath)]
     output_to_dir: Option<std::path::PathBuf>,
 
-    /// Set the minimum verbosity for solver's when outputting to a
+    /// Set the minimum verbosity for solvers when outputting to a
     /// file. Has no affect unless --output-to-file is also specified.
     /// Verbosity set (-v) higher than this minimum will override it.
     #[clap(long, default_value_t=2, env = SPK_OUTPUT_TO_DIR_MIN_VERBOSITY)]
