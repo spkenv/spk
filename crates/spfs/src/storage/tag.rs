@@ -183,7 +183,7 @@ pub trait TagStorage: Send + Sync {
 
     /// Read the entire tag stream for the given tag.
     ///
-    /// If the tag does not exist, and empty stream is returned.
+    /// If the tag does not exist, an empty stream is returned.
     async fn read_tag(
         &self,
         tag: &tracking::TagSpec,
@@ -194,7 +194,7 @@ pub trait TagStorage: Send + Sync {
 
     /// Read the entire tag stream for the given tag in the given namespace.
     ///
-    /// If the tag does not exist, and empty stream is returned.
+    /// If the tag does not exist, an empty stream is returned.
     async fn read_tag_in_namespace(
         &self,
         namespace: Option<&TagNamespace>,
