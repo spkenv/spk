@@ -234,6 +234,11 @@ pub fn configure_sentry() -> Option<sentry::ClientInitGuard> {
 
     sentry::configure_scope(|scope| {
         scope.set_user(Some(sentry::User {
+            email: config
+                .sentry
+                .email_domain
+                .as_ref()
+                .map(|domain| format!("{username}@{domain}")),
             username: Some(username),
             ..Default::default()
         }));

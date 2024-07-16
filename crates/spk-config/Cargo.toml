@@ -15,6 +15,7 @@ config = { workspace = true }
 dirs = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+spfs = { workspace = true }
 once_cell = { workspace = true }
 thiserror = { workspace = true }
 miette = { workspace = true }
