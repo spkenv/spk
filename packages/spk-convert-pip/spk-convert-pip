@@ -45,8 +45,12 @@ def main() -> int:
         "spk-convert-pip", description="Convert and import packages using pip"
     )
     pip_cmd.add_argument(
-        "-v", "--verbose",  action="count", dest="verbose", default=0,
-        help="Increase the verbosity of the output"
+        "-v",
+        "--verbose",
+        action="count",
+        dest="verbose",
+        default=0,
+        help="Increase the verbosity of the output",
     )
     pip_cmd.add_argument(
         "--python-version", default="3.7", help="The version of python to install for"
@@ -123,7 +127,14 @@ def main() -> int:
         )
 
     if args.publish:
-        cmd = [spk_exe(), "publish", "--allow-existing-with-label", f"{SPK_GENERATED_BY_LABEL}={SPK_GENERATED_BY_VALUE}", "-r", args.target_repo]
+        cmd = [
+            spk_exe(),
+            "publish",
+            "--allow-existing-with-label",
+            f"{SPK_GENERATED_BY_LABEL}={SPK_GENERATED_BY_VALUE}",
+            "-r",
+            args.target_repo,
+        ]
         if args.force:
             cmd.append("--force")
         cmd.extend([spec["pkg"] for spec in specs])
