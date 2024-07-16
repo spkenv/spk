@@ -463,21 +463,33 @@ impl Recipe for Spec<VersionIdent> {
                                     .get_build_requirements(variant)
                                     .unwrap_or_default()
                                     .iter()
-                                    .any(|req| {
-                                        let Request::Pkg(PkgRequest {
+                                    .any(|req| match req {
+                                        Request::Pkg(PkgRequest {
                                             pkg:
                                                 RangeIdent {
                                                     name, components, ..
                                                 },
                                             ..
-                                        }) = req
-                                        else {
-                                            return false;
-                                        };
-                                        *name == pkg.0.name
-                                            && ComponentBTreeSet::new(components).satisfies(
-                                                &ComponentBTreeSet::new(&pkg.0.components),
-                                            )
+                                        }) => {
+                                            *name == pkg.0.name
+                                                && ComponentBTreeSet::new(components).satisfies(
+                                                    &ComponentBTreeSet::new(&pkg.0.components),
+                                                )
+                                        }
+                                        Request::Var(VarRequest {
+                                            var,
+                                            value: var_request_value,
+                                            ..
+                                        }) => {
+                                            // The variant spec entry may be
+                                            // an "opt" like "distro" but this
+                                            // is only possible if there were
+                                            // no components specified.
+                                            pkg.0.components.is_empty()
+                                                && var.as_str() == pkg.0.name.as_str()
+                                                && var_request_value.as_pinned()
+                                                    == Some(value.as_str())
+                                        }
                                     })
                                 {
                                     return false;
