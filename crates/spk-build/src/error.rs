@@ -61,7 +61,7 @@ pub enum Error {
 
     #[error("Use of obsolete validators via 'build.validation.disabled'")]
     #[diagnostic(
-        help = "Replace them with the new 'build.validation.rules', as appropriate. http://spkenv.dev/ref/spec/#validationspec"
+        help = "Replace them with the new 'build.validation.rules', as appropriate. https://spkenv.dev/ref/spec/#validationspec"
     )]
     UseOfObsoleteValidators,
 }
