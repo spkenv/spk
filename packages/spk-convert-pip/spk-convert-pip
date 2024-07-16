@@ -286,6 +286,7 @@ class PipImporter:
     def _process_package(
         self, requester: Requirement, info: pkginfo.Distribution
     ) -> List[Dict[str, Any]]:
+        assert info.name, "A package name is required"
         assert not info.requires, "No support for installation requirements"
         assert not info.requires_external, "No support for external requirements"
         assert not info.supported_platforms, "No support for supported platforms field"
