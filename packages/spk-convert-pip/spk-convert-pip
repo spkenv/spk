@@ -199,6 +199,8 @@ class PipImporter:
                 pip_command = [
                     "pip",
                     "download",
+                    # Allow enough time for larger wheels to download.
+                    "--timeout=1000",
                     f"{req}",
                     "--python-version",
                     self._python_version,
