@@ -16,5 +16,5 @@ thiserror = { workspace = true }
 miette = { workspace = true }
 
 [dev-dependencies]
-rstest = { version = "0.15.0", default_features = false }
+rstest = { version = "0.15.0", default-features = false }
 rand = { workspace = true }
