@@ -10,8 +10,7 @@ use crate::encoding;
 
 #[rstest]
 fn test_annotation_value_string() {
-    let value = String::from("value");
-    let string_value = AnnotationValue::String(value);
+    let string_value = AnnotationValue::string("value");
 
     assert!(string_value.is_string());
     assert!(!string_value.is_blob());
@@ -21,7 +20,7 @@ fn test_annotation_value_string() {
 fn test_annotation_value_blob() {
     let digest: Digest = encoding::EMPTY_DIGEST.into();
 
-    let blob_value = AnnotationValue::Blob(digest);
+    let blob_value = AnnotationValue::blob(digest);
 
     assert!(blob_value.is_blob());
     assert!(!blob_value.is_string());

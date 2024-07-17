@@ -46,7 +46,7 @@ impl Layer {
     /// annotation data but does not point at any manifest, for more
     /// configuration use [`Self::builder`]
     #[inline]
-    pub fn new_with_annotation(key: String, value: AnnotationValue) -> Self {
+    pub fn new_with_annotation(key: &'_ str, value: AnnotationValue<'_>) -> Self {
         Self::builder().with_annotation(key, value).build()
     }
 
@@ -64,8 +64,8 @@ impl Layer {
     #[inline]
     pub fn new_with_manifest_and_annotation(
         manifest: encoding::Digest,
-        key: String,
-        value: AnnotationValue,
+        key: &str,
+        value: AnnotationValue<'_>,
     ) -> Self {
         Self::builder()
             .with_manifest(manifest)
@@ -88,7 +88,7 @@ impl Layer {
     }
 
     #[inline]
-    pub fn builder() -> LayerBuilder {
+    pub fn builder<'a>() -> LayerBuilder<'a> {
         LayerBuilder::default()
     }
 
@@ -181,15 +181,15 @@ impl std::cmp::Eq for Layer {}
 
 /// Data type for pairs of keys and annotation values used during
 /// construction of a layer's annotations.
-pub type KeyAnnotationValuePair = (String, AnnotationValue);
+pub type KeyAnnotationValuePair<'a> = (&'a str, AnnotationValue<'a>);
 
-pub struct LayerBuilder {
+pub struct LayerBuilder<'a> {
     header: super::object::HeaderBuilder,
     manifest: Option<encoding::Digest>,
-    annotations: Vec<KeyAnnotationValuePair>,
+    annotations: Vec<KeyAnnotationValuePair<'a>>,
 }
 
-impl Default for LayerBuilder {
+impl<'a> Default for LayerBuilder<'a> {
     fn default() -> Self {
         Self {
             header: super::object::HeaderBuilder::new(ObjectKind::Layer),
@@ -199,7 +199,7 @@ impl Default for LayerBuilder {
     }
 }
 
-impl LayerBuilder {
+impl<'a> LayerBuilder<'a> {
     pub fn with_header<F>(mut self, mut header: F) -> Self
     where
         F: FnMut(HeaderBuilder) -> HeaderBuilder,
@@ -213,29 +213,30 @@ impl LayerBuilder {
         self
     }
 
-    pub fn with_annotation(mut self, key: String, value: AnnotationValue) -> Self {
+    pub fn with_annotation(mut self, key: &'a str, value: AnnotationValue<'a>) -> Self {
         self.annotations.push((key, value));
         self
     }
 
-    pub fn with_annotations(mut self, annotations: Vec<KeyAnnotationValuePair>) -> Self {
+    pub fn with_annotations(mut self, annotations: Vec<KeyAnnotationValuePair<'a>>) -> Self {
         self.annotations.extend(annotations);
         self
     }
 
-    pub fn build(&self) -> Layer {
+    pub fn build(self) -> Layer {
         super::BUILDER.with_borrow_mut(|builder| {
             let ffb_annotations: Vec<_> = self
                 .annotations
-                .iter()
+                .into_iter()
                 .map(|(k, v)| {
                     let key = builder.create_string(k);
+                    let data_type = v.to_proto();
                     let value = v.build(builder);
                     spfs_proto::Annotation::create(
                         builder,
                         &spfs_proto::AnnotationArgs {
                             key: Some(key),
-                            data_type: v.to_proto(),
+                            data_type,
                             data: Some(value),
                         },
                     )

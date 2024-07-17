@@ -4,6 +4,7 @@
 
 //! Definition and persistent storage of runtimes.
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::env::temp_dir;
 use std::fmt::Display;
@@ -55,7 +56,10 @@ const LIVE_LAYER_FILE_SUFFIX_YAML: &str = ".spfs.yaml";
 const DEFAULT_LIVE_LAYER_FILENAME: &str = "layer.spfs.yaml";
 
 /// Data type for pairs of annotation keys and values
-pub type KeyValuePair = (String, String);
+pub type KeyValuePair<'a> = (&'a str, &'a str);
+
+/// An owned instance of [`KeyValuePair`].
+pub type KeyValuePairBuf = (String, String);
 
 /// Information about the source of a runtime
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -695,7 +699,7 @@ impl Runtime {
     /// Store a list of arbitrary key-value string pairs in the runtime
     pub async fn add_annotations(
         &mut self,
-        data: Vec<KeyValuePair>,
+        data: Vec<KeyValuePair<'_>>,
         size_limit: usize,
     ) -> Result<()> {
         tracing::debug!("adding list of {} Annotations [{}]", data.len(), size_limit);
@@ -703,11 +707,14 @@ impl Runtime {
         let mut annotations: Vec<KeyAnnotationValuePair> = Vec::with_capacity(data.len());
         for (key, value) in data {
             let annotation_value = if value.len() <= size_limit {
-                AnnotationValue::String(value)
+                AnnotationValue::string(value)
             } else {
-                let digest = self.storage.create_blob_for_string(value).await?;
+                let digest = self
+                    .storage
+                    .create_blob_for_string(value.to_owned()) // TODO: avoid the copy
+                    .await?;
                 tracing::debug!("annotation too large for Layer, created Blob for it: {digest}");
-                AnnotationValue::Blob(digest)
+                AnnotationValue::blob(digest)
             };
 
             annotations.push((key, annotation_value));
@@ -727,8 +734,8 @@ impl Runtime {
     /// Store an arbitrary key-value string pair in the runtime
     pub async fn add_annotation(
         &mut self,
-        key: String,
-        value: String,
+        key: &str,
+        value: &str,
         size_limit: usize,
     ) -> Result<()> {
         tracing::debug!(
@@ -740,11 +747,14 @@ impl Runtime {
         );
 
         let annotation_value = if value.len() <= size_limit {
-            AnnotationValue::String(value)
+            AnnotationValue::string(value)
         } else {
-            let digest = self.storage.create_blob_for_string(value).await?;
+            let digest = self
+                .storage
+                .create_blob_for_string(value.to_owned())
+                .await?;
             tracing::debug!("annotation too large for Layer, created Blob for it: {digest}");
-            AnnotationValue::Blob(digest)
+            AnnotationValue::Blob(Cow::Owned(digest))
         };
 
         let layer = graph::Layer::new_with_annotation(key, annotation_value);
@@ -759,7 +769,7 @@ impl Runtime {
     }
 
     /// Return the string value stored as annotation under the given key.
-    pub async fn annotation(&self, key: &str) -> Result<Option<String>> {
+    pub async fn annotation(&self, key: &str) -> Result<Option<Cow<'_, str>>> {
         for digest in self.status.stack.iter_bottom_up() {
             if let Some(s) = self.storage.find_annotation(&digest, key).await? {
                 return Ok(Some(s));
@@ -770,7 +780,7 @@ impl Runtime {
 
     /// Return all the string values that are stored as annotation under any key.
     pub async fn all_annotations(&self) -> Result<BTreeMap<String, String>> {
-        let mut data: BTreeMap<String, String> = BTreeMap::new();
+        let mut data = BTreeMap::new();
         for digest in self.status.stack.iter_bottom_up() {
             let pairs = self
                 .storage
@@ -1262,7 +1272,7 @@ impl Storage {
         &self,
         digest: &Digest,
         key: &str,
-    ) -> Result<Option<String>> {
+    ) -> Result<Option<Cow<str>>> {
         let mut digests_to_process: Vec<Digest> = vec![*digest];
 
         while !digests_to_process.is_empty() {
@@ -1284,7 +1294,7 @@ impl Storage {
                             let annotation: Annotation = entry.into();
                             if annotation.key() == key {
                                 let value = self.find_annotation_value(&annotation).await?;
-                                return Ok(Some(value));
+                                return Ok(Some(Cow::Owned(value.into_owned())));
                             }
                         }
                     }
@@ -1306,8 +1316,8 @@ impl Storage {
     pub(crate) async fn find_annotation_key_value_pairs(
         &self,
         digest: &Digest,
-    ) -> Result<Vec<KeyValuePair>> {
-        let mut key_value_pairs: Vec<KeyValuePair> = Vec::new();
+    ) -> Result<Vec<KeyValuePairBuf>> {
+        let mut key_value_pairs: Vec<KeyValuePairBuf> = Vec::new();
 
         let mut digests_to_process: Vec<Digest> = vec![*digest];
         while !digests_to_process.is_empty() {
@@ -1315,7 +1325,7 @@ impl Storage {
             for digest in digests_to_process.iter() {
                 match self
                     .inner
-                    .read_ref(digest.to_string().as_str())
+                    .read_object(*digest)
                     .await
                     .map(|fo| fo.into_enum())
                 {
@@ -1329,7 +1339,7 @@ impl Storage {
                             let annotation: Annotation = entry.into();
                             let key = annotation.key().to_string();
                             let value = self.find_annotation_value(&annotation).await?;
-                            key_value_pairs.push((key, value));
+                            key_value_pairs.push((key, value.into_owned()));
                         }
                     }
                     Err(err) => {
@@ -1349,11 +1359,14 @@ impl Storage {
     /// Return the value, as a string, from the given annotation,
     /// loading the value from the blob referenced by the digest if
     /// the value is stored in an external blob.
-    async fn find_annotation_value(&self, annotation: &Annotation<'_>) -> Result<String> {
+    async fn find_annotation_value<'a>(
+        &self,
+        annotation: &'a Annotation<'a>,
+    ) -> Result<Cow<'a, str>> {
         let data = match annotation.value() {
-            AnnotationValue::String(s) => s.clone(),
+            AnnotationValue::String(s) => s,
             AnnotationValue::Blob(digest) => {
-                let blob = self.inner.read_blob(digest).await?;
+                let blob = self.inner.read_blob(*digest).await?;
                 let (mut payload, filename) = self.inner.open_payload(*blob.digest()).await?;
                 let mut writer: Vec<u8> = vec![];
                 tokio::io::copy(&mut payload, &mut writer)
@@ -1365,7 +1378,7 @@ impl Storage {
                             err,
                         )
                     })?;
-                String::from_utf8(writer).map_err(|err| Error::String(err.to_string()))?
+                Cow::Owned(String::from_utf8(writer).map_err(|err| Error::String(err.to_string()))?)
             }
         };
         Ok(data)
