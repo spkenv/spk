@@ -1,13 +1,12 @@
-<!-- Copyright (c) Sony Pictures Imageworks, et al. -->
+<!-- Copyright (c) Contributors to the SPK project.. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-<!-- https://github.com/imageworks/spk -->
+<!-- https://github.com/spkenv/spk -->
 
 # Contributing to SPK
 
 Code contributions to SPK are always welcome. That's a big part of why it's
 an open source project. Please review this document to get a briefing on our
 process.
-
 
 ## Communications
 
@@ -19,21 +18,13 @@ process.
 
 * **Bug reports / Issue tracking**:
 
-  Please use [GitHub Issues](https://github.com/imageworks/spk/issues).
-
-  Eventually, the spk, spfs, and spawn repos will all be merged into a single
-  repository. In the mean time, please use the spfs and spawn issues only
-  for items specific to the code in those repos, and for any general topics,
-  file issues in the spk repository so they will stick with what will
-  eventually be the one true project.
-
-
+Please use [GitHub Issues](https://github.com/spkenv/spk/issues).
 
 ## Licenses and copyright
 
-SPK/SPFS/spawn are distributed using the [Apache-2.0 license](LICENSE.txt).
+SPK/SPFS are distributed using the [Apache-2.0 license](LICENSE.txt).
 
-SPK/SPFS/spawn are Copyright (c) Sony Pictures Imageworks, et al.
+SPK/SPFS are Copyright (c) Contributors to the SPK project.
 
 Please note that the "et al" encompasses all the other contributors. We do
 not require transfer of copyright -- technically speaking, submitters retain
@@ -85,7 +76,6 @@ for Imageworks, which, if we use a full CLA, would be responsible for
 collecting and recording the CLA signatures and making sure that all
 contributors had them on file.
 
-
 # Pull Requests and Code Review
 
 The best way to submit changes is via GitHub Pull Request from your own
@@ -95,50 +85,48 @@ Howto](https://help.github.com/articles/using-pull-requests/).
 All code must be formally reviewed before being merged into the official
 repository. The protocol is like this:
 
-1. Get a GitHub account, fork imageworks/spk (or spfs or spawn) to create your
-own repository on GitHub. During the time that we are keeping the imageworks
-repos private (prior to announced public release of the open source project), please ensure that your own fork is also private.
+1. Get a GitHub account, fork spkenv/spk to create your
+own repository on GitHub.
 
-2. Clone your repo to get a repository on your local machine, and you
-   probably want to add a remote to the imageworks repo as well. From the
+1. Clone your repo to get a repository on your local machine, and you
+   probably want to add a remote to the spkenv repo as well. From the
    command line, this probably looks like:
 
-   ```
-   $ git clone https://github.com/YOUR_GITHUB_USERID/spk.git
-   $ cd spk
-   $ git remote add imageworks https://github.com/imageworks/spk.git
-   $ git fetch --all
-   ```
-
-3. Edit, compile, and test your changes in a topic branch:
-
-   ```
-   $ git checkout -b mytopic main
-   $ ... do your edits ...
+   ```sh
+   git clone https://github.com/YOUR_GITHUB_USERID/spk.git
+   cd spk
+   git remote add spkenv https://github.com/spkenv/spk.git
+   git fetch --all
    ```
 
-4. Push your changes to your fork (each unrelated pull request to a separate
-"topic branch", please).
+1. Edit, compile, and test your changes in a topic branch:
 
-   ```
-   $ git add ...files you changed...
-   $ git commit -s -m "Your commit message"
-   $ git push origin mytopic
+   ```sh
+   git checkout -b mytopic main
+   # ... do your edits ...
    ```
 
-5. Make a "pull request" on GitHub for your patch.
+1. Push your changes to your fork (each unrelated pull request to a separate "topic branch", please).
 
-6. If your patch will induce a major compatibility break, or has a design
+   ```sh
+   git add ...files you changed...
+   git commit -s -m "Your commit message"
+   git push origin mytopic
+   ```
+
+1. Make a "pull request" on GitHub for your patch.
+
+1. If your patch will induce a major compatibility break, or has a design
 component that deserves extended discussion or debate among the wider spk
 community, then it may be prudent to email spk-dev pointing everybody to
 the pull request URL and discussing any issues you think are important.
 
-7. The reviewer will look over the code and critique on the "comments" area,
+1. The reviewer will look over the code and critique on the "comments" area,
 or discuss in email. Reviewers may ask for changes, explain problems they
 found, congratulate the author on a clever solution, etc. But until somebody
 clicks the "approve" button in the review section, the code should not be
 committed. Sometimes this takes a few rounds of give and take. Please don't
 take it hard if your first try is not accepted. It happens to all of us.
 
-8. After approval, one of the senior developers (with commit approval to the
+1. After approval, one of the senior developers (with commit approval to the
 official main repository) will merge your fixes into the main branch.

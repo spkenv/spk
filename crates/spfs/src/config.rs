@@ -1,6 +1,6 @@
-// Copyright (c) Sony Pictures Imageworks, et al.
+// Copyright (c) Contributors to the SPK project.
 // SPDX-License-Identifier: Apache-2.0
-// https://github.com/imageworks/spk
+// https://github.com/spkenv/spk
 
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
@@ -343,7 +343,7 @@ pub struct Filesystem {
     pub secondary_repositories: Vec<String>,
 
     /// The size limit for an annotation before the data is stored in
-    /// a sepearate blob payload referenced in an annotation
+    /// a separate blob payload referenced in an annotation
     /// layer. Data values smaller than or equal to this are stored
     /// directly in the annotation layer.
     #[serde(default = "Filesystem::default_annotation_size_limit")]

@@ -1,6 +1,6 @@
-// Copyright (c) Sony Pictures Imageworks, et al.
+// Copyright (c) Contributors to the SPK project.
 // SPDX-License-Identifier: Apache-2.0
-// https://github.com/imageworks/spk
+// https://github.com/spkenv/spk
 
 use rstest::rstest;
 use spfs_encoding::Digest;
@@ -9,7 +9,7 @@ use super::AnnotationValue;
 use crate::encoding;
 
 #[rstest]
-fn test_annotationvalue_string() {
+fn test_annotation_value_string() {
     let value = String::from("value");
     let string_value = AnnotationValue::String(value);
 
@@ -18,7 +18,7 @@ fn test_annotationvalue_string() {
 }
 
 #[rstest]
-fn test_annotationvalue_blob() {
+fn test_annotation_value_blob() {
     let digest: Digest = encoding::EMPTY_DIGEST.into();
 
     let blob_value = AnnotationValue::Blob(digest);

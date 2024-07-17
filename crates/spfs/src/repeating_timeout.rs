@@ -3,9 +3,9 @@
 // Derived from <https://docs.rs/tokio-stream/latest/tokio_stream/trait.StreamExt.html#method.timeout>
 // but modified so timeouts can repeat even if there are no new events on the
 // wrapped stream. Licensed under the MIT license. Any additional changes are:
-// Copyright (c) Sony Pictures Imageworks, et al.
+// Copyright (c) Contributors to the SPK project.
 // SPDX-License-Identifier: Apache-2.0
-// https://github.com/imageworks/spk
+// https://github.com/spkenv/spk
 
 use core::pin::Pin;
 use core::task::{Context, Poll};

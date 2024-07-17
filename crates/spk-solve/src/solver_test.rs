@@ -1,6 +1,6 @@
-// Copyright (c) Sony Pictures Imageworks, et al.
+// Copyright (c) Contributors to the SPK project.
 // SPDX-License-Identifier: Apache-2.0
-// https://github.com/imageworks/spk
+// https://github.com/spkenv/spk
 
 use std::sync::Arc;
 
@@ -695,7 +695,7 @@ async fn test_solver_option_compatibility(mut solver: Solver) {
     // work through the ordered builds until it finds an appropriate
     // 2.x.y values to both solve and pass the test.
     for pyver in [
-        // Uncomment this, when the '2,<3' parsing bug: https://github.com/imageworks/spk/issues/322 has been fixed
+        // Uncomment this, when the '2,<3' parsing bug: https://github.com/spkenv/spk/issues/322 has been fixed
         //"~2.0", "~2.7", "~2.7.5", "2,<3", "2.7,<3", "3", "3.7", "3.7.3",
         "~2.0", "~2.7", "~2.7.5", "3", "3.7", "3.7.3",
     ] {

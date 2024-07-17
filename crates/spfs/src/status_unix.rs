@@ -1,6 +1,6 @@
-// Copyright (c) Sony Pictures Imageworks, et al.
+// Copyright (c) Contributors to the SPK project.
 // SPDX-License-Identifier: Apache-2.0
-// https://github.com/imageworks/spk
+// https://github.com/spkenv/spk
 
 use crate::resolve::{resolve_and_render_overlay_dirs, RenderResult};
 use crate::storage::fs::RenderSummary;

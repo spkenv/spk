@@ -1,9 +1,9 @@
-baseURL = "https://getspk.io/"
+baseURL = "https://spkenv.dev/"
 languageCode = "en-us"
 title = "SPK - Software Packaging System"
 
 [params]
-editUrl = "https://github.com/imageworks/spk/docs/"
+editUrl = "https://github.com/spkenv/spk/tree/main/docs/"
 disableLandingPage = false
 showVisitedLinks = false
 themeVariant = "blue"

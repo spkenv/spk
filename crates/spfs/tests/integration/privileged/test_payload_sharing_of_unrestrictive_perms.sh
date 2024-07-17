@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Copyright (c) Sony Pictures Imageworks, et al.
+# Copyright (c) Contributors to the SPK project.
 # SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
+# https://github.com/spkenv/spk
 
 set -o errexit
 
@@ -51,4 +51,3 @@ test $payload_inode -eq $user1_proxy_inode
 # we expect the proxy file for user2 to be a different inode (a copy)
 user2_proxy_inode=$(stat --format="%i" $SPFS_STORAGE_ROOT/renders/user2/proxy/$digest_part1/$digest_part2/33206)
 test $payload_inode -ne $user2_proxy_inode
-

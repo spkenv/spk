@@ -3,8 +3,8 @@ Version: 0.40.0
 Release: 1%{?dist}
 Summary: Package manager and a software runtime for studio environments
 License: NONE
-URL: https://github.com/imageworks/spk
-Source0: https://github.com/imageworks/spk/archive/refs/tags/v%{version}.tar.gz
+URL: https://github.com/spkenv/spk
+Source0: https://github.com/spkenv/spk/archive/refs/tags/v%{version}.tar.gz
 
 BuildRequires: gcc
 BuildRequires: git

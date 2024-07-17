@@ -1,6 +1,6 @@
-// Copyright (c) Sony Pictures Imageworks, et al.
+// Copyright (c) Contributors to the SPK project.
 // SPDX-License-Identifier: Apache-2.0
-// https://github.com/imageworks/spk
+// https://github.com/spkenv/spk
 
 use rstest::rstest;
 use spk_schema_foundation::ident_component::Component;

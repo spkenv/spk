@@ -1,6 +1,6 @@
-// Copyright (c) Sony Pictures Imageworks, et al.
+// Copyright (c) Contributors to the SPK project.
 // SPDX-License-Identifier: Apache-2.0
-// https://github.com/imageworks/spk
+// https://github.com/spkenv/spk
 
 use std::io;
 use std::str::Utf8Error;
@@ -13,7 +13,7 @@ use crate::{encoding, graph, storage};
 #[derive(Diagnostic, Debug, Error)]
 #[diagnostic(
     url(
-        "https://getspk.io/error_codes#{}",
+        "https://spkenv.dev/error_codes#{}",
         self.code().unwrap_or_else(|| Box::new("spfs::generic"))
     )
 )]

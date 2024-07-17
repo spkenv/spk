@@ -1,6 +1,6 @@
-// Copyright (c) Sony Pictures Imageworks, et al.
+// Copyright (c) Contributors to the SPK project.
 // SPDX-License-Identifier: Apache-2.0
-// https://github.com/imageworks/spk
+// https://github.com/spkenv/spk
 
 use std::fmt::Display;
 
@@ -10,7 +10,7 @@ use crate::{encoding, Result};
 #[path = "./annotation_test.rs"]
 mod annotation_test;
 
-/// Default size limit for string valus stored directly in an
+/// Default size limit for string values stored directly in an
 /// annotation object. Values larger than this are stored in a blob
 /// that is referenced from the annotation object.
 pub const DEFAULT_SPFS_ANNOTATION_LAYER_MAX_STRING_VALUE_SIZE: usize = 16 * 1024;

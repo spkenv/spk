@@ -1,6 +1,6 @@
-// Copyright (c) Sony Pictures Imageworks, et al.
+// Copyright (c) Contributors to the SPK project.
 // SPDX-License-Identifier: Apache-2.0
-// https://github.com/imageworks/spk
+// https://github.com/spkenv/spk
 
 use clap::Args;
 use colored::Colorize;
@@ -50,11 +50,11 @@ build:
 
   # set which host related vars are added automatically to the built package:
   # - Distro: adds 'distro', 'arch', 'os' and '<distroname>' vars, so the package
-  #           can only be used on the same OS, CPU, and OS distribution version 
+  #           can only be used on the same OS, CPU, and OS distribution version
   #           (e.g. linux distro). This is the default.
   # - Arch: adds 'arch' and 'os' vars, so the package can be used anywhere that
   #         has the same OS and CPU architecture (x86_64, i386)
-  # - Os: adds 'os' var, so the package can be used anywhere that has the same 
+  # - Os: adds 'os' var, so the package can be used anywhere that has the same
   #       OS type (mac, linux, windows)
   # - None: adds no host vars, so package can be used on any OS and any architecture
   auto_host_vars: Distro

@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Copyright (c) Sony Pictures Imageworks, et al.
+# Copyright (c) Contributors to the SPK project.
 # SPDX-License-Identifier: Apache-2.0
-# https://github.com/imageworks/spk
+# https://github.com/spkenv/spk
 
 set -o errexit
 
@@ -79,4 +79,3 @@ assert_runtime_count 0
 spfs run - -- true
 wait_for_spfs_monitor_count 0
 assert_runtime_count 0
-

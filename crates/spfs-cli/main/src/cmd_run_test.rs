@@ -1,6 +1,6 @@
-// Copyright (c) Sony Pictures Imageworks, et al.
+// Copyright (c) Contributors to the SPK project.
 // SPDX-License-Identifier: Apache-2.0
-// https://github.com/imageworks/spk
+// https://github.com/spkenv/spk
 
 use std::fs;
 
@@ -102,12 +102,12 @@ fn test_cmd_run_create_annotation_from_file(tmpdir: tempfile::TempDir) {
 #[should_panic]
 fn test_cmd_run_create_annotation_from_file_not_exist(tmpdir: tempfile::TempDir) {
     // Setup a file name that does not exist
-    let filename = tmpdir.path().join("nosuchfile.yaml");
+    let filename = tmpdir.path().join("no-such-file.yaml");
     let filenames = vec![filename];
 
     let values = Vec::new();
 
-    // Test - --annotation-file nosuchfile.yaml
+    // Test - --annotation-file no-such-file.yaml
     let data = Annotation {
         annotation: values,
         annotation_file: filenames,
@@ -120,7 +120,7 @@ fn test_cmd_run_create_annotation_from_file_not_exist(tmpdir: tempfile::TempDir)
 
 #[rstest]
 #[should_panic]
-fn test_cmd_run_create_annotation_from_file_invalid_keyvalues(tmpdir: tempfile::TempDir) {
+fn test_cmd_run_create_annotation_from_file_invalid_key_values(tmpdir: tempfile::TempDir) {
     // Setup some data for the key value pairs
     let field1 = "field1".to_string();
     let field2 = "field2".to_string();
