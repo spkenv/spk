@@ -222,6 +222,10 @@ impl Package for Spec<BuildIdent> {
         &self.pkg
     }
 
+    fn metadata(&self) -> &crate::metadata::Meta {
+        &self.meta
+    }
+
     fn option_values(&self) -> OptionMap {
         let mut opts = OptionMap::default();
         for opt in self.build.options.iter() {

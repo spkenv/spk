@@ -10,6 +10,7 @@ use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// Errors returned by failed package validation rules.
 #[derive(Diagnostic, Debug, Error, Clone, PartialEq, Eq)]
 #[diagnostic(
     url(
@@ -162,4 +163,14 @@ pub enum Error {
         code(spk::build::validation::strong_inheritance_var_description)
     )]
     StrongInheritanceVarDescriptionRequired,
+
+    #[error("A valid SPDX license required, nothing specified")]
+    #[diagnostic(severity(warning), code(spk::build::validation::spdx_license))]
+    SpdxLicenseMissing,
+    #[error("A valid SPDX license required, got {given:?}")]
+    #[diagnostic(severity(warning), code(spk::build::validation::spdx_license))]
+    SpdxLicenseInvalid { given: String },
+    #[error("Package should not have a license specified")]
+    #[diagnostic(severity(warning), code(spk::build::validation::spdx_license))]
+    SpdxLicenseDenied,
 }

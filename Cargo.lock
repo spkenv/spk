@@ -3425,6 +3425,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "spdx"
+version = "0.10.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47317bbaf63785b53861e1ae2d11b80d6b624211d42cb20efcd210ee6f8a14bc"
+dependencies = [
+ "smallvec",
+]
+
+[[package]]
 name = "spfs"
 version = "0.40.0"
 dependencies = [
@@ -3786,6 +3795,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml 0.9.27",
+ "spdx",
  "spfs",
  "spk-exec",
  "spk-schema",

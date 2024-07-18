@@ -16,10 +16,7 @@ fn test_package_meta_missing() {
     }"#,
     );
     assert!(spec.is_ok());
-    assert_eq!(
-        spec.unwrap().meta.license,
-        crate::metadata::Meta::default_license()
-    );
+    assert_eq!(spec.unwrap().meta.license, None);
 }
 
 #[rstest]
@@ -32,7 +29,7 @@ fn test_package_meta_basic() {
     "#,
     )
     .unwrap();
-    assert_eq!(meta.license, crate::metadata::Meta::default_license());
+    assert_eq!(meta.license, None);
     assert!(meta.description.is_some());
     assert!(meta.homepage.is_none());
     assert!(meta.labels.contains_key("department"));
