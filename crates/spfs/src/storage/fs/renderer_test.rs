@@ -118,7 +118,7 @@ async fn test_render_manifest_with_repo(
         .await
         .unwrap();
     assert!(render.exists(), "render should be seen as existing");
-    assert!(was_render_completed(&render));
+    assert!(was_render_completed(&render).await);
     let rendered_manifest = tracking::compute_manifest(&render).await.unwrap();
     let diffs = tracking::compute_diff(&expected_manifest, &rendered_manifest);
     println!("DIFFS:");
