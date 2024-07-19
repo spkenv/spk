@@ -7,6 +7,7 @@ use std::sync::{Arc, RwLock};
 use config::Environment;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
+use spfs::Sentry;
 
 use crate::Result;
 
@@ -15,22 +16,6 @@ use crate::Result;
 mod config_test;
 
 static CONFIG: OnceCell<RwLock<Arc<Config>>> = OnceCell::new();
-
-#[derive(Clone, Default, Debug, Deserialize, Serialize)]
-#[serde(default)]
-pub struct Sentry {
-    /// Sentry DSN
-    pub dsn: String,
-
-    /// Sentry environment
-    pub environment: Option<String>,
-
-    /// Environment variable name to use as sentry username, if set.
-    ///
-    /// This is useful in CI if the CI system has a variable that contains
-    /// the username of the person who triggered the build.
-    pub username_override_var: Option<String>,
-}
 
 #[derive(Clone, Default, Debug, Deserialize, Serialize)]
 #[serde(default)]

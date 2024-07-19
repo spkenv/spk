@@ -83,4 +83,5 @@ pub use self::config::{
     Config,
     RemoteAddress,
     RemoteConfig,
+    Sentry,
 };

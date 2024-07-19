@@ -403,6 +403,26 @@ impl Default for Monitor {
     }
 }
 
+#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct Sentry {
+    /// Sentry DSN
+    pub dsn: String,
+
+    /// Sentry environment
+    pub environment: Option<String>,
+
+    /// Environment variable name to use as sentry username, if set.
+    ///
+    /// This is useful in CI if the CI system has a variable that contains
+    /// the username of the person who triggered the build.
+    pub username_override_var: Option<String>,
+
+    /// Set the email address domain used to generate email addresses for
+    /// sentry events.
+    pub email_domain: Option<String>,
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Config {
@@ -412,6 +432,7 @@ pub struct Config {
     pub remote: std::collections::HashMap<String, Remote>,
     pub fuse: Fuse,
     pub monitor: Monitor,
+    pub sentry: Sentry,
 }
 
 impl Config {

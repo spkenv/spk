@@ -4164,6 +4164,7 @@ dependencies = [
  "rstest 0.15.0",
  "serde",
  "serde_json",
+ "spfs",
  "thiserror",
  "tokio",
  "whoami",

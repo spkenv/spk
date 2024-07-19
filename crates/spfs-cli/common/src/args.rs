@@ -178,6 +178,10 @@ pub fn configure_sentry(
 
             use sentry::IntoDsn;
 
+            let Ok(config) = spfs::get_config() else {
+                return None;
+            };
+
             // SENTRY_USERNAME_OVERRIDE_VAR should hold the name of another
             // environment variable that can hold a username. If it does and
             // the other environment variable exists, its value will be used
@@ -199,14 +203,13 @@ pub fn configure_sentry(
 
             let sentry_init_result = catch_unwind(|| {
                 let mut opts = sentry::ClientOptions {
-                    dsn: "http://3dd72e3b4b9a4032947304fabf29966e@sentry.spimageworks.com/4"
-                        .into_dsn()
-                        .unwrap_or(None),
-                    environment: Some(
-                        std::env::var("SENTRY_ENVIRONMENT")
-                            .unwrap_or_else(|_| "production".to_string())
-                            .into(),
-                    ),
+                    dsn: config.sentry.dsn.as_str().into_dsn().unwrap_or_default(),
+                    environment: config
+                        .sentry
+                        .environment
+                        .as_ref()
+                        .map(ToOwned::to_owned)
+                        .map(std::borrow::Cow::Owned),
                     // spdev follows sentry recommendation of using the release
                     // tag as the name of the release in sentry
                     release: Some(format!("v{}", spfs::VERSION).into()),
@@ -251,8 +254,11 @@ pub fn configure_sentry(
 
                     sentry::configure_scope(|scope| {
                         scope.set_user(Some(sentry::protocol::User {
-                            // TODO: make this configurable in future
-                            email: Some(format!("{}@imageworks.com", &username)),
+                            email: config
+                                .sentry
+                                .email_domain
+                                .as_ref()
+                                .map(|domain| format!("{username}@{domain}")),
                             username: Some(username),
                             ..Default::default()
                         }));
