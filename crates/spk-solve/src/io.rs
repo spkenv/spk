@@ -754,7 +754,7 @@ impl OutputKind {
                     .expect(UNABLE_TO_WRITE_OUTPUT_MESSAGE);
                 file_lock
                     .write_all("\n".as_bytes())
-                    .expect("Unable to write solver output newline to file");
+                    .expect(UNABLE_TO_WRITE_OUTPUT_MESSAGE);
             }
             OutputKind::PrintlnAndToFile(f) => {
                 let mut file_lock = f.lock().expect(UNABLE_TO_GET_OUTPUT_FILE_LOCK);
@@ -796,7 +796,7 @@ impl OutputKind {
     /// output if any.
     ///
     /// This will error if any other output kind is given as the parameter.
-    fn include_output(&self, other_output: &OutputKind) -> Result<Self> {
+    fn include_output(self, other_output: &OutputKind) -> Result<Self> {
         match other_output {
             OutputKind::Println => match self {
                 OutputKind::Println => Ok(self.clone()),

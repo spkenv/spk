@@ -41,9 +41,9 @@ mod flags_test;
 
 static SPK_NO_RUNTIME: &str = "SPK_NO_RUNTIME";
 static SPK_KEEP_RUNTIME: &str = "SPK_KEEP_RUNTIME";
-static SPK_OUTPUT_TO_DIR: &str = "SPK_OUTPUT_TO_DIR";
-static SPK_OUTPUT_TO_DIR_MIN_VERBOSITY: &str = "SPK_OUTPUT_TO_DIR_MIN_VERBOSITY";
-static SPK_OUTPUT_FILE_PREFIX: &str = "SPK_OUTPUT_FILE_PREFIX";
+static SPK_SOLVER_OUTPUT_TO_DIR: &str = "SPK_SOLVER_OUTPUT_TO_DIR";
+static SPK_SOLVER_OUTPUT_TO_DIR_MIN_VERBOSITY: &str = "SPK_SOLVER_OUTPUT_TO_DIR_MIN_VERBOSITY";
+static SPK_SOLVER_OUTPUT_FILE_PREFIX: &str = "SPK_SOLVER_OUTPUT_FILE_PREFIX";
 
 #[derive(Args, Clone)]
 pub struct Runtime {
@@ -1144,19 +1144,19 @@ pub struct DecisionFormatterSettings {
     /// directory and named
     /// `<solver_file_prefix>_YYYYmmdd_HHMMSS_nnnnnnnn_<solver_kind>`. See
     /// --output-file-prefix for the default prefix and how to override it.
-    #[clap(long, env = SPK_OUTPUT_TO_DIR, value_hint = ValueHint::FilePath)]
+    #[clap(long, env = SPK_SOLVER_OUTPUT_TO_DIR, value_hint = ValueHint::FilePath)]
     output_to_dir: Option<std::path::PathBuf>,
 
     /// Set the minimum verbosity for solvers when outputting to a
-    /// file. Has no affect unless --output-to-file is also specified.
+    /// file. Has no effect unless --output-to-file is also specified.
     /// Verbosity set (-v) higher than this minimum will override it.
-    #[clap(long, default_value_t=2, env = SPK_OUTPUT_TO_DIR_MIN_VERBOSITY)]
+    #[clap(long, default_value_t=2, env = SPK_SOLVER_OUTPUT_TO_DIR_MIN_VERBOSITY)]
     output_to_dir_min_verbosity: u8,
 
     /// Override the default solver output filename prefix. The
     /// current date, time, and solver kind name will be appended to
     /// this prefix to produce the file name for each solver.
-    #[clap(long, default_value_t=String::from(DEFAULT_SOLVER_RUN_FILE_PREFIX), env = SPK_OUTPUT_FILE_PREFIX)]
+    #[clap(long, default_value_t=String::from(DEFAULT_SOLVER_RUN_FILE_PREFIX), env = SPK_SOLVER_OUTPUT_FILE_PREFIX)]
     output_file_prefix: String,
 }
 
