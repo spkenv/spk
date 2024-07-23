@@ -829,6 +829,34 @@ impl OutputKind {
             }
         }
     }
+
+    /// Flush the output kind's output file, if any. Any errors that
+    /// occur while flushing the file are logged but not returned
+    /// because we don't want them to interrupt the solve.
+    fn flush(&self) {
+        match self {
+            OutputKind::Println => {}
+            OutputKind::Tracing => {}
+            OutputKind::LogFile(f) => {
+                let mut file_lock = f.lock().expect(UNABLE_TO_GET_OUTPUT_FILE_LOCK);
+                if let Err(err) = file_lock.flush() {
+                    tracing::warn!("{}", Error::SolverLogFileFlushError(err))
+                }
+            }
+            OutputKind::PrintlnAndToFile(f) => {
+                let mut file_lock = f.lock().expect(UNABLE_TO_GET_OUTPUT_FILE_LOCK);
+                if let Err(err) = file_lock.flush() {
+                    tracing::warn!("{}", Error::SolverLogFileFlushError(err))
+                }
+            }
+            OutputKind::TracingAndToFile(f) => {
+                let mut file_lock = f.lock().expect(UNABLE_TO_GET_OUTPUT_FILE_LOCK);
+                if let Err(err) = file_lock.flush() {
+                    tracing::warn!("{}", Error::SolverLogFileFlushError(err))
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -1102,13 +1130,13 @@ impl DecisionFormatter {
             match OpenOptions::new()
                 .write(true)
                 .create_new(true)
-                .open(filepath.clone())
+                .open(&filepath)
             {
                 Ok(f) => {
                     return Ok(Arc::new(Mutex::new(BufWriter::new(f))));
                 }
                 Err(e) if e.kind() == ErrorKind::AlreadyExists => {}
-                Err(e) => return Err(Error::SolverLogFileIOError(e, filepath)),
+                Err(e) => return Err(Error::SolverLogFileIOError(e, filepath.clone())),
             };
         }
     }
@@ -1293,6 +1321,7 @@ impl DecisionFormatter {
                     // Make sure the output location for result is
                     // visible, even if the solver that finished first
                     // was one whose output was being hidden.
+                    output_location.flush();
                     let solver_output_location =
                         output_location.include_output(&initial_output_location)?;
                     let result = self
@@ -1485,6 +1514,8 @@ impl DecisionFormatter {
                 ));
             }
         }
+
+        output_location.flush();
 
         if self.settings.show_search_space_size {
             self.show_search_space_info(&solution, runtime).await?;

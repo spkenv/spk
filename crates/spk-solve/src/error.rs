@@ -63,6 +63,8 @@ pub enum Error {
     IncludingThisOutputNotSupported(String),
     #[error("Error: Solver log file not created: {1} - {0}")]
     SolverLogFileIOError(#[source] std::io::Error, PathBuf),
+    #[error("Error: Flushing solver log file: {0}")]
+    SolverLogFileFlushError(#[source] std::io::Error),
 }
 
 #[derive(Diagnostic, Debug, Error)]
