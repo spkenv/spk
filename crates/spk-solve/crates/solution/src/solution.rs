@@ -167,7 +167,7 @@ impl SolvedRequest {
             .iter()
             .map(ToString::to_string)
             .collect::<Vec<String>>();
-        format!("(required by {})", requested_by.join(", "))
+        requested_by.join(", ").to_string()
     }
 
     /// Format the options for this solved request (build)
@@ -504,7 +504,7 @@ impl Solution {
         }
         if verbosity > 1 {
             // Zero because not padding this column
-            header.push((0, String::from("Requested by and Build options")));
+            header.push((0, String::from("Requested by w/ {build options}")));
         }
         data.push(header);
 
