@@ -13,12 +13,12 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::ident_ops::VerbatimTagStrategy;
 use spk_schema::name::OptName;
 use spk_schema::recipe;
+use spk_solve::option_map::HOST_OPTIONS;
 use spk_solve::spec;
 use spk_storage::fixtures::*;
 use spk_storage::RepositoryHandle;
 
 use super::{Ls, Output, Run};
-use crate::cmd_ls::HOST_OPTIONS;
 
 #[derive(Default)]
 struct OutputToVec {

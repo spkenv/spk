@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 
 use spk_schema_foundation::ident_build::Build;
+use spk_schema_foundation::option_map::OptFilter;
 use spk_schema_foundation::spec_ops::{Named, Versioned};
 use spk_schema_foundation::version::VERSION_SEP;
 use spk_schema_ident::BuildIdent;
@@ -37,6 +38,10 @@ pub trait Package:
 
     /// The values for this packages options used for this build.
     fn option_values(&self) -> OptionMap;
+
+    /// Returns true if the spec's options match all the given option
+    /// filters, otherwise false
+    fn matches_all_filters(&self, filter_by: &Option<Vec<OptFilter>>) -> bool;
 
     /// Return the location of sources for this package
     fn sources(&self) -> &Vec<super::SourceSpec>;
@@ -153,6 +158,10 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
         (**self).option_values()
     }
 
+    fn matches_all_filters(&self, filter_by: &Option<Vec<OptFilter>>) -> bool {
+        (**self).matches_all_filters(filter_by)
+    }
+
     fn sources(&self) -> &Vec<super::SourceSpec> {
         (**self).sources()
     }
@@ -229,6 +238,10 @@ impl<T: Package + Send + Sync> Package for Box<T> {
         (**self).option_values()
     }
 
+    fn matches_all_filters(&self, filter_by: &Option<Vec<OptFilter>>) -> bool {
+        (**self).matches_all_filters(filter_by)
+    }
+
     fn sources(&self) -> &Vec<super::SourceSpec> {
         (**self).sources()
     }
@@ -303,6 +316,10 @@ impl<T: Package + Send + Sync> Package for &T {
 
     fn option_values(&self) -> OptionMap {
         (**self).option_values()
+    }
+
+    fn matches_all_filters(&self, filter_by: &Option<Vec<OptFilter>>) -> bool {
+        (**self).matches_all_filters(filter_by)
     }
 
     fn sources(&self) -> &Vec<super::SourceSpec> {

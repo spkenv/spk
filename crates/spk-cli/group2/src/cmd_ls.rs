@@ -4,7 +4,6 @@
 
 use std::collections::{BTreeSet, HashSet};
 use std::fmt::Write;
-use std::sync::Arc;
 
 use clap::Args;
 use colored::Colorize;
@@ -16,10 +15,9 @@ use spk_schema::foundation::ident_component::ComponentSet;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::ident::{parse_ident, AnyIdent};
 use spk_schema::ident_ops::parsing::{ident_parts, IdentParts, KNOWN_REPOSITORY_NAMES};
-use spk_schema::name::OptNameBuf;
-use spk_schema::option_map::HOST_OPTIONS;
+use spk_schema::option_map::{get_host_options_filters, OptFilter};
 use spk_schema::spec_ops::WithVersion;
-use spk_schema::{Deprecate, OptionMap, Package, Spec};
+use spk_schema::{Deprecate, Package, Spec};
 use {spk_config, spk_storage as storage};
 
 #[cfg(test)]
@@ -44,22 +42,6 @@ impl Output for Console {
 
     fn warn(&mut self, line: String) {
         tracing::warn!("{line}");
-    }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct OptFilter {
-    pub(crate) name: OptNameBuf,
-    pub(crate) value: String,
-}
-
-impl OptFilter {
-    pub fn matches(&self, options: &OptionMap) -> bool {
-        if let Some(v) = options.get(&self.name) {
-            self.value == *v
-        } else {
-            false
-        }
     }
 }
 
@@ -123,19 +105,11 @@ impl<T: Output> Run for Ls<T> {
 
         // Set the default filter to the all current host's host
         // options (--host). --no-host will disable this.
-        let mut filter_by = None;
-        if !self.no_host && self.host {
-            let host_options = HOST_OPTIONS.get()?;
-            let filters = host_options
-                .iter()
-                .map(|(name, value)| OptFilter {
-                    name: name.clone(),
-                    value: value.to_string(),
-                })
-                .collect();
-
-            filter_by = Some(filters);
-        }
+        let filter_by = if !self.no_host && self.host {
+            get_host_options_filters()
+        } else {
+            None
+        };
         tracing::debug!("Filter is: {:?}", filter_by);
 
         let repos = self.repos.get_repos_for_non_destructive_operation().await?;
@@ -211,7 +185,7 @@ impl<T: Output> Run for Ls<T> {
                     while let Some(build) = builds.pop() {
                         match repo.read_package(&build).await {
                             Ok(spec) => {
-                                if !self.matches_all_filters(&spec, &filter_by) {
+                                if !spec.matches_all_filters(&filter_by) {
                                     continue;
                                 }
                                 builds_remaining = true;
@@ -281,7 +255,7 @@ impl<T: Output> Run for Ls<T> {
                             }
                         };
 
-                        if !self.matches_all_filters(&spec, &filter_by) {
+                        if !spec.matches_all_filters(&filter_by) {
                             continue;
                         }
 
@@ -401,7 +375,7 @@ impl<T: Output> Ls<T> {
                         }
                     };
 
-                    if !self.matches_all_filters(&spec, filter_by) {
+                    if !spec.matches_all_filters(filter_by) {
                         continue;
                     }
 
@@ -423,19 +397,6 @@ impl<T: Output> Ls<T> {
             }
         }
         Ok(0)
-    }
-
-    fn matches_all_filters(&self, spec: &Arc<Spec>, filter_by: &Option<Vec<OptFilter>>) -> bool {
-        if let Some(filters) = filter_by {
-            let settings = spec.option_values();
-            for filter in filters {
-                if !filter.matches(&settings) {
-                    return false;
-                }
-            }
-        }
-        // All the filters match, or there were no filters
-        true
     }
 
     async fn filter_all_top_level_packages(
@@ -479,7 +440,7 @@ impl<T: Output> Ls<T> {
                         }
                     };
 
-                    if !self.matches_all_filters(&spec, filter_by) {
+                    if !spec.matches_all_filters(filter_by) {
                         continue;
                     }
 
