@@ -40,7 +40,7 @@ copy-debug-spfs: debug-spfs install-dirs
 copy-debug-spk: debug install-dirs
 	sudo install -p -m 755 $(CARGO_TARGET_DIR)/debug/spk '$(DESTDIR)$(bindir)'
 
-copy-release: release install-dirs
+copy-release: release copy-spfs install-dirs
 	sudo install -p -m 755 $(CARGO_TARGET_DIR)/release/spk '$(DESTDIR)$(bindir)'
 
 copy-spfs: release-spfs install-dirs
