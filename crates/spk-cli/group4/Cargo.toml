@@ -3,6 +3,11 @@ authors = { workspace = true }
 edition = { workspace = true }
 name = "spk-cli-group4"
 version = { workspace = true }
+license-file = { workspace = true }
+homepage = { workspace = true }
+repository = { workspace = true }
+readme = { workspace = true }
+description = { workspace = true }
 
 [lints]
 workspace = true
