@@ -1,0 +1,11 @@
+[package]
+name = "clean-loom"
+authors.workspace = true
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+loom = "0.7"
+
+[lints]
+workspace = true
