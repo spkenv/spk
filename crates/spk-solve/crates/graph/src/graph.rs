@@ -20,7 +20,14 @@ use spk_schema::foundation::name::{OptNameBuf, PkgName, PkgNameBuf};
 use spk_schema::foundation::option_map;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::Compatibility;
-use spk_schema::ident::{InclusionPolicy, PkgRequest, Request, RequestedBy, VarRequest};
+use spk_schema::ident::{
+    InclusionPolicy,
+    PkgRequest,
+    Request,
+    RequestedBy,
+    VarRequest,
+    VersionIterationOrder,
+};
 use spk_schema::prelude::*;
 use spk_schema::{
     AnyIdent,
@@ -533,12 +540,13 @@ impl Graph {
                         _ => &old_node,
                     };
 
-                    for (name, iterator) in
-                        node_to_copy_iterators_from.read().await.iterators.iter()
+                    for (name, sub_map) in node_to_copy_iterators_from.read().await.iterators.iter()
                     {
-                        Arc::make_mut(&mut new_node_lock)
-                            .set_iterator(name.clone(), iterator)
-                            .await
+                        for (version_iteration_order, iterator) in sub_map.iter() {
+                            Arc::make_mut(&mut new_node_lock)
+                                .set_iterator(name.clone(), *version_iteration_order, iterator)
+                                .await
+                        }
                     }
                 }
                 Some(node) => {
@@ -680,6 +688,9 @@ impl<'graph> GraphIter<'graph> {
     }
 }
 
+pub type VersionIteratorsByIterationOrder =
+    HashMap<VersionIterationOrder, Arc<tokio::sync::Mutex<Box<dyn PackageIterator + Send>>>>;
+
 #[derive(Clone, Debug)]
 pub struct Node {
     // Preserve order of inputs/outputs for iterating
@@ -689,7 +700,7 @@ pub struct Node {
     outputs: HashSet<u64>,
     outputs_decisions: Vec<Arc<Decision>>,
     pub state: Arc<State>,
-    iterators: HashMap<PkgNameBuf, Arc<tokio::sync::Mutex<Box<dyn PackageIterator + Send>>>>,
+    iterators: HashMap<PkgNameBuf, VersionIteratorsByIterationOrder>,
 }
 
 impl Node {
@@ -710,8 +721,12 @@ impl Node {
     pub fn get_iterator(
         &self,
         package_name: &PkgName,
+        version_iteration_order: VersionIterationOrder,
     ) -> Option<Arc<tokio::sync::Mutex<Box<dyn PackageIterator + Send>>>> {
-        self.iterators.get(package_name).cloned()
+        self.iterators
+            .get(package_name)
+            .and_then(|h| h.get(&version_iteration_order))
+            .cloned()
     }
 
     pub fn new(state: Arc<State>) -> Self {
@@ -733,14 +748,21 @@ impl Node {
     pub async fn set_iterator(
         &mut self,
         package_name: PkgNameBuf,
+        version_iteration_order: VersionIterationOrder,
         iterator: &Arc<tokio::sync::Mutex<Box<dyn PackageIterator + Send>>>,
     ) {
-        if self.iterators.contains_key(&package_name) {
+        if self
+            .iterators
+            .get(&package_name)
+            .and_then(|h| h.get(&version_iteration_order))
+            .is_some()
+        {
             tracing::error!("iterator already exists [INTERNAL ERROR]");
             debug_assert!(false, "iterator already exists [INTERNAL ERROR]");
         }
-        self.iterators.insert(
-            package_name,
+
+        self.iterators.entry(package_name).or_default().insert(
+            version_iteration_order,
             Arc::new(tokio::sync::Mutex::new(
                 iterator.lock().await.async_clone().await,
             )),

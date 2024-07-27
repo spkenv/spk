@@ -42,13 +42,7 @@ fn solver() -> Solver {
 /// Instead of a packages, version, this macro can also check the set
 /// of resolved components, or the specific build of the package.
 macro_rules! assert_resolved {
-    ($solution:ident, $pkg:literal, $version:literal) => {
-        assert_resolved!($solution, $pkg, $version, "wrong package version was resolved")
-    };
-    ($solution:ident, $pkg:literal, $version:literal, $message:literal) => {
-        assert_resolved!($solution, $pkg, version = $version, $message)
-    };
-    ($solution:ident, $pkg:literal, version = $version:literal, $message:literal) => {{
+    ($solution:ident, $pkg:literal, version = $version:expr, $message:literal) => {{
         let pkg = $solution
             .get($pkg)
             .expect("expected package to be in solution");
@@ -94,6 +88,12 @@ macro_rules! assert_resolved {
         ].into_iter().collect();
         assert_eq!(names, expected, "wrong set of packages was resolved");
     }};
+    ($solution:ident, $pkg:literal, $version:expr, $message:literal) => {
+        assert_resolved!($solution, $pkg, version = $version, $message)
+    };
+    ($solution:ident, $pkg:literal, $version:expr) => {
+        assert_resolved!($solution, $pkg, $version, "wrong package version was resolved")
+    };
 }
 
 /// Asserts that a package does not exist in the solution at any version.
@@ -340,14 +340,24 @@ async fn test_solver_single_package_simple_deps(mut solver: Solver) {
 }
 
 #[rstest]
+#[case::newest_first("NewestFirst", "1.1.1")]
+#[case::oldest_first("OldestFirst", "1.1.0")]
 #[tokio::test]
-async fn test_solver_dependency_abi_compat(mut solver: Solver) {
+async fn test_solver_dependency_abi_compat(
+    mut solver: Solver,
+    #[case] order: &str,
+    #[case] expected: &str,
+) {
     let options = option_map! {};
     let repo = make_repo!(
         [
             {
                 "pkg": "pkg-b/1.1.0",
-                "install": {"requirements": [{"pkg": "pkg-a/1.1.0"}]},
+                "install": {"requirements": [
+                    {
+                        "pkg": "pkg-a/1.1.0",
+                        "versionIterationOrder": order,
+                    }]},
             },
             {"pkg": "pkg-a/2.1.1", "compat": "x.a.b"},
             {"pkg": "pkg-a/1.2.1", "compat": "x.a.b"},
@@ -364,7 +374,7 @@ async fn test_solver_dependency_abi_compat(mut solver: Solver) {
 
     let packages = run_and_print_resolve_for_tests(&solver).await.unwrap();
     assert_eq!(packages.len(), 2, "expected two resolved packages");
-    assert_resolved!(packages, "pkg-a", "1.1.1");
+    assert_resolved!(packages, "pkg-a", expected);
     assert_resolved!(packages, "pkg-b", "1.1.0");
 }
 

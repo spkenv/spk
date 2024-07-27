@@ -22,6 +22,7 @@ format_serde_error = { version = "0.3", default-features = false, features = [
     "colored",
 ] }
 itertools = { workspace = true }
+miette = { workspace = true }
 nom = { workspace = true }
 nom-supreme = { workspace = true }
 relative-path = { workspace = true }
@@ -29,7 +30,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_yaml = { workspace = true }
 spk-schema-foundation = { workspace = true }
 thiserror = { workspace = true }
-miette = { workspace = true }
+variantly = { workspace = true }
 
 [dev-dependencies]
 data-encoding = "2.3"

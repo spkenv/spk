@@ -25,15 +25,15 @@ async-trait = { workspace = true }
 dyn-clone = { workspace = true }
 futures = { workspace = true }
 glob = { workspace = true }
+miette = { workspace = true }
 once_cell = { workspace = true }
 spk-config = { workspace = true }
-spk-solve-solution = { workspace = true }
 spk-schema = { workspace = true }
+spk-solve-solution = { workspace = true }
 spk-storage = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }
-miette = { workspace = true }
 
 [dev-dependencies]
 itertools = { workspace = true }

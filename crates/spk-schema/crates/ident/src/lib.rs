@@ -32,6 +32,7 @@ pub use request::{
     Request,
     RequestedBy,
     VarRequest,
+    VersionIterationOrder,
 };
 pub use satisfy::Satisfy;
 
