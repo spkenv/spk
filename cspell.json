@@ -4,7 +4,8 @@
     "**/*.svg",
     "website/**/*.js",
     "website/**/*.css",
-    "website/layouts/**"
+    "website/layouts/**",
+    ".github/workflows/**"
   ],
   "flagWords": [],
   "language": "en",
