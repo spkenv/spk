@@ -26,10 +26,10 @@ See the main [docs](docs/) for details on using spk, starting with the [index](d
 
 ## License
 
-SPK/SPFS/spawn are Copyright (c) Contributors to the SPK project.
+SPK/SPFS are Copyright (c) Contributors to the SPK project.
 All Rights Reserved.
 
-SPK/SPFS/spawn are distributed using the [Apache-2.0 license](LICENSE.txt).
+SPK/SPFS are distributed using the [Apache-2.0 license](LICENSE.txt).
 
 ## Structure of this project
 
@@ -37,26 +37,13 @@ SPK/SPFS/spawn are distributed using the [Apache-2.0 license](LICENSE.txt).
 
 `spk` is the software packaging system built on top of SPFS.
 
-`spawn` is the application launcher for spk packages.
-
-These are spread over two code bases at the moment, but may
-be merged into a single project, [spk](https://github.com/spkenv/spk).
-Please refer to [spk](https://github.com/spkenv/spk) for almost all
-information about staging the open source project, that's where the
-developer documentation and communication will live, including
-[Contributing to SPK](https://github.com/spkenv/spk/CONTRIBUTING.md).
-
 ## Contributing
 
 Please read [Contributing to SPK](https://github.com/spkenv/spk/CONTRIBUTING.md).
 
-## Development plan
-
-Please read [SPK open source development plan](https://github.com/spkenv/spk/OPEN_SOURCE_PLAN.md).
-
 ## Development
 
-Both spk and spfs are written in Rust and use cargo. The best way to get started with rust development is to install the latest stable rust toolchain using [rustup](https://rustup.sh).
+Both SPK and SPFS are written in Rust and use cargo. The best way to get started with Rust development is to install the latest stable Rust toolchain using [rustup](https://rustup.sh).
 
 For details on architecture and design of the codebase, see the [developer docs](docs/develop).
 
@@ -83,7 +70,7 @@ make install
 
 ### RPM Package
 
-The codebase is setup to produce a centos7-compatible rpm package for both spfs and spk by building them in a docker container. To create the rpm package, you will need docker installed. These packages are also built and made available in this repository's CI.
+The codebase is set up to produce a centos7-compatible rpm package for both spfs and spk by building them in a docker container. To create the rpm package, you will need docker installed. These packages are also built and made available in this repository's CI.
 
 ```sh
 # build the rpm package via docker and copy into ./dist/rpm
@@ -92,7 +79,7 @@ make rpms
 
 ### Testing
 
-Both projecs have a number of unit and integration tests as well as testable examples that can all be executed with `make test`. The tests for spk need to be executed under an spfs runtime in order to properly execute. We also have configured linting rules that must pass for all contributions.
+Both projects have a number of unit and integration tests as well as testable examples that can all be executed with `make test`. The tests for spk need to be executed under an SPFS runtime in order to properly execute. We also have configured linting rules that must pass for all contributions.
 
 Our repository is broken down into a number of smaller crates for easier development, and they can be individually targeted in the makefile which can greatly reduce the time it takes for testing and linting.
 
@@ -107,6 +94,10 @@ make lint test CRATES=spfs-encoding,spfs-cli-common
 ```
 
 ### Bootstrapping
+
+> [!WARNING]
+> The existing bootstrapping setup was developed for CentOS 7 and may need
+> updates as we transition to el9 distributions.
 
 In a new environment, it can be helpful to build all of the core packages whose recipes ship with SPK. A script has been provided which runs through all of the builds for these packages in the right order.
 
@@ -123,6 +114,10 @@ Some of these package specs have not yet been used or tested fully or ironed out
 
 #### Using Docker
 
+> [!WARNING]
+> The this process was setup to create packages in CentOS 7 and may need
+> updates as we transition to el9 distributions.
+
 Currently, this process can only be run on an rpm-based system, as it relies on some rpm packages being installed on the host in order to bootstrap the build process. If you are not running on an rpm-based system, you can run the process in a container instead:
 
 ```sh
@@ -137,7 +132,7 @@ make packages.import
 
 #### Conversion Packages
 
-Spk has logic to automatically convert pip packages to spk packages for easy python environment creation. This logic lives and runs inside of it's own spk package/environment. If you have python3 already installed, you can generate this package locally like so:
+Spk has logic to automatically convert pip packages to spk packages for easy Python environment creation. This logic lives and runs inside of its own spk package/environment. If you have python3 already installed, you can generate this package locally like so:
 
 ```sh
 make converters
@@ -153,10 +148,10 @@ spk convert pip --help
 
 #### Other Notes
 
-- The make `packages.python2` and `packages.python3` targets can be used to bootstrap just enough to be able to build python for spk. The python recipes will build multiple python versions for each gcc48 and 63 as well as for the different python abi's
+- The `make packages.python3` target can be used to bootstrap just enough to be able to build Python for SPK. The Python recipes will build multiple Python versions for each gcc48 and 63 as well as for the different Python ABIs
 - The make `packages.gnu` target can be used to bootstrap just enough to get "native" spk packages for gcc48 and gcc63
 
-Of course, the packages themselves can also be build with the `spk build <spec_file>` command directly, though you may find that some required build dependencies need to be generated with the `make packages.bootstrap.full` command first.
+Of course, the packages themselves can also be built with the `spk build <spec_file>` command directly, though you may find that some required build dependencies need to be generated with the `make packages.bootstrap.full` command first.
 
 The following RPM packages must be installed in order to create the bootstrap packages.
 
@@ -184,13 +179,14 @@ sudo yum install -y \
     zip \
     zlib
 ```
-SPFS has a number of unit tests written in rust that can be run using the `cargo` command.
+
+SPFS has a number of unit tests written in Rust that can be run using the `cargo` command or via our make target.
 
 ```sh
-cargo test
+make test
 ```
 
-Additionally, there are a number of integration tests that validate the fully installed state of spfs. These are generally a series of spfs command line calls that validate the creation and usage of the `/spfs` filesystem.
+Additionally, there are a number of integration tests that validate the fully installed state of spfs. These are generally a series of SPFS command line calls that validate the creation and usage of the `/spfs` filesystem.
 
 ```sh
 cargo build
@@ -200,9 +196,9 @@ tests/integration/run_all.sh
 
 ### Windows
 
-To build and run on windows, you need a couple of dependencies that are easiest to install via chocolatey.
+To build and run on Windows, you need a couple of dependencies that are easiest to install via Chocolatey.
 
-```
+```sh
 choco install protoc llvm winfsp
 ```
 
@@ -214,7 +210,7 @@ Benchmark tests can be found in `benches/`. All benchmark tests can be run with 
 cargo bench --bench spfs_bench
 ```
 
-A common workflow as described [here](https://bheisler.github.io/criterion.rs/book/user_guide/command_line_options.html#baselines) is to record a baseline measurement to use as a reference to compare future measurements to.
+A common workflow as described [here](https://bheisler.github.io/criterion.rs/book/user_guide/command_line_options.html#baselines) is to record a baseline measurement to use as a reference to compare future measurements against.
 
 ```sh
 git checkout main
