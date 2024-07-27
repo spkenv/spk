@@ -1,6 +1,11 @@
 [package]
 name = "progress_bar_derive_macro"
 version = { workspace = true }
+license-file = { workspace = true }
+homepage = { workspace = true }
+repository = { workspace = true }
+readme = { workspace = true }
+description = { workspace = true }
 edition = { workspace = true }
 
 [lints]

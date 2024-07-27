@@ -31,7 +31,13 @@ authors = [
     "Nichol Yip <nyip@imageworks.com>",
 ]
 edition = "2021"
-version = "0.40.0"
+version = "0.42.0"
+license-file = "LICENSE"
+homepage = "https://spkenv.dev"
+repository = "https://github.com/spkenv/spk"
+readme = "README.md"
+description = "SPK is a Package Manager for high-velocity software environments, built on SPFS. SPFS is a system for filesystem isolation, capture, and distribution."
+
 
 [workspace.dependencies]
 arc-swap = "1.6.0"

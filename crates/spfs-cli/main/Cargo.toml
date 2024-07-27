@@ -4,6 +4,11 @@ default-run = "spfs"
 edition = { workspace = true }
 name = "spfs-cli-main"
 version = { workspace = true }
+license-file = { workspace = true }
+homepage = { workspace = true }
+repository = { workspace = true }
+readme = { workspace = true }
+description = { workspace = true }
 
 [lints]
 workspace = true
