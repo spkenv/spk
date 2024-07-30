@@ -1,7 +1,7 @@
 ---
-title: Setup & Admin
+title: Installation & Setup
 summary: System administrator documentation for spk
-weight: 20
+weight: 5
 ---
 
 {{% children style="h3" description="true" %}}

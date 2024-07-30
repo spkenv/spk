@@ -4,8 +4,6 @@ summary: Installation instructions for spfs and spk
 weight: 10
 ---
 
-## Installation
-
 ### Linux (RHEL/Alma/Rocky)
 
 RPM packages are published with each release, and can be downloaded from [GitHub](https://github.com/spkenv/spk/releases).
