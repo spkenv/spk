@@ -84,21 +84,21 @@ impl Run for Env {
         setup_runtime(&mut rt, &solution).await?;
 
         let env = solution.to_environment(Some(std::env::vars()));
-        let _: Vec<_> = std::env::vars()
-            .map(|(k, _)| k)
-            .map(std::env::remove_var)
-            .collect();
-        for (name, value) in env.into_iter() {
-            std::env::set_var(name, value);
-        }
 
-        let command = if self.command.is_empty() {
+        let mut command = if self.command.is_empty() {
             spfs::build_interactive_shell_command(&rt, None)?
         } else {
             let cmd = self.command.first().unwrap();
             let args = &self.command[1..];
             spfs::build_shell_initialized_command(&rt, None, cmd, args)?
         };
+
+        // Previously we modified the existing environment but that is not
+        // safe. The changes that `solution.to_environment` makes to the
+        // environment, e.g., `$SPK_*` vars, should not impact the behavior of
+        // `spfs::build_interactive_shell_command` or
+        // `spfs::build_shell_initialized_command`.
+        command.vars = env.into_iter().map(|(k, v)| (k.into(), v.into())).collect();
 
         // Record the run duration up to this point because this spk
         // command is about to replace itself with the underlying env
