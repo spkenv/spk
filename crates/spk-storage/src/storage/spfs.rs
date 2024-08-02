@@ -878,6 +878,8 @@ where
                     // [Re-]create embedded stubs.
                     if build.can_embed() {
                         let spec = self.read_package(&build).await?;
+                        // spec is not mutated
+                        #[allow(clippy::mutable_key_type)]
                         let providers = self.get_embedded_providers(&spec)?;
                         if !providers.is_empty() {
                             tracing::info!("Creating embedded stubs for {name}...");
