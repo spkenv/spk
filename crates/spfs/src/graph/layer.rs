@@ -123,6 +123,8 @@ impl Layer {
         // Includes any annotations regardless of the EncodingFormat setting
         let annotations = self.annotations();
         let result = if let Some(manifest_digest) = self.manifest() {
+            // Clippy doesn't realize `writer` can't be moved here.
+            #[allow(clippy::needless_borrows_for_generic_args)]
             let manifest_result =
                 encoding::write_digest(&mut writer, manifest_digest).map_err(Error::Encoding);
             for entry in annotations {

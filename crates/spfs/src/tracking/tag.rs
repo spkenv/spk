@@ -140,6 +140,8 @@ impl Digestible for Tag {
 impl Encodable for Tag {
     type Error = Error;
 
+    // Clippy doesn't realize `writer` can't be moved here.
+    #[allow(clippy::needless_borrows_for_generic_args)]
     fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
         if let Some(org) = self.org.as_ref() {
             encoding::write_string(&mut writer, org)?;
@@ -156,6 +158,8 @@ impl Encodable for Tag {
 }
 
 impl encoding::Decodable for Tag {
+    // Clippy doesn't realize `reader` can't be moved here.
+    #[allow(clippy::needless_borrows_for_generic_args)]
     fn decode(mut reader: &mut impl BufRead) -> Result<Self> {
         let org = encoding::read_string(&mut reader)?;
         let org = match org.as_str() {

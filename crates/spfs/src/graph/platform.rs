@@ -55,6 +55,8 @@ impl Platform {
         self.iter_bottom_up().copied().collect()
     }
 
+    // Clippy doesn't realize `writer` can't be moved here.
+    #[allow(clippy::needless_borrows_for_generic_args)]
     pub(super) fn digest_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
         // use a vec to know the name ahead of time and
         // avoid iterating the stack twice
@@ -68,6 +70,8 @@ impl Platform {
         Ok(())
     }
 
+    // Clippy doesn't realize `writer` can't be moved here.
+    #[allow(clippy::needless_borrows_for_generic_args)]
     pub(super) fn legacy_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
         // use a vec to know the name ahead of time and
         // avoid iterating the stack twice
@@ -169,6 +173,8 @@ impl PlatformBuilder {
 
     /// Read a data encoded using the legacy format, and
     /// use the data to fill and complete this builder
+    // Clippy doesn't realize `reader` can't be moved here.
+    #[allow(clippy::needless_borrows_for_generic_args)]
     pub fn legacy_decode(self, mut reader: &mut impl std::io::Read) -> Result<Platform> {
         let num_layers = encoding::read_uint64(&mut reader)?;
         let mut layers = Vec::with_capacity(num_layers as usize);

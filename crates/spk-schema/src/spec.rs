@@ -195,7 +195,7 @@ impl TemplateExt for SpecTemplate {
             Ok(v) => v,
         };
 
-        let api = template_value.get(&serde_yaml::Value::String("api".to_string()));
+        let api = template_value.get(serde_yaml::Value::String("api".to_string()));
 
         if api.is_none() {
             tracing::warn!(
@@ -210,7 +210,7 @@ impl TemplateExt for SpecTemplate {
         };
 
         let pkg = template_value
-            .get(&serde_yaml::Value::String(name_field.to_string()))
+            .get(serde_yaml::Value::String(name_field.to_string()))
             .ok_or_else(|| {
                 crate::Error::String(format!(
                     "Missing {name_field} field in spec file: {file_path:?}"

@@ -39,6 +39,8 @@ impl<'buf> Tree<'buf> {
 
     pub(super) fn digest_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
         let mut entries: Vec<_> = self.entries().collect();
+        // Clippy doesn't realize `writer` can't be moved here.
+        #[allow(clippy::needless_borrows_for_generic_args)]
         encoding::write_uint64(&mut writer, entries.len() as u64)?;
         // this is not the default sort mode for entries but
         // matches the existing compatible encoding order
@@ -51,6 +53,8 @@ impl<'buf> Tree<'buf> {
 
     pub(super) fn legacy_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
         let mut entries: Vec<_> = self.entries().collect();
+        // Clippy doesn't realize `writer` can't be moved here.
+        #[allow(clippy::needless_borrows_for_generic_args)]
         encoding::write_uint64(&mut writer, entries.len() as u64)?;
         // this is not the default sort mode for entries but
         // matches the existing compatible encoding order
@@ -66,6 +70,8 @@ impl<'buf> Tree<'buf> {
         mut reader: &mut impl BufRead,
     ) -> Result<flatbuffers::WIPOffset<spfs_proto::Tree<'builder>>> {
         let mut entries = Vec::new();
+        // Clippy doesn't realize `reader` can't be moved here.
+        #[allow(clippy::needless_borrows_for_generic_args)]
         let entry_count = encoding::read_uint64(&mut reader)?;
         for _ in 0..entry_count {
             entries.push(Entry::legacy_decode(builder, reader)?);

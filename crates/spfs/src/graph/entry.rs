@@ -180,6 +180,8 @@ impl<'buf> encoding::Digestible for Entry<'buf> {
 }
 
 impl<'buf> Entry<'buf> {
+    // Clippy doesn't realize `writer` can't be moved here.
+    #[allow(clippy::needless_borrows_for_generic_args)]
     pub(super) fn digest_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
         encoding::write_digest(&mut writer, self.object())?;
         self.kind().encode(&mut writer)?;
@@ -189,6 +191,8 @@ impl<'buf> Entry<'buf> {
         Ok(())
     }
 
+    // Clippy doesn't realize `writer` can't be moved here.
+    #[allow(clippy::needless_borrows_for_generic_args)]
     pub(super) fn legacy_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
         encoding::write_digest(&mut writer, self.object())?;
         self.kind().encode(&mut writer)?;
@@ -198,6 +202,8 @@ impl<'buf> Entry<'buf> {
         Ok(())
     }
 
+    // Clippy doesn't realize `reader` can't be moved here.
+    #[allow(clippy::needless_borrows_for_generic_args)]
     pub(super) fn legacy_decode<'builder>(
         builder: &mut flatbuffers::FlatBufferBuilder<'builder>,
         mut reader: &mut impl BufRead,
