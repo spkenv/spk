@@ -20,6 +20,7 @@ use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::spec_ops::Named;
 use spk_schema::foundation::version::CompatRule;
 use spk_schema::ident::{parse_ident, AnyIdent, PkgRequest, Request, RequestedBy, VarRequest};
+use spk_schema::ident_ops::NormalizedTagStrategy;
 use spk_schema::option_map::HOST_OPTIONS;
 use spk_schema::{Recipe, SpecRecipe, SpecTemplate, Template, TemplateExt, TestStage, VariantExt};
 #[cfg(feature = "statsd")]
@@ -957,7 +958,7 @@ impl Repositories {
         if self.local_repo_only {
             return Ok(repos);
         }
-        for (name, ts) in enabled.into_iter().chain([("origin", None)]) {
+        for (name, ts) in enabled.into_iter() {
             if disabled.contains(name) {
                 continue;
             }
@@ -979,6 +980,21 @@ impl Repositories {
                 repo.set_legacy_spk_version_tags(true);
             }
             repos.push((name.into(), repo.into()));
+        }
+        let has_origin = repos.iter().any(|(n, _)| n == "origin");
+        if !disabled.contains("origin") && !has_origin {
+            // the origin repo is considered a default and specifically
+            // added at the very end of any command line flags if needed
+            match storage::remote_repository::<_, NormalizedTagStrategy>("origin").await {
+                Err(spk_storage::Error::SPFS(spfs::Error::UnknownRemoteName(_))) => {}
+                Err(err) => return Err(err.into()),
+                Ok(mut origin) => {
+                    if self.legacy_spk_version_tags {
+                        origin.set_legacy_spk_version_tags(true);
+                    }
+                    repos.push(("origin".into(), origin.into()));
+                }
+            }
         }
         Ok(repos)
     }

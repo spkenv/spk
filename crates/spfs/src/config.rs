@@ -559,6 +559,17 @@ impl Config {
         ))
     }
 
+    /// Get a remote repository by name, returning None if it is not configured
+    pub async fn try_get_remote<S: AsRef<str>>(
+        &self,
+        remote_name: S,
+    ) -> Result<Option<storage::RepositoryHandle>> {
+        match self.get_remote(remote_name).await {
+            Err(crate::Error::UnknownRemoteName(_)) => Ok(None),
+            res => res.map(Some),
+        }
+    }
+
     /// Get a remote repository by name.
     pub async fn get_remote<S: AsRef<str>>(
         &self,

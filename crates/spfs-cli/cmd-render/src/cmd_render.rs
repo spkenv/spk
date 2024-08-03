@@ -51,27 +51,30 @@ impl CommandName for CmdRender {
 
 impl CmdRender {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
-        let env_spec = spfs::tracking::EnvSpec::parse(&self.reference)?;
+        let mut env_spec = spfs::tracking::EnvSpec::parse(&self.reference)?;
         let (repo, origin, remotes) = tokio::try_join!(
             config.get_opened_local_repository(),
-            config.get_remote("origin"),
+            config.try_get_remote("origin"),
             config.list_remotes()
         )?;
 
-        let handle = repo.clone().into();
-        let synced = self
-            .sync
-            .get_syncer(&origin, &handle)
-            .sync_env(env_spec)
-            .await?;
+        if let Some(origin) = origin {
+            let handle = repo.clone().into();
+            env_spec = self
+                .sync
+                .get_syncer(&origin, &handle)
+                .sync_env(env_spec)
+                .await?
+                .env;
+        }
 
         // Use PayloadFallback to repair any missing payloads found in the
         // local repository by copying from any of the configure remotes.
         let fallback = FallbackProxy::new(repo, remotes);
 
         let rendered = match &self.target {
-            Some(target) => self.render_to_dir(fallback, synced.env, target).await?,
-            None => self.render_to_repo(fallback, synced.env).await?,
+            Some(target) => self.render_to_dir(fallback, env_spec, target).await?,
+            None => self.render_to_repo(fallback, env_spec).await?,
         };
 
         tracing::debug!("render(s) completed successfully");

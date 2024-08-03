@@ -37,19 +37,21 @@ impl CmdReset {
             spfs::active_runtime(),
             config.get_local_repository_handle()
         )?;
-        if let Some(env_spec) = &self.reference {
+        if let Some(mut env_spec) = self.reference.clone() {
             runtime.reset::<&str>(&[])?;
             runtime.status.stack.clear();
             if env_spec.is_empty() {
                 self.edit = true;
             } else {
-                let origin = config.get_remote("origin").await?;
-                let synced = self
-                    .sync
-                    .get_syncer(&origin, &repo)
-                    .sync_env(env_spec.clone())
-                    .await?;
-                for item in synced.env.iter() {
+                if let Some(origin) = config.try_get_remote("origin").await? {
+                    env_spec = self
+                        .sync
+                        .get_syncer(&origin, &repo)
+                        .sync_env(env_spec)
+                        .await?
+                        .env;
+                }
+                for item in env_spec.iter() {
                     let digest = item.resolve_digest(&repo).await?;
                     runtime.push_digest(digest);
                 }
