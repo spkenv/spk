@@ -37,11 +37,9 @@ impl<'buf> Tree<'buf> {
         self.entries().find(|entry| entry.name() == name.as_ref())
     }
 
-    pub(super) fn digest_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
+    pub(super) fn digest_encode(&self, writer: &mut impl std::io::Write) -> Result<()> {
         let mut entries: Vec<_> = self.entries().collect();
-        // Clippy doesn't realize `writer` can't be moved here.
-        #[allow(clippy::needless_borrows_for_generic_args)]
-        encoding::write_uint64(&mut writer, entries.len() as u64)?;
+        encoding::write_uint64(&mut *writer, entries.len() as u64)?;
         // this is not the default sort mode for entries but
         // matches the existing compatible encoding order
         entries.sort_unstable_by_key(|e| e.name());
@@ -51,11 +49,9 @@ impl<'buf> Tree<'buf> {
         Ok(())
     }
 
-    pub(super) fn legacy_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
+    pub(super) fn legacy_encode(&self, writer: &mut impl std::io::Write) -> Result<()> {
         let mut entries: Vec<_> = self.entries().collect();
-        // Clippy doesn't realize `writer` can't be moved here.
-        #[allow(clippy::needless_borrows_for_generic_args)]
-        encoding::write_uint64(&mut writer, entries.len() as u64)?;
+        encoding::write_uint64(&mut *writer, entries.len() as u64)?;
         // this is not the default sort mode for entries but
         // matches the existing compatible encoding order
         entries.sort_unstable_by_key(|e| e.name());
@@ -67,12 +63,10 @@ impl<'buf> Tree<'buf> {
 
     pub(super) fn legacy_decode<'builder>(
         builder: &mut flatbuffers::FlatBufferBuilder<'builder>,
-        mut reader: &mut impl BufRead,
+        reader: &mut impl BufRead,
     ) -> Result<flatbuffers::WIPOffset<spfs_proto::Tree<'builder>>> {
         let mut entries = Vec::new();
-        // Clippy doesn't realize `reader` can't be moved here.
-        #[allow(clippy::needless_borrows_for_generic_args)]
-        let entry_count = encoding::read_uint64(&mut reader)?;
+        let entry_count = encoding::read_uint64(&mut *reader)?;
         for _ in 0..entry_count {
             entries.push(Entry::legacy_decode(builder, reader)?);
         }

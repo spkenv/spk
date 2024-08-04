@@ -119,23 +119,21 @@ impl Layer {
         children
     }
 
-    pub(super) fn digest_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
+    pub(super) fn digest_encode(&self, writer: &mut impl std::io::Write) -> Result<()> {
         // Includes any annotations regardless of the EncodingFormat setting
         let annotations = self.annotations();
         let result = if let Some(manifest_digest) = self.manifest() {
-            // Clippy doesn't realize `writer` can't be moved here.
-            #[allow(clippy::needless_borrows_for_generic_args)]
             let manifest_result =
-                encoding::write_digest(&mut writer, manifest_digest).map_err(Error::Encoding);
+                encoding::write_digest(&mut *writer, manifest_digest).map_err(Error::Encoding);
             for entry in annotations {
                 let annotation: Annotation = entry.into();
-                annotation.legacy_encode(&mut writer)?;
+                annotation.legacy_encode(&mut *writer)?;
             }
             manifest_result
         } else if !annotations.is_empty() {
             for entry in annotations {
                 let annotation: Annotation = entry.into();
-                annotation.legacy_encode(&mut writer)?;
+                annotation.legacy_encode(&mut *writer)?;
             }
             Ok(())
         } else {

@@ -156,9 +156,7 @@ impl Manifest {
         // this method encodes the root tree first, and does not
         // include it in the count of remaining trees since at least
         // one root is always required
-        // Clippy doesn't realize `writer` can't be moved here.
-        #[allow(clippy::needless_borrows_for_generic_args)]
-        encoding::write_uint64(&mut writer, self.proto().trees().len() as u64 - 1)?;
+        encoding::write_uint64(&mut *writer, self.proto().trees().len() as u64 - 1)?;
         // skip the root tree when saving the rest
         for tree in self.iter_trees().skip(1) {
             tree.digest_encode(writer)?;
@@ -171,9 +169,7 @@ impl Manifest {
         // this method encodes the root tree first, and does not
         // include it in the count of remaining trees since at least
         // one root is always required
-        // Clippy doesn't realize `writer` can't be moved here.
-        #[allow(clippy::needless_borrows_for_generic_args)]
-        encoding::write_uint64(&mut writer, self.proto().trees().len() as u64 - 1)?;
+        encoding::write_uint64(&mut *writer, self.proto().trees().len() as u64 - 1)?;
         // skip the root tree when saving the rest
         for tree in self.iter_trees().skip(1) {
             tree.legacy_encode(writer)?;
@@ -250,9 +246,7 @@ impl ManifestBuilder {
             // historically, the root tree was stored first an not included in the count
             // since it is an error to not have at least one root tree
             let root = Tree::legacy_decode(builder, &mut reader)?;
-            // Clippy doesn't realize `reader` can't be moved here.
-            #[allow(clippy::needless_borrows_for_generic_args)]
-            let num_trees = encoding::read_uint64(&mut reader)?;
+            let num_trees = encoding::read_uint64(&mut *reader)?;
             let mut trees = Vec::with_capacity(num_trees as usize + 1);
             trees.push(root);
             for _ in 0..num_trees {

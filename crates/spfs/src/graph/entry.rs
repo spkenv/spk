@@ -180,39 +180,33 @@ impl<'buf> encoding::Digestible for Entry<'buf> {
 }
 
 impl<'buf> Entry<'buf> {
-    // Clippy doesn't realize `writer` can't be moved here.
-    #[allow(clippy::needless_borrows_for_generic_args)]
-    pub(super) fn digest_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
-        encoding::write_digest(&mut writer, self.object())?;
-        self.kind().encode(&mut writer)?;
-        encoding::write_uint64(&mut writer, self.mode() as u64)?;
-        encoding::write_uint64(&mut writer, self.size_for_legacy_encode())?;
+    pub(super) fn digest_encode(&self, writer: &mut impl std::io::Write) -> Result<()> {
+        encoding::write_digest(&mut *writer, self.object())?;
+        self.kind().encode(&mut *writer)?;
+        encoding::write_uint64(&mut *writer, self.mode() as u64)?;
+        encoding::write_uint64(&mut *writer, self.size_for_legacy_encode())?;
         encoding::write_string(writer, self.name())?;
         Ok(())
     }
 
-    // Clippy doesn't realize `writer` can't be moved here.
-    #[allow(clippy::needless_borrows_for_generic_args)]
-    pub(super) fn legacy_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
-        encoding::write_digest(&mut writer, self.object())?;
-        self.kind().encode(&mut writer)?;
-        encoding::write_uint64(&mut writer, self.mode() as u64)?;
-        encoding::write_uint64(&mut writer, self.size_for_legacy_encode())?;
+    pub(super) fn legacy_encode(&self, writer: &mut impl std::io::Write) -> Result<()> {
+        encoding::write_digest(&mut *writer, self.object())?;
+        self.kind().encode(&mut *writer)?;
+        encoding::write_uint64(&mut *writer, self.mode() as u64)?;
+        encoding::write_uint64(&mut *writer, self.size_for_legacy_encode())?;
         encoding::write_string(writer, self.name())?;
         Ok(())
     }
 
-    // Clippy doesn't realize `reader` can't be moved here.
-    #[allow(clippy::needless_borrows_for_generic_args)]
     pub(super) fn legacy_decode<'builder>(
         builder: &mut flatbuffers::FlatBufferBuilder<'builder>,
-        mut reader: &mut impl BufRead,
+        reader: &mut impl BufRead,
     ) -> Result<flatbuffers::WIPOffset<spfs_proto::Entry<'builder>>> {
         // fields in the same order as above
-        let object = encoding::read_digest(&mut reader)?;
-        let mut kind = tracking::EntryKind::decode(&mut reader)?;
-        let mode = encoding::read_uint64(&mut reader)? as u32;
-        let size = encoding::read_uint64(&mut reader)?;
+        let object = encoding::read_digest(&mut *reader)?;
+        let mut kind = tracking::EntryKind::decode(&mut *reader)?;
+        let mode = encoding::read_uint64(&mut *reader)? as u32;
+        let size = encoding::read_uint64(&mut *reader)?;
         let name = encoding::read_string(reader)?;
         if kind.is_blob() {
             kind = tracking::EntryKind::Blob(size);

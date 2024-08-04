@@ -49,10 +49,8 @@ impl Blob {
         self.proto().size_()
     }
 
-    pub(super) fn legacy_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
-        // Clippy doesn't realize `writer` can't be moved here.
-        #[allow(clippy::needless_borrows_for_generic_args)]
-        encoding::write_digest(&mut writer, self.payload())?;
+    pub(super) fn legacy_encode(&self, writer: &mut impl std::io::Write) -> Result<()> {
+        encoding::write_digest(&mut *writer, self.payload())?;
         encoding::write_uint64(writer, self.size())?;
         Ok(())
     }
@@ -133,11 +131,9 @@ impl BlobBuilder {
 
     /// Read a data encoded using the legacy format, and
     /// use the data to fill and complete this builder
-    pub fn legacy_decode(self, mut reader: &mut impl std::io::Read) -> Result<Blob> {
-        // Clippy doesn't realize `reader` can't be moved here.
-        #[allow(clippy::needless_borrows_for_generic_args)]
+    pub fn legacy_decode(self, reader: &mut impl std::io::Read) -> Result<Blob> {
         Ok(self
-            .with_payload(encoding::read_digest(&mut reader)?)
+            .with_payload(encoding::read_digest(&mut *reader)?)
             .with_size(encoding::read_uint64(reader)?)
             .build())
     }

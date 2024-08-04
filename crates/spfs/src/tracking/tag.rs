@@ -140,26 +140,22 @@ impl Digestible for Tag {
 impl Encodable for Tag {
     type Error = Error;
 
-    // Clippy doesn't realize `writer` can't be moved here.
-    #[allow(clippy::needless_borrows_for_generic_args)]
-    fn encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
+    fn encode(&self, writer: &mut impl std::io::Write) -> Result<()> {
         if let Some(org) = self.org.as_ref() {
-            encoding::write_string(&mut writer, org)?;
+            encoding::write_string(&mut *writer, org)?;
         } else {
-            encoding::write_string(&mut writer, "")?;
+            encoding::write_string(&mut *writer, "")?;
         }
-        encoding::write_string(&mut writer, &self.name)?;
-        encoding::write_digest(&mut writer, &self.target)?;
-        encoding::write_string(&mut writer, &self.user)?;
-        encoding::write_string(&mut writer, &self.time.to_rfc3339())?;
+        encoding::write_string(&mut *writer, &self.name)?;
+        encoding::write_digest(&mut *writer, &self.target)?;
+        encoding::write_string(&mut *writer, &self.user)?;
+        encoding::write_string(&mut *writer, &self.time.to_rfc3339())?;
         encoding::write_digest(writer, &self.parent)?;
         Ok(())
     }
 }
 
 impl encoding::Decodable for Tag {
-    // Clippy doesn't realize `reader` can't be moved here.
-    #[allow(clippy::needless_borrows_for_generic_args)]
     fn decode(mut reader: &mut impl BufRead) -> Result<Self> {
         let org = encoding::read_string(&mut reader)?;
         let org = match org.as_str() {
@@ -168,10 +164,10 @@ impl encoding::Decodable for Tag {
         };
         Ok(Tag {
             org,
-            name: encoding::read_string(&mut reader)?,
-            target: encoding::read_digest(&mut reader)?,
-            user: encoding::read_string(&mut reader)?,
-            time: DateTime::parse_from_rfc3339(&encoding::read_string(&mut reader)?)?.into(),
+            name: encoding::read_string(&mut *reader)?,
+            target: encoding::read_digest(&mut *reader)?,
+            user: encoding::read_string(&mut *reader)?,
+            time: DateTime::parse_from_rfc3339(&encoding::read_string(&mut *reader)?)?.into(),
             parent: encoding::read_digest(reader)?,
         })
     }

@@ -92,18 +92,14 @@ impl<'a> AnnotationValue<'a> {
     }
 
     /// Note: This is used for legacy and new style digest calculations
-    pub fn legacy_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
+    pub fn legacy_encode(&self, writer: &mut impl std::io::Write) -> Result<()> {
         match self {
             AnnotationValue::String(v) => {
-                // Clippy doesn't realize `writer` can't be moved here.
-                #[allow(clippy::needless_borrows_for_generic_args)]
-                encoding::write_uint8(&mut writer, AnnotationValueKind::String as u8)?;
+                encoding::write_uint8(&mut *writer, AnnotationValueKind::String as u8)?;
                 Ok(encoding::write_string(writer, v)?)
             }
             AnnotationValue::Blob(v) => {
-                // Clippy doesn't realize `writer` can't be moved here.
-                #[allow(clippy::needless_borrows_for_generic_args)]
-                encoding::write_uint8(&mut writer, AnnotationValueKind::Blob as u8)?;
+                encoding::write_uint8(&mut *writer, AnnotationValueKind::Blob as u8)?;
                 Ok(encoding::write_digest(writer, v)?)
             }
         }
@@ -191,9 +187,7 @@ impl<'buf> Annotation<'buf> {
 
     // Note: This is used for legacy and new style digest calculations
     pub fn legacy_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
-        // Clippy doesn't realize `writer` can't be moved here.
-        #[allow(clippy::needless_borrows_for_generic_args)]
-        encoding::write_string(&mut writer, self.key())?;
+        encoding::write_string(&mut *writer, self.key())?;
         self.value().legacy_encode(&mut writer)?;
         Ok(())
     }
