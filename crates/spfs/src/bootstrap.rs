@@ -62,6 +62,7 @@ impl Command {
     /// to that of this command, and caution should be taken.
     #[cfg(unix)]
     pub fn exec(self) -> Result<std::convert::Infallible> {
+        use std::collections::HashMap;
         use std::os::unix::prelude::OsStringExt;
 
         tracing::debug!("{self:#?}");
@@ -77,11 +78,24 @@ impl Command {
         for arg in args.into_iter() {
             argv.push(CString::new(arg.into_vec()).map_err(crate::Error::CommandHasNul)?);
         }
-        for (name, value) in vars {
-            // set the environment to be inherited by the new process
-            std::env::set_var(name, value);
+        // XXX: `vars` behaves like overrides to the existing env.
+        let mut vars: HashMap<_, _> = vars.into_iter().collect();
+        let mut env = std::env::vars_os()
+            .map(|(mut k, v)| {
+                let v = vars.remove(&k).unwrap_or(v);
+                k.reserve_exact(v.len() + 1);
+                k.push("=");
+                k.push(&v);
+                CString::new(k.into_vec()).map_err(crate::Error::CommandHasNul)
+            })
+            .collect::<Result<Vec<_>>>()?;
+        for (mut k, v) in vars {
+            k.reserve_exact(v.len() + 1);
+            k.push("=");
+            k.push(&v);
+            env.push(CString::new(k.into_vec()).map_err(crate::Error::CommandHasNul)?);
         }
-        nix::unistd::execv(&argv[0], argv.as_slice()).map_err(crate::Error::from)
+        nix::unistd::execve(&argv[0], argv.as_slice(), env.as_slice()).map_err(crate::Error::from)
     }
 
     /// Execute this command, replacing the current program.

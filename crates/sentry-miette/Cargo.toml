@@ -6,4 +6,8 @@ version = "0.1.0"
 
 [dependencies]
 miette = { workspace = true }
+# Pick up a fix for compiling in Rust 1.80.
+# https://github.com/time-rs/time/issues/693
+# This is a transitive dependency of sentry.
+time = "0.3.36"
 sentry = { workspace = true }

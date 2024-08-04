@@ -205,6 +205,7 @@
     "euid",
     "evenmoredata",
     "execv",
+    "execve",
     "execvp",
     "faccess",
     "fchmod",

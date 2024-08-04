@@ -92,14 +92,14 @@ impl<'a> AnnotationValue<'a> {
     }
 
     /// Note: This is used for legacy and new style digest calculations
-    pub fn legacy_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
+    pub fn legacy_encode(&self, writer: &mut impl std::io::Write) -> Result<()> {
         match self {
             AnnotationValue::String(v) => {
-                encoding::write_uint8(&mut writer, AnnotationValueKind::String as u8)?;
+                encoding::write_uint8(&mut *writer, AnnotationValueKind::String as u8)?;
                 Ok(encoding::write_string(writer, v)?)
             }
             AnnotationValue::Blob(v) => {
-                encoding::write_uint8(&mut writer, AnnotationValueKind::Blob as u8)?;
+                encoding::write_uint8(&mut *writer, AnnotationValueKind::Blob as u8)?;
                 Ok(encoding::write_digest(writer, v)?)
             }
         }
@@ -187,7 +187,7 @@ impl<'buf> Annotation<'buf> {
 
     // Note: This is used for legacy and new style digest calculations
     pub fn legacy_encode(&self, mut writer: &mut impl std::io::Write) -> Result<()> {
-        encoding::write_string(&mut writer, self.key())?;
+        encoding::write_string(&mut *writer, self.key())?;
         self.value().legacy_encode(&mut writer)?;
         Ok(())
     }

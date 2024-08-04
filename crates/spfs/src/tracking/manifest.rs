@@ -365,7 +365,7 @@ impl<'m, T> Iterator for ManifestWalker<'m, T> {
                 if child.kind.is_tree() {
                     self.active_child = Some(
                         ManifestWalker::new(child)
-                            .with_prefix(&self.prefix.join(name))
+                            .with_prefix(self.prefix.join(name))
                             .into(),
                     );
                 }
