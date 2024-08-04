@@ -198,13 +198,14 @@ impl CmdRun {
             // Currently, will use the extra mounts already in the runtime.
 
             let start_time = Instant::now();
-            let origin = config.get_remote("origin").await?;
-            let references_to_sync = EnvSpec::from_iter(runtime.status.stack.iter_bottom_up());
-            let _synced = self
-                .sync
-                .get_syncer(&origin, &repo)
-                .sync_env(references_to_sync)
-                .await?;
+            if let Some(origin) = config.try_get_remote("origin").await? {
+                let references_to_sync = EnvSpec::from_iter(runtime.status.stack.iter_bottom_up());
+                let _synced = self
+                    .sync
+                    .get_syncer(&origin, &repo)
+                    .sync_env(references_to_sync)
+                    .await?;
+            }
             tracing::debug!("synced and about to launch process with durable runtime");
 
             self.exec_runtime_command(&mut runtime, &start_time).await
@@ -270,24 +271,25 @@ impl CmdRun {
             if reference.is_empty() && !self.no_edit {
                 self.edit = true;
             } else if runtime.config.mount_backend.requires_localization() {
-                let origin = config.get_remote("origin").await?;
-                // Convert the tag items in the reference field to their
-                // underlying digests so the tags are not synced to the
-                // local repo. Tags synced to a local repo will prevent
-                // future 'spfs clean's from removing many unused spfs
-                // objects.
-                let repos: Vec<_> = vec![&origin, &repo];
-                let references_to_sync = reference
-                    .with_tag_items_resolved_to_digest_items(&repos)
-                    .await?;
-                let synced = self
-                    .sync
-                    .get_syncer(&origin, &repo)
-                    .sync_env(references_to_sync)
-                    .await?;
-                for item in synced.env.iter() {
-                    let digest = item.resolve_digest(&repo).await?;
-                    runtime.push_digest(digest);
+                if let Some(origin) = config.try_get_remote("origin").await? {
+                    // Convert the tag items in the reference field to their
+                    // underlying digests so the tags are not synced to the
+                    // local repo. Tags synced to a local repo will prevent
+                    // future 'spfs clean's from removing many unused spfs
+                    // objects.
+                    let repos: Vec<_> = vec![&origin, &repo];
+                    let references_to_sync = reference
+                        .with_tag_items_resolved_to_digest_items(&repos)
+                        .await?;
+                    let synced = self
+                        .sync
+                        .get_syncer(&origin, &repo)
+                        .sync_env(references_to_sync)
+                        .await?;
+                    for item in synced.env.iter() {
+                        let digest = item.resolve_digest(&repo).await?;
+                        runtime.push_digest(digest);
+                    }
                 }
             } else {
                 //runtime.config.secondary_repositories = config.get_secondary_runtime_repositories();
