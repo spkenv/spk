@@ -41,9 +41,9 @@ build:
     # no need to keep extra bloat files in info dir
     - spfs reset /spfs/share/info/**/*
   validation:
-    disabled:
-      # we are replacing the old gcc version on purpose
-      - MustNotAlterExistingFiles
+    rules:
+      - allow: RecursiveBuild
+      - deny: AlterExistingFiles
 
 tests:
   - stage: install
