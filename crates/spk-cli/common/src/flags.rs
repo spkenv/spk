@@ -20,7 +20,6 @@ use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::spec_ops::Named;
 use spk_schema::foundation::version::CompatRule;
 use spk_schema::ident::{parse_ident, AnyIdent, PkgRequest, Request, RequestedBy, VarRequest};
-use spk_schema::ident_ops::NormalizedTagStrategy;
 use spk_schema::option_map::HOST_OPTIONS;
 use spk_schema::{Recipe, SpecRecipe, SpecTemplate, Template, TemplateExt, TestStage, VariantExt};
 #[cfg(feature = "statsd")]
@@ -958,20 +957,38 @@ impl Repositories {
         if self.local_repo_only {
             return Ok(repos);
         }
-        for (name, ts) in enabled.into_iter() {
+        for (name, ts, is_default_origin) in enabled
+            .into_iter()
+            .map(|(name, ts)| (name, ts, false))
+            .chain([("origin", None, true)])
+        {
             if disabled.contains(name) {
                 continue;
             }
             if let Some(i) = repos.iter().position(|(n, _)| n == name) {
-                // we favor the last instance of an --enable-repo flag
-                // over any previous one in the case of duplicates
+                // We favor the last instance of an --enable-repo flag
+                // over any previous one in the case of duplicates, except
+                // any explicit "origin" overrides the default.
+                if is_default_origin {
+                    // Keep the explicitly enabled "origin" repo.
+                    continue;
+                }
                 repos.remove(i);
             }
 
             let mut repo = match name {
                 // Allow `--enable-repo local` to work to enable the local repo.
                 "local" => storage::local_repository().await,
-                name => storage::remote_repository(name).await,
+                name => match storage::remote_repository(name).await {
+                    Err(spk_storage::Error::SPFS(spfs::Error::UnknownRemoteName(_)))
+                        if is_default_origin =>
+                    {
+                        // "origin" is not required to exist when attempting to
+                        // add it as a default
+                        continue;
+                    }
+                    other => other,
+                },
             }?;
             if let Some(ts) = ts.as_ref().or(self.when.as_ref()) {
                 repo.pin_at_time(ts);
@@ -980,21 +997,6 @@ impl Repositories {
                 repo.set_legacy_spk_version_tags(true);
             }
             repos.push((name.into(), repo.into()));
-        }
-        let has_origin = repos.iter().any(|(n, _)| n == "origin");
-        if !disabled.contains("origin") && !has_origin {
-            // the origin repo is considered a default and specifically
-            // added at the very end of any command line flags if needed
-            match storage::remote_repository::<_, NormalizedTagStrategy>("origin").await {
-                Err(spk_storage::Error::SPFS(spfs::Error::UnknownRemoteName(_))) => {}
-                Err(err) => return Err(err.into()),
-                Ok(mut origin) => {
-                    if self.legacy_spk_version_tags {
-                        origin.set_legacy_spk_version_tags(true);
-                    }
-                    repos.push(("origin".into(), origin.into()));
-                }
-            }
         }
         Ok(repos)
     }
