@@ -25,9 +25,6 @@ build:
     - make install
     # no need to keep these extra files around
     - spfs reset /spfs/share/info/**/*
- validation:
-    rules:
-      - deny: AlterExistingFiles
 
 tests:
   - stage: install

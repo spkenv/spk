@@ -40,9 +40,7 @@ build:
     - make install
     # no need to keep extra bloat files in info dir
     - spfs reset /spfs/share/info/**/*
-  validation:
-    rules:
-      - deny: AlterExistingFiles
+
 
 tests:
   - stage: install
