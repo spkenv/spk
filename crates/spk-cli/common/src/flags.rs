@@ -1008,8 +1008,17 @@ pub enum SolverToRun {
     Cli,
     /// Run and show output from the "impossible requests" checking solver
     Checks,
-    /// Run both solvers, showing the output from the basic solver
+    /// Run both solvers, showing the output from the basic solver,
+    /// unless overridden with --solver-to-show
     All,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum SolverToShow {
+    /// Show output from the basic solver
+    Cli,
+    /// Show output from the "impossible requests" checking solver
+    Checks,
 }
 
 impl From<SolverToRun> for MultiSolverKind {
@@ -1018,6 +1027,15 @@ impl From<SolverToRun> for MultiSolverKind {
             SolverToRun::Cli => MultiSolverKind::Unchanged,
             SolverToRun::Checks => MultiSolverKind::AllImpossibleChecks,
             SolverToRun::All => MultiSolverKind::All,
+        }
+    }
+}
+
+impl From<SolverToShow> for MultiSolverKind {
+    fn from(item: SolverToShow) -> MultiSolverKind {
+        match item {
+            SolverToShow::Cli => MultiSolverKind::Unchanged,
+            SolverToShow::Checks => MultiSolverKind::AllImpossibleChecks,
         }
     }
 }
@@ -1073,20 +1091,24 @@ pub struct DecisionFormatterSettings {
     #[clap(long)]
     pub status_bar: bool,
 
-    /// Control what solver(s) are used and what output is shown.
+    /// Control what solver(s) are used.
     ///
     /// There are currently two modes for the solver, one that is faster when
     /// there are few problems encountered looking for packages (cli) and one
     /// that is faster when it is difficult to find a set of packages that
     /// satisfy a request (checks).
     ///
-    /// By default, both solvers are run in parallel and the result is taken
-    /// from the first one that finishes. However, the output from the (cli)
-    /// solver is displayed even if the result ultimately comes from the
-    /// (checks) solver. To see the output from the (checks) solver, use
-    /// `--solver-to-run checks` to see that output.
-    #[clap(long, value_enum, default_value_t = SolverToRun::All)]
+    /// By default, both solvers are run in parallel and the result is
+    /// taken from the first one that finishes, and the output from
+    /// the (cli) solver is displayed. even if the result ultimately
+    /// comes from the (checks) solver. To run only one solver, use
+    /// `--solver-to-run <cli|checks>`.
+    #[clap(long, env = "SPK_SOLVER__SOLVER_TO_RUN", value_enum, default_value_t = SolverToRun::All)]
     pub solver_to_run: SolverToRun,
+    /// Control what solver's output is shown when multiple solvers
+    /// (all) are being run.
+    #[clap(long, env = "SPK_SOLVER__SOLVER_TO_SHOW", value_enum, default_value_t = SolverToShow::Cli)]
+    pub solver_to_show: SolverToShow,
 
     /// Display a report on of the search space size for the resolved solution.
     #[clap(long)]
@@ -1144,6 +1166,7 @@ impl DecisionFormatterSettings {
             .with_max_frequent_errors(self.max_frequent_errors)
             .with_status_bar(self.status_bar)
             .with_solver_to_run(self.solver_to_run.into())
+            .with_solver_to_show(self.solver_to_show.into())
             .with_search_space_size(self.show_search_size)
             .with_stop_on_block(self.stop_on_block)
             .with_step_on_block(self.step_on_block)

@@ -59,6 +59,10 @@ use crate::{
 const STOP_ON_BLOCK_FLAG: &str = "--stop-on-block";
 const BY_USER: &str = "by user";
 
+const CLI_SOLVER: &str = "cli";
+const IMPOSSIBLE_CHECKS_SOLVER: &str = "check";
+const ALL_SOLVERS: &str = "all";
+
 static USER_CANCELLED: Lazy<Arc<AtomicBool>> = Lazy::new(|| {
     // Initialise the USER_CANCELLED value
     let b = Arc::new(AtomicBool::new(false));
@@ -486,6 +490,7 @@ pub struct DecisionFormatterBuilder {
     max_frequent_errors: usize,
     status_bar: bool,
     solver_to_run: MultiSolverKind,
+    solver_to_show: MultiSolverKind,
     show_search_space_size: bool,
     compare_solvers: bool,
     stop_on_block: bool,
@@ -507,6 +512,7 @@ impl Default for DecisionFormatterBuilder {
             max_frequent_errors: 0,
             status_bar: false,
             solver_to_run: MultiSolverKind::Unchanged,
+            solver_to_show: MultiSolverKind::Unchanged,
             show_search_space_size: false,
             compare_solvers: false,
             stop_on_block: false,
@@ -531,6 +537,8 @@ impl DecisionFormatterBuilder {
             timeout: cfg.solve_timeout,
             long_solves_threshold: cfg.long_solve_threshold,
             max_frequent_errors: cfg.max_frequent_errors,
+            solver_to_run: MultiSolverKind::from_config_run_value(&cfg.solver_to_run),
+            solver_to_show: MultiSolverKind::from_config_output_value(&cfg.solver_to_show),
             ..Default::default()
         }
     }
@@ -587,6 +595,11 @@ impl DecisionFormatterBuilder {
 
     pub fn with_solver_to_run(&mut self, kind: MultiSolverKind) -> &mut Self {
         self.solver_to_run = kind;
+        self
+    }
+
+    pub fn with_solver_to_show(&mut self, kind: MultiSolverKind) -> &mut Self {
+        self.solver_to_show = kind;
         self
     }
 
@@ -653,6 +666,7 @@ impl DecisionFormatterBuilder {
                 max_frequent_errors: self.max_frequent_errors,
                 status_bar: self.status_bar,
                 solver_to_run: self.solver_to_run.clone(),
+                solver_to_show: self.solver_to_show.clone(),
                 show_search_space_size: self.show_search_space_size,
                 compare_solvers: self.compare_solvers,
                 stop_on_block: self.stop_on_block,
@@ -715,6 +729,7 @@ pub(crate) struct DecisionFormatterSettings {
     pub(crate) max_frequent_errors: usize,
     pub(crate) status_bar: bool,
     pub(crate) solver_to_run: MultiSolverKind,
+    pub(crate) solver_to_show: MultiSolverKind,
     pub(crate) show_search_space_size: bool,
     pub(crate) compare_solvers: bool,
     pub(crate) stop_on_block: bool,
@@ -746,9 +761,32 @@ impl MultiSolverKind {
     /// Return the command line option value for this MultiSolveKind
     fn cli_name(&self) -> &'static str {
         match self {
-            MultiSolverKind::Unchanged => "cli",
-            MultiSolverKind::AllImpossibleChecks => "checks",
-            MultiSolverKind::All => "all",
+            MultiSolverKind::Unchanged => CLI_SOLVER,
+            MultiSolverKind::AllImpossibleChecks => IMPOSSIBLE_CHECKS_SOLVER,
+            MultiSolverKind::All => ALL_SOLVERS,
+        }
+    }
+
+    /// Return the MultiSolverKind setting for a solver to run from a
+    /// config value. This will fallback to MultiSolverKind:Cli if the
+    /// given value is invalid.
+    fn from_config_run_value(value: &str) -> MultiSolverKind {
+        match value.to_lowercase().as_ref() {
+            CLI_SOLVER => MultiSolverKind::Unchanged,
+            IMPOSSIBLE_CHECKS_SOLVER => MultiSolverKind::AllImpossibleChecks,
+            ALL_SOLVERS => MultiSolverKind::All,
+            _ => MultiSolverKind::Unchanged,
+        }
+    }
+
+    /// Return the MultiSolverKind setting for a solver to output from a
+    /// config value. This will fallback to MultiSolverKind:Cli if the
+    /// given value is invalid.
+    fn from_config_output_value(value: &str) -> MultiSolverKind {
+        match value.to_lowercase().as_ref() {
+            CLI_SOLVER => MultiSolverKind::Unchanged,
+            IMPOSSIBLE_CHECKS_SOLVER => MultiSolverKind::AllImpossibleChecks,
+            _ => MultiSolverKind::Unchanged,
         }
     }
 }
@@ -807,6 +845,7 @@ impl DecisionFormatter {
                 max_frequent_errors: 5,
                 status_bar: false,
                 solver_to_run: MultiSolverKind::Unchanged,
+                solver_to_show: MultiSolverKind::Unchanged,
                 show_search_space_size: false,
                 compare_solvers: false,
                 stop_on_block: false,
@@ -930,7 +969,7 @@ impl DecisionFormatter {
         for solver_settings in solvers {
             let mut task_formatter = self.clone();
             if self.settings.solver_to_run.is_multi()
-                && solver_settings.solver_kind != MultiSolverKind::Unchanged
+                && self.settings.solver_to_show != solver_settings.solver_kind
             {
                 // Hide the output from all the solvers except the
                 // unchanged one. The output from the unchanged solver
@@ -1086,7 +1125,7 @@ impl DecisionFormatter {
                         };
                         let name = solver_kind.cli_name();
 
-                        tracing::info!("The {solver_kind} solver found {solver_outcome}, but its output was disabled. To see its output, rerun the spk command with '--solver-to-run {name}'" );
+                        tracing::info!("The {solver_kind} solver found {solver_outcome}, but its output was disabled. To see its output, rerun the spk command with '--solver-to-show {name}' or `--solver-to-run {name}`" );
                     }
 
                     if self.settings.compare_solvers {
