@@ -63,14 +63,23 @@ static CONFIG: OnceCell<RwLock<Arc<Config>>> = OnceCell::new();
 #[serde(default)]
 pub struct User {
     pub name: String,
-    pub domain: String,
+    pub domain: Option<String>,
 }
 
 impl Default for User {
     fn default() -> Self {
         Self {
             name: whoami::username(),
-            domain: whoami::hostname(),
+            domain: whoami::fallible::hostname().ok(),
+        }
+    }
+}
+
+impl std::fmt::Display for User {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.domain {
+            Some(domain) => write!(f, "{}@{}", self.name, domain),
+            None => write!(f, "{}", self.name),
         }
     }
 }
