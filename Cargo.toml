@@ -146,7 +146,7 @@ tracing = "0.1.35"
 tracing-capture = "0.1"
 tracing-subscriber = "0.3.14"
 ulid = "1.0"
-whoami = "1.2"
+whoami = "1.5"
 windows = "0.51"
 winfsp = { version = "0.9.3", default-features = false }
 winfsp-sys = "0.2"

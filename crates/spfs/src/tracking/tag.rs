@@ -41,7 +41,7 @@ impl Tag {
             name: spec.name(),
             target,
             parent: encoding::NULL_DIGEST.into(),
-            user: format!("{}@{}", config.user.name, config.user.domain),
+            user: format!("{}", config.user),
             time: Utc::now().trunc_subsecs(6), // ignore microseconds
         })
     }

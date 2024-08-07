@@ -73,7 +73,8 @@ impl Default for Author {
     fn default() -> Self {
         Self {
             user_name: whoami::username(),
-            host_name: whoami::hostname(),
+            host_name: whoami::fallible::hostname()
+                .unwrap_or_else(|_| format!("unk-{}", ulid::Ulid::new())),
             created: chrono::Local::now(),
         }
     }
