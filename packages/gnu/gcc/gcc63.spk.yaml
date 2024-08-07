@@ -1,4 +1,4 @@
-# {% set opt = opt | default_opts(version="6.3.O") %}
+# {% set opt = opt | default_opts(version="6.3.0") %}
 pkg: gcc/{{ opt.version }}
 api: v0/package
 
