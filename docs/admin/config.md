@@ -255,9 +255,7 @@ environment = ""
 host_filtering = false
 
 # SPK supports some customization of the distro host options.
-[[host_options.distro_rules]]
-# The name of the distro that the customizations apply to.
-name = "rocky"
+[host_options.distro_rules.rocky]
 # Set a default compat rule for this distro. For example, on Rocky Linux
 # packages built on 9.3 would be usable on 9.4.
 compat_rule = "x.ab"
