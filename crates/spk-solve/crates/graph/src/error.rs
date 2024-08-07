@@ -103,6 +103,9 @@ impl FormatError for Error {
         match self {
             Error::FailedToResolve(_graph) => {
                 // TODO: provide a summary based on the graph
+                msg.push_str(
+                    ": there is no solution for these requests using the available packages",
+                );
             }
             Error::SolverError(reason) => {
                 msg.push_str("\n * ");
