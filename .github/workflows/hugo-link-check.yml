@@ -4,6 +4,7 @@ on: push
 
 jobs:
   check:
+    name: Build Website
     runs-on: ubuntu-latest
     steps:
       - name: Cancel Previous Runs
