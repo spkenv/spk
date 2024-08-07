@@ -8,6 +8,7 @@ use std::str::FromStr;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use spk_config::get_config;
 use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::name::PkgName;
 use spk_schema_foundation::option_map::{OptionMap, Stringified, HOST_OPTIONS};
@@ -89,18 +90,21 @@ impl AutoHostVars {
                     match OptName::new(&distro_name) {
                         Ok(name) => {
                             let mut var_opt = VarOpt::new(name.to_owned())?;
-                            // Allow packages built on Rocky 7.3 to run on
-                            // Rocky 7.4 by giving the "rocky" option a compat
-                            // value.
-                            // XXX: hard coded distro names as a proof of
-                            // concept
-                            if distro_name == "centos"
-                                || distro_name == "rocky"
-                                || distro_name == "ubuntu"
-                            {
-                                var_opt.compat = Some(
-                                    Compat::from_str("x.ab").expect("valid Compat expression"),
-                                );
+                            // Look for any configured compat rules for the
+                            // distro
+                            let config = get_config()?;
+                            for rule in config.host_options.distro_rules.iter() {
+                                if rule.name != distro_name {
+                                    continue;
+                                }
+
+                                if let Some(compat_rule) = &rule.compat_rule {
+                                    var_opt.compat = Some(
+                                        Compat::from_str(compat_rule).map_err(|err| {
+                                            Error::SpkConfigError(spk_config::Error::Config(config::ConfigError::Message(format!("Invalid compat rule found in config for distro {distro_name}: {err}"))))
+                                        })?,
+                                    );
+                                }
                             }
                             settings.push(Opt::Var(var_opt));
                         }

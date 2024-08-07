@@ -118,6 +118,23 @@ pub struct Cli {
     pub ls: Ls,
 }
 
+#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct DistroRule {
+    /// The name of the distro to match, e.g., "rocky"
+    pub name: String,
+
+    /// The compat rule to set for the distro, e.g., "x.ab"
+    pub compat_rule: Option<String>,
+}
+
+#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct HostOptions {
+    /// A list of distro names to recognize and customizations for each.
+    pub distro_rules: Vec<DistroRule>,
+}
+
 /// Configuration values for spk.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
@@ -130,6 +147,7 @@ pub struct Config {
     pub statsd: Statsd,
     pub metadata: Metadata,
     pub cli: Cli,
+    pub host_options: HostOptions,
 }
 
 impl Config {

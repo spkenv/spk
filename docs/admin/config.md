@@ -253,4 +253,12 @@ environment = ""
 [cli.ls]
 # Use all current host's host options by default for filtering in ls
 host_filtering = false
+
+# SPK supports some customization of the distro host options.
+[[host_options.distro_rules]]
+# The name of the distro that the customizations apply to.
+name = "rocky"
+# Set a default compat rule for this distro. For example, on Rocky Linux
+# packages built on 9.3 would be usable on 9.4.
+compat_rule = "x.ab"
 ```

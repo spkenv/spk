@@ -4342,6 +4342,7 @@ dependencies = [
 name = "spk-schema"
 version = "0.42.0"
 dependencies = [
+ "config",
  "data-encoding",
  "dunce",
  "enum_dispatch",
