@@ -29,7 +29,7 @@ See the main [docs](docs/) for details on using spk, starting with the [index](d
 SPK/SPFS are Copyright (c) Contributors to the SPK project.
 All Rights Reserved.
 
-SPK/SPFS are distributed using the [Apache-2.0 license](LICENSE.txt).
+SPK/SPFS are distributed using the [Apache-2.0 license](LICENSE).
 
 ## Structure of this project
 
@@ -39,7 +39,7 @@ SPK/SPFS are distributed using the [Apache-2.0 license](LICENSE.txt).
 
 ## Contributing
 
-Please read [Contributing to SPK](https://github.com/spkenv/spk/CONTRIBUTING.md).
+Please read [Contributing to SPK](CONTRIBUTING.md).
 
 ## Development
 
