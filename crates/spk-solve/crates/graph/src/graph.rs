@@ -475,7 +475,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
 }
 
 #[derive(Clone, Debug, Diagnostic, Error)]
-#[error("Failed to resolve")]
+#[error("Failed to resolve: there is no solution for these requests using the available packages")]
 pub struct Graph {
     pub root: Arc<tokio::sync::RwLock<Arc<Node>>>,
     pub nodes: HashMap<u64, Arc<tokio::sync::RwLock<Arc<Node>>>>,
