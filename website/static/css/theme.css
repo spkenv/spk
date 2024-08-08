@@ -503,6 +503,9 @@ div.notices p:first-child:before {
     content: "\f06a";
     left: 10px;
 }
+.fa-brands {
+    font-family: "Font Awesome 5 Brands";
+}
 div.notices p:first-child:after {
     position: absolute;
     top: 2px;
