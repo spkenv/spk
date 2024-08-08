@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use config::Environment;
@@ -118,6 +119,20 @@ pub struct Cli {
     pub ls: Ls,
 }
 
+#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct DistroRule {
+    /// The compat rule to set for the distro, e.g., "x.ab"
+    pub compat_rule: Option<String>,
+}
+
+#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct HostOptions {
+    /// A mapping of distro names to recognize and customizations for each.
+    pub distro_rules: HashMap<String, DistroRule>,
+}
+
 /// Configuration values for spk.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
@@ -130,6 +145,7 @@ pub struct Config {
     pub statsd: Statsd,
     pub metadata: Metadata,
     pub cli: Cli,
+    pub host_options: HostOptions,
 }
 
 impl Config {

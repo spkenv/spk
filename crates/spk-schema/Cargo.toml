@@ -16,6 +16,7 @@ workspace = true
 migration-to-components = ["spk-schema-foundation/migration-to-components"]
 
 [dependencies]
+config = { workspace = true }
 data-encoding = "2.3"
 dunce = { workspace = true }
 enum_dispatch = "0.3.8"

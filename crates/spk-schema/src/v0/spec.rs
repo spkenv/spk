@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use std::collections::{BTreeSet, HashMap};
 use std::convert::TryInto;
 use std::path::Path;
+use std::str::FromStr;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -13,6 +14,7 @@ use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::ident_component::ComponentBTreeSet;
 use spk_schema_foundation::name::PkgNameBuf;
 use spk_schema_foundation::option_map::{OptFilter, Stringified};
+use spk_schema_foundation::version::IncompatibleReason;
 use spk_schema_ident::{AnyIdent, BuildIdent, Ident, RangeIdent, VersionIdent};
 
 use super::variant_spec::VariantSpecEntryKey;
@@ -801,16 +803,54 @@ where
             Some(Opt::Var(opt)) => {
                 let request_value = var_request.value.as_pinned();
                 let exact = opt.get_value(request_value);
-                if exact.as_deref() != request_value {
-                    Compatibility::incompatible(format!(
-                        "Incompatible build option '{}': '{}' != '{}'",
-                        var_request.var,
-                        exact.unwrap_or_else(|| "None".to_string()),
-                        request_value.unwrap_or_default()
-                    ))
-                } else {
-                    Compatibility::Compatible
+                if exact.as_deref() == request_value {
+                    return Compatibility::Compatible;
                 }
+
+                // For values that aren't exact matches, if the option specifies
+                // a compat rule, try treating the values as version numbers
+                // and see if they satisfy the rule.
+                if let Some(compat) = &opt.compat {
+                    let base_version = exact.clone();
+                    let Ok(base_version) = Version::from_str(&base_version.unwrap_or_default())
+                    else {
+                        return Compatibility::incompatible(format!(
+                            "Incompatible build option '{}': '{base}' != '{}' and '{base}' is not a valid version number",
+                            var_request.var,
+                            request_value.unwrap_or_default(),
+                            base = exact.unwrap_or_default()
+                        ));
+                    };
+
+                    let Ok(request_version) = Version::from_str(request_value.unwrap_or_default())
+                    else {
+                        return Compatibility::incompatible(format!(
+                            "Incompatible build option '{}': '{base}' != '{request}' and '{request}' is not a valid version number",
+                            var_request.var,
+                            request = request_value.unwrap_or_default(),
+                            base = exact.unwrap_or_default()
+                        ));
+                    };
+
+                    let mut result = compat.is_binary_compatible(&base_version, &request_version);
+                    if let Compatibility::Incompatible(IncompatibleReason::Other(msg)) = &mut result
+                    {
+                        *msg = format!(
+                            "Incompatible build option '{}': '{}' != '{}' and {msg}",
+                            var_request.var,
+                            exact.unwrap_or_else(|| "None".to_string()),
+                            request_value.unwrap_or_default()
+                        );
+                    }
+                    return result;
+                }
+
+                Compatibility::incompatible(format!(
+                    "Incompatible build option '{}': '{}' != '{}'",
+                    var_request.var,
+                    exact.unwrap_or_else(|| "None".to_string()),
+                    request_value.unwrap_or_default()
+                ))
             }
         }
     }
