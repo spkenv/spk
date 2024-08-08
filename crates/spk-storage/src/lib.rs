@@ -20,5 +20,6 @@ pub use storage::{
     RepositoryHandle,
     RuntimeRepository,
     SpfsRepository,
+    SpfsRepositoryHandle,
     Storage,
 };
