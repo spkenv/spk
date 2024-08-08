@@ -32,7 +32,7 @@ async-trait = { workspace = true }
 chrono = { workspace = true }
 colored = { workspace = true }
 console = { workspace = true }
-crossterm = "0.24"
+crossterm = "0.28.1"
 ctrlc = "3.2"
 dyn-clone = { workspace = true }
 futures = { workspace = true }
