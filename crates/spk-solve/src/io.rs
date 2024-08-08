@@ -226,12 +226,9 @@ where
                 //     )
                 //     .await?
                 tracing::info!(
-                    "{}",
-                    format!(
-                        "{}{}",
-                        self.settings.heading_prefix,
-                        solution.format_solution(self.settings.verbosity)
-                    )
+                    "{}{}",
+                    self.settings.heading_prefix,
+                    solution.format_solution(self.settings.verbosity)
                 );
             }
         }
