@@ -43,6 +43,7 @@ build:
   validation:
     rules:
       - allow: RecursiveBuild
+      - allow: AlterExistingFiles
 tests:
   - stage: install
     script:
