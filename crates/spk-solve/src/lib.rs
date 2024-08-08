@@ -14,7 +14,12 @@ use std::sync::Arc;
 
 pub use error::{Error, Result};
 use graph::Graph;
-pub use io::{DecisionFormatter, DecisionFormatterBuilder, MultiSolverKind};
+pub use io::{
+    DecisionFormatter,
+    DecisionFormatterBuilder,
+    MultiSolverKind,
+    DEFAULT_SOLVER_RUN_FILE_PREFIX,
+};
 #[cfg(feature = "statsd")]
 pub use metrics::{
     get_metrics_client,

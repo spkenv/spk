@@ -5,9 +5,12 @@
 use std::cmp::max;
 use std::collections::VecDeque;
 use std::fmt::{Display, Write};
+use std::fs::{File, OpenOptions};
+use std::io::{BufWriter, ErrorKind, Write as IOWrite};
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use async_stream::stream;
@@ -64,6 +67,12 @@ const BY_USER: &str = "by user";
 const CLI_SOLVER: &str = "cli";
 const IMPOSSIBLE_CHECKS_SOLVER: &str = "check";
 const ALL_SOLVERS: &str = "all";
+
+const UNABLE_TO_GET_OUTPUT_FILE_LOCK: &str = "Unable to get lock to write solver output to file";
+const UNABLE_TO_WRITE_OUTPUT_MESSAGE: &str = "Unable to write solver output message to file";
+
+pub const DEFAULT_SOLVER_RUN_FILE_PREFIX: &str = "spk_solver_run";
+const DEFAULT_SOLVER_TEST_FILE_PREFIX: &str = "spk_solver_test";
 
 static USER_CANCELLED: Lazy<Arc<AtomicBool>> = Lazy::new(|| {
     // Initialise the USER_CANCELLED value
@@ -642,6 +651,9 @@ pub struct DecisionFormatterBuilder {
     stop_on_block: bool,
     step_on_block: bool,
     step_on_decision: bool,
+    output_to_dir: Option<PathBuf>,
+    output_to_dir_min_verbosity: u8,
+    output_file_prefix: String,
 }
 
 impl Default for DecisionFormatterBuilder {
@@ -664,6 +676,9 @@ impl Default for DecisionFormatterBuilder {
             stop_on_block: false,
             step_on_block: false,
             step_on_decision: false,
+            output_to_dir: None,
+            output_to_dir_min_verbosity: 2,
+            output_file_prefix: String::from(DEFAULT_SOLVER_RUN_FILE_PREFIX),
         }
     }
 }
@@ -774,6 +789,21 @@ impl DecisionFormatterBuilder {
         self
     }
 
+    pub fn with_output_to_dir(&mut self, dir: Option<PathBuf>) -> &mut Self {
+        self.output_to_dir = dir;
+        self
+    }
+
+    pub fn with_output_to_dir_min_verbosity(&mut self, minimum_verbosity: u8) -> &mut Self {
+        self.output_to_dir_min_verbosity = minimum_verbosity;
+        self
+    }
+
+    pub fn with_output_file_prefix(&mut self, prefix: String) -> &mut Self {
+        self.output_file_prefix = prefix;
+        self
+    }
+
     pub fn build(&self) -> DecisionFormatter {
         let too_long_seconds = if self.verbosity_increase_seconds == 0
             || (self.verbosity_increase_seconds > self.timeout && self.timeout > 0)
@@ -818,6 +848,9 @@ impl DecisionFormatterBuilder {
                 stop_on_block: self.stop_on_block,
                 step_on_block: self.step_on_block,
                 step_on_decision: self.step_on_decision,
+                output_to_dir: self.output_to_dir.clone(),
+                output_to_dir_min_verbosity: self.output_to_dir_min_verbosity,
+                output_file_prefix: self.output_file_prefix.clone(),
             },
         }
     }
@@ -846,17 +879,128 @@ impl Pluralize for str {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 enum OutputKind {
     Println,
     Tracing,
+    LogFile(Arc<Mutex<dyn IOWrite + Send + Sync>>),
+    PrintlnAndToFile(Arc<Mutex<dyn IOWrite + Send + Sync>>),
+    TracingAndToFile(Arc<Mutex<dyn IOWrite + Send + Sync>>),
 }
 
 impl OutputKind {
-    fn output_message(&self, message: String) {
+    fn output_message(&mut self, message: String) {
         match self {
             OutputKind::Println => println!("{message}"),
             OutputKind::Tracing => tracing::info!("{message}"),
+            OutputKind::LogFile(f) => {
+                let mut file_lock = f.lock().expect(UNABLE_TO_GET_OUTPUT_FILE_LOCK);
+                file_lock
+                    .write_all(message.as_bytes())
+                    .expect(UNABLE_TO_WRITE_OUTPUT_MESSAGE);
+                file_lock
+                    .write_all("\n".as_bytes())
+                    .expect(UNABLE_TO_WRITE_OUTPUT_MESSAGE);
+            }
+            OutputKind::PrintlnAndToFile(f) => {
+                let mut file_lock = f.lock().expect(UNABLE_TO_GET_OUTPUT_FILE_LOCK);
+                file_lock
+                    .write_all(message.as_bytes())
+                    .expect(UNABLE_TO_WRITE_OUTPUT_MESSAGE);
+                file_lock
+                    .write_all("\n".as_bytes())
+                    .expect(UNABLE_TO_WRITE_OUTPUT_MESSAGE);
+                println!("{message}");
+            }
+            OutputKind::TracingAndToFile(f) => {
+                let mut file_lock = f.lock().expect(UNABLE_TO_GET_OUTPUT_FILE_LOCK);
+                file_lock
+                    .write_all(message.as_bytes())
+                    .expect(UNABLE_TO_WRITE_OUTPUT_MESSAGE);
+                file_lock
+                    .write_all("\n".as_bytes())
+                    .expect(UNABLE_TO_WRITE_OUTPUT_MESSAGE);
+                tracing::info!("{message}");
+            }
+        }
+    }
+
+    /// Make a new output kind that uses the given output_file.
+    fn with_file(&self, output_file: Arc<Mutex<dyn IOWrite + Send + Sync>>) -> Self {
+        match self {
+            OutputKind::Println => OutputKind::PrintlnAndToFile(output_file),
+            OutputKind::Tracing => OutputKind::TracingAndToFile(output_file),
+            OutputKind::LogFile(_) => OutputKind::LogFile(output_file),
+            OutputKind::PrintlnAndToFile(_) => OutputKind::PrintlnAndToFile(output_file),
+            OutputKind::TracingAndToFile(_) => OutputKind::TracingAndToFile(output_file),
+        }
+    }
+
+    /// Given a Println or Tracing output kind, this will ensure the
+    /// new output kind returned is one that includes Println or Tracing
+    /// respectively, as well as the output kind's existing file
+    /// output if any.
+    ///
+    /// This will error if any other output kind is given as the parameter.
+    fn include_output(self, other_output: &OutputKind) -> Result<Self> {
+        match other_output {
+            OutputKind::Println => match self {
+                OutputKind::Println => Ok(self.clone()),
+                OutputKind::Tracing => Err(Error::IncludingThisOutputNotSupported(
+                    "Cannot add Println output kind to a Tracing output kind. It".to_string(),
+                )),
+                OutputKind::LogFile(f) => Ok(OutputKind::PrintlnAndToFile(f.clone())),
+                OutputKind::PrintlnAndToFile(_) => Ok(self.clone()),
+                OutputKind::TracingAndToFile(_) => Err(Error::IncludingThisOutputNotSupported(
+                    "Cannot add Println output kind to a TrackingAndToFile output kind. It"
+                        .to_string(),
+                )),
+            },
+            OutputKind::Tracing => match self {
+                OutputKind::Println => Err(Error::IncludingThisOutputNotSupported(
+                    "Cannot add Tracing output kind to a Println output kind. It".to_string(),
+                )),
+                OutputKind::Tracing => Ok(self.clone()),
+                OutputKind::LogFile(f) => Ok(OutputKind::TracingAndToFile(f.clone())),
+                OutputKind::PrintlnAndToFile(_) => Err(Error::IncludingThisOutputNotSupported(
+                    "Cannot add Tracing output kind to a PrintlnAndToFile output kind. It"
+                        .to_string(),
+                )),
+                OutputKind::TracingAndToFile(_) => Ok(self.clone()),
+            },
+            _ => {
+                // OutputKinds other than Println or Tracing are not
+                // valid for combining with the current output kind here.
+                Err(Error::IncludingThisOutputNotSupported("OutputKind::ensure_output must be called with a Println or Tracing other_output. Including other kinds".to_string()))
+            }
+        }
+    }
+
+    /// Flush the output kind's output file, if any. Any errors that
+    /// occur while flushing the file are logged but not returned
+    /// because we don't want them to interrupt the solve.
+    fn flush(&self) {
+        match self {
+            OutputKind::Println => {}
+            OutputKind::Tracing => {}
+            OutputKind::LogFile(f) => {
+                let mut file_lock = f.lock().expect(UNABLE_TO_GET_OUTPUT_FILE_LOCK);
+                if let Err(err) = file_lock.flush() {
+                    tracing::warn!("{}", Error::SolverLogFileFlushError(err))
+                }
+            }
+            OutputKind::PrintlnAndToFile(f) => {
+                let mut file_lock = f.lock().expect(UNABLE_TO_GET_OUTPUT_FILE_LOCK);
+                if let Err(err) = file_lock.flush() {
+                    tracing::warn!("{}", Error::SolverLogFileFlushError(err))
+                }
+            }
+            OutputKind::TracingAndToFile(f) => {
+                let mut file_lock = f.lock().expect(UNABLE_TO_GET_OUTPUT_FILE_LOCK);
+                if let Err(err) = file_lock.flush() {
+                    tracing::warn!("{}", Error::SolverLogFileFlushError(err))
+                }
+            }
         }
     }
 }
@@ -881,6 +1025,9 @@ pub(crate) struct DecisionFormatterSettings {
     pub(crate) stop_on_block: bool,
     pub(crate) step_on_block: bool,
     pub(crate) step_on_decision: bool,
+    pub(crate) output_to_dir: Option<PathBuf>,
+    pub(crate) output_to_dir_min_verbosity: u8,
+    pub(crate) output_file_prefix: String,
 }
 
 enum LoopOutcome {
@@ -961,6 +1108,7 @@ struct SolverTaskDone {
     pub(crate) verbosity: u8,
     pub(crate) solver_kind: MultiSolverKind,
     pub(crate) can_ignore_failure: bool,
+    pub(crate) output_location: OutputKind,
 }
 
 struct SolverResult {
@@ -997,6 +1145,9 @@ impl DecisionFormatter {
                 stop_on_block: false,
                 step_on_block: false,
                 step_on_decision: false,
+                output_to_dir: None,
+                output_to_dir_min_verbosity: 2,
+                output_file_prefix: String::from(DEFAULT_SOLVER_TEST_FILE_PREFIX),
             },
         }
     }
@@ -1014,8 +1165,8 @@ impl DecisionFormatter {
     }
 
     /// Run the solver runtime to completion, printing each step to
-    /// stdout as appropriate. This does run multiple solvers and won't
-    /// benefit from running solvers in parallel.
+    /// stdout as appropriate. This does not run multiple solvers and
+    /// won't benefit from running solvers in parallel.
     pub async fn run_and_print_decisions(
         &self,
         runtime: &mut SolverRuntime,
@@ -1024,14 +1175,13 @@ impl DecisionFormatter {
         // runs a solve. Once 'spk info' no longer runs a solve we may
         // be able to remove this method.
         let start = Instant::now();
-        let output_to = OutputKind::Println;
-        let loop_outcome = self.run_solver_loop(runtime, output_to).await;
+        let loop_outcome = self.run_solver_loop(runtime, OutputKind::Println).await;
         let solve_time = start.elapsed();
 
         #[cfg(feature = "statsd")]
         self.send_solver_end_metrics(solve_time);
 
-        self.check_and_output_solver_results(loop_outcome, solve_time, runtime, output_to)
+        self.check_and_output_solver_results(loop_outcome, solve_time, runtime, OutputKind::Println)
             .await
     }
 
@@ -1048,7 +1198,7 @@ impl DecisionFormatter {
     }
 
     /// Run the solver runtime to completion, logging each step as a
-    /// tracing info-level event as appropriate. This does run
+    /// tracing info-level event as appropriate. This does not run
     /// multiple solver and won't benefit from running solvers in
     /// parallel.
     pub async fn run_and_log_decisions(
@@ -1058,14 +1208,13 @@ impl DecisionFormatter {
         // Note: this is not currently used directly. We may be able
         // to remove this method.
         let start = Instant::now();
-        let output_to = OutputKind::Tracing;
-        let loop_outcome = self.run_solver_loop(runtime, output_to).await;
+        let loop_outcome = self.run_solver_loop(runtime, OutputKind::Tracing).await;
         let solve_time = start.elapsed();
 
         #[cfg(feature = "statsd")]
         self.send_solver_end_metrics(solve_time);
 
-        self.check_and_output_solver_results(loop_outcome, solve_time, runtime, output_to)
+        self.check_and_output_solver_results(loop_outcome, solve_time, runtime, OutputKind::Tracing)
             .await
     }
 
@@ -1105,27 +1254,86 @@ impl DecisionFormatter {
         }
     }
 
+    fn create_solver_output_file(
+        &self,
+        dir: &Path,
+        solver_kind: &MultiSolverKind,
+    ) -> Result<Arc<Mutex<BufWriter<File>>>> {
+        // Makes a new solver output file by trying to make a file
+        // using the current times until it finds a file name that
+        // doesn't already exist.
+        loop {
+            let datetime = chrono::Local::now();
+
+            let mut filepath = dir.to_path_buf();
+            filepath.push(format!(
+                "{}_{}_{}",
+                self.settings.output_file_prefix,
+                datetime.format("%Y%m%d_%H%M%S_%f"),
+                solver_kind.to_string().replace(' ', "-")
+            ));
+
+            match OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&filepath)
+            {
+                Ok(f) => {
+                    return Ok(Arc::new(Mutex::new(BufWriter::new(f))));
+                }
+                Err(e) if e.kind() == ErrorKind::AlreadyExists => {}
+                Err(e) => return Err(Error::SolverLogFileIOError(e, filepath.clone())),
+            };
+        }
+    }
+
     fn launch_solver_tasks(
         &self,
         solvers: Vec<SolverTaskSettings>,
-        output_location: OutputKind,
-    ) -> FuturesUnordered<tokio::task::JoinHandle<SolverTaskDone>> {
+        output_location: &OutputKind,
+    ) -> Result<FuturesUnordered<tokio::task::JoinHandle<SolverTaskDone>>> {
         let tasks = FuturesUnordered::new();
+        let min_file_output_verbosity = self.settings.output_to_dir_min_verbosity;
 
         for solver_settings in solvers {
             let mut task_formatter = self.clone();
-            if self.settings.solver_to_run.is_multi()
+
+            let solver_output_location = if self.settings.solver_to_run.is_multi()
                 && self.settings.solver_to_show != solver_settings.solver_kind
             {
-                // Hide the output from all the solvers except the
-                // unchanged one. The output from the unchanged solver
-                // is enough to show the user that something is
-                // happening. If one of the later solvers finishes
-                // first, a message will be printed explaining how to
-                // run that solver on its own to see its output.
-                task_formatter.settings.verbosity = 0;
+                // A background solver. Its output is hidden, unless
+                // outputting to a file has been enabled. The output
+                // from the foreground solver is enough to show the
+                // user that something is happening.
                 task_formatter.settings.status_bar = false;
-            }
+                match &self.settings.output_to_dir {
+                    Some(dir) => {
+                        task_formatter.settings.verbosity =
+                            max(min_file_output_verbosity, task_formatter.settings.verbosity);
+                        let f =
+                            self.create_solver_output_file(dir, &solver_settings.solver_kind)?;
+                        OutputKind::LogFile(f)
+                    }
+                    None => {
+                        // Hide this solver's output from a non-file output.
+                        task_formatter.settings.verbosity = 0;
+                        output_location.clone()
+                    }
+                }
+            } else {
+                // The foreground solver's output is always visible
+                match &self.settings.output_to_dir {
+                    Some(dir) => {
+                        task_formatter.settings.verbosity =
+                            max(min_file_output_verbosity, task_formatter.settings.verbosity);
+                        let f =
+                            self.create_solver_output_file(dir, &solver_settings.solver_kind)?;
+                        output_location.with_file(f)
+                    }
+                    None => output_location.clone(),
+                }
+            };
+
             let mut task_solver_runtime = solver_settings.solver.run();
 
             let task = async move {
@@ -1134,7 +1342,7 @@ impl DecisionFormatter {
 
                 let start = Instant::now();
                 let loop_outcome = task_formatter
-                    .run_solver_loop(&mut task_solver_runtime, output_location)
+                    .run_solver_loop(&mut task_solver_runtime, solver_output_location.clone())
                     .await;
 
                 SolverTaskDone {
@@ -1144,13 +1352,14 @@ impl DecisionFormatter {
                     verbosity: task_formatter.settings.verbosity,
                     solver_kind: solver_settings.solver_kind,
                     can_ignore_failure: solver_settings.ignore_failure,
+                    output_location: solver_output_location.clone(),
                 }
             };
 
             tasks.push(tokio::spawn(task));
         }
 
-        tasks
+        Ok(tasks)
     }
 
     fn stop_solver_tasks_without_waiting(
@@ -1207,9 +1416,9 @@ impl DecisionFormatter {
     async fn run_multi_solve(
         &self,
         solvers: Vec<SolverTaskSettings>,
-        output_location: OutputKind,
+        initial_output_location: OutputKind,
     ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
-        let mut tasks = self.launch_solver_tasks(solvers, output_location);
+        let mut tasks = self.launch_solver_tasks(solvers, &initial_output_location)?;
         let mut solver_results = Vec::new();
 
         while let Some(result) = tasks.next().await {
@@ -1221,6 +1430,7 @@ impl DecisionFormatter {
                     verbosity,
                     solver_kind,
                     can_ignore_failure,
+                    output_location,
                 }) => {
                     // If the solver that finished first is one we can
                     // ignore failures from and it failed, then ignore
@@ -1254,12 +1464,18 @@ impl DecisionFormatter {
                         tracing::debug!("{solver_kind} solver {ending}. {tasks_action}");
                     }
 
+                    // Make sure the output location for result is
+                    // visible, even if the solver that finished first
+                    // was one whose output was being hidden.
+                    output_location.flush();
+                    let solver_output_location =
+                        output_location.include_output(&initial_output_location)?;
                     let result = self
                         .check_and_output_solver_results(
                             loop_outcome,
                             solve_time,
                             &mut runtime,
-                            output_location,
+                            solver_output_location,
                         )
                         .await;
 
@@ -1315,7 +1531,7 @@ impl DecisionFormatter {
     async fn run_solver_loop(
         &self,
         runtime: &mut SolverRuntime,
-        output_location: OutputKind,
+        mut output_location: OutputKind,
     ) -> LoopOutcome {
         // This block exists to shorten the scope of `runtime`'s borrow.
         let loop_outcome = {
@@ -1351,7 +1567,7 @@ impl DecisionFormatter {
         loop_outcome: LoopOutcome,
         solve_time: Duration,
         runtime: &mut SolverRuntime,
-        output_location: OutputKind,
+        mut output_location: OutputKind,
     ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
         match loop_outcome {
             LoopOutcome::Interrupted(mesg) => {
@@ -1444,6 +1660,8 @@ impl DecisionFormatter {
                 ));
             }
         }
+
+        output_location.flush();
 
         if self.settings.show_search_space_size {
             self.show_search_space_info(&solution, runtime).await?;
