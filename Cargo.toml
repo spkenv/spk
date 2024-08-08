@@ -137,7 +137,7 @@ strip-ansi-escapes = "0.2.0"
 strum = { version = "0.26.1", features = ["derive"] }
 tempfile = "3.3"
 thiserror = "1.0"
-tokio = { version = "1.28", features = ["rt"] }
+tokio = { version = "1.39", features = ["rt"] }
 tokio-retry = "0.3.0"
 tonic = "0.11"
 tonic-build = "0.11"
