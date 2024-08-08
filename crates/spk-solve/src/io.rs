@@ -316,8 +316,7 @@ where
         // or disable when this menu is active
         if let Some(state) = current_state {
             // Simplistic menu for now
-            let mut done = false;
-            while !done {
+            loop {
                 // Show a compressed version of the menu
                 print!(
                     "{} Select one of [r,u,v,o,s,a,c,?,C-c]> ",
@@ -341,7 +340,7 @@ where
                     's' | 'a' => self.show_state(state),
                     'c' => {
                         self.remove_step_and_stop_setting();
-                        done = true;
+                        break;
                     }
                     // TODO: could look at adding other things in future:
                     // - show dep graph image based on current resolved/unresolved
@@ -349,7 +348,7 @@ where
                     // - launch spk env based on current resolved packages
                     // - rewind the solve
                     // - save/restore point for the solve, for use in tests
-                    _ => done = true,
+                    _ => break,
                 }
             }
         }
