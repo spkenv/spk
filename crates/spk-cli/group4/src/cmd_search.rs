@@ -7,7 +7,8 @@ use colored::Colorize;
 use miette::Result;
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::FormatIdent;
-use spk_schema::{Deprecate, VersionIdent};
+use spk_schema::{Deprecate, Package, VersionIdent};
+use spk_solve::option_map::get_host_options_filters;
 
 /// Search for packages by name/substring
 #[derive(Args)]
@@ -21,6 +22,18 @@ pub struct Search {
     /// Show deprecated packages in the output
     #[clap(long, short)]
     deprecated: bool,
+
+    /// Disable the filtering that would only show items that have a
+    /// build that matches the current host's host options. This
+    /// option can be configured as the default in spk's config file.
+    #[clap(long, conflicts_with = "host")]
+    no_host: bool,
+
+    /// Enable filtering to only show items that have a build that
+    /// matches the current host's host options. This option can be
+    /// configured as the default in spk's config file.
+    #[clap(long)]
+    host: bool,
 
     /// The text/substring to search for in package names
     term: String,
@@ -39,6 +52,16 @@ impl Run for Search {
             .map(String::len)
             .max()
             .unwrap_or_default();
+
+        // Set the default filter to the all current host's host
+        // options (--host). --no-host will disable this.
+        let filter_by = if !self.no_host && self.host {
+            get_host_options_filters()
+        } else {
+            None
+        };
+        tracing::debug!("Filter is: {:?}", filter_by);
+
         let mut exit = 1;
         for (repo_name, repo) in repos.iter() {
             for name in repo.list_packages().await? {
@@ -71,17 +94,37 @@ impl Run for Search {
                                     continue;
                                 }
                             }
+                            // Need to look at the builds to see if
+                            // there's one that matches the filters
+                            let mut has_a_build_that_matches_the_filter = false;
+                            for build in builds {
+                                if let Ok(spec) = repo.read_package(&build).await {
+                                    if spec.matches_all_filters(&filter_by) {
+                                        has_a_build_that_matches_the_filter = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if !has_a_build_that_matches_the_filter {
+                                // Hide ones that don't match the filters
+                                continue;
+                            }
                         }
                         Err(_) => {
                             // It doesn't have a recipe, but it does
                             // have builds, so unless all the builds
-                            // are deprecated, show it. This can
-                            // happen when there is a version of a
-                            // package that only exists as embedded builds.
+                            // are deprecated, show it if a build
+                            // matches the filter. This can happen
+                            // when there is a version of a package
+                            // that only exists as embedded builds.
                             let mut all_builds_deprecated = true;
                             for build in builds {
                                 if let Ok(spec) = repo.read_package(&build).await {
                                     if !spec.is_deprecated() {
+                                        if !spec.matches_all_filters(&filter_by) {
+                                            // Hide ones that don't match the filters
+                                            continue;
+                                        }
                                         all_builds_deprecated = false;
                                         break;
                                     }
