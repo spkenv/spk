@@ -643,12 +643,43 @@ impl Solver {
                                 // solve. Jump back to before the conflicting
                                 // package was added and try adding this
                                 // build again.
-                                let (_, _, state_id) = node
+                                let (conflicting_pkg, conflicting_pkg_source, state_id) = node
                                     .state
                                     .get_current_resolve(&conflicting_package_name)
                                     .map_err(|_| {
                                         Error::String("package not found in resolve".into())
                                     })?;
+
+                                // Is the conflicting package already embedded
+                                // by some other package?
+                                if conflicting_pkg.ident().is_embedded() {
+                                    notes.push(Note::SkipPackageNote(SkipPackageNote::new(
+                                        spec.ident().to_any(),
+                                        Compatibility::Incompatible({
+                                            match conflicting_pkg_source {
+                                                PackageSource::Embedded { parent } => {
+                                                    IncompatibleReason::AlreadyEmbeddedPackage {
+                                                        embedded: conflicting_package_name,
+                                                        embedded_by: parent.name().to_owned(),
+                                                    }
+                                                }
+                                                _ => {
+                                                    // As the solver exhausts
+                                                    // all possibilities it
+                                                    // eventually tries to
+                                                    // resolve an embedded stub
+                                                    // for a package that is
+                                                    // already in the solve.
+                                                    IncompatibleReason::ConflictingEmbeddedPackage(
+                                                        conflicting_package_name,
+                                                    )
+                                                }
+                                            }
+                                        }),
+                                    )));
+                                    self.number_builds_skipped += 1;
+                                    continue;
+                                }
 
                                 let graph_lock = graph.read().await;
 
