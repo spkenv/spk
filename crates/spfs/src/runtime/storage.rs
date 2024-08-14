@@ -24,7 +24,8 @@ use tokio::io::AsyncReadExt;
 #[cfg(windows)]
 use super::startup_ps;
 #[cfg(unix)]
-use super::{config_nu, env_nu, startup_csh, startup_sh};
+use super::{startup_csh, startup_sh};
+use super::{config_nu, env_nu};
 use crate::encoding::Digest;
 use crate::env::SPFS_DIR_PREFIX;
 use crate::graph::object::Enum;
