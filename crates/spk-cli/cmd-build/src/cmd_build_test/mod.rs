@@ -653,3 +653,78 @@ build:
         .await
         .unwrap();
 }
+
+/// A package may contain files/directories with a leading dot
+#[rstest]
+#[tokio::test]
+async fn test_dot_files_are_collected(tmpdir: tempfile::TempDir) {
+    let rt = spfs_runtime().await;
+
+    build_package!(
+        tmpdir,
+        "dot.spk.yaml",
+        br#"
+api: v0/package
+pkg: dot/1.0.0
+build:
+  script:
+    - touch /spfs/no_dot
+    - touch /spfs/.dot
+    - mkdir /spfs/dot
+    - touch /spfs/dot/.dot
+    - mkdir /spfs/.dot2
+    - touch /spfs/.dot2/dot
+    - touch /spfs/.dot2/.dot
+    - ln -s .dot2 /spfs/.dot3
+"#,
+    );
+
+    let build = rt
+        .tmprepo
+        .list_package_builds(&version_ident!("dot/1.0.0"))
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|b| !b.is_source())
+        .unwrap();
+
+    let digest = *rt
+        .tmprepo
+        .read_components(&build)
+        .await
+        .unwrap()
+        .get(&Component::Run)
+        .unwrap();
+
+    let spk_storage::RepositoryHandle::SPFS(repo) = &*rt.tmprepo else {
+        panic!("Expected SPFS repo");
+    };
+
+    let layer = repo.read_layer(digest).await.unwrap();
+
+    let manifest = repo
+        .read_manifest(
+            *layer
+                .manifest()
+                .expect("Layer should have a manifest in this test"),
+        )
+        .await
+        .unwrap()
+        .to_tracking_manifest();
+
+    for path in &[
+        "/no_dot",
+        "/.dot",
+        "/dot/.dot",
+        "/.dot2",
+        "/.dot2/dot",
+        "/.dot2/.dot",
+        "/.dot3",
+    ] {
+        let entry = manifest.get_path(path);
+        assert!(
+            entry.is_some(),
+            "should capture file/directory with leading dot: {path}"
+        );
+    }
+}

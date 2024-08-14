@@ -171,11 +171,9 @@ impl Mount {
             return None;
         };
 
-        const TRIM_START: &[char] = &['/', '.'];
         const TRIM_END: &[char] = &['/'];
         let path = str_path.replace('\\', "/");
-        let path = path
-            .trim_start_matches(TRIM_START)
+        let path = spfs::tracking::Manifest::<()>::trim_leading_slash(path.as_str())
             .trim_end_matches(TRIM_END);
         let mut entry = self
             .inodes

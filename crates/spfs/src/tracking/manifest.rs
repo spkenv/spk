@@ -115,12 +115,8 @@ impl<T> Manifest<T> {
 
     /// Get an entry in this manifest given its filepath.
     pub fn get_path<P: AsRef<str>>(&self, path: P) -> Option<&Entry<T>> {
-        const TRIM_START: &[char] = &['/', '.'];
         const TRIM_END: &[char] = &['/'];
-        let path = path
-            .as_ref()
-            .trim_start_matches(TRIM_START)
-            .trim_end_matches(TRIM_END);
+        let path = Self::trim_leading_slash(path.as_ref()).trim_end_matches(TRIM_END);
         let mut entry = &self.root;
         if path.is_empty() {
             return Some(entry);
@@ -228,8 +224,7 @@ where
     /// file mode, but can and should be replaced by a new entry in the
     /// case where this is not desired.
     pub fn mkdirs<P: AsRef<str>>(&mut self, path: P) -> MkResult<&mut Entry<T>> {
-        const TRIM_PAT: &[char] = &['/', '.'];
-        let path = path.as_ref().trim_start_matches(TRIM_PAT);
+        let path = Self::trim_leading_slash(path.as_ref());
         if path.is_empty() {
             return Err(MkError::AlreadyExists(path.into()));
         }
@@ -262,15 +257,31 @@ where
 }
 
 impl<T> Manifest<T> {
+    /// Remove any leading '/' or elements at the front of the path that are
+    /// redundant, like "/./".
+    #[inline]
+    pub fn trim_leading_slash(path: &str) -> &str {
+        match *path.as_bytes() {
+            [b'.', b'/', ref rest @ ..] => {
+                // Safety: we know that the rest of the path is valid utf-8
+                Self::trim_leading_slash(unsafe { std::str::from_utf8_unchecked(rest) })
+            }
+            [b'/', ref rest @ ..] => {
+                // Safety: we know that the rest of the path is valid utf-8
+                Self::trim_leading_slash(unsafe { std::str::from_utf8_unchecked(rest) })
+            }
+            _ => path,
+        }
+    }
+
     pub fn mknod<P: AsRef<str>>(
         &mut self,
         path: P,
         new_entry: Entry<T>,
     ) -> MkResult<&mut Entry<T>> {
         use relative_path::Component;
-        const TRIM_PAT: &[char] = &['/', '.'];
 
-        let path = path.as_ref().trim_start_matches(TRIM_PAT);
+        let path = Self::trim_leading_slash(path.as_ref());
         if path.is_empty() {
             return Err(MkError::AlreadyExists(path.into()));
         }
