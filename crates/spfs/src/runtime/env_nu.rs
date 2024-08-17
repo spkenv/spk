@@ -1,7 +1,7 @@
 // Copyright (c) Contributors to the SPK project.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
-// Warning Nuhshell version >=0.96
+// Warning Nushell version >=0.97
 
 pub fn source<T>(_tmpdir: Option<&T>) -> String
 where
