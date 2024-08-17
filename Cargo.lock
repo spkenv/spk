@@ -593,11 +593,21 @@ dependencies = [
 
 [[package]]
 name = "clap_complete"
-version = "4.4.3"
+version = "4.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3ae8ba90b9d8b007efe66e55e48fb936272f5ca00349b5b0e89877520d35ea7"
+checksum = "b5a2d6eec27fce550d708b2be5d798797e5a55b246b323ef36924a0001996352"
 dependencies = [
  "clap 4.5.0",
+]
+
+[[package]]
+name = "clap_complete_nushell"
+version = "4.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5fe32110e006bccf720f8c9af3fee1ba7db290c724eab61544e1d3295be3a40e"
+dependencies = [
+ "clap 4.5.0",
+ "clap_complete",
 ]
 
 [[package]]
@@ -4005,6 +4015,7 @@ dependencies = [
  "async-trait",
  "clap 4.5.0",
  "clap_complete",
+ "clap_complete_nushell",
  "colored",
  "futures",
  "itertools 0.12.1",
