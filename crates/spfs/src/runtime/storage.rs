@@ -408,12 +408,12 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        Self::from_root(Path::new(Self::RUNTIME_DIR))
+        // Default RUNTIME_DIR
+        Self::from_root(temp_dir().join("spfs-runtime"))
     }
 }
 
 impl Config {
-    const RUNTIME_DIR: &'static str = "/tmp/spfs-runtime";
     const UPPER_DIR: &'static str = "upper";
     const LOWER_DIR: &'static str = "lower";
     const WORK_DIR: &'static str = "work";
