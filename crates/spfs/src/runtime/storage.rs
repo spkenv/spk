@@ -408,8 +408,8 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        // Default RUNTIME_DIR
-        Self::from_root(temp_dir().join("spfs-runtime"))
+        let default_runtime_dir = temp_dir().join("spfs-runtime");
+        Self::from_root(default_runtime_dir)
     }
 }
 
