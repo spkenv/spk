@@ -1421,6 +1421,62 @@ async fn test_solver_impossible_request_but_embedded_package_makes_solvable(mut 
     };
 }
 
+/// When multiple packages try to embed the same package the solver doesn't
+/// panic.
+#[rstest]
+#[tokio::test]
+async fn test_multiple_packages_embed_same_package(
+    mut solver: Solver,
+    #[values(true, false)] resolve_validation_impossible_checks: bool,
+) {
+    init_logging();
+
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "embedded-pkg/1.0.0",
+                "build": {"script": "echo BUILD"},
+            },
+            {
+                "pkg": "dep1/1.0.0",
+                "build": {"script": "echo BUILD"},
+                "install": {"embedded": [{"pkg": "embedded-pkg/1.0.0"}]},
+            },
+            {
+                "pkg": "dep2/1.0.0",
+                "build": {"script": "echo BUILD"},
+                "install": {"embedded": [{"pkg": "embedded-pkg/1.0.0"}]},
+            },
+            {
+                "pkg": "top-level/1.0.0",
+                "build": {"script": "echo BUILD"},
+                "install": {"requirements": [
+                    // Resolve the "real" package first
+                    {"pkg": "embedded-pkg"},
+                    // dep1 embeds 'embedded-pkg' and should eject the real one
+                    {"pkg": "dep1"},
+                    // dep2 also embeds 'embedded-pkg' and in the past would
+                    // cause the solver to panic
+                    {"pkg": "dep2"}]},
+            },
+        ]
+    );
+
+    solver.add_repository(Arc::new(repo));
+    solver.add_request(request!("top-level"));
+    solver.set_resolve_validation_impossible_checks(resolve_validation_impossible_checks);
+
+    match run_and_print_resolve_for_tests(&solver).await {
+        Err(Error::GraphError(spk_solve_graph::Error::FailedToResolve(_))) => {}
+        Ok(_) => {
+            panic!("No solution expected");
+        }
+        Err(err) => {
+            panic!("Expected FailedToResolve, but got this error: {err}");
+        }
+    };
+}
+
 #[rstest]
 #[tokio::test]
 async fn test_solver_with_impossible_checks_in_build_keys(mut solver: Solver) {

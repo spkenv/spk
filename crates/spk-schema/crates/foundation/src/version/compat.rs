@@ -90,6 +90,10 @@ impl Ord for CompatRule {
 /// Denotes whether or not something is compatible.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum IncompatibleReason {
+    AlreadyEmbeddedPackage {
+        embedded: PkgNameBuf,
+        embedded_by: PkgNameBuf,
+    },
     ConflictingEmbeddedPackage(PkgNameBuf),
     Other(String),
 }
@@ -97,6 +101,15 @@ pub enum IncompatibleReason {
 impl std::fmt::Display for IncompatibleReason {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
+            IncompatibleReason::AlreadyEmbeddedPackage {
+                embedded,
+                embedded_by,
+            } => {
+                write!(
+                    f,
+                    "embedded package {embedded} already embedded by another package in solve: {embedded_by}"
+                )
+            }
             IncompatibleReason::ConflictingEmbeddedPackage(pkg) => {
                 write!(
                     f,
