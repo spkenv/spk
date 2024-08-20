@@ -587,11 +587,19 @@ impl Config {
         match self.remote.get(remote_name.as_ref()) {
             Some(Remote::Address(remote)) => {
                 let config = RemoteConfig::from_address(remote.address.clone()).await?;
-                tracing::debug!(?config, "opening '{}' repository", remote_name.as_ref());
+                tracing::debug!(
+                    ?config,
+                    "opening '{}' repository via address",
+                    remote_name.as_ref()
+                );
                 config.open().await
             }
             Some(Remote::Config(config)) => {
-                tracing::debug!(?config, "opening '{}' repository", remote_name.as_ref());
+                tracing::debug!(
+                    ?config,
+                    "opening '{}' repository via config",
+                    remote_name.as_ref()
+                );
                 config.open().await
             }
             None => {
