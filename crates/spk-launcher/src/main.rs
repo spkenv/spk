@@ -4,12 +4,17 @@
 
 use std::env::{args_os, var_os};
 use std::ffi::{CString, OsStr, OsString};
+#[cfg(unix)]
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
+#[cfg(unix)]
 use std::os::unix::fs::symlink;
+#[cfg(windows)]
+use std::os::windows::fs::{symlink_file, symlink_dir};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use miette::{bail, miette, Context, IntoDiagnostic, Result};
+#[cfg(unix)]
 use nix::unistd::execv;
 use spfs::encoding::Digest;
 use spfs::prelude::*;
@@ -188,9 +193,20 @@ impl<'a> Dynamic<'a> {
                     Err(miette!("symlink target exists"))
                 }
                 .and_then(|_| {
-                    symlink(&digest_string, &symlink_name)
-                        .into_diagnostic()
-                        .wrap_err("create symlink")
+                    #[cfg(unix)]
+                    {
+                        symlink(&digest_string, &symlink_name)
+                            .into_diagnostic()
+                            .wrap_err("create symlink")
+                    }
+                    #[cfg(windows)]
+                    {
+                        symlink_file(&digest_string, &symlink_name)
+                            .or_else(|_| symlink_dir(&digest_string, &symlink_name))
+                            .into_diagnostic()
+                            .wrap_err("create symlink")
+                    }
+
                 });
             }
         }
@@ -200,18 +216,38 @@ impl<'a> Dynamic<'a> {
 
     async fn execute(&self) -> Result<()> {
         let bin_tag = var_os(self.tag_env_var()).unwrap_or_else(|| RPM_TAG.into());
+        #[cfg(unix)]
         let args = args_os()
             .map(|os_string| CString::new(os_string.as_bytes()))
             .collect::<Result<Vec<_>, _>>()
             .into_diagnostic()
             .wrap_err("valid CStrings")?;
+        #[cfg(windows)]
+        let args = args_os().collect::<Vec<_>>();
         if bin_tag == RPM_TAG {
+            #[cfg(unix)]
             let bin = CString::new(AsRef::<OsStr>::as_ref(&self.rpm_bin_path()).as_bytes())
                 .expect("valid CString");
+            #[cfg(windows)]
+            let bin = self.rpm_bin_path();
+            #[cfg(unix)]
             execv(&bin, args.as_slice())
                 .into_diagnostic()
                 .wrap_err_with(|| format!("execv({}, ...)", bin.to_string_lossy()))?;
-            unreachable!();
+            #[cfg(windows)]
+            {
+                let bin = bin.to_string_lossy();
+                let args = args
+                    .iter()
+                    .map(|arg| arg.to_string_lossy())
+                    .collect::<Vec<_>>();
+                let args = args.join(" ");
+                std::process::Command::new(bin.to_string())
+                    .args(args.split_whitespace())
+                    .spawn()
+                    .into_diagnostic()
+                    .wrap_err_with(|| format!("spawn({}, {})", bin, args))?;
+            }
         }
 
         let config = spfs::get_config().expect("loaded spfs config");
@@ -264,7 +300,7 @@ impl<'a> Dynamic<'a> {
                     })?;
 
                 std::env::set_var(self.bin_var(), &bin_path);
-
+                #[cfg(unix)]
                 execv(
                     &CString::new(bin_path.into_vec())
                         .into_diagnostic()
@@ -278,6 +314,20 @@ impl<'a> Dynamic<'a> {
                 )
                 .into_diagnostic()
                 .wrap_err("process replaced")?;
+                #[cfg(windows)]
+                {
+                    let bin = bin_path.to_string_lossy();
+                    let args = args
+                        .iter()
+                        .map(|arg| arg.to_string_lossy())
+                        .collect::<Vec<_>>();
+                    let args = args.join(" ");
+                    std::process::Command::new(bin.to_string())
+                        .args(args.split_whitespace())
+                        .spawn()
+                        .into_diagnostic()
+                        .wrap_err_with(|| format!("spawn({}, {})", bin, args))?;
+                }
                 unreachable!();
             }
             Ok(None) => bail!("Expected platform object from spfs"),
