@@ -460,6 +460,10 @@ impl Config {
         self.csh_startup_file = root.join(Self::CSH_STARTUP_FILE);
         self.runtime_dir = Some(root);
     }
+
+    pub fn is_backend_fuse(&self) -> bool {
+        self.mount_backend.is_fuse()
+    }
 }
 
 /// Identifies a filesystem backend for spfs
@@ -510,6 +514,15 @@ impl MountBackend {
         matches!(self, Self::WinFsp)
     }
 
+    pub fn is_fuse(&self) -> bool {
+        match self {
+            MountBackend::OverlayFsWithRenders => false,
+            MountBackend::OverlayFsWithFuse => true,
+            MountBackend::FuseOnly => true,
+            MountBackend::WinFsp => false,
+        }
+    }
+
     /// Reports whether this mount backend requires that all
     /// data be synced to the local repository before being executed
     pub fn requires_localization(&self) -> bool {
@@ -552,6 +565,10 @@ impl Data {
 
     pub fn upper_dir(&self) -> &PathBuf {
         &self.config.upper_dir
+    }
+
+    pub fn is_backend_fuse(&self) -> bool {
+        self.config.is_backend_fuse()
     }
 
     /// Whether to keep the runtime when the process is exits
@@ -691,6 +708,10 @@ impl Runtime {
 
     pub fn storage(&self) -> &Storage {
         &self.storage
+    }
+
+    pub fn is_backend_fuse(&self) -> bool {
+        self.data.is_backend_fuse()
     }
 
     pub fn is_durable(&self) -> bool {
