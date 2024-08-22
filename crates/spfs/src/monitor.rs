@@ -318,9 +318,12 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime, config: &crate::Confi
             // alive. This is a read operation to avoid issues with ro mounts
             // or modifying any content in /spfs.
             // The filename has a unique component to avoid any caching.
-            let _ =
-                tokio::fs::symlink_metadata(format!("/spfs/.fuse-heartbeat-{}", ulid::Ulid::new()))
-                    .await;
+            let _ = tokio::fs::symlink_metadata(format!(
+                "/spfs/{}{}",
+                crate::config::Fuse::HEARTBEAT_FILENAME_PREFIX,
+                ulid::Ulid::new()
+            ))
+            .await;
 
             spfs_heartbeat_deadline = now + spfs_heartbeat_interval;
         }

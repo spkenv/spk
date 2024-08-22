@@ -807,12 +807,20 @@ impl fuser::Filesystem for Session {
     }
 
     fn lookup(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEntry) {
-        if name.as_bytes().starts_with(b".fuse-heartbeat") {
+        if name
+            .as_bytes()
+            .starts_with(spfs::config::Fuse::HEARTBEAT_FILENAME_PREFIX.as_bytes())
+        {
             let seconds_since_session_start = self.inner.session_start.elapsed().as_secs();
             tracing::trace!(?seconds_since_session_start, "heard heartbeat");
             self.inner
                 .last_heartbeat_seconds_since_session_start
                 .store(seconds_since_session_start, Ordering::Relaxed);
+
+            // The heartbeat filename is sufficiently unique that the reply can
+            // be sent without doing any real I/O on the backing filesystem.
+            reply.error(libc::ENOENT);
+            return;
         }
 
         let name = name.to_owned();

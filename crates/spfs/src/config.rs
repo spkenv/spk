@@ -404,6 +404,15 @@ pub struct Fuse {
     pub heartbeat_grace_period_seconds: NonZeroU64,
 }
 
+impl Fuse {
+    /// The prefix for the heartbeat file name when heartbeats are enabled.
+    /// This prefix contains a UUID so that the fuse backend can reasonably
+    /// assume any attempt to access a file with this prefix is a heartbeat and
+    /// does not need to process the related file I/O normally.
+    pub const HEARTBEAT_FILENAME_PREFIX: &'static str =
+        ".spfs-heartbeat-436cd8d6-60d1-11ef-9c93-00155dab73c6-";
+}
+
 impl Default for Fuse {
     fn default() -> Self {
         Self {
