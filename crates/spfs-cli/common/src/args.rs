@@ -426,6 +426,19 @@ impl Logging {
     }
 }
 
+/// Log a message at the warning level and also generate a sentry event if
+/// sentry is enabled.
+#[macro_export]
+macro_rules! warn_and_sentry_event {
+    ($($arg:tt)*) => {
+        #[cfg(feature = "sentry")]
+        {
+            tracing::error!(target: "sentry", $($arg)*);
+        }
+        tracing::warn!($($arg)*);
+    };
+}
+
 /// Command line flags for viewing annotations in a runtime
 #[derive(Debug, Clone, clap::Args)]
 pub struct AnnotationViewing {

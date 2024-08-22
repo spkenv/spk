@@ -10,7 +10,7 @@ use fuser::MountOption;
 use miette::{bail, miette, Context, IntoDiagnostic, Result};
 use spfs::tracking::EnvSpec;
 use spfs::Error;
-use spfs_cli_common as cli;
+use spfs_cli_common::{self as cli, warn_and_sentry_event};
 use spfs_vfs::{Config, Session};
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::time::timeout;
@@ -275,7 +275,8 @@ impl CmdFuse {
                         let seconds = session.seconds_since_last_heartbeat();
                         tracing::trace!(seconds_since_last_heartbeat = ?seconds, "heartbeat monitor");
                         if seconds > heartbeat_grace_period_seconds {
-                            tracing::warn!("loss of heartbeat, shutting down filesystem");
+                            warn_and_sentry_event!("loss of heartbeat, shutting down filesystem");
+
                             // XXX: Calling unmount here has no apparent effect!
                             heartbeat_send.send(()).await.into_diagnostic().wrap_err("Failed to send unmount signal")?;
                             break;
