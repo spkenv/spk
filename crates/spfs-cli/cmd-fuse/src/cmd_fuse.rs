@@ -3,6 +3,7 @@
 // https://github.com/spkenv/spk
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use clap::Parser;
 use fuser::MountOption;
@@ -12,6 +13,7 @@ use spfs::Error;
 use spfs_cli_common as cli;
 use spfs_vfs::{Config, Session};
 use tokio::signal::unix::{signal, SignalKind};
+use tokio::time::timeout;
 
 // The runtime setup process manages the current namespace
 // which operates only on the current thread. For this reason
@@ -320,8 +322,18 @@ impl CmdFuse {
                 // XXX: Calling unmount has no apparent effect!
                 unmount_callable.lock().unwrap().unmount().into_diagnostic().wrap_err("FUSE unmount failed")?;
                 tracing::trace!("Joining FUSE session");
-                join_handle.await.into_diagnostic().wrap_err("FUSE join_handle await failed")?.into_diagnostic().wrap_err("FUSE session failed after unmount")?;
-                tracing::trace!("FUSE session joined");
+                // Since the umount above may have no effect, this join uses a
+                // timeout so the process doesn't deadlock. Once this process
+                // exits, the fusermount auto_unmount should kick in.
+                match timeout(Duration::from_secs(5), join_handle).await {
+                    Ok(r) => {
+                        tracing::trace!("FUSE session joined");
+                        r.into_diagnostic().wrap_err("FUSE join_handle await failed")?.into_diagnostic().wrap_err("FUSE session failed after unmount")?;
+                    }
+                    Err(_) => {
+                        tracing::warn!("FUSE session join timed out");
+                    }
+                }
             }
             res
         });
