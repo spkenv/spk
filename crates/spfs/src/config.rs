@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use std::num::NonZeroUsize;
+use std::num::{NonZeroU64, NonZeroUsize};
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
@@ -55,6 +55,16 @@ const fn default_monitor_max_blocking_threads() -> NonZeroUsize {
     // blocking threads as it will work through things in time
     // Safety: this is a hard-coded non-zero value
     unsafe { NonZeroUsize::new_unchecked(2) }
+}
+
+const fn default_fuse_heartbeat_interval_seconds() -> NonZeroU64 {
+    // Safety: this is a hard-coded non-zero value
+    unsafe { NonZeroU64::new_unchecked(60) }
+}
+
+const fn default_fuse_heartbeat_grace_period_seconds() -> NonZeroU64 {
+    // Safety: this is a hard-coded non-zero value
+    unsafe { NonZeroU64::new_unchecked(300) }
 }
 
 static CONFIG: OnceCell<RwLock<Arc<Config>>> = OnceCell::new();
@@ -382,6 +392,16 @@ pub struct Fuse {
     pub worker_threads: NonZeroUsize,
     #[serde(default = "default_fuse_max_blocking_threads")]
     pub max_blocking_threads: NonZeroUsize,
+    /// Enable a heartbeat between spfs-monitor and spfs-fuse. If spfs-monitor
+    /// stops sending a heartbeat, spfs-fuse will shut down.
+    pub enable_heartbeat: bool,
+    /// How often to send a heartbeat, in seconds
+    #[serde(default = "default_fuse_heartbeat_interval_seconds")]
+    pub heartbeat_interval_seconds: NonZeroU64,
+    /// How long to allow not receiving a heartbeat before shutting down, in
+    /// seconds
+    #[serde(default = "default_fuse_heartbeat_grace_period_seconds")]
+    pub heartbeat_grace_period_seconds: NonZeroU64,
 }
 
 impl Default for Fuse {
@@ -389,6 +409,9 @@ impl Default for Fuse {
         Self {
             worker_threads: default_fuse_worker_threads(),
             max_blocking_threads: default_fuse_max_blocking_threads(),
+            enable_heartbeat: false,
+            heartbeat_interval_seconds: default_fuse_heartbeat_interval_seconds(),
+            heartbeat_grace_period_seconds: default_fuse_heartbeat_grace_period_seconds(),
         }
     }
 }

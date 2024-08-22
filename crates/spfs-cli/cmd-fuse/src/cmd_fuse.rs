@@ -261,23 +261,29 @@ impl CmdFuse {
             let unmount_callable = Arc::new(std::sync::Mutex::new(fuser_session.unmount_callable()));
             let mut join_handle = tokio::task::spawn_blocking(move || fuser_session.run());
 
-            let heartbeat_monitor =
+            let mut heartbeat_monitor = config.fuse.enable_heartbeat.then(|| {
+                let heartbeat_interval_seconds = config.fuse.heartbeat_interval_seconds.get();
+                let heartbeat_grace_period_seconds = config.fuse.heartbeat_grace_period_seconds.get();
+                // Don't move the [only] sender or if heartbeats are not
+                // enabled it will be dropped and trigger the receiving end.
+                let heartbeat_send = heartbeat_send.clone();
                 tokio::task::spawn(async move {
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
+                    let mut interval = tokio::time::interval(std::time::Duration::from_secs(30.min((heartbeat_interval_seconds / 2).max(1))));
 
-                loop {
-                    interval.tick().await;
-                    let seconds = session.seconds_since_last_heartbeat();
-                    tracing::trace!(seconds_since_last_heartbeat = ?seconds, "heartbeat monitor");
-                    if seconds >= 300 {
-                        tracing::warn!("loss of heartbeat, shutting down filesystem");
-                        // XXX: Calling unmount here has no apparent effect!
-                        heartbeat_send.send(()).await.into_diagnostic().wrap_err("Failed to send unmount signal")?;
-                        break;
+                    loop {
+                        interval.tick().await;
+                        let seconds = session.seconds_since_last_heartbeat();
+                        tracing::trace!(seconds_since_last_heartbeat = ?seconds, "heartbeat monitor");
+                        if seconds > heartbeat_grace_period_seconds {
+                            tracing::warn!("loss of heartbeat, shutting down filesystem");
+                            // XXX: Calling unmount here has no apparent effect!
+                            heartbeat_send.send(()).await.into_diagnostic().wrap_err("Failed to send unmount signal")?;
+                            break;
+                        }
                     }
-                }
 
-                Ok::<_, miette::Report>(())
+                    Ok::<_, miette::Report>(())
+                })
             });
 
             let mut heartbeat_failed = false;
@@ -297,9 +303,11 @@ impl CmdFuse {
                 }
             };
 
-            heartbeat_monitor.abort_handle().abort();
-            if let Err(err) = heartbeat_monitor.await {
-                tracing::warn!("Heartbeat monitor failed: {err:?}");
+            if let Some(handle) = heartbeat_monitor.take() {
+                handle.abort_handle().abort();
+                if let Err(err) = handle.await {
+                    tracing::warn!("Heartbeat monitor failed: {err:?}");
+                }
             }
 
             // The filesystem task must be fully terminated in order for the subsequent unmount

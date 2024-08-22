@@ -83,7 +83,7 @@ pub fn spawn_monitor_for_runtime(rt: &runtime::Runtime) -> Result<tokio::process
 ///
 /// This is a privileged operation that may fail with a permission
 /// issue if the calling process is not root or CAP_NET_ADMIN
-pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
+pub async fn wait_for_empty_runtime(rt: &runtime::Runtime, config: &crate::Config) -> Result<()> {
     let pid = match rt.status.owner {
         None => return Err(Error::RuntimeNotInitialized(rt.name().into())),
         Some(pid) => pid,
@@ -295,10 +295,11 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
     const LOG_UPDATE_INTERVAL: tokio::time::Duration = tokio::time::Duration::from_secs(5);
     let mut log_update_deadline = tokio::time::Instant::now() + LOG_UPDATE_INTERVAL;
 
-    const SPFS_HEARTBEAT_INTERVAL: tokio::time::Duration = tokio::time::Duration::from_secs(60);
-    let mut spfs_heartbeat_deadline = tokio::time::Instant::now() + SPFS_HEARTBEAT_INTERVAL;
+    let spfs_heartbeat_interval: tokio::time::Duration =
+        tokio::time::Duration::from_secs(config.fuse.heartbeat_interval_seconds.get());
+    let mut spfs_heartbeat_deadline = tokio::time::Instant::now() + spfs_heartbeat_interval;
 
-    let rt_is_fuse = rt.is_backend_fuse();
+    let enable_heartbeat = config.fuse.enable_heartbeat && rt.is_backend_fuse();
 
     while let Some(event) = events_stream.next().await {
         let no_more_processes = tracked_processes.is_empty();
@@ -312,7 +313,7 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
             log_update_deadline = now + LOG_UPDATE_INTERVAL;
         }
 
-        if rt_is_fuse && now >= spfs_heartbeat_deadline {
+        if enable_heartbeat && now >= spfs_heartbeat_deadline {
             // Tickle the spfs filesystem to let `spfs-fuse` know we're still
             // alive. This is a read operation to avoid issues with ro mounts
             // or modifying any content in /spfs.
@@ -321,7 +322,7 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime) -> Result<()> {
                 tokio::fs::symlink_metadata(format!("/spfs/.fuse-heartbeat-{}", ulid::Ulid::new()))
                     .await;
 
-            spfs_heartbeat_deadline = now + SPFS_HEARTBEAT_INTERVAL;
+            spfs_heartbeat_deadline = now + spfs_heartbeat_interval;
         }
 
         if no_more_processes {

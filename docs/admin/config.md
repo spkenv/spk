@@ -159,6 +159,13 @@ worker_threads = 8
 # fuse filesystem process. This is a maximum, but blocking threads
 # are created and destroyed based on demand.
 max_blocking_threads = 512
+# Enable a heartbeat between spfs-monitor and spfs-fuse. If spfs-monitor
+# stops sending a heartbeat, spfs-fuse will shut down.
+enable_heartbeat = true
+# How often to send a heartbeat, in seconds
+heartbeat_interval_seconds = 60
+# How long to allow not receiving a heartbeat before shutting down, in seconds
+heartbeat_grace_period_seconds = 300
 
 [monitor]
 # the number of threads that the monitor process will create
