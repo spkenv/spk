@@ -1174,7 +1174,7 @@ impl SolverRuntime {
     ) {
         // After encountering a solver error, start trying a new path from the
         // oldest fork. Experimentation shows that this is able to discover
-        // a valid solution must faster than going back to the newest fork,
+        // a valid solution much faster than going back to the newest fork,
         // for problem cases that get stuck in a bad path.
         match history.pop() {
             Some((n, _)) => {
