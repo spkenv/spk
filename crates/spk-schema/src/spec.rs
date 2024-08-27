@@ -162,13 +162,8 @@ impl Template for SpecTemplate {
 
     fn render_to_string(&self, options: &OptionMap) -> Result<String> {
         let data = super::TemplateData::new(options);
-        let rendered = spk_schema_tera::render_template(
-            self.file_path.to_string_lossy(),
-            &self.template,
-            &data,
-        )
-        .map_err(Error::InvalidTemplate)?;
-        Ok(SpecRecipe::from_yaml(rendered)?)
+        spk_schema_tera::render_template(self.file_path.to_string_lossy(), &self.template, &data)
+            .map_err(Error::InvalidTemplate)
     }
 }
 

@@ -14,7 +14,6 @@ use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::ident_component::ComponentBTreeSet;
 use spk_schema_foundation::option_map::{OptFilter, Stringified};
 use spk_schema_foundation::version::IncompatibleReason;
-use spk_schema_foundation::option_map::Stringified;
 use spk_schema_ident::{AnyIdent, BuildIdent, Ident, RangeIdent, VersionIdent};
 use struct_field_names_as_array::FieldNamesAsArray;
 
