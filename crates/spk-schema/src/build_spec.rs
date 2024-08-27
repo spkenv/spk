@@ -480,7 +480,6 @@ impl<'de> serde::de::Visitor<'de> for BuildSpecVisitor {
     where
         A: serde::de::MapAccess<'de>,
     {
-        let mut variants = Vec::<v0::VariantSpec>::new();
         let mut unchecked = BuildSpec::default();
         while let Some(key) = map.next_key::<Stringified>()? {
             match key.as_str() {
@@ -499,7 +498,7 @@ impl<'de> serde::de::Visitor<'de> for BuildSpecVisitor {
                     }
                 }
                 "variants" => {
-                    variants = map.next_value()?;
+                    unchecked.raw_variants = map.next_value()?;
                 }
                 "validation" => unchecked.validation = map.next_value::<ValidationSpec>()?,
                 "auto_host_vars" => unchecked.auto_host_vars = map.next_value::<AutoHostVars>()?,
@@ -513,15 +512,12 @@ impl<'de> serde::de::Visitor<'de> for BuildSpecVisitor {
             }
         }
 
-        if variants.is_empty() {
-            variants.push(Default::default());
-        }
-
         // we can only parse out the final variant forms after all the
         // build options have been loaded
-        unchecked.variants = variants
-            .into_iter()
-            .map(|o| v0::Variant::from_spec(o, &unchecked.options))
+        unchecked.variants = unchecked
+            .raw_variants
+            .iter()
+            .map(|o| v0::Variant::from_spec(o.clone(), &unchecked.options))
             .collect::<Result<Vec<_>>>()
             .map_err(serde::de::Error::custom)?;
 
