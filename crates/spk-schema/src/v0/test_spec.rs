@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use ngrammatic::CorpusBuilder;
 use serde::{Deserialize, Serialize};
 use spk_schema_ident::{RequestedBy, VersionIdent};
 use spk_schema_foundation::option_map::Stringified;

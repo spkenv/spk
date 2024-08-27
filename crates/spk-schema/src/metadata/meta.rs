@@ -17,7 +17,7 @@ use crate::{Error, Lint, LintedItem, Lints, Result, UnknownKey};
 #[path = "./meta_test.rs"]
 mod meta_test;
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Default, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct Meta {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -110,7 +110,7 @@ impl From<MetaVisitor> for Meta {
         Self {
             description: value.description,
             homepage: value.homepage,
-            license: value.license.unwrap_or(Meta::default_license()),
+            license: value.license,
             labels: value.labels.unwrap_or_default(),
         }
     }
