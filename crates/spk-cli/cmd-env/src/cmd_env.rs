@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::collections::HashSet;
+use std::ffi::OsString;
+
 use clap::Args;
 use miette::{Context, Result};
 use spk_cli_common::{build_required_packages, flags, CommandArgs, Run};
@@ -98,7 +101,16 @@ impl Run for Env {
         // environment, e.g., `$SPK_*` vars, should not impact the behavior of
         // `spfs::build_interactive_shell_command` or
         // `spfs::build_shell_initialized_command`.
-        command.vars = env.into_iter().map(|(k, v)| (k.into(), v.into())).collect();
+        // Preserve any vars already established in `command.vars`.
+        let existing_new_vars = command.vars.iter().map(|(k, _)| k).collect::<HashSet<_>>();
+        command.vars.extend(
+            env.into_iter()
+                .filter_map(|(k, v)| {
+                    let k: OsString = k.into();
+                    (!existing_new_vars.contains(&k)).then(|| (k, v.into()))
+                })
+                .collect::<Vec<_>>(),
+        );
 
         // Record the run duration up to this point because this spk
         // command is about to replace itself with the underlying env
