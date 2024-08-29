@@ -130,6 +130,29 @@ impl TagStorage for FsRepository {
     }
 }
 
+impl FsRepository {
+    /// Forcefully remove any lock file for the identified tag.
+    ///
+    /// # Safety
+    /// This function is unsafe because it removes the lock file without
+    /// ensuring that the tag file is not being written to, which can cause
+    /// corruption in the tag file.
+    pub async unsafe fn unlock_tag_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
+        tag: tracking::TagSpec,
+    ) -> Result<()> {
+        // Safety: we do not ensure the tag file is not being written to
+        // but pass the responsibility to the caller.
+        unsafe {
+            self.opened()
+                .await?
+                .unlock_tag_in_namespace(namespace, tag)
+                .await
+        }
+    }
+}
+
 impl OpenFsRepository {
     fn tags_root_in_namespace(&self, namespace: Option<&TagNamespace>) -> PathBuf {
         let mut tags_root = self.root().join("tags");
@@ -147,6 +170,23 @@ impl OpenFsRepository {
             }
         }
         tags_root
+    }
+
+    /// Forcefully remove any lock file for the identified tag.
+    ///
+    /// # Safety
+    /// This function is unsafe because it removes the lock file without
+    /// ensuring that the tag file is not being written to, which can cause
+    /// corruption in the tag file.
+    pub async unsafe fn unlock_tag_in_namespace(
+        &self,
+        namespace: Option<&TagNamespace>,
+        tag: tracking::TagSpec,
+    ) -> Result<()> {
+        let path = tag.to_path(self.tags_root_in_namespace(namespace));
+        // Safety: we do not ensure the tag file is not being written to
+        // but pass the responsibility to the caller.
+        unsafe { TagLock::remove(path) }
     }
 }
 
@@ -849,9 +889,11 @@ impl TagExt for tracking::TagSpec {
 struct TagLock(PathBuf);
 
 impl TagLock {
+    const LOCK_EXT: &'static str = "tag.lock";
+
     pub async fn new<P: AsRef<Path>>(tag_file: P) -> Result<TagLock> {
         let mut lock_file = tag_file.as_ref().to_path_buf();
-        lock_file.set_extension("tag.lock");
+        lock_file.set_extension(Self::LOCK_EXT);
 
         let timeout = std::time::Instant::now() + std::time::Duration::from_secs(5);
         loop {
@@ -882,6 +924,23 @@ impl TagLock {
                 }
             }
         }
+    }
+
+    /// Remove the lock file for a tag
+    ///
+    /// # Safety:
+    /// Tag locks are used to ensure that only one process is writing to a tag file at a time.
+    /// Removing the lock file without ensuring that the tag file is not being written to may
+    /// cause the data within the file to become corrupt.
+    pub unsafe fn remove<P: AsRef<Path>>(tag_file: P) -> Result<()> {
+        let mut lock_file = tag_file.as_ref().to_path_buf();
+        lock_file.set_extension(Self::LOCK_EXT);
+        if let Err(err) = std::fs::remove_file(&lock_file) {
+            if err.kind() != std::io::ErrorKind::NotFound {
+                return Err(Error::StorageWriteError("unlock tag", lock_file, err));
+            }
+        }
+        Ok(())
     }
 }
 
