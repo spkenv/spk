@@ -6,8 +6,8 @@
 pub fn source<T>(_tmpdir: Option<&T>) -> String
 where
     T: AsRef<str>,
-    {
-        r#"
+{
+    r#"
         def create_left_prompt [] {
             let dir = match (do --ignore-shell-errors { $env.PWD | path relative-to $nu.home-path }) {
                 null => $env.PWD
@@ -75,5 +75,4 @@ where
         $env.NU_VENDOR_AUTOLOAD_DIR = ($spfs_startup_dir)
     "#
         .to_string()
-    }
-    
+}

@@ -21,8 +21,21 @@ pub mod winfsp;
 #[cfg(unix)]
 pub use overlayfs::is_removed_entry;
 pub use storage::{
-    makedirs_with_perms, Author, BindMount, Config, Data, KeyValuePair, KeyValuePairBuf, LiveLayer,
-    LiveLayerFile, MountBackend, OwnedRuntime, Runtime, Status, Storage, STARTUP_FILES_LOCATION,
+    makedirs_with_perms,
+    Author,
+    BindMount,
+    Config,
+    Data,
+    KeyValuePair,
+    KeyValuePairBuf,
+    LiveLayer,
+    LiveLayerFile,
+    MountBackend,
+    OwnedRuntime,
+    Runtime,
+    Status,
+    Storage,
+    STARTUP_FILES_LOCATION,
 };
 #[cfg(windows)]
 pub use winfsp::is_removed_entry;
