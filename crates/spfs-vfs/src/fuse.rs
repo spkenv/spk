@@ -7,6 +7,7 @@ use std::ffi::{OsStr, OsString};
 use std::io::{Seek, SeekFrom};
 use std::mem::ManuallyDrop;
 use std::os::fd::{AsRawFd, FromRawFd};
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::prelude::FileExt;
 #[cfg(feature = "fuse-backend-abi-7-31")]
 use std::pin::Pin;
@@ -686,6 +687,7 @@ impl Filesystem {
 /// This implements the [`fuser::Filesystem`] trait, receives
 /// all requests and arranges for their async execution in the
 /// spfs virtual filesystem.
+#[derive(Clone)]
 pub struct Session {
     inner: Arc<SessionInner>,
 }
@@ -694,13 +696,26 @@ impl Session {
     /// Construct a new session which serves the provided reference
     /// in its filesystem
     pub fn new(reference: EnvSpec, opts: Config) -> Self {
+        let session_start = tokio::time::Instant::now();
+
         Self {
             inner: Arc::new(SessionInner {
                 opts,
                 reference,
                 fs: tokio::sync::OnceCell::new(),
+                session_start,
+                last_heartbeat_seconds_since_session_start: AtomicU64::new(0),
             }),
         }
+    }
+
+    /// Return the number of seconds since the last heartbeat was received
+    pub fn seconds_since_last_heartbeat(&self) -> u64 {
+        self.inner.session_start.elapsed().as_secs()
+            - self
+                .inner
+                .last_heartbeat_seconds_since_session_start
+                .load(Ordering::Relaxed)
     }
 }
 
@@ -708,6 +723,8 @@ struct SessionInner {
     opts: Config,
     reference: EnvSpec,
     fs: tokio::sync::OnceCell<Arc<Filesystem>>,
+    session_start: tokio::time::Instant,
+    last_heartbeat_seconds_since_session_start: AtomicU64,
 }
 
 impl SessionInner {
@@ -790,6 +807,22 @@ impl fuser::Filesystem for Session {
     }
 
     fn lookup(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEntry) {
+        if name
+            .as_bytes()
+            .starts_with(spfs::config::Fuse::HEARTBEAT_FILENAME_PREFIX.as_bytes())
+        {
+            let seconds_since_session_start = self.inner.session_start.elapsed().as_secs();
+            tracing::trace!(?seconds_since_session_start, "heard heartbeat");
+            self.inner
+                .last_heartbeat_seconds_since_session_start
+                .store(seconds_since_session_start, Ordering::Relaxed);
+
+            // The heartbeat filename is sufficiently unique that the reply can
+            // be sent without doing any real I/O on the backing filesystem.
+            reply.error(libc::ENOENT);
+            return;
+        }
+
         let name = name.to_owned();
         let session = Arc::clone(&self.inner);
         tokio::task::spawn(async move {

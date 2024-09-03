@@ -107,7 +107,7 @@ impl CmdMonitor {
             .build()
             .into_diagnostic()
             .wrap_err("Failed to establish async runtime")?;
-        let code = rt.block_on(self.run_async())?;
+        let code = rt.block_on(self.run_async(config))?;
         // the monitor is running in the background and, although not expected,
         // can take extra time to shutdown if needed
         rt.shutdown_timeout(std::time::Duration::from_secs(5));
@@ -141,7 +141,7 @@ impl CmdMonitor {
         }
     }
 
-    pub async fn run_async(&mut self) -> Result<i32> {
+    pub async fn run_async(&mut self, config: &spfs::Config) -> Result<i32> {
         let mut interrupt = signal(SignalKind::interrupt())
             .map_err(|err| Error::process_spawn_error("signal()", err, None))?;
         let mut quit = signal(SignalKind::quit())
@@ -157,7 +157,7 @@ impl CmdMonitor {
         let mut owned = spfs::runtime::OwnedRuntime::upgrade_as_monitor(runtime).await?;
         tracing::trace!("upgraded to owned runtime, waiting for empty runtime");
 
-        let fut = spfs::monitor::wait_for_empty_runtime(&owned);
+        let fut = spfs::monitor::wait_for_empty_runtime(&owned, config);
         let res = tokio::select! {
             res = fut => {
                 tracing::info!("Monitor detected no more processes, cleaning up runtime...");

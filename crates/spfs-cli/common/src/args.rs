@@ -316,7 +316,7 @@ pub struct Logging {
     #[clap(skip)]
     pub syslog: bool,
 
-    /// Enables timestamp in logging
+    /// Enables timestamp in logging (always enabled in file log)
     #[clap(long, global = true, env = "SPFS_LOG_TIMESTAMP")]
     pub timestamp: bool,
 }
@@ -403,7 +403,11 @@ impl Logging {
             })
             .map(|log_file| {
                 let layer = fmt_layer().with_writer(log_file);
-                let layer = configure_timestamp!(layer, self.timestamp).with_filter(env_filter());
+                let layer = configure_timestamp!(layer, {
+                    // file logs should always have a timestamp (fight me!)
+                    true
+                })
+                .with_filter(env_filter());
                 without_sentry_target!(layer)
             });
 
@@ -420,6 +424,19 @@ impl Logging {
             .with_subscriber(tracing_subscriber::Registry::default())
             .init();
     }
+}
+
+/// Log a message at the warning level and also generate a sentry event if
+/// sentry is enabled.
+#[macro_export]
+macro_rules! warn_and_sentry_event {
+    ($($arg:tt)*) => {
+        #[cfg(feature = "sentry")]
+        {
+            tracing::error!(target: "sentry", $($arg)*);
+        }
+        tracing::warn!($($arg)*);
+    };
 }
 
 /// Command line flags for viewing annotations in a runtime
