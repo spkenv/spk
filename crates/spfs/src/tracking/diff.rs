@@ -117,22 +117,33 @@ pub fn compute_diff<U1: Clone>(a: &Manifest<U1>, b: &Manifest<U1>) -> Vec<Diff<U
 
     let mut visited = HashSet::new();
     for entry in all_entries.iter() {
-        if visited.contains(&entry.path) {
+        if !visited.insert(&entry.path) {
             continue;
-        } else {
-            visited.insert(&entry.path);
-            match diff_path(a, b, &entry.path) {
-                Some(d) => changes.push(d),
-                None => tracing::debug!(
-                    // XXX this is not the only reason `diff_path` may return
-                    // None.
-                    "path was missing from both manifests during diff, this should be impossible"
-                ),
-            }
+        }
+        match diff_path(a, b, &entry.path) {
+            DiffPathResult::Diff(d) => changes.push(d),
+            DiffPathResult::PathMissingFromBothManifests => tracing::debug!(path = ?entry.path,
+                "path was missing from both manifests during diff, this should be impossible"
+            ),
+            DiffPathResult::UselessMask => tracing::debug!(path = ?entry.path,
+                "path was masked in the right manifest but didn't exist in the left"
+            ),
         }
     }
 
     changes
+}
+
+// Allow: most instances will be of the large variant; boxing is
+// counter-productive.
+#[allow(clippy::large_enum_variant)]
+enum DiffPathResult<U1, U2> {
+    /// Successful diff
+    Diff(Diff<U1, U2>),
+    /// The path was missing from both manifests (coding error?)
+    PathMissingFromBothManifests,
+    /// The path was masked in the right manifest but didn't exist in the left
+    UselessMask,
 }
 
 /// Compares the two entries, creating a diff to represent their delta.
@@ -142,14 +153,16 @@ fn diff_path<U1: Clone, U2: Clone>(
     a: &Manifest<U1>,
     b: &Manifest<U2>,
     path: &RelativePathBuf,
-) -> Option<Diff<U1, U2>> {
+) -> DiffPathResult<U1, U2> {
     match (a.get_path(path), b.get_path(path)) {
-        (None, None) => None,
+        (None, None) => DiffPathResult::PathMissingFromBothManifests,
 
-        (Some(a_entry), Some(b_entry)) if b_entry.kind == EntryKind::Mask => Some(Diff {
-            mode: DiffMode::Removed(a_entry.clone()),
-            path: path.clone(),
-        }),
+        (Some(a_entry), Some(b_entry)) if b_entry.kind == EntryKind::Mask => {
+            DiffPathResult::Diff(Diff {
+                mode: DiffMode::Removed(a_entry.clone()),
+                path: path.clone(),
+            })
+        }
 
         (None, Some(b_entry)) if b_entry.kind == EntryKind::Mask => {
             debug_assert!(
@@ -157,20 +170,20 @@ fn diff_path<U1: Clone, U2: Clone>(
                 "detected a mask entry that deletes something that doesn't exist"
             );
             // Can't return `a` as documented since the left side is None.
-            None
+            DiffPathResult::UselessMask
         }
 
-        (None, Some(e)) => Some(Diff {
+        (None, Some(e)) => DiffPathResult::Diff(Diff {
             mode: DiffMode::Added(e.clone()),
             path: path.clone(),
         }),
 
-        (Some(e), None) => Some(Diff {
+        (Some(e), None) => DiffPathResult::Diff(Diff {
             mode: DiffMode::Removed(e.clone()),
             path: path.clone(),
         }),
 
-        (Some(a_entry), Some(b_entry)) => Some({
+        (Some(a_entry), Some(b_entry)) => DiffPathResult::Diff({
             if a_entry == b_entry {
                 Diff {
                     // use the entry from `a` as it's more representative
