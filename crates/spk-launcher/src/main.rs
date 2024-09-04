@@ -9,7 +9,7 @@ use std::os::unix::ffi::{OsStrExt, OsStringExt};
 #[cfg(unix)]
 use std::os::unix::fs::symlink;
 #[cfg(windows)]
-use std::os::windows::fs::{symlink_file, symlink_dir};
+use std::os::windows::fs::{symlink_dir, symlink_file};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -206,7 +206,6 @@ impl<'a> Dynamic<'a> {
                             .into_diagnostic()
                             .wrap_err("create symlink")
                     }
-
                 });
             }
         }
