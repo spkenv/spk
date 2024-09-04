@@ -1017,7 +1017,7 @@ pub enum SolverToRun {
     /// Run and show output from the "impossible requests" checking solver
     Checks,
     /// Run both solvers, showing the output from the basic solver,
-    /// unless overridden with --solver-to-show
+    /// unless overridden with --solver-to-run
     All,
 }
 
@@ -1099,7 +1099,9 @@ pub struct DecisionFormatterSettings {
     #[clap(long)]
     pub status_bar: bool,
 
-    /// Control what solver(s) are used.
+    /// Control which solver(s) are run. The default is to run all the
+    /// solvers in parallel and show the 'cli' solver's output. See
+    /// also --solver-to-show.
     ///
     /// There are currently two modes for the solver, one that is faster when
     /// there are few problems encountered looking for packages (cli) and one
@@ -1113,8 +1115,8 @@ pub struct DecisionFormatterSettings {
     /// `--solver-to-run <cli|checks>`.
     #[clap(long, env = "SPK_SOLVER__SOLVER_TO_RUN", value_enum, default_value_t = SolverToRun::All)]
     pub solver_to_run: SolverToRun,
-    /// Control what solver's output is shown when multiple solvers
-    /// (all) are being run.
+    /// Control which solver's output is shown when multiple solvers
+    /// (all) are run. See also --solver-to-run.
     #[clap(long, env = "SPK_SOLVER__SOLVER_TO_SHOW", value_enum, default_value_t = SolverToShow::Cli)]
     pub solver_to_show: SolverToShow,
 
@@ -1139,11 +1141,11 @@ pub struct DecisionFormatterSettings {
     #[clap(long, alias = "decision")]
     step_on_decision: bool,
 
-    /// Set to capture each solver's output to a separate file in each
-    /// time a solver is run. The files will be in the the given
-    /// directory and named
+    /// Capture each solver's output to a separate file in the given
+    /// directory when a solver is run. The files will be named
     /// `<solver_file_prefix>_YYYYmmdd_HHMMSS_nnnnnnnn_<solver_kind>`. See
-    /// --output-file-prefix for the default prefix and how to override it.
+    /// --output-file-prefix for the default prefix and how to
+    /// override it.
     #[clap(long, env = SPK_SOLVER_OUTPUT_TO_DIR, value_hint = ValueHint::FilePath)]
     output_to_dir: Option<std::path::PathBuf>,
 
@@ -1155,7 +1157,8 @@ pub struct DecisionFormatterSettings {
 
     /// Override the default solver output filename prefix. The
     /// current date, time, and solver kind name will be appended to
-    /// this prefix to produce the file name for each solver.
+    /// this prefix to produce the file name for each solver. See
+    /// also --output-to-dir.
     #[clap(long, default_value_t=String::from(DEFAULT_SOLVER_RUN_FILE_PREFIX), env = SPK_SOLVER_OUTPUT_FILE_PREFIX)]
     output_file_prefix: String,
 }
