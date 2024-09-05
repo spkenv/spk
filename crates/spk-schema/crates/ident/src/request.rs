@@ -23,7 +23,9 @@ use spk_schema_foundation::option_map::Stringified;
 use spk_schema_foundation::version::{
     CompatRule,
     Compatibility,
+    InclusionPolicyProblem,
     IncompatibleReason,
+    VarRequestProblem,
     Version,
     API_STR,
     BINARY_STR,
@@ -441,11 +443,21 @@ impl VarRequest<PinnableValue> {
     /// if satisfying this request would undoubtedly satisfy the other.
     pub fn contains(&self, other: &Self) -> Compatibility {
         if self.var.base_name() != other.var.base_name() {
-            return Compatibility::Incompatible(IncompatibleReason::VarRequestNotSuperset);
+            return Compatibility::Incompatible(IncompatibleReason::VarRequestNotSuperset(
+                VarRequestProblem::DifferentVar {
+                    self_var: self.var.to_string(),
+                    other_var: other.var.to_string(),
+                },
+            ));
         }
         let ns = self.var.namespace();
         if ns.is_some() && ns != other.var.namespace() {
-            return Compatibility::Incompatible(IncompatibleReason::VarRequestNotSuperset);
+            return Compatibility::Incompatible(IncompatibleReason::VarRequestNotSuperset(
+                VarRequestProblem::DifferentNamespace {
+                    self_var: self.var.to_string(),
+                    other_var: other.var.to_string(),
+                },
+            ));
         }
         let (Some(self_value), Some(other_value)) =
             (&self.value.as_pinned(), &other.value.as_pinned())
@@ -453,10 +465,17 @@ impl VarRequest<PinnableValue> {
             // we cannot consider a request that still needs to be pinned as
             // containing any other because the ultimate value of this request
             // is unknown
-            return Compatibility::Incompatible(IncompatibleReason::VarRequestNotSuperset);
+            return Compatibility::Incompatible(IncompatibleReason::VarRequestNotSuperset(
+                VarRequestProblem::Incomparable,
+            ));
         };
         if !other_value.is_empty() && self_value != other_value {
-            return Compatibility::Incompatible(IncompatibleReason::VarRequestNotSuperset);
+            return Compatibility::Incompatible(IncompatibleReason::VarRequestNotSuperset(
+                VarRequestProblem::DifferentValue {
+                    self_value: self_value.to_string(),
+                    other_value: other_value.to_string(),
+                },
+            ));
         }
         Compatibility::Compatible
     }
@@ -944,7 +963,18 @@ impl PkgRequest {
                 // Allowing more make them incompatible
                 (a, b) if a > b => {
                     return Compatibility::Incompatible(
-                        IncompatibleReason::InclusionPolicyNotSuperset,
+                        IncompatibleReason::InclusionPolicyNotSuperset(
+                            InclusionPolicyProblem::Prerelease {
+                                our_policy: self
+                                    .prerelease_policy
+                                    .map(|p| p.to_string())
+                                    .unwrap_or_else(|| "None".to_string()),
+                                other_policy: other
+                                    .prerelease_policy
+                                    .map(|p| p.to_string())
+                                    .unwrap_or_else(|| "None".to_string()),
+                            },
+                        ),
                     );
                 }
                 // Everything else either allows less, or allows the same things
@@ -953,7 +983,12 @@ impl PkgRequest {
         }
 
         if self.inclusion_policy > other.inclusion_policy {
-            return Compatibility::Incompatible(IncompatibleReason::InclusionPolicyNotSuperset);
+            return Compatibility::Incompatible(IncompatibleReason::InclusionPolicyNotSuperset(
+                InclusionPolicyProblem::Standard {
+                    our_policy: self.inclusion_policy.to_string(),
+                    other_policy: other.inclusion_policy.to_string(),
+                },
+            ));
         }
         Compatibility::Compatible
     }

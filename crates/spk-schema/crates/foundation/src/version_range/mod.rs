@@ -14,7 +14,19 @@ use itertools::Itertools;
 
 use self::intersection::{CombineWith, ValidRange};
 use crate::spec_ops::Versioned;
-use crate::version::{CompatRule, Compatibility, IncompatibleReason, Version, VERSION_SEP};
+use crate::version::{
+    get_version_position_label,
+    CompatRule,
+    Compatibility,
+    IncompatibleReason,
+    RangeSupersetProblem,
+    Version,
+    VersionForClause,
+    VersionNotDifferentProblem,
+    VersionNotEqualProblem,
+    VersionRangeProblem,
+    VERSION_SEP,
+};
 
 mod error;
 mod intersection;
@@ -59,13 +71,16 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
     fn is_applicable(&self, other: &Version) -> Compatibility {
         if let Some(gt) = self.greater_or_equal_to() {
             if other < &gt {
-                // return Compatibility::incompatible(format!("version too low for >= {gt}"));
-                return Compatibility::Incompatible(IncompatibleReason::VersionTooLow);
+                return Compatibility::Incompatible(IncompatibleReason::VersionTooLow(
+                    VersionRangeProblem::TooLow(VersionForClause::GteVersion(gt)),
+                ));
             }
         }
         if let Some(lt) = self.less_than() {
             if other >= &lt {
-                return Compatibility::Incompatible(IncompatibleReason::VersionTooHigh);
+                return Compatibility::Incompatible(IncompatibleReason::VersionTooHigh(
+                    VersionRangeProblem::TooHigh(VersionForClause::LtVersion(lt)),
+                ));
             }
         }
         Compatibility::Compatible
@@ -95,11 +110,21 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
                 };
 
                 if !contains {
-                    return Compatibility::Incompatible(IncompatibleReason::RangeNotSuperset);
+                    return Compatibility::Incompatible(IncompatibleReason::RangeNotSuperset(
+                        RangeSupersetProblem::StrongerCompatibilityRequirements {
+                            this_range: self.to_string(),
+                            other_range: other.to_string(),
+                        },
+                    ));
                 }
             }
             (Some(x), Some(y)) if x > y => {
-                return Compatibility::Incompatible(IncompatibleReason::RangeNotSuperset);
+                return Compatibility::Incompatible(IncompatibleReason::RangeNotSuperset(
+                    RangeSupersetProblem::StrongerCompatibilityRequirements {
+                        this_range: self.to_string(),
+                        other_range: other.to_string(),
+                    },
+                ));
             }
             _ => {}
         };
@@ -109,13 +134,14 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
         let other_lower = other.greater_or_equal_to();
         let other_upper = other.less_than();
 
-        for (left_bound, right_bound, right_opposite_bound) in [
+        for (index, (left_bound, right_bound, right_opposite_bound)) in [
             // Order important here! self > other for lower bound
             (&self_lower, &other_lower, &other_upper),
             // Order important here! other > self for upper bound
             (&other_upper, &self_upper, &self_lower),
         ]
         .iter()
+        .enumerate()
         {
             // Check that the left bound `Version` contains the right bound `Version`.
             //
@@ -130,7 +156,14 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
                 }
                 (None, Some(_), None) => {
                     // <3.0 does not contain >2.0
-                    return Compatibility::Incompatible(IncompatibleReason::RangeNotSuperset);
+                    return Compatibility::Incompatible(IncompatibleReason::RangeNotSuperset(
+                        RangeSupersetProblem::ContainProblem {
+                            case: 1,
+                            index,
+                            this_range: self.to_string(),
+                            other_range: other.to_string(),
+                        },
+                    ));
                 }
                 (None, Some(right_bound), Some(right_opposite_bound)) => {
                     // For "<2.0" to contain "=1.0", 2.0 must be >= 1.0.
@@ -140,21 +173,49 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
                     // `right_bound` is 1.0+ε
                     // `right_opposite_bound` is 1.0
                     if right_opposite_bound < right_bound {
-                        return Compatibility::Incompatible(IncompatibleReason::RangeNotSuperset);
+                        return Compatibility::Incompatible(IncompatibleReason::RangeNotSuperset(
+                            RangeSupersetProblem::ContainProblem {
+                                case: 2,
+                                index,
+                                this_range: self.to_string(),
+                                other_range: other.to_string(),
+                            },
+                        ));
                     }
                 }
                 (Some(left_bound), None, Some(right_opposite_bound)) => {
                     // This mirrors case 2.
                     if right_opposite_bound > left_bound {
-                        return Compatibility::Incompatible(IncompatibleReason::RangeNotSuperset);
+                        return Compatibility::Incompatible(IncompatibleReason::RangeNotSuperset(
+                            RangeSupersetProblem::ContainProblem {
+                                case: 3,
+                                index,
+                                this_range: self.to_string(),
+                                other_range: other.to_string(),
+                            },
+                        ));
                     }
                 }
                 (Some(_), None, _) => {
-                    return Compatibility::Incompatible(IncompatibleReason::RangeNotSuperset);
+                    return Compatibility::Incompatible(IncompatibleReason::RangeNotSuperset(
+                        RangeSupersetProblem::ContainProblem {
+                            case: 4,
+                            index,
+                            this_range: self.to_string(),
+                            other_range: other.to_string(),
+                        },
+                    ));
                 }
                 (Some(left_bound), Some(right_bound), _) => {
                     if left_bound > right_bound {
-                        return Compatibility::Incompatible(IncompatibleReason::RangeNotSuperset);
+                        return Compatibility::Incompatible(IncompatibleReason::RangeNotSuperset(
+                            RangeSupersetProblem::ContainProblem {
+                                case: 5,
+                                index,
+                                this_range: self.to_string(),
+                                other_range: other.to_string(),
+                            },
+                        ));
                     }
                 }
             }
@@ -199,7 +260,10 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
         if self_valid_range.intersects(&other_valid_range) {
             Compatibility::Compatible
         } else {
-            Compatibility::Incompatible(IncompatibleReason::RangesDoNotIntersect)
+            Compatibility::Incompatible(IncompatibleReason::RangesDoNotIntersect {
+                self_valid_range: self.to_string(),
+                other_valid_range: other.to_string(),
+            })
         }
     }
 }
@@ -470,10 +534,16 @@ impl Ranged for WildcardRange {
     }
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
-        for (a, b) in self.parts.iter().zip(&*version.parts) {
+        for (i, (a, b)) in self.parts.iter().zip(&*version.parts).enumerate() {
             if let Some(a) = a {
                 if a != b {
-                    return Compatibility::Incompatible(IncompatibleReason::VersionOutOfRange);
+                    return Compatibility::Incompatible(IncompatibleReason::VersionOutOfRange {
+                        wildcard: self.clone(),
+                        pos: i + 1,
+                        pos_label: get_version_position_label(i),
+                        has: *b,
+                        requires: *a,
+                    });
                 }
             }
         }
@@ -584,8 +654,12 @@ impl Ranged for GreaterThanRange {
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
         if version <= &self.bound {
-            // return Compatibility::incompatible(format!("Not {self} [too low]"));
-            return Compatibility::Incompatible(IncompatibleReason::VersionTooLow);
+            return Compatibility::Incompatible(IncompatibleReason::VersionTooLow(
+                VersionRangeProblem::NotHighEnough {
+                    op: ">",
+                    bound: self.bound.clone(),
+                },
+            ));
         }
         Compatibility::Compatible
     }
@@ -628,7 +702,12 @@ impl Ranged for LessThanRange {
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
         if version >= &self.bound {
-            return Compatibility::Incompatible(IncompatibleReason::VersionTooHigh);
+            return Compatibility::Incompatible(IncompatibleReason::VersionTooHigh(
+                VersionRangeProblem::NotLowEnough {
+                    op: "<",
+                    bound: self.bound.clone(),
+                },
+            ));
         }
         Compatibility::Compatible
     }
@@ -671,8 +750,12 @@ impl Ranged for GreaterThanOrEqualToRange {
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
         if version < &self.bound {
-            // return Compatibility::incompatible(format!("Not {self} [too low]"));
-            return Compatibility::Incompatible(IncompatibleReason::VersionTooLow);
+            return Compatibility::Incompatible(IncompatibleReason::VersionTooLow(
+                VersionRangeProblem::NotHighEnough {
+                    op: ">=",
+                    bound: self.bound.clone(),
+                },
+            ));
         }
         Compatibility::Compatible
     }
@@ -715,7 +798,12 @@ impl Ranged for LessThanOrEqualToRange {
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
         if version > &self.bound {
-            return Compatibility::Incompatible(IncompatibleReason::VersionTooHigh);
+            return Compatibility::Incompatible(IncompatibleReason::VersionTooHigh(
+                VersionRangeProblem::NotLowEnough {
+                    op: "<=",
+                    bound: self.bound.clone(),
+                },
+            ));
         }
         Compatibility::Compatible
     }
@@ -759,8 +847,21 @@ impl Ranged for EqualsVersion {
     }
 
     fn is_applicable(&self, other: &Version) -> Compatibility {
-        if self.version.parts != other.parts || self.version.pre != other.pre {
-            return Compatibility::Incompatible(IncompatibleReason::VersionNotEqual);
+        if self.version.parts != other.parts {
+            return Compatibility::Incompatible(IncompatibleReason::VersionNotEqual(
+                VersionNotEqualProblem::PartsNotEqual {
+                    this_version: self.clone(),
+                    other_version: other.clone(),
+                },
+            ));
+        }
+        if self.version.pre != other.pre {
+            return Compatibility::Incompatible(IncompatibleReason::VersionNotEqual(
+                VersionNotEqualProblem::PreNotEqual {
+                    this_version: self.clone(),
+                    other_version: other.clone(),
+                },
+            ));
         }
         // each post release tag must be exact if specified
         for (name, value) in self.version.post.iter() {
@@ -769,7 +870,12 @@ impl Ranged for EqualsVersion {
                     continue;
                 }
             }
-            return Compatibility::Incompatible(IncompatibleReason::VersionNotEqual);
+            return Compatibility::Incompatible(IncompatibleReason::VersionNotEqual(
+                VersionNotEqualProblem::PostNotEqual {
+                    this_version: self.clone(),
+                    other_version: other.clone(),
+                },
+            ));
         }
         Compatibility::Compatible
     }
@@ -828,7 +934,11 @@ impl Ranged for NotEqualsVersion {
             return Compatibility::Compatible;
         }
 
-        Compatibility::Incompatible(IncompatibleReason::VersionNotDifferent)
+        Compatibility::Incompatible(IncompatibleReason::VersionNotDifferent(
+            VersionNotDifferentProblem::NotEqual {
+                version: self.clone(),
+            },
+        ))
     }
 }
 
@@ -879,14 +989,34 @@ impl Ranged for DoubleEqualsVersion {
     }
 
     fn is_applicable(&self, other: &Version) -> Compatibility {
-        if self.version.parts != other.parts
-            || self.version.pre != other.pre
-            || self.version.post != other.post
-        {
-            Compatibility::Incompatible(IncompatibleReason::VersionNotEqual)
-        } else {
-            Compatibility::Compatible
+        if self.version.parts != other.parts {
+            return Compatibility::Incompatible(IncompatibleReason::VersionNotEqual(
+                VersionNotEqualProblem::PartsNotEqualPrecisely {
+                    this_version: self.clone(),
+                    other_version: other.clone(),
+                },
+            ));
         }
+
+        if self.version.pre != other.pre {
+            return Compatibility::Incompatible(IncompatibleReason::VersionNotEqual(
+                VersionNotEqualProblem::PreNotEqualPrecisely {
+                    this_version: self.clone(),
+                    other_version: other.clone(),
+                },
+            ));
+        }
+
+        if self.version.post != other.post {
+            return Compatibility::Incompatible(IncompatibleReason::VersionNotEqual(
+                VersionNotEqualProblem::PostNotEqualPrecisely {
+                    this_version: self.clone(),
+                    other_version: other.clone(),
+                },
+            ));
+        }
+
+        Compatibility::Compatible
     }
 }
 
@@ -943,7 +1073,11 @@ impl Ranged for DoubleNotEqualsVersion {
             return Compatibility::Compatible;
         }
 
-        Compatibility::Incompatible(IncompatibleReason::VersionNotEqual)
+        Compatibility::Incompatible(IncompatibleReason::VersionNotDifferent(
+            VersionNotDifferentProblem::NotPreciselyEqual {
+                version: self.clone(),
+            },
+        ))
     }
 }
 
@@ -1012,8 +1146,9 @@ impl Ranged for CompatRange {
     {
         // The version of the spec must be >= base to satisfy the request.
         if *spec.version() < self.base {
-            // return Compatibility::incompatible(format!("version too low for {}", self.base));
-            return Compatibility::Incompatible(IncompatibleReason::VersionTooLow);
+            return Compatibility::Incompatible(IncompatibleReason::VersionTooLow(
+                VersionRangeProblem::TooLow(VersionForClause::CompatVersion(self.base.clone())),
+            ));
         }
 
         // XXX: Should this custom logic be in `is_applicable` instead?

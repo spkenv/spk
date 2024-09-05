@@ -4397,6 +4397,7 @@ dependencies = [
  "enum_dispatch",
  "format_serde_error",
  "ignore",
+ "indexmap 2.2.3",
  "itertools 0.12.0",
  "miette",
  "nom",

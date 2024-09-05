@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use spk_schema::version::IncompatibleReason;
+use spk_schema::version::{IncompatibleReason, PackageRepoProblem};
 
 use super::prelude::*;
 use crate::ValidatorT;
@@ -86,25 +86,36 @@ impl ValidatorT for PkgRequestValidator {
             match source {
                 PackageSource::Repository { repo, .. } if repo.name() != rn => {
                     return Ok(Compatibility::Incompatible(
-                        IncompatibleReason::PackageRepoMismatch,
+                        IncompatibleReason::PackageRepoMismatch(
+                            PackageRepoProblem::WrongSourceRepository {
+                                self_repo: rn.clone(),
+                                their_repo: repo.name().to_owned(),
+                            },
+                        ),
                     ));
                 }
                 PackageSource::Repository { .. } => {} // okay
-                PackageSource::Embedded { parent: _ } => {
+                PackageSource::Embedded { parent } => {
                     // TODO: from the right repo still?
                     return Ok(Compatibility::Incompatible(
-                        IncompatibleReason::PackageRepoMismatch,
+                        IncompatibleReason::PackageRepoMismatch(
+                            PackageRepoProblem::EmbeddedInPackageFromWrongRepository {
+                                parent_ident: parent.to_string(),
+                            },
+                        ),
                     ));
                 }
                 PackageSource::BuildFromSource { .. } => {
                     // TODO: from the right repo still?
                     return Ok(Compatibility::Incompatible(
-                        IncompatibleReason::PackageRepoMismatch,
+                        IncompatibleReason::PackageRepoMismatch(
+                            PackageRepoProblem::FromRecipeFromWrongRepository,
+                        ),
                     ));
                 }
                 PackageSource::SpkInternalTest => {
                     return Ok(Compatibility::Incompatible(
-                        IncompatibleReason::PackageRepoMismatch,
+                        IncompatibleReason::PackageRepoMismatch(PackageRepoProblem::InternalTest),
                     ));
                 }
             };

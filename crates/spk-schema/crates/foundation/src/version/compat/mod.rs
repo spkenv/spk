@@ -2,18 +2,38 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+mod problems;
+
 use std::cmp::{Ord, Ordering};
 use std::collections::BTreeSet;
 use std::convert::TryFrom;
 use std::str::FromStr;
 
+use indexmap::IndexSet;
 use itertools::Itertools;
+pub use problems::{
+    BuildIdProblem,
+    ComponentsMissingProblem,
+    ConflictingRequirementProblem,
+    ImpossibleRequestProblem,
+    InclusionPolicyProblem,
+    PackageNameProblem,
+    PackageRepoProblem,
+    RangeSupersetProblem,
+    VarOptionProblem,
+    VarRequestProblem,
+    VersionForClause,
+    VersionNotDifferentProblem,
+    VersionNotEqualProblem,
+    VersionRangeProblem,
+};
 use serde::{Deserialize, Serialize};
 
-use super::{Error, Result, Version, VERSION_SEP};
+use super::{Error, Result, TagSet, Version, VERSION_SEP};
 use crate::name::{OptNameBuf, PkgNameBuf};
 use crate::option_map::OptionMap;
-use crate::IsDefault;
+use crate::version_range::WildcardRange;
+use crate::{version, IsDefault};
 
 #[cfg(test)]
 #[path = "./compat_test.rs"]
@@ -94,6 +114,67 @@ pub trait IsSameReasonAs {
     fn is_same_reason_as(&self, other: &Self) -> bool;
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, strum::Display)]
+pub enum CompatNotCompatible {
+    #[strum(to_string = "Not compatible")]
+    NotCompatible,
+    #[strum(to_string = "Not {required:?} compatible")]
+    NotRequiredCompatibility { required: CompatRule },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, strum::Display)]
+pub enum CompatNotCompatibleSpan {
+    #[strum(to_string = "[{this_compat} at {desc}: has {has}; requires {requires}]")]
+    PreOrPostVersion {
+        this_compat: Compat,
+        desc: &'static str,
+        has: TagSet,
+        requires: TagSet,
+    },
+    #[strum(to_string = "[{this_compat} at pos {pos} ({label}): has {has}; requires {requires}]")]
+    VersionPart {
+        this_compat: Compat,
+        pos: usize,
+        label: &'static str,
+        has: u32,
+        requires: u32,
+    },
+    #[strum(
+        to_string = "[{this_compat} at pos {pos} ({label}): (version) {has} < {requires} (compat)]"
+    )]
+    VersionPartTooLow {
+        this_compat: Compat,
+        pos: usize,
+        label: &'static str,
+        has: u32,
+        requires: u32,
+    },
+    #[strum(to_string = "[{required:?} compatibility not specified]")]
+    NotSpecified { required: CompatRule },
+}
+
+/// A generic type that implements Display by joining the elements with commas.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CommaSeparated<T>(pub T);
+
+impl<T, I> std::fmt::Display for CommaSeparated<T>
+where
+    for<'a> &'a T: IntoIterator<Item = &'a I>,
+    I: std::fmt::Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let mut first = true;
+        for item in &self.0 {
+            if !first {
+                f.write_str(", ")?;
+            }
+            item.fmt(f)?;
+            first = false;
+        }
+        Ok(())
+    }
+}
+
 /// Denotes whether or not something is compatible.
 #[derive(Clone, Debug, Eq, PartialEq, strum::Display)]
 pub enum IncompatibleReason {
@@ -108,74 +189,123 @@ pub enum IncompatibleReason {
     BuildDeprecated,
     #[strum(to_string = "building from source is not enabled")]
     BuildFromSourceDisabled,
-    #[strum(to_string = "build id does not match")]
-    BuildIdMismatch,
-    #[strum(to_string = "build id is not a superset")]
-    BuildIdNotSuperset,
-    #[strum(to_string = "build option {0} has invalid value")]
-    BuildOptionMismatch(OptNameBuf),
-    #[strum(to_string = "build options {0} not defined in package")]
+    #[strum(to_string = "{0}")]
+    BuildIdMismatch(BuildIdProblem),
+    #[strum(to_string = "{0}")]
+    BuildIdNotSuperset(BuildIdProblem),
+    #[strum(to_string = "invalid value for {name}: {inner_reason}")]
+    BuildOptionMismatch {
+        name: OptNameBuf,
+        inner_reason: Box<IncompatibleReason>,
+    },
+    #[strum(to_string = "package does not define requested build options: {missing:?}")]
     BuildOptionsMissing(OptionMap),
-    #[strum(to_string = "components {0} not defined in package")]
-    ComponentsMissing(BTreeSet<String>),
+    #[strum(to_string = "{0}")]
+    ComponentsMissing(ComponentsMissingProblem),
     #[strum(to_string = "embedded package conflicts with existing package in solve: {pkg}")]
     ConflictingEmbeddedPackage(PkgNameBuf),
     #[strum(
         to_string = "package {0} component {1} embeds {2} and conflicts with existing package in solve: {3}"
     )]
     ConflictingEmbeddedPackageRequirement(PkgNameBuf, String, PkgNameBuf, Box<IncompatibleReason>),
-    #[strum(to_string = "package {0} requirement conflicts with existing package in solve: {1}")]
-    ConflictingRequirement(PkgNameBuf, Box<IncompatibleReason>),
-    #[strum(to_string = "would produce an impossible request")]
-    ImpossibleRequest,
-    #[strum(to_string = "inclusion policy is not a superset")]
-    InclusionPolicyNotSuperset,
+    #[strum(to_string = "{0}")]
+    ConflictingRequirement(ConflictingRequirementProblem),
+    #[strum(to_string = "embedded package '{pkg}' is incompatible: {inner_reason}")]
+    EmbeddedIncompatible {
+        pkg: String,
+        inner_reason: Box<IncompatibleReason>,
+    },
+    #[strum(to_string = "{0}")]
+    ImpossibleRequest(ImpossibleRequestProblem),
+    #[strum(to_string = "{0}")]
+    InclusionPolicyNotSuperset(InclusionPolicyProblem),
     #[strum(to_string = "{0} [INTERNAL ERROR]")]
     InternalError(String),
-    #[strum(to_string = "no builds were compatible with a request")]
-    NoCompatibleBuilds,
+    #[strum(to_string = "none of {pkg_version}'s builds is compatible with {request}")]
+    NoCompatibleBuilds {
+        pkg_version: String,
+        request: String,
+    },
+    #[strum(to_string = "doesn't satisfy requested option: {inner_reason}")]
+    OptionNotSatisfied {
+        inner_reason: Box<IncompatibleReason>,
+    },
     #[strum(to_string = "recipe options incompatible with state")]
     OptionResolveError,
-    #[strum(to_string = "package name does not match")]
-    PackageNameMismatch,
-    #[strum(to_string = "package is not an embedded package")]
+    #[strum(to_string = "{0}")]
+    PackageNameMismatch(PackageNameProblem),
+    #[strum(to_string = "not an embedded package")]
     PackageNotAnEmbeddedPackage,
-    #[strum(to_string = "package repo does not match")]
-    PackageRepoMismatch,
+    #[strum(to_string = "{0}")]
+    PackageRepoMismatch(PackageRepoProblem),
     #[strum(to_string = "prereleases not allowed")]
     PrereleasesNotAllowed,
-    #[strum(to_string = "ranges do not intersect")]
-    RangesDoNotIntersect,
-    #[strum(to_string = "range is not a superset")]
-    RangeNotSuperset,
+    #[strum(to_string = "{self_valid_range} does not intersect with {other_valid_range}")]
+    RangesDoNotIntersect {
+        self_valid_range: String,
+        other_valid_range: String,
+    },
+    #[strum(to_string = "{0}")]
+    RangeNotSuperset(RangeSupersetProblem),
     #[strum(to_string = "recipe is deprecated in this version")]
     RecipeDeprecated,
-    #[strum(to_string = "requirements are not a superset")]
-    RequirementsNotSuperset,
-    #[strum(to_string = "var option {0} does not equal any of the defined choices")]
-    VarOptionIllegalChoice(OptNameBuf),
-    #[strum(to_string = "var option {0} doesn't match")]
-    VarOptionMismatch(OptNameBuf),
+    #[strum(to_string = "no request exists for '{name}'")]
+    RequirementsNotSuperset { name: OptNameBuf },
+    #[strum(to_string = "[{pkg}] {inner_reason}")]
+    Restrict {
+        pkg: PkgNameBuf,
+        inner_reason: Box<IncompatibleReason>,
+    },
+    #[strum(to_string = "invalid value '{value}'; must be one of {choices:?}")]
+    VarOptionIllegalChoice {
+        value: String,
+        choices: IndexSet<String>,
+    },
+    #[strum(to_string = "{0}")]
+    VarOptionMismatch(VarOptionProblem),
     #[strum(to_string = "var option {0} not defined in package")]
     VarOptionMissing(OptNameBuf),
-    #[strum(to_string = "var request is not a superset")]
-    VarRequestNotSuperset,
-    #[strum(to_string = "var requirement {0} doesn't match")]
-    VarRequirementMismatch(OptNameBuf),
-    #[strum(to_string = "version range '{version_range}' invalid: {err}")]
-    VersionRangeInvalid { version_range: String, err: String },
-    #[strum(to_string = "version too high")]
-    VersionTooHigh,
-    #[strum(to_string = "version too low")]
-    VersionTooLow,
-    #[strum(to_string = "version doesn't satisfy compatibility requirements")]
-    VersionNotCompatible,
-    #[strum(to_string = "version not different")]
-    VersionNotDifferent,
-    #[strum(to_string = "version not equal")]
-    VersionNotEqual,
-    #[strum(to_string = "version out of range")]
-    VersionOutOfRange,
+    #[strum(to_string = "{0}")]
+    VarRequestNotSuperset(VarRequestProblem),
+    #[strum(to_string = "package wants {var}={requested}; resolve has {name}={value}")]
+    VarRequirementMismatch {
+        var: OptNameBuf,
+        requested: String,
+        name: OptNameBuf,
+        value: String,
+    },
+    #[strum(
+        to_string = "invalid value '{value}' for option '{option}'; not a valid package request: {err}"
+    )]
+    VersionRangeInvalid {
+        value: String,
+        option: PkgNameBuf,
+        err: String,
+    },
+    #[strum(to_string = "{0}")]
+    VersionTooHigh(VersionRangeProblem),
+    #[strum(to_string = "{0}")]
+    VersionTooLow(VersionRangeProblem),
+    #[strum(to_string = "{required_compat} with {base} {span}")]
+    VersionNotCompatible {
+        required_compat: CompatNotCompatible,
+        base: Version,
+        span: CompatNotCompatibleSpan,
+    },
+    #[strum(to_string = "{0}")]
+    VersionNotDifferent(VersionNotDifferentProblem),
+    #[strum(to_string = "{0}")]
+    VersionNotEqual(VersionNotEqualProblem),
+    #[strum(
+        to_string = "out of range: {wildcard} [at pos {pos} ({pos_label}): has {has}; requires {requires}]"
+    )]
+    VersionOutOfRange {
+        wildcard: WildcardRange,
+        pos: usize,
+        pos_label: &'static str,
+        has: u32,
+        requires: u32,
+    },
 }
 
 impl IsSameReasonAs for IncompatibleReason {
@@ -196,13 +326,16 @@ impl IsSameReasonAs for IncompatibleReason {
                 IncompatibleReason::BuildFromSourceDisabled,
                 IncompatibleReason::BuildFromSourceDisabled,
             ) => true,
-            (IncompatibleReason::BuildIdMismatch, IncompatibleReason::BuildIdMismatch) => true,
-            (IncompatibleReason::BuildIdNotSuperset, IncompatibleReason::BuildIdNotSuperset) => {
+            (IncompatibleReason::BuildIdMismatch(_), IncompatibleReason::BuildIdMismatch(_)) => {
                 true
             }
             (
-                IncompatibleReason::BuildOptionMismatch(a),
-                IncompatibleReason::BuildOptionMismatch(b),
+                IncompatibleReason::BuildIdNotSuperset(_),
+                IncompatibleReason::BuildIdNotSuperset(_),
+            ) => true,
+            (
+                IncompatibleReason::BuildOptionMismatch { name: a, .. },
+                IncompatibleReason::BuildOptionMismatch { name: b, .. },
             ) => a == b,
             (
                 IncompatibleReason::BuildOptionsMissing(a),
@@ -211,7 +344,7 @@ impl IsSameReasonAs for IncompatibleReason {
             (
                 IncompatibleReason::ComponentsMissing(a),
                 IncompatibleReason::ComponentsMissing(b),
-            ) => a == b,
+            ) => a.is_same_reason_as(b),
             (
                 IncompatibleReason::ConflictingEmbeddedPackage(a),
                 IncompatibleReason::ConflictingEmbeddedPackage(b),
@@ -221,85 +354,97 @@ impl IsSameReasonAs for IncompatibleReason {
                 IncompatibleReason::ConflictingEmbeddedPackageRequirement(e, f, g, h),
             ) => a == e && b == f && c == g && d.is_same_reason_as(h),
             (
-                IncompatibleReason::ConflictingRequirement(a, b),
-                IncompatibleReason::ConflictingRequirement(c, d),
-            ) => a == c && b.is_same_reason_as(d),
-            (IncompatibleReason::ImpossibleRequest, IncompatibleReason::ImpossibleRequest) => true,
+                IncompatibleReason::ConflictingRequirement(a),
+                IncompatibleReason::ConflictingRequirement(b),
+            ) => a.is_same_reason_as(b),
             (
-                IncompatibleReason::InclusionPolicyNotSuperset,
-                IncompatibleReason::InclusionPolicyNotSuperset,
+                IncompatibleReason::ImpossibleRequest(_),
+                IncompatibleReason::ImpossibleRequest(_),
+            ) => true,
+            (
+                IncompatibleReason::InclusionPolicyNotSuperset(_),
+                IncompatibleReason::InclusionPolicyNotSuperset(_),
             ) => true,
             (IncompatibleReason::InternalError(a), IncompatibleReason::InternalError(b)) => a == b,
-            (IncompatibleReason::NoCompatibleBuilds, IncompatibleReason::NoCompatibleBuilds) => {
-                true
-            }
+            (
+                IncompatibleReason::NoCompatibleBuilds { .. },
+                IncompatibleReason::NoCompatibleBuilds { .. },
+            ) => true,
             (IncompatibleReason::OptionResolveError, IncompatibleReason::OptionResolveError) => {
                 true
             }
-            (IncompatibleReason::PackageNameMismatch, IncompatibleReason::PackageNameMismatch) => {
-                true
-            }
+            (
+                IncompatibleReason::PackageNameMismatch(_),
+                IncompatibleReason::PackageNameMismatch(_),
+            ) => true,
             (
                 IncompatibleReason::PackageNotAnEmbeddedPackage,
                 IncompatibleReason::PackageNotAnEmbeddedPackage,
             ) => true,
-            (IncompatibleReason::PackageRepoMismatch, IncompatibleReason::PackageRepoMismatch) => {
-                true
-            }
+            (
+                IncompatibleReason::PackageRepoMismatch { .. },
+                IncompatibleReason::PackageRepoMismatch { .. },
+            ) => true,
             (
                 IncompatibleReason::PrereleasesNotAllowed,
                 IncompatibleReason::PrereleasesNotAllowed,
             ) => true,
             (
-                IncompatibleReason::RangesDoNotIntersect,
-                IncompatibleReason::RangesDoNotIntersect,
+                IncompatibleReason::RangesDoNotIntersect { .. },
+                IncompatibleReason::RangesDoNotIntersect { .. },
             ) => true,
-            (IncompatibleReason::RangeNotSuperset, IncompatibleReason::RangeNotSuperset) => true,
+            (IncompatibleReason::RangeNotSuperset(_), IncompatibleReason::RangeNotSuperset(_)) => {
+                true
+            }
             (IncompatibleReason::RecipeDeprecated, IncompatibleReason::RecipeDeprecated) => true,
             (
-                IncompatibleReason::RequirementsNotSuperset,
-                IncompatibleReason::RequirementsNotSuperset,
+                IncompatibleReason::RequirementsNotSuperset { .. },
+                IncompatibleReason::RequirementsNotSuperset { .. },
             ) => true,
             (
-                IncompatibleReason::VarOptionIllegalChoice(a),
-                IncompatibleReason::VarOptionIllegalChoice(b),
+                IncompatibleReason::VarOptionIllegalChoice { value: a, .. },
+                IncompatibleReason::VarOptionIllegalChoice { value: b, .. },
             ) => a == b,
             (
                 IncompatibleReason::VarOptionMismatch(a),
                 IncompatibleReason::VarOptionMismatch(b),
-            ) => a == b,
+            ) => a.is_same_reason_as(b),
             (IncompatibleReason::VarOptionMissing(a), IncompatibleReason::VarOptionMissing(b)) => {
                 a == b
             }
             (
-                IncompatibleReason::VarRequestNotSuperset,
-                IncompatibleReason::VarRequestNotSuperset,
+                IncompatibleReason::VarRequestNotSuperset(_),
+                IncompatibleReason::VarRequestNotSuperset(_),
             ) => true,
             (
-                IncompatibleReason::VarRequirementMismatch(a),
-                IncompatibleReason::VarRequirementMismatch(b),
+                IncompatibleReason::VarRequirementMismatch { var: a, .. },
+                IncompatibleReason::VarRequirementMismatch { var: b, .. },
             ) => a == b,
             (
                 IncompatibleReason::VersionRangeInvalid {
-                    version_range: a,
-                    err: b,
+                    option: a, err: b, ..
                 },
                 IncompatibleReason::VersionRangeInvalid {
-                    version_range: c,
-                    err: d,
+                    option: c, err: d, ..
                 },
             ) => a == c && b == d,
-            (IncompatibleReason::VersionTooHigh, IncompatibleReason::VersionTooHigh) => true,
-            (IncompatibleReason::VersionTooLow, IncompatibleReason::VersionTooLow) => true,
+            (IncompatibleReason::VersionTooHigh(_), IncompatibleReason::VersionTooHigh(_)) => true,
+            (IncompatibleReason::VersionTooLow(_), IncompatibleReason::VersionTooLow(_)) => true,
             (
-                IncompatibleReason::VersionNotCompatible,
-                IncompatibleReason::VersionNotCompatible,
+                IncompatibleReason::VersionNotCompatible { .. },
+                IncompatibleReason::VersionNotCompatible { .. },
             ) => true,
-            (IncompatibleReason::VersionNotDifferent, IncompatibleReason::VersionNotDifferent) => {
+            (
+                IncompatibleReason::VersionNotDifferent(_),
+                IncompatibleReason::VersionNotDifferent(_),
+            ) => true,
+            (IncompatibleReason::VersionNotEqual(_), IncompatibleReason::VersionNotEqual(_)) => {
                 true
             }
-            (IncompatibleReason::VersionNotEqual, IncompatibleReason::VersionNotEqual) => true,
-            (IncompatibleReason::VersionOutOfRange, IncompatibleReason::VersionOutOfRange) => true,
+            (
+                IncompatibleReason::VersionOutOfRange { .. },
+                IncompatibleReason::VersionOutOfRange { .. },
+            ) => true,
             _ => false,
         }
     }
@@ -581,7 +726,10 @@ impl Compat {
                 return Compatibility::Compatible;
             }
 
-            for (matches, optruleset) in [(pre_matches, &self.pre), (post_matches, &self.post)] {
+            for (matches, optruleset, desc, a, b) in [
+                (pre_matches, &self.pre, "pre", &base.pre, &other.pre),
+                (post_matches, &self.post, "post", &base.post, &other.post),
+            ] {
                 if matches {
                     continue;
                 }
@@ -589,13 +737,33 @@ impl Compat {
                 if let Some(ruleset) = optruleset {
                     if ruleset.0.contains(&CompatRule::None) {
                         return Compatibility::Incompatible(
-                            IncompatibleReason::VersionNotCompatible,
+                            IncompatibleReason::VersionNotCompatible {
+                                required_compat: CompatNotCompatible::NotCompatible,
+                                base: base.clone(),
+                                span: CompatNotCompatibleSpan::PreOrPostVersion {
+                                    this_compat: self.clone(),
+                                    desc,
+                                    has: b.clone(),
+                                    requires: a.clone(),
+                                },
+                            },
                         );
                     }
 
                     if !ruleset.0.contains(&required) {
                         return Compatibility::Incompatible(
-                            IncompatibleReason::VersionNotCompatible,
+                            IncompatibleReason::VersionNotCompatible {
+                                required_compat: CompatNotCompatible::NotRequiredCompatibility {
+                                    required,
+                                },
+                                base: base.clone(),
+                                span: CompatNotCompatibleSpan::PreOrPostVersion {
+                                    this_compat: self.clone(),
+                                    desc,
+                                    has: b.clone(),
+                                    requires: a.clone(),
+                                },
+                            },
                         );
                     }
                 }
@@ -620,7 +788,17 @@ impl Compat {
                 match (a, b) {
                     (Some(a), Some(b)) if a != b => {
                         return Compatibility::Incompatible(
-                            IncompatibleReason::VersionNotCompatible,
+                            IncompatibleReason::VersionNotCompatible {
+                                required_compat: CompatNotCompatible::NotCompatible,
+                                base: base.clone(),
+                                span: CompatNotCompatibleSpan::VersionPart {
+                                    this_compat: self.clone(),
+                                    pos: i + 1,
+                                    label: version::get_version_position_label(i),
+                                    has: *b,
+                                    requires: *a,
+                                },
+                            },
                         );
                     }
                     _ => continue,
@@ -632,9 +810,19 @@ impl Compat {
                     (Some(a), Some(b)) if a == b => {
                         continue;
                     }
-                    (Some(_), Some(_)) => {
+                    (Some(a), Some(b)) => {
                         return Compatibility::Incompatible(
-                            IncompatibleReason::VersionNotCompatible,
+                            IncompatibleReason::VersionNotCompatible {
+                                required_compat: CompatNotCompatible::NotCompatible,
+                                base: base.clone(),
+                                span: CompatNotCompatibleSpan::VersionPart {
+                                    this_compat: self.clone(),
+                                    pos: i + 1,
+                                    label: version::get_version_position_label(i),
+                                    has: *b,
+                                    requires: *a,
+                                },
+                            },
                         );
                     }
                     _ => continue,
@@ -643,7 +831,17 @@ impl Compat {
 
             match (a, b) {
                 (Some(a), Some(b)) if b < a => {
-                    return Compatibility::Incompatible(IncompatibleReason::VersionNotCompatible);
+                    return Compatibility::Incompatible(IncompatibleReason::VersionNotCompatible {
+                        required_compat: CompatNotCompatible::NotRequiredCompatibility { required },
+                        base: base.clone(),
+                        span: CompatNotCompatibleSpan::VersionPartTooLow {
+                            this_compat: self.clone(),
+                            pos: i + 1,
+                            label: version::get_version_position_label(i),
+                            has: *b,
+                            requires: *a,
+                        },
+                    });
                 }
                 _ => {
                     return Compatibility::Compatible;
@@ -651,7 +849,11 @@ impl Compat {
             }
         }
 
-        Compatibility::Incompatible(IncompatibleReason::VersionNotCompatible)
+        Compatibility::Incompatible(IncompatibleReason::VersionNotCompatible {
+            required_compat: CompatNotCompatible::NotCompatible,
+            base: base.clone(),
+            span: CompatNotCompatibleSpan::NotSpecified { required },
+        })
     }
 }
 

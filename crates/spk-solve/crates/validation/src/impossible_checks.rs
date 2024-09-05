@@ -14,7 +14,7 @@ use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{InclusionPolicy, PkgRequest, RangeIdent, Request, RequestedBy};
 use spk_schema::spec_ops::{Versioned, WithVersion};
-use spk_schema::version::IncompatibleReason;
+use spk_schema::version::{ImpossibleRequestProblem, IncompatibleReason};
 use spk_schema::{AnyIdent, BuildIdent, Package, Spec};
 use spk_solve_graph::{GetMergedRequestError, GetMergedRequestResult};
 use spk_solve_solution::PackageSource;
@@ -349,7 +349,7 @@ impl ImpossibleRequestsChecker {
                         unresolved_request.pkg
                     );
                     let mut combined_request = request.clone();
-                    if let Compatibility::Incompatible(_) =
+                    if let Compatibility::Incompatible(incompatible) =
                         combined_request.restrict(unresolved_request)
                     {
                         // The requests cannot be combined, usually because
@@ -361,7 +361,13 @@ impl ImpossibleRequestsChecker {
                         self.num_impossible_requests_found
                             .fetch_add(1, Ordering::Relaxed);
                         return Ok(Compatibility::Incompatible(
-                            IncompatibleReason::ImpossibleRequest,
+                            IncompatibleReason::ImpossibleRequest(
+                                ImpossibleRequestProblem::Restrict {
+                                    pkg: request.pkg.to_string(),
+                                    unresolved_request: unresolved_request.to_string(),
+                                    inner_reason: Box::new(incompatible),
+                                },
+                            ),
                         ));
                     };
                     combined_request
@@ -398,7 +404,10 @@ impl ImpossibleRequestsChecker {
                 );
                 self.cache_and_count_impossible_request(combined_request.pkg.clone());
                 return Ok(Compatibility::Incompatible(
-                    IncompatibleReason::ImpossibleRequest,
+                    IncompatibleReason::ImpossibleRequest(ImpossibleRequestProblem::Cached {
+                        pkg: request.pkg.to_string(),
+                        combined_request: combined_request.pkg.to_string(),
+                    }),
                 ));
             }
 
@@ -439,7 +448,10 @@ impl ImpossibleRequestsChecker {
                 );
                 self.cache_and_count_impossible_request(combined_request.pkg.clone());
                 return Ok(Compatibility::Incompatible(
-                    IncompatibleReason::ImpossibleRequest,
+                    IncompatibleReason::ImpossibleRequest(ImpossibleRequestProblem::Cached {
+                        pkg: request.pkg.to_string(),
+                        combined_request: combined_request.pkg.to_string(),
+                    }),
                 ));
             }
         }
@@ -824,7 +836,10 @@ async fn any_valid_build_in_version(
     }
 
     // This is only reached if none of the builds were compatible
-    let nothing_valid = Compatibility::Incompatible(IncompatibleReason::NoCompatibleBuilds);
+    let nothing_valid = Compatibility::Incompatible(IncompatibleReason::NoCompatibleBuilds {
+        pkg_version: pkg_version.to_string(),
+        request: request.to_string(),
+    });
     send_version_task_done_message(
         channel,
         pkg_version.clone(),

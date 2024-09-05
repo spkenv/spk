@@ -122,7 +122,9 @@ impl RequirementsList {
         if let Some((ours, theirs)) = global_opt_request {
             return ours.contains(theirs);
         }
-        Compatibility::Incompatible(IncompatibleReason::RequirementsNotSuperset)
+        Compatibility::Incompatible(IncompatibleReason::RequirementsNotSuperset {
+            name: theirs.name().to_owned(),
+        })
     }
 
     /// Remove a requirement from this list.

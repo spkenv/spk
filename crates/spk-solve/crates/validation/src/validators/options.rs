@@ -40,8 +40,12 @@ impl ValidatorT for OptionsValidator {
                 // eg: this is 'debug', but we have 'thispackage.debug'
                 continue;
             }
-            if let incompatible @ Compatibility::Incompatible(_) = request.is_satisfied_by(spec) {
-                return Ok(incompatible);
+            if let Compatibility::Incompatible(incompatible) = request.is_satisfied_by(spec) {
+                return Ok(Compatibility::Incompatible(
+                    IncompatibleReason::OptionNotSatisfied {
+                        inner_reason: Box::new(incompatible),
+                    },
+                ));
             }
         }
         Ok(Compatibility::Compatible)

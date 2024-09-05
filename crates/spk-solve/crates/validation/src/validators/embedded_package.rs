@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use spk_schema::version::IncompatibleReason;
+
 use super::prelude::*;
 use crate::ValidatorT;
 
@@ -68,8 +70,13 @@ impl EmbeddedPackageValidator {
             Err(err) => return Err(err.into()),
         };
 
-        if let incompatible @ Compatibility::Incompatible(_) = existing.is_satisfied_by(embedded) {
-            return Ok(incompatible);
+        if let Compatibility::Incompatible(incompatible) = existing.is_satisfied_by(embedded) {
+            return Ok(Compatibility::Incompatible(
+                IncompatibleReason::EmbeddedIncompatible {
+                    pkg: embedded.ident().to_string(),
+                    inner_reason: Box::new(incompatible),
+                },
+            ));
         }
         Ok(Compatible)
     }

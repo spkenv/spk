@@ -34,7 +34,12 @@ impl ValidatorT for VarRequirementsValidator {
                     let requested = request.value.as_pinned().unwrap_or_default();
                     if requested != value.as_str() {
                         return Ok(Compatibility::Incompatible(
-                            IncompatibleReason::VarRequirementMismatch(request.var.clone()),
+                            IncompatibleReason::VarRequirementMismatch {
+                                var: request.var.clone(),
+                                requested: requested.to_string(),
+                                name: name.clone(),
+                                value: value.clone(),
+                            },
                         ));
                     }
                 }

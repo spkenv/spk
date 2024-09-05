@@ -13,7 +13,14 @@ use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::ident_component::{Component, Components};
 use spk_schema_foundation::ident_ops::parsing::KNOWN_REPOSITORY_NAMES;
 use spk_schema_foundation::name::{PkgName, PkgNameBuf, RepositoryNameBuf};
-use spk_schema_foundation::version::{CompatRule, Compatibility, IncompatibleReason};
+use spk_schema_foundation::version::{
+    BuildIdProblem,
+    CompatRule,
+    Compatibility,
+    IncompatibleReason,
+    PackageNameProblem,
+    PackageRepoProblem,
+};
 use spk_schema_foundation::version_range::{
     DoubleEqualsVersion,
     EqualsVersion,
@@ -145,7 +152,12 @@ impl RangeIdent {
 
     pub fn contains(&self, other: &RangeIdent) -> Compatibility {
         if other.name != self.name {
-            return Compatibility::Incompatible(IncompatibleReason::BuildIdNotSuperset);
+            return Compatibility::Incompatible(IncompatibleReason::PackageNameMismatch(
+                PackageNameProblem::VersionSelector {
+                    self_name: self.name.clone(),
+                    other_name: other.name.clone(),
+                },
+            ));
         }
 
         let compat = self.version.contains(&other.version);
@@ -156,7 +168,12 @@ impl RangeIdent {
         if other.build.is_none() || self.build == other.build || self.build.is_none() {
             Compatibility::Compatible
         } else {
-            Compatibility::Incompatible(IncompatibleReason::BuildIdNotSuperset)
+            Compatibility::Incompatible(IncompatibleReason::BuildIdNotSuperset(
+                BuildIdProblem::VersionSelector {
+                    self_ident: self.to_string(),
+                    other_ident: other.to_string(),
+                },
+            ))
         }
     }
 
@@ -176,15 +193,24 @@ impl RangeIdent {
             (None, rn @ Some(_)) => {
                 self.repository_name = rn.cloned();
             }
-            (Some(_ours), Some(_theirs)) => {
-                return Compatibility::Incompatible(IncompatibleReason::PackageRepoMismatch);
+            (Some(ours), Some(theirs)) => {
+                return Compatibility::Incompatible(IncompatibleReason::PackageRepoMismatch(
+                    PackageRepoProblem::Restrict {
+                        pkg: self.name.clone(),
+                        self_repo: ours.clone(),
+                        their_repo: theirs.clone(),
+                    },
+                ));
             }
         };
 
-        if let incompatible @ Compatibility::Incompatible(_) =
+        if let Compatibility::Incompatible(incompatible) =
             self.version.restrict(&other.version, mode)
         {
-            return incompatible;
+            return Compatibility::Incompatible(IncompatibleReason::Restrict {
+                pkg: self.name.clone(),
+                inner_reason: Box::new(incompatible),
+            });
         }
 
         for cmpt in other.components.iter() {
@@ -199,7 +225,12 @@ impl RangeIdent {
             self.build.clone_from(&other.build);
             Compatibility::Compatible
         } else {
-            Compatibility::Incompatible(IncompatibleReason::BuildIdMismatch)
+            Compatibility::Incompatible(IncompatibleReason::BuildIdMismatch(
+                BuildIdProblem::VersionSelector {
+                    self_ident: self.to_string(),
+                    other_ident: other.to_string(),
+                },
+            ))
         }
     }
 

@@ -9,7 +9,7 @@ use indexmap::set::IndexSet;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_component::ComponentBTreeSetBuf;
 use spk_schema_foundation::option_map::Stringified;
-use spk_schema_foundation::version::{Compat, IncompatibleReason};
+use spk_schema_foundation::version::{Compat, IncompatibleReason, VarOptionProblem};
 use spk_schema_foundation::IsDefault;
 use spk_schema_ident::{NameAndValue, PinnableValue, RangeIdent};
 
@@ -437,15 +437,19 @@ impl VarOpt {
                     Compatibility::Compatible
                 } else {
                     Compatibility::Incompatible(IncompatibleReason::VarOptionMismatch(
-                        self.var.clone(),
+                        VarOptionProblem::Incompatible {
+                            assigned: assigned.to_string(),
+                            value: value.to_string(),
+                        },
                     ))
                 }
             }
             (Some(value), _) => {
                 if !self.choices.is_empty() && !self.choices.contains(value) {
-                    Compatibility::Incompatible(IncompatibleReason::VarOptionIllegalChoice(
-                        self.var.clone(),
-                    ))
+                    Compatibility::Incompatible(IncompatibleReason::VarOptionIllegalChoice {
+                        value: value.to_string(),
+                        choices: self.choices.clone(),
+                    })
                 } else {
                     Compatibility::Compatible
                 }
@@ -571,7 +575,8 @@ impl PkgOpt {
         let base_range = match VersionRange::from_str(base) {
             Err(err) => {
                 return Compatibility::Incompatible(IncompatibleReason::VersionRangeInvalid {
-                    version_range: base.clone(),
+                    value: base.clone(),
+                    option: self.pkg.clone(),
                     err: err.to_string(),
                 })
             }
@@ -579,7 +584,8 @@ impl PkgOpt {
         };
         match VersionRange::from_str(value) {
             Err(err) => Compatibility::Incompatible(IncompatibleReason::VersionRangeInvalid {
-                version_range: value.to_string(),
+                value: value.to_string(),
+                option: self.pkg.clone(),
                 err: err.to_string(),
             }),
             Ok(value_range) => value_range.intersects(base_range),

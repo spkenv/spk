@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use spk_schema::version::IncompatibleReason;
+use spk_schema::version::{
+    CommaSeparated,
+    ComponentsMissingProblem,
+    ConflictingRequirementProblem,
+    IncompatibleReason,
+};
 
 use super::prelude::*;
 use crate::validators::EmbeddedPackageValidator;
@@ -62,7 +67,13 @@ impl PkgRequirementsValidator {
         let mut restricted = existing.clone();
         let request = match restricted.restrict(request) {
             Compatible => restricted,
-            incompatible @ Compatibility::Incompatible(_) => return Ok(incompatible),
+            Compatibility::Incompatible(incompatible) => {
+                return Ok(Compatibility::Incompatible(
+                    IncompatibleReason::ConflictingRequirement(
+                        ConflictingRequirementProblem::PkgRequirement(Box::new(incompatible)),
+                    ),
+                ))
+            }
         };
 
         let (resolved, provided_components) = match state.get_current_resolve(&request.pkg.name) {
@@ -130,8 +141,10 @@ impl PkgRequirementsValidator {
         if let Compatibility::Incompatible(compat) = compat {
             return Ok(Compatibility::Incompatible(
                 IncompatibleReason::ConflictingRequirement(
-                    request.pkg.name.clone(),
-                    Box::new(compat),
+                    ConflictingRequirementProblem::ExistingPackage {
+                        pkg: request.pkg.name.clone(),
+                        inner_reason: Box::new(compat),
+                    },
                 ),
             ));
         }
@@ -145,10 +158,21 @@ impl PkgRequirementsValidator {
         if !missing_components.is_empty() {
             return Ok(Compatibility::Incompatible(
                 IncompatibleReason::ComponentsMissing(
-                    missing_components
-                        .into_iter()
-                        .map(ToString::to_string)
-                        .collect(),
+                    ComponentsMissingProblem::ComponentsNotProvided {
+                        package: request.pkg.name.to_owned(),
+                        needed: CommaSeparated(
+                            missing_components
+                                .into_iter()
+                                .map(|c| c.to_string())
+                                .collect(),
+                        ),
+                        have: CommaSeparated(
+                            provided_components
+                                .into_iter()
+                                .map(|c| c.to_string())
+                                .collect(),
+                        ),
+                    },
                 ),
             ));
         }

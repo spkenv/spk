@@ -14,7 +14,14 @@ use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::ident_component::ComponentBTreeSet;
 use spk_schema_foundation::name::PkgNameBuf;
 use spk_schema_foundation::option_map::{OptFilter, Stringified};
-use spk_schema_foundation::version::IncompatibleReason;
+use spk_schema_foundation::version::{
+    BuildIdProblem,
+    CommaSeparated,
+    ComponentsMissingProblem,
+    IncompatibleReason,
+    PackageNameProblem,
+    VarOptionProblem,
+};
 use spk_schema_foundation::IsDefault;
 use spk_schema_ident::{AnyIdent, BuildIdent, Ident, RangeIdent, VersionIdent};
 
@@ -355,10 +362,11 @@ impl Package for Spec<BuildIdent> {
                 .get(option.full_name().without_namespace())
                 .map(String::as_str);
             let compat = option.validate(value);
-            if !compat.is_ok() {
-                return Compatibility::Incompatible(IncompatibleReason::BuildOptionMismatch(
-                    option.full_name().to_owned(),
-                ));
+            if let Compatibility::Incompatible(incompatible) = compat {
+                return Compatibility::Incompatible(IncompatibleReason::BuildOptionMismatch {
+                    name: option.full_name().to_owned(),
+                    inner_reason: Box::new(incompatible),
+                });
             }
 
             must_exist.remove(option.full_name().without_namespace());
@@ -694,7 +702,12 @@ impl Recipe for Spec<VersionIdent> {
 impl Satisfy<PkgRequest> for Spec<BuildIdent> {
     fn check_satisfies_request(&self, pkg_request: &PkgRequest) -> Compatibility {
         if pkg_request.pkg.name != *self.pkg.name() {
-            return Compatibility::Incompatible(IncompatibleReason::PackageNameMismatch);
+            return Compatibility::Incompatible(IncompatibleReason::PackageNameMismatch(
+                PackageNameProblem::PkgRequest {
+                    self_name: self.pkg.name().to_owned(),
+                    other_name: pkg_request.pkg.name.clone(),
+                },
+            ));
         }
 
         if self.is_deprecated() {
@@ -730,10 +743,20 @@ impl Satisfy<PkgRequest> for Spec<BuildIdent> {
                 .collect_vec();
             if !missing_components.is_empty() {
                 return Compatibility::Incompatible(IncompatibleReason::ComponentsMissing(
-                    missing_components
-                        .into_iter()
-                        .map(Component::to_string)
-                        .collect(),
+                    ComponentsMissingProblem::ComponentsNotDefined {
+                        missing: CommaSeparated(
+                            missing_components
+                                .into_iter()
+                                .map(Component::to_string)
+                                .collect(),
+                        ),
+                        available: CommaSeparated(
+                            available_components
+                                .into_iter()
+                                .map(|c| c.to_string())
+                                .collect(),
+                        ),
+                    },
                 ));
             }
         }
@@ -752,7 +775,12 @@ impl Satisfy<PkgRequest> for Spec<BuildIdent> {
             return Compatibility::Compatible;
         }
 
-        Compatibility::Incompatible(IncompatibleReason::BuildIdMismatch)
+        Compatibility::Incompatible(IncompatibleReason::BuildIdMismatch(
+            BuildIdProblem::PkgRequest {
+                self_build: self.pkg.build().clone(),
+                requested: pkg_request.pkg.build.clone(),
+            },
+        ))
     }
 }
 
@@ -800,28 +828,45 @@ where
                     let Ok(base_version) = Version::from_str(&base_version.unwrap_or_default())
                     else {
                         return Compatibility::Incompatible(IncompatibleReason::VarOptionMismatch(
-                            var_request.var.clone(),
+                            VarOptionProblem::IncompatibleBuildOptionInvalidVersion {
+                                var_request: var_request.var.clone(),
+                                base: exact.unwrap_or_default(),
+                                request_value: request_value.unwrap_or_default().to_string(),
+                            },
                         ));
                     };
 
                     let Ok(request_version) = Version::from_str(request_value.unwrap_or_default())
                     else {
                         return Compatibility::Incompatible(IncompatibleReason::VarOptionMismatch(
-                            var_request.var.clone(),
+                            VarOptionProblem::IncompatibleBuildOptionInvalidVersion {
+                                var_request: var_request.var.clone(),
+                                base: exact.unwrap_or_default(),
+                                request_value: request_value.unwrap_or_default().to_string(),
+                            },
                         ));
                     };
 
                     let result = compat.is_binary_compatible(&base_version, &request_version);
-                    if let Compatibility::Incompatible(_) = result {
+                    if let Compatibility::Incompatible(incompatible) = result {
                         return Compatibility::Incompatible(IncompatibleReason::VarOptionMismatch(
-                            var_request.var.clone(),
+                            VarOptionProblem::IncompatibleBuildOptionWithContext {
+                                var_request: var_request.var.clone(),
+                                exact: exact.unwrap_or_else(|| "None".to_string()),
+                                request_value: request_value.unwrap_or_default().to_string(),
+                                context: Box::new(incompatible),
+                            },
                         ));
                     }
                     return result;
                 }
 
                 Compatibility::Incompatible(IncompatibleReason::VarOptionMismatch(
-                    var_request.var.clone(),
+                    VarOptionProblem::IncompatibleBuildOption {
+                        var_request: var_request.var.clone(),
+                        exact: exact.unwrap_or_else(|| "None".to_string()),
+                        request_value: request_value.unwrap_or_default().to_string(),
+                    },
                 ))
             }
         }

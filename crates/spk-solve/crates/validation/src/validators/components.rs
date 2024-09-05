@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use spk_schema::version::IncompatibleReason;
+use std::collections::BTreeSet;
+
+use spk_schema::version::{CommaSeparated, ComponentsMissingProblem, IncompatibleReason};
 
 use super::prelude::*;
 use crate::validators::EmbeddedPackageValidator;
@@ -136,7 +138,14 @@ impl ComponentsValidator {
 
         if !missing_components.is_empty() {
             return Ok(Compatibility::Incompatible(
-                IncompatibleReason::ComponentsMissing(missing_components),
+                IncompatibleReason::ComponentsMissing(
+                    ComponentsMissingProblem::ComponentsNotDefined {
+                        missing: CommaSeparated(missing_components),
+                        available: CommaSeparated(BTreeSet::<String>::from_iter(
+                            available_components.into_iter().map(|s| s.to_string()),
+                        )),
+                    },
+                ),
             ));
         }
 
