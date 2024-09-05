@@ -19,7 +19,7 @@ use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{PkgRequest, Request, RequestedBy, Satisfy, VarRequest};
 use spk_schema::ident_build::EmbeddedSource;
-use spk_schema::version::IncompatibleReason;
+use spk_schema::version::{IncompatibleReason, IsSameReasonAs};
 use spk_schema::{try_recipe, BuildIdent, Deprecate, Package, Recipe, Spec, SpecRecipe};
 use spk_solve_graph::{
     Change,
@@ -1321,7 +1321,7 @@ impl SolverRuntime {
                                 if let Some(first) = err.notes.first() {
                                     if err.notes.iter().all(|n| {
                                         match (n, first) {
-                                            (Note::SkipPackageNote(n), Note::SkipPackageNote(first)) => n.pkg.name() == first.pkg.name() && n.reason == first.reason,
+                                            (Note::SkipPackageNote(n), Note::SkipPackageNote(first)) => n.is_same_reason_as(first),
                                             (Note::Other(n), Note::Other(first)) => n == first,
                                             _ => false,
                                         }

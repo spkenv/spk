@@ -21,6 +21,7 @@ pub use compat::{
     CompatRuleSet,
     Compatibility,
     IncompatibleReason,
+    IsSameReasonAs,
     API_STR,
     BINARY_STR,
 };

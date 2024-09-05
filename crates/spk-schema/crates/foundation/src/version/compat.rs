@@ -88,6 +88,12 @@ impl Ord for CompatRule {
     }
 }
 
+/// Compare incompatibility reasons for determining if they can be considered
+/// the same problem.
+pub trait IsSameReasonAs {
+    fn is_same_reason_as(&self, other: &Self) -> bool;
+}
+
 /// Denotes whether or not something is compatible.
 #[derive(Clone, Debug, Eq, PartialEq, strum::Display)]
 pub enum IncompatibleReason {
@@ -172,12 +178,150 @@ pub enum IncompatibleReason {
     VersionOutOfRange,
 }
 
+impl IsSameReasonAs for IncompatibleReason {
+    fn is_same_reason_as(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                IncompatibleReason::AlreadyEmbeddedPackage {
+                    embedded,
+                    embedded_by,
+                },
+                IncompatibleReason::AlreadyEmbeddedPackage {
+                    embedded: other_embedded,
+                    embedded_by: other_embedded_by,
+                },
+            ) => embedded == other_embedded && embedded_by == other_embedded_by,
+            (IncompatibleReason::BuildDeprecated, IncompatibleReason::BuildDeprecated) => true,
+            (
+                IncompatibleReason::BuildFromSourceDisabled,
+                IncompatibleReason::BuildFromSourceDisabled,
+            ) => true,
+            (IncompatibleReason::BuildIdMismatch, IncompatibleReason::BuildIdMismatch) => true,
+            (IncompatibleReason::BuildIdNotSuperset, IncompatibleReason::BuildIdNotSuperset) => {
+                true
+            }
+            (
+                IncompatibleReason::BuildOptionMismatch(a),
+                IncompatibleReason::BuildOptionMismatch(b),
+            ) => a == b,
+            (
+                IncompatibleReason::BuildOptionsMissing(a),
+                IncompatibleReason::BuildOptionsMissing(b),
+            ) => a == b,
+            (
+                IncompatibleReason::ComponentsMissing(a),
+                IncompatibleReason::ComponentsMissing(b),
+            ) => a == b,
+            (
+                IncompatibleReason::ConflictingEmbeddedPackage(a),
+                IncompatibleReason::ConflictingEmbeddedPackage(b),
+            ) => a == b,
+            (
+                IncompatibleReason::ConflictingEmbeddedPackageRequirement(a, b, c, d),
+                IncompatibleReason::ConflictingEmbeddedPackageRequirement(e, f, g, h),
+            ) => a == e && b == f && c == g && d.is_same_reason_as(h),
+            (
+                IncompatibleReason::ConflictingRequirement(a, b),
+                IncompatibleReason::ConflictingRequirement(c, d),
+            ) => a == c && b.is_same_reason_as(d),
+            (IncompatibleReason::ImpossibleRequest, IncompatibleReason::ImpossibleRequest) => true,
+            (
+                IncompatibleReason::InclusionPolicyNotSuperset,
+                IncompatibleReason::InclusionPolicyNotSuperset,
+            ) => true,
+            (IncompatibleReason::InternalError(a), IncompatibleReason::InternalError(b)) => a == b,
+            (IncompatibleReason::NoCompatibleBuilds, IncompatibleReason::NoCompatibleBuilds) => {
+                true
+            }
+            (IncompatibleReason::OptionResolveError, IncompatibleReason::OptionResolveError) => {
+                true
+            }
+            (IncompatibleReason::PackageNameMismatch, IncompatibleReason::PackageNameMismatch) => {
+                true
+            }
+            (
+                IncompatibleReason::PackageNotAnEmbeddedPackage,
+                IncompatibleReason::PackageNotAnEmbeddedPackage,
+            ) => true,
+            (IncompatibleReason::PackageRepoMismatch, IncompatibleReason::PackageRepoMismatch) => {
+                true
+            }
+            (
+                IncompatibleReason::PrereleasesNotAllowed,
+                IncompatibleReason::PrereleasesNotAllowed,
+            ) => true,
+            (
+                IncompatibleReason::RangesDoNotIntersect,
+                IncompatibleReason::RangesDoNotIntersect,
+            ) => true,
+            (IncompatibleReason::RangeNotSuperset, IncompatibleReason::RangeNotSuperset) => true,
+            (IncompatibleReason::RecipeDeprecated, IncompatibleReason::RecipeDeprecated) => true,
+            (
+                IncompatibleReason::RequirementsNotSuperset,
+                IncompatibleReason::RequirementsNotSuperset,
+            ) => true,
+            (
+                IncompatibleReason::VarOptionIllegalChoice(a),
+                IncompatibleReason::VarOptionIllegalChoice(b),
+            ) => a == b,
+            (
+                IncompatibleReason::VarOptionMismatch(a),
+                IncompatibleReason::VarOptionMismatch(b),
+            ) => a == b,
+            (IncompatibleReason::VarOptionMissing(a), IncompatibleReason::VarOptionMissing(b)) => {
+                a == b
+            }
+            (
+                IncompatibleReason::VarRequestNotSuperset,
+                IncompatibleReason::VarRequestNotSuperset,
+            ) => true,
+            (
+                IncompatibleReason::VarRequirementMismatch(a),
+                IncompatibleReason::VarRequirementMismatch(b),
+            ) => a == b,
+            (
+                IncompatibleReason::VersionRangeInvalid {
+                    version_range: a,
+                    err: b,
+                },
+                IncompatibleReason::VersionRangeInvalid {
+                    version_range: c,
+                    err: d,
+                },
+            ) => a == c && b == d,
+            (IncompatibleReason::VersionTooHigh, IncompatibleReason::VersionTooHigh) => true,
+            (IncompatibleReason::VersionTooLow, IncompatibleReason::VersionTooLow) => true,
+            (
+                IncompatibleReason::VersionNotCompatible,
+                IncompatibleReason::VersionNotCompatible,
+            ) => true,
+            (IncompatibleReason::VersionNotDifferent, IncompatibleReason::VersionNotDifferent) => {
+                true
+            }
+            (IncompatibleReason::VersionNotEqual, IncompatibleReason::VersionNotEqual) => true,
+            (IncompatibleReason::VersionOutOfRange, IncompatibleReason::VersionOutOfRange) => true,
+            _ => false,
+        }
+    }
+}
+
 /// Denotes whether or not something is compatible.
 #[must_use = "this `Compatibility` may be an `Incompatible` variant, which should be handled"]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Compatibility {
     Compatible,
     Incompatible(IncompatibleReason),
+}
+
+impl IsSameReasonAs for Compatibility {
+    fn is_same_reason_as(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Compatibility::Incompatible(a), Compatibility::Incompatible(b)) => {
+                a.is_same_reason_as(b)
+            }
+            _ => false,
+        }
+    }
 }
 
 impl std::fmt::Display for Compatibility {

@@ -22,6 +22,7 @@ use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{InclusionPolicy, PkgRequest, Request, RequestedBy, VarRequest};
 use spk_schema::prelude::*;
+use spk_schema::version::IsSameReasonAs;
 use spk_schema::{
     AnyIdent,
     BuildIdent,
@@ -1514,6 +1515,16 @@ pub enum SkipPackageNoteReason {
     Compatibility(Compatibility),
 }
 
+impl IsSameReasonAs for SkipPackageNoteReason {
+    fn is_same_reason_as(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::String(s1), Self::String(s2)) => s1 == s2,
+            (Self::Compatibility(c1), Self::Compatibility(c2)) => c1.is_same_reason_as(c2),
+            _ => false,
+        }
+    }
+}
+
 impl std::fmt::Display for SkipPackageNoteReason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -1542,6 +1553,12 @@ impl SkipPackageNote {
             pkg,
             reason: SkipPackageNoteReason::String(reason.to_string()),
         }
+    }
+}
+
+impl IsSameReasonAs for SkipPackageNote {
+    fn is_same_reason_as(&self, other: &Self) -> bool {
+        self.pkg.name() == other.pkg.name() && self.reason.is_same_reason_as(&other.reason)
     }
 }
 
