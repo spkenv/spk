@@ -485,16 +485,17 @@ impl<'de> serde::de::Visitor<'de> for BuildSpecVisitor {
             match key.as_str() {
                 "script" => unchecked.script = map.next_value::<Script>()?,
                 "options" => {
-                    unchecked.options = map.next_value::<Vec<Opt>>()?;
+                    let linted_opts = map.next_value::<Vec<LintedItem<Opt>>>()?;
                     let mut unique_options = HashSet::new();
-                    for opt in unchecked.options.iter() {
-                        let full_name = opt.full_name();
+                    for opt in linted_opts.iter() {
+                        let full_name = opt.item.full_name();
                         if unique_options.contains(full_name) {
                             return Err(serde::de::Error::custom(format!(
                                 "build option was specified more than once: {full_name}",
                             )));
                         }
                         unique_options.insert(full_name);
+                        self.lints.extend(opt.lints.clone());
                     }
                 }
                 "variants" => {

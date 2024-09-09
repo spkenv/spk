@@ -12,6 +12,7 @@ use spk_schema_foundation::option_map::Stringified;
 use spk_schema_foundation::version::{Compat, IncompatibleReason, VarOptionProblem};
 use spk_schema_foundation::IsDefault;
 use spk_schema_ident::{NameAndValue, PinnableValue, RangeIdent};
+use struct_field_names_as_array::FieldNamesAsArray;
 
 use crate::foundation::name::{OptName, OptNameBuf, PkgName, PkgNameBuf};
 use crate::foundation::version::{CompatRule, Compatibility};
@@ -25,7 +26,7 @@ use crate::ident::{
     RequestedBy,
     VarRequest,
 };
-use crate::{Error, Result};
+use crate::{Error, Lint, LintedItem, Lints, Result, UnknownKey};
 
 #[cfg(test)]
 #[path = "./option_test.rs"]
@@ -190,142 +191,178 @@ impl TryFrom<Request> for Opt {
     }
 }
 
+/// This visitor captures all fields that could be valid
+/// for any option, before deciding at the end which variant
+/// to actually build. We ignore any unrecognized field anyway,
+/// but additionally any field that's recognized must be valid
+/// even if it's not going to be used.
+///
+/// The purpose of this setup is to enable more meaningful errors
+/// for invalid values that contain original source positions. In
+/// order to achieve this we must parse and validate each field with
+/// the appropriate type as they are visited - which disqualifies the
+/// existing approach to untagged enums which read all fields first
+/// and then goes back and checks them once the variant is determined
+#[derive(Default, FieldNamesAsArray)]
+struct UncheckedOptVisitor {
+    // PkgOpt
+    pkg: Option<PkgNameWithComponents>,
+    prerelease_policy: Option<PreReleasePolicy>,
+
+    // VarOpt
+    var: Option<OptNameBuf>,
+    choices: Option<IndexSet<String>>,
+    inheritance: Option<Inheritance>,
+    compat: Option<Compat>,
+
+    // Both
+    default: Option<String>,
+    value: Option<String>,
+    description: Option<String>,
+
+    // Lints
+    #[field_names_as_array(skip)]
+    lints: Vec<Lint>,
+}
+
+struct CheckedOptVisitor {
+    opt: Opt,
+    lints: Vec<Lint>,
+}
+
+impl Lints for CheckedOptVisitor {
+    fn lints(&mut self) -> Vec<Lint> {
+        std::mem::take(&mut self.lints)
+    }
+}
+
+impl From<CheckedOptVisitor> for Opt {
+    fn from(value: CheckedOptVisitor) -> Self {
+        value.opt
+    }
+}
+
 impl<'de> Deserialize<'de> for Opt {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: serde::de::Deserializer<'de>,
     {
-        /// This visitor captures all fields that could be valid
-        /// for any option, before deciding at the end which variant
-        /// to actually build. We ignore any unrecognized field anyway,
-        /// but additionally any field that's recognized must be valid
-        /// even if it's not going to be used.
-        ///
-        /// The purpose of this setup is to enable more meaningful errors
-        /// for invalid values that contain original source positions. In
-        /// order to achieve this we must parse and validate each field with
-        /// the appropriate type as they are visited - which disqualifies the
-        /// existing approach to untagged enums which read all fields first
-        /// and then goes back and checks them once the variant is determined
-        #[derive(Default)]
-        struct OptVisitor {
-            // PkgOpt
-            pkg: Option<PkgNameWithComponents>,
-            prerelease_policy: Option<PreReleasePolicy>,
+        Ok(deserializer
+            .deserialize_map(UncheckedOptVisitor::default())?
+            .into())
+    }
+}
 
-            // VarOpt
-            var: Option<OptNameBuf>,
-            choices: Option<IndexSet<String>>,
-            inheritance: Option<Inheritance>,
-            compat: Option<Compat>,
+impl<'de> Deserialize<'de> for LintedItem<Opt> {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        Ok(deserializer
+            .deserialize_map(UncheckedOptVisitor::default())?
+            .into())
+    }
+}
 
-            // Both
-            default: Option<String>,
-            value: Option<String>,
-            description: Option<String>,
-        }
+impl<'de> serde::de::Visitor<'de> for UncheckedOptVisitor {
+    type Value = CheckedOptVisitor;
 
-        impl<'de> serde::de::Visitor<'de> for OptVisitor {
-            type Value = Opt;
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("a pkg or var option")
+    }
 
-            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                f.write_str("a pkg or var option")
-            }
-
-            fn visit_map<A>(mut self, mut map: A) -> std::result::Result<Self::Value, A::Error>
-            where
-                A: serde::de::MapAccess<'de>,
-            {
-                let check_existing_default = |v: &OptVisitor| -> std::result::Result<(), A::Error> {
-                    if v.default.is_some() {
-                        Err(serde::de::Error::custom("option cannot specify both the 'default' field and a default value in the form <name>/<default>"))
-                    } else {
-                        Ok(())
-                    }
-                };
-
-                while let Some(mut key) = map.next_key::<Stringified>()? {
-                    key.make_ascii_lowercase();
-                    match key.as_str() {
-                        "pkg" => {
-                            let pkg_name_with_components: PkgNameWithComponents =
-                                map.next_value()?;
-                            if pkg_name_with_components.default.is_some() {
-                                check_existing_default(&self)?;
-                                self.default.clone_from(&pkg_name_with_components.default);
-                            }
-                            self.pkg = Some(pkg_name_with_components);
-                        }
-                        "prereleasepolicy" => {
-                            self.prerelease_policy = Some(map.next_value::<PreReleasePolicy>()?)
-                        }
-                        "var" => {
-                            let NameAndValue(name, value) = map.next_value()?;
-                            self.var = Some(name);
-                            if value.is_some() {
-                                check_existing_default(&self)?;
-                            }
-                            self.default = value;
-                        }
-                        "choices" => {
-                            self.choices = Some(
-                                map.next_value::<Vec<Stringified>>()?
-                                    .into_iter()
-                                    .map(|s| s.0)
-                                    .collect(),
-                            )
-                        }
-                        "inheritance" => self.inheritance = Some(map.next_value::<Inheritance>()?),
-                        "default" => {
-                            check_existing_default(&self)?;
-                            self.default = Some(map.next_value::<Stringified>()?.0);
-                        }
-                        "static" => self.value = Some(map.next_value::<Stringified>()?.0),
-                        "description" => {
-                            self.description = Some(map.next_value::<Stringified>()?.0);
-                        }
-                        "compat" => {
-                            self.compat = Some(map.next_value::<Compat>()?);
-                        }
-                        _ => {
-                            // unrecognized fields are explicitly ignored in case
-                            // they were added in a newer version of spk. We assume
-                            // that if the api has not been versioned then the desire
-                            // is to continue working in this older version
-                            map.next_value::<serde::de::IgnoredAny>()?;
-                        }
-                    }
+    fn visit_map<A>(mut self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        let check_existing_default =
+            |v: &UncheckedOptVisitor| -> std::result::Result<(), A::Error> {
+                if v.default.is_some() {
+                    Err(serde::de::Error::custom("option cannot specify both the 'default' field and a default value in the form <name>/<default>"))
+                } else {
+                    Ok(())
                 }
+            };
 
-                match (self.pkg, self.var) {
-                    (Some(pkg), None) => Ok(Opt::Pkg(PkgOpt {
-                        pkg: pkg.name,
-                        components: pkg.components,
-                        prerelease_policy: self.prerelease_policy,
-                        required_compat: Default::default(),
-                        default: self.default.unwrap_or_default(),
-                        value: self.value,
-                    })),
-                    (None, Some(var)) =>Ok(Opt::Var(VarOpt {
-                        var,
-                        choices: self.choices.unwrap_or_default(),
-                        inheritance: self.inheritance.unwrap_or_default(),
-                        default: self.default.unwrap_or_default(),
-                        description: self.description,
-                        compat: self.compat,
-                        value: self.value,
-                    })),
-                    (Some(_), Some(_)) => Err(serde::de::Error::custom(
-                        "could not determine option type, it may only contain one of the `pkg` or `var` fields"
-                    )),
-                    (None, None) => Err(serde::de::Error::custom(
-                        "could not determine option type, it must include either a `pkg` or `var` field"
-                    )),
+        while let Some(mut key) = map.next_key::<Stringified>()? {
+            key.make_ascii_lowercase();
+            match key.as_str() {
+                "pkg" => {
+                    let pkg_name_with_components: PkgNameWithComponents = map.next_value()?;
+                    if pkg_name_with_components.default.is_some() {
+                        check_existing_default(&self)?;
+                        self.default.clone_from(&pkg_name_with_components.default);
+                    }
+                    self.pkg = Some(pkg_name_with_components);
+                }
+                "prereleasepolicy" => {
+                    self.prerelease_policy = Some(map.next_value::<PreReleasePolicy>()?)
+                }
+                "var" => {
+                    let NameAndValue(name, value) = map.next_value()?;
+                    self.var = Some(name);
+                    if value.is_some() {
+                        check_existing_default(&self)?;
+                    }
+                    self.default = value;
+                }
+                "choices" => {
+                    self.choices = Some(
+                        map.next_value::<Vec<Stringified>>()?
+                            .into_iter()
+                            .map(|s| s.0)
+                            .collect(),
+                    )
+                }
+                "inheritance" => self.inheritance = Some(map.next_value::<Inheritance>()?),
+                "default" => {
+                    check_existing_default(&self)?;
+                    self.default = Some(map.next_value::<Stringified>()?.0);
+                }
+                "static" => self.value = Some(map.next_value::<Stringified>()?.0),
+                "description" => {
+                    self.description = Some(map.next_value::<Stringified>()?.0);
+                }
+                "compat" => {
+                    self.compat = Some(map.next_value::<Compat>()?);
+                }
+                unknown_key => {
+                    self.lints.push(Lint::Key(UnknownKey::new(
+                        unknown_key,
+                        UncheckedOptVisitor::FIELD_NAMES_AS_ARRAY.to_vec(),
+                    )));
+                    map.next_value::<serde::de::IgnoredAny>()?;
                 }
             }
         }
 
-        deserializer.deserialize_map(OptVisitor::default())
+        match (self.pkg, self.var) {
+            (Some(pkg), None) => Ok(CheckedOptVisitor {
+                opt: Opt::Pkg(PkgOpt {
+                    pkg: pkg.name,
+                    components: pkg.components,
+                    prerelease_policy: self.prerelease_policy,
+                    required_compat: Default::default(),
+                    default: self.default.unwrap_or_default(),
+                    value: self.value,
+                }),
+                lints: self.lints.clone(),
+            }),
+            (None, Some(var)) => Ok(CheckedOptVisitor {
+                opt: Opt::Var(VarOpt {
+                    var,
+                    choices: self.choices.unwrap_or_default(),
+                    inheritance: self.inheritance.unwrap_or_default(),
+                    default: self.default.unwrap_or_default(),
+                    description: self.description,
+                    compat: self.compat,
+                    value: self.value,
+                }),
+                lints: self.lints.clone(),
+            }),
+            (Some(_), Some(_)) => Err(serde::de::Error::custom("could not determine option type, it may only contain one of the `pkg` or `var` fields")),
+            (None, None) => Err(serde::de::Error::custom("could not determine option type, it must include either a `pkg` or `var` field")),
+        }
     }
 }
 
