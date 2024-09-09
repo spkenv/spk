@@ -4,13 +4,13 @@
 
 //! Generate shell completions for "spk"
 
+use std::fmt;
 use std::io::Write;
 
-use clap::{Command, Parser, value_parser};
+use clap::{value_parser, Command, Parser, ValueEnum};
 use clap_complete;
 use clap_complete::{Generator, Shell};
 use clap_complete_nushell::Nushell;
-use clap::ValueEnum;
 use miette::Result;
 use spk_cli_common::CommandArgs;
 
@@ -25,17 +25,17 @@ enum ShellCompletion {
     /// Nushell
     Nushell,
 }
-impl ToString for ShellCompletion {
-    fn to_string(&self) -> String {
-        match self {
-            ShellCompletion::Bash => "bash".to_string(),
-            ShellCompletion::Fish => "fish".to_string(),
-            ShellCompletion::Zsh => "zsh".to_string(),
-            ShellCompletion::Nushell => "nu".to_string(),
-        }
+impl fmt::Display for ShellCompletion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            ShellCompletion::Bash => "bash",
+            ShellCompletion::Fish => "fish",
+            ShellCompletion::Zsh => "zsh",
+            ShellCompletion::Nushell => "nu",
+        };
+        write!(f, "{}", s)
     }
 }
-
 impl Generator for ShellCompletion {
     /// Generate the file name for the completion script.
     fn file_name(&self, name: &str) -> String {

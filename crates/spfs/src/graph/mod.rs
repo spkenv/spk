@@ -20,7 +20,9 @@ mod tree;
 use std::cell::RefCell;
 
 pub use annotation::{
-    Annotation, AnnotationValue, DEFAULT_SPFS_ANNOTATION_LAYER_MAX_STRING_VALUE_SIZE,
+    Annotation,
+    AnnotationValue,
+    DEFAULT_SPFS_ANNOTATION_LAYER_MAX_STRING_VALUE_SIZE,
 };
 pub use blob::Blob;
 pub use database::{
