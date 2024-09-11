@@ -5,8 +5,9 @@
 use std::collections::HashSet;
 
 use nom::character::complete::char;
-use nom::combinator::{cut, map, opt};
+use nom::combinator::{all_consuming, cut, map, opt};
 use nom::error::{ContextError, FromExternalError, ParseError};
+use nom::multi::separated_list1;
 use nom::sequence::preceded;
 use nom::IResult;
 use nom_supreme::tag::TagError;
@@ -113,4 +114,34 @@ where
         + TagError<&'a str, &'static str>,
 {
     version_and_optional_build(range_ident_version_filter, build)(input)
+}
+
+/// Parse a comma separated list of range idents (requests)
+///
+/// This function parses into a list of [`RangeIdent`] instances.
+///
+/// `known_repositories` is used to disambiguate input that
+/// can be parsed in multiple ways. The first element of the
+/// identity is more likely to be interpreted as a repository
+/// name if it is a known repository name.
+///
+/// Examples:
+/// - python,maya,openimageio,zlib
+/// - python,maya/2022.3,openimageio,zlib/1.2.11
+/// - python,local/maya/2022.3,openimageio,zlib/1.2.11/ABCDEF
+///
+/// See [`range_ident`] for details on parsing a range ident.
+pub fn range_ident_comma_separated_list(
+    known_repositories: &HashSet<&str>,
+    input: &str,
+) -> Result<Vec<RangeIdent>, crate::Error> {
+    let parsed_list = all_consuming(separated_list1(
+        char(','),
+        range_ident::<nom_supreme::error::ErrorTree<_>>(known_repositories),
+    ))(input);
+
+    parsed_list.map(|(_, l)| l).map_err(|err| match err {
+        nom::Err::Error(e) | nom::Err::Failure(e) => crate::Error::String(e.to_string()),
+        nom::Err::Incomplete(_) => unreachable!(),
+    })
 }

@@ -67,7 +67,7 @@ where
         // package name instead of as a repository name.
         let r = version_parser
             .parse(input)
-            .and_then(|(input, _)| alt((tag("]"), eof::<&str, _>))(input));
+            .and_then(|(input, _)| alt((tag("]"), tag(","), eof::<&str, _>))(input));
         if r.is_ok() {
             return fail("could be version");
         }
@@ -80,7 +80,7 @@ where
         let r = version_and_build_parser
             .parse(input)
             .and_then(|(input, v_and_b)| {
-                alt((tag("]"), eof))(input).map(|(input, _)| (input, v_and_b))
+                alt((tag("]"), tag(","), eof))(input).map(|(input, _)| (input, v_and_b))
             });
         if let Ok((_, (_version, Some(_build)))) = r {
             return fail("could be a build");

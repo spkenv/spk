@@ -10,4 +10,9 @@ mod request;
 mod parsing_test;
 
 pub use ident::{build_ident, ident, version_ident};
-pub use request::{range_ident, range_ident_version_filter, version_filter_and_build};
+pub use request::{
+    range_ident,
+    range_ident_comma_separated_list,
+    range_ident_version_filter,
+    version_filter_and_build,
+};

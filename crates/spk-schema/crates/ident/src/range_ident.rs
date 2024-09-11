@@ -387,3 +387,12 @@ impl<'de> Deserialize<'de> for RangeIdent {
 pub fn parse_ident_range<S: AsRef<str>>(source: S) -> Result<RangeIdent> {
     RangeIdent::from_str(source.as_ref())
 }
+
+/// Parse a comma separated list of package identifiers that each
+/// specify a range of versions.
+pub fn parse_ident_range_list<S: AsRef<str>>(source: S) -> Result<Vec<RangeIdent>> {
+    if source.as_ref() == "" {
+        return Ok(Vec::new());
+    }
+    crate::parsing::range_ident_comma_separated_list(&KNOWN_REPOSITORY_NAMES, source.as_ref())
+}
