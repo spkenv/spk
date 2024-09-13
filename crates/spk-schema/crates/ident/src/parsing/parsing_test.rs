@@ -4,6 +4,7 @@
 
 use std::collections::{BTreeSet, HashSet};
 use std::convert::TryFrom;
+use std::iter::zip;
 use std::str::FromStr;
 
 use itertools::Itertools;
@@ -33,7 +34,7 @@ use spk_schema_foundation::version_range::{
     WildcardRange,
 };
 
-use crate::{parse_ident, AnyIdent, RangeIdent, VersionIdent};
+use crate::{parse_ident, parse_ident_range_list, AnyIdent, RangeIdent, VersionIdent};
 
 macro_rules! arb_version_range_struct {
     ($arb_name:ident, $type_name:ident, $($var:ident in $strategy:expr),+ $(,)?) => {
@@ -420,6 +421,89 @@ fn arb_build() -> impl Strategy<Value = Option<Build>> {
 }
 
 prop_compose! {
+    fn arb_range_ident()(
+        repo in arb_repo(),
+        name in arb_pkg_legal_name(),
+        components in arb_components(),
+        version_filter in arb_opt_version_filter(),
+        build in weighted(0.9, arb_non_embedded_build()),
+    ) -> RangeIdent {
+        // what about illegal ones?
+        // arb_opt_legal_version(),
+
+        // If specifying a build, a version must also be specified
+        let b = if build.is_some() && version_filter.is_none() {
+            None
+        } else {
+            build
+        };
+
+        let version = version_filter.unwrap_or_default();
+
+        RangeIdent { repository_name: repo, name, components, version, build: b }
+        // TODO: return name_is_legal if don't turn this in to a legal
+    }
+}
+
+prop_compose! {
+    fn arb_valid_range_ident_list()(ri_list in vec(arb_range_ident(), 0..5)) -> Vec<RangeIdent> {
+        ri_list
+    }
+}
+
+prop_compose! {
+    fn arb_valid_range_ident_list_separator()(suffix in prop_oneof![","]) -> String {
+        suffix
+    }
+}
+
+prop_compose! {
+    fn arb_invalid_range_ident_list_separator()(suffix in prop_oneof![":", ";", ",,", "====", " ", "\t"]) -> String {
+        suffix
+    }
+}
+
+prop_compose! {
+    fn arb_valid_range_ident_list_suffix()(suffix in prop_oneof![""]) -> String {
+        suffix
+    }
+}
+
+prop_compose! {
+    fn arb_range_ident_list_suffix()(suffix in prop_oneof!["", ",", ",,", "====="]) -> String {
+        suffix
+    }
+}
+
+prop_compose! {
+    fn arb_valid_range_ident_as_string()(
+        range_ident in arb_range_ident()
+    ) -> String {
+        range_ident.to_string()
+    }
+}
+
+prop_compose! {
+    fn arb_invalid_range_ident_as_string()(
+        range_ident in arb_range_ident()
+    ) -> String {
+        format!("======{range_ident}======")
+    }
+}
+
+prop_compose! {
+    fn arb_invalid_range_ident_list()(mut range_ident_list in vec(prop_oneof![arb_valid_range_ident_as_string(), arb_invalid_range_ident_as_string(),], 1..5),
+                                      invalid_range_ident in arb_invalid_range_ident_as_string()
+    ) -> Vec<String> {
+        if range_ident_list.len() == 1 {
+            // Prevents a single valid item list
+            range_ident_list.push(invalid_range_ident)
+        }
+        range_ident_list
+    }
+}
+
+prop_compose! {
     fn arb_wildcard_range()(
         // Here we generate a non-empty Vec<Option<u32>>,
         // then turn the first element into a None (to represent the '*'),
@@ -537,4 +621,50 @@ fn parse_ident_with_basic_errors() {
 fn check_wrong_tag_order_is_a_parse_error() {
     let r = all_consuming(crate::parsing::ident::<(_, ErrorKind)>)("pkg-name/1.0+a.0-b.0");
     assert!(r.is_err(), "expected to fail; got {r:?}");
+}
+
+proptest! {
+    #[test]
+    fn prop_test_parse_valid_ident_range_list(
+        ident_list in arb_valid_range_ident_list(),
+        separator in arb_valid_range_ident_list_separator(),
+        suffix in arb_valid_range_ident_list_suffix(),
+    ) {
+        let comma_separated_list = format!( "{}{suffix}", ident_list.iter().map(ToString::to_string).join(&separator));
+        let parsed_list = parse_ident_range_list(&comma_separated_list);
+
+        // Test the results of the parsing
+        assert!(parsed_list.is_ok(), "parse ident range list '{comma_separated_list}' failure:\n{}", parsed_list.unwrap_err());
+        let list_parsed = parsed_list.unwrap();
+        assert_eq!(ident_list.is_empty(), list_parsed.is_empty(), "parse empty comma separated ident list should result in list");
+        // Each item in the original should match each item in the parsed list, in the same order
+        for (original, parsed) in zip(&ident_list, &list_parsed) {
+            // Have to compare field by field because the parser may
+            // have chosen a different VersionFilter to represent the
+            // version number, and this means the two range ident
+            // objects will not be equal, even though they represent
+            // the same thing.
+            assert_eq!(original.repository_name, parsed.repository_name, "parsed repo name does not match original range ident");
+            assert_eq!(original.name.as_str(), parsed.name.as_str(), "parsed name does not match original range ident");
+            assert_eq!(original.components, parsed.components, "parsed components does not match original range ident");
+            assert_eq!(original.version.clone().flatten(), parsed.version.clone().flatten(), "parsed version does not match original range ident");
+            assert_eq!(original.build, parsed.build, "parsed build does not match original range ident");
+        }
+    }
+}
+
+proptest! {
+    #[test]
+    fn prop_test_parse_invalid_ident_range_list(
+        ident_list in arb_invalid_range_ident_list(),
+        separator in arb_invalid_range_ident_list_separator(),
+        suffix in arb_range_ident_list_suffix(),
+    ) {
+        prop_assume!(separator != "," || !suffix.is_empty());
+
+        let comma_separated_list = format!("{}{suffix}", ident_list.iter().map(ToString::to_string).join(&separator));
+        let parsed_list = parse_ident_range_list(&comma_separated_list);
+
+        assert!(parsed_list.is_err(), "expected '{comma_separated_list}' to fail to parse, but it succeeded");
+    }
 }

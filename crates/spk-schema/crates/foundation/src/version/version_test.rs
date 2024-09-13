@@ -40,6 +40,9 @@ fn test_is_gt(#[case] base: &str, #[case] test: &str, #[case] expected: bool) {
 #[rstest]
 #[case("1.0.0", Version::new(1, 0, 0))]
 #[case("0.0.0", Version::new(0, 0, 0))]
+#[case("20.0.1", Version::new(20, 0, 1))]
+#[case("20.3.0", Version::new(20, 3, 0))]
+#[case("20.3.1", Version::new(20, 3, 1))]
 #[case("1.2.3.4.5.6", Version{
     parts: vec![1, 2, 3, 4, 5, 6].into(), ..Default::default()
 })]

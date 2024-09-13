@@ -12,9 +12,12 @@ use super::parse_ident_range;
 
 #[rstest]
 #[case("python/3.1.0", &[])]
+#[case("python/3.1.0,3.2.1", &[])]
+#[case("python/3.1.0", &[])]
 #[case("python:lib/3.1.0", &["lib"])]
 #[case("python:{lib}/3.1.0", &["lib"])]
 #[case("python:{lib,bin}/3.1.0", &["lib", "bin"])]
+#[case("python:{lib,bin}/3.1.0,3.2.1", &["lib", "bin"])]
 #[case("python:{lib,bin,dev}/3.1.0", &["lib", "bin", "dev"])]
 #[should_panic]
 #[case("python.Invalid/3.1.0", &[""])]
