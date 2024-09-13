@@ -425,7 +425,7 @@ prop_compose! {
         repo in arb_repo(),
         name in arb_pkg_legal_name(),
         components in arb_components(),
-        version_filter in  arb_opt_version_filter(),
+        version_filter in arb_opt_version_filter(),
         build in weighted(0.9, arb_non_embedded_build()),
     ) -> RangeIdent {
         // what about illegal ones?
