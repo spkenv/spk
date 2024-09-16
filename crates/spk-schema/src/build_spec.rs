@@ -497,6 +497,8 @@ impl<'de> serde::de::Visitor<'de> for BuildSpecVisitor {
                         unique_options.insert(full_name);
                         self.lints.extend(opt.lints.clone());
                     }
+
+                    unchecked.options = linted_opts.iter().map(|l| l.item.clone()).collect_vec();
                 }
                 "variants" => {
                     unchecked.raw_variants = map.next_value()?;

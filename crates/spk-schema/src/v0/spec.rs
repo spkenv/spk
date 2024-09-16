@@ -22,7 +22,7 @@ use spk_schema_foundation::version::{
     VarOptionProblem,
 };
 use spk_schema_foundation::IsDefault;
-use spk_schema_ident::{AnyIdent, AsVersionIdent, BuildIdent, Ident, RangeIdent, VersionIdent};
+use spk_schema_ident::{AnyIdent, BuildIdent, Ident, RangeIdent, VersionIdent};
 use struct_field_names_as_array::FieldNamesAsArray;
 
 use super::variant_spec::VariantSpecEntryKey;

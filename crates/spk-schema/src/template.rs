@@ -6,8 +6,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use crate::foundation::option_map::OptionMap;
-use crate::foundation::spec_ops::Named;
-use crate::{FromYaml, Result, SpecFileData};
+use crate::{Result, SpecFileData};
 
 /// Can be rendered into a recipe.
 #[enum_dispatch::enum_dispatch]

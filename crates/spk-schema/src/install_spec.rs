@@ -4,7 +4,6 @@
 
 use std::marker::PhantomData;
 
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::spec_ops::Named;
@@ -20,14 +19,14 @@ use crate::{
     EmbeddedPackagesList,
     EnvOp,
     EnvOpList,
-    InstallSpecKey,
-    LintMessage,
     LintedItem,
+    Lint,
     Lints,
     OpKind,
     Package,
     RequirementsList,
     Result,
+    UnknownKey,
 };
 
 #[cfg(test)]
@@ -39,7 +38,6 @@ mod install_spec_test;
     Clone,
     Debug,
     Default,
-    Deserialize,
     Eq,
     Hash,
     is_default_derive_macro::IsDefault,
@@ -60,46 +58,39 @@ pub struct InstallSpec {
     pub environment: EnvOpList,
 }
 
-impl<D> Lints for RawInstallSpecVisitor<D>
+impl<D> Lints for InstallSpecVisitor<D>
 where
     D: Default,
 {
     fn lints(&mut self) -> Vec<Lint> {
-        for env in self.environment.iter_mut() {
-            self.lints.extend(std::mem::take(&mut env.lints));
-        }
-
+        // self.lints.extend(std::mem::take(&mut self.environment.lints));
         std::mem::take(&mut self.lints)
     }
 }
 
 #[derive(Default, FieldNamesAsArray)]
-struct RawInstallSpecVisitor<D>
+struct InstallSpecVisitor<D>
 where
     D: Default,
 {
     requirements: RequirementsList,
     embedded: EmbeddedPackagesList,
     components: ComponentSpecList,
-    environment: LintedItem<EnvOpList>,
-    lints: Vec<LintMessage>,
+    environment: EnvOpList,
+    lints: Vec<Lint>,
     _phantom: PhantomData<D>,
 }
 
-impl<D> From<RawInstallSpecVisitor<D>> for InstallSpec
+impl<D> From<InstallSpecVisitor<D>> for InstallSpec
 where
     D: Default,
 {
-    fn from(value: RawInstallSpecVisitor<D>) -> Self {
+    fn from(value: InstallSpecVisitor<D>) -> Self {
         Self {
             requirements: value.requirements,
             embedded: value.embedded,
             components: value.components,
-            environment: value
-                .environment
-                .iter()
-                .map(|l| l.item.clone())
-                .collect_vec(),
+            environment: value.environment,
         }
     }
 }
@@ -215,6 +206,7 @@ impl From<RawInstallSpec> for InstallSpec {
     }
 }
 
+#[derive(Deserialize)]
 struct RawInstallSpec {
     #[serde(default)]
     requirements: RequirementsList,
@@ -226,21 +218,21 @@ struct RawInstallSpec {
     environment: EnvOpList,
 }
 
-impl<'de> Deserialize<'de> for RawInstallSpec {
+impl<'de> Deserialize<'de> for InstallSpec {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::de::Deserializer<'de>,
     {
-        deserializer.deserialize_map(RawInstallSpecVisitor::<RawInstallSpec>::default())
+        deserializer.deserialize_map(InstallSpecVisitor::<InstallSpec>::default())
     }
 }
 
-impl<'de> Deserialize<'de> for LintedItem<RawInstallSpec> {
+impl<'de> Deserialize<'de> for LintedItem<InstallSpec> {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::de::Deserializer<'de>,
     {
-        deserializer.deserialize_map(RawInstallSpecVisitor::<LintedItem<RawInstallSpec>>::default())
+        deserializer.deserialize_map(InstallSpecVisitor::<LintedItem<InstallSpec>>::default())
     }
 }
 
@@ -280,11 +272,15 @@ where
 }
 
 
-impl<'de, D> serde::de::Visitor<'de> for RawInstallSpecVisitor<D>
+impl<'de, D> serde::de::Visitor<'de> for InstallSpecVisitor<D>
 where
-    D: Default + From<RawInstallSpecVisitor<D>>,
+    D: Default + From<InstallSpecVisitor<D>>,
 {
     type Value = D;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("a package specification")
+    }
 
     fn visit_map<A>(mut self, mut map: A) -> std::result::Result<Self::Value, A::Error>
     where
@@ -295,7 +291,7 @@ where
                 "requirements" => self.requirements = map.next_value::<RequirementsList>()?,
                 "embedded" => self.embedded = map.next_value::<EmbeddedPackagesList>()?,
                 "components" => self.components = map.next_value::<ComponentSpecList>()?,
-                "environment" => self.environment = map.next_value::<LintedItem<EnvOpList>>()?,
+                "environment" => self.environment = map.next_value::<EnvOpList>()?,
                 unknown_key => {
                     self.lints.push(Lint::Key(UnknownKey::new(
                         unknown_key,

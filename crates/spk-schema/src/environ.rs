@@ -8,9 +8,6 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::option_map::Stringified;
 use spk_schema_foundation::IsDefault;
-use struct_field_names_as_array::FieldNamesAsArray;
-
-use crate::{Lint, LintedItem, Lints, UnknownKey};
 
 #[cfg(test)]
 #[path = "./environ_test.rs"]
@@ -26,7 +23,7 @@ const OP_COMMENT: &str = "comment";
 const OP_PREPEND: &str = "prepend";
 const OP_PRIORITY: &str = "priority";
 const OP_SET: &str = "set";
-const OP_NAMES: &[&str] = &[OP_APPEND, OP_COMMENT, OP_PREPEND, OP_SET];
+const OP_NAMES: &[&str] = &[OP_APPEND, OP_COMMENT, OP_PREPEND, OP_PRIORITY, OP_SET];
 
 /// Some item that contains a list of [`EnvOp`] operations
 pub trait RuntimeEnvironment {
@@ -94,16 +91,6 @@ impl EnvOp {
             EnvOp::Prepend(_) => OpKind::Prepend,
             EnvOp::Priority(_) => OpKind::Priority,
             EnvOp::Set(_) => OpKind::Set,
-        }
-    }
-
-    pub fn error(&self) -> &str {
-        match self {
-            EnvOp::Append(_) => "",
-            EnvOp::Comment(_) => "",
-            EnvOp::Prepend(_) => "",
-            EnvOp::Priority(_) => "",
-            EnvOp::Set(_) => "",
         }
     }
 
@@ -224,202 +211,164 @@ impl std::ops::DerefMut for EnvOpList {
     }
 }
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
-enum ConfKind {
-    Priority(u8),
-    Operation(String),
-}
-
-impl ConfKind {
-    pub fn get_op(&self) -> String {
-        match self {
-            ConfKind::Priority(_) => String::from(""),
-            ConfKind::Operation(o) => o.clone(),
-        }
-    }
-
-    pub fn get_priority(&self) -> u8 {
-        match self {
-            ConfKind::Priority(p) => *p,
-            ConfKind::Operation(_) => 0,
-        }
-    }
-}
-
-#[derive(Default, Debug, FieldNamesAsArray)]
-struct EnvOpVisitor {
-    #[field_names_as_array(skip)]
-    op_and_var: Option<(OpKind, ConfKind)>,
-    value: Option<String>,
-    separator: Option<String>,
-    #[field_names_as_array(skip)]
-    lints: Vec<Lint>,
-}
-
-impl Lints for EnvOpVisitor {
-    fn lints(&mut self) -> Vec<Lint> {
-        std::mem::take(&mut self.lints)
-    }
-}
-
-impl From<EnvOpVisitor> for EnvOp {
-    fn from(mut value: EnvOpVisitor) -> Self {
-        let (op, var) = value.op_and_var.expect("an operation and variable");
-        match op {
-            OpKind::Prepend => EnvOp::Prepend(PrependEnv {
-                prepend: var.get_op(),
-                separator: value.separator.take(),
-                value: value.value.expect("an environment value"),
-            }),
-            OpKind::Append => EnvOp::Append(AppendEnv {
-                append: var.get_op(),
-                separator: value.separator.take(),
-                value: value.value.expect("an environment value"),
-            }),
-            OpKind::Set => EnvOp::Set(SetEnv {
-                set: var.get_op(),
-                value: value.value.expect("an environment value"),
-            }),
-            OpKind::Comment => EnvOp::Comment(EnvComment {
-                comment: var.get_op(),
-            }),
-            OpKind::Priority => EnvOp::Priority(EnvPriority {
-                priority: var.get_priority(),
-            }),
-        }
-    }
-}
-
 impl<'de> Deserialize<'de> for EnvOp {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
-        D: serde::de::Deserializer<'de>,
+        D: serde::Deserializer<'de>,
     {
-        Ok(deserializer
-            .deserialize_map(EnvOpVisitor::default())?
-            .into())
-    }
-}
+        #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+        enum ConfKind {
+            Priority(u8),
+            Operation(String),
+        }
 
-impl<'de> Deserialize<'de> for LintedItem<EnvOp> {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::de::Deserializer<'de>,
-    {
-        Ok(deserializer
-            .deserialize_map(EnvOpVisitor::default())?
-            .into())
-    }
-}
+        impl ConfKind {
+            pub fn get_op(&self) -> String {
+                match self {
+                    ConfKind::Priority(_) => String::from(""),
+                    ConfKind::Operation(o) => o.clone(),
+                }
+            }
 
-impl<'de> serde::de::Visitor<'de> for EnvOpVisitor {
-    type Value = EnvOpVisitor;
-
-    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_str("an environment operation")
-    }
-
-    fn visit_map<A>(mut self, mut map: A) -> std::result::Result<Self::Value, A::Error>
-    where
-        A: serde::de::MapAccess<'de>,
-    {
-        while let Some(key) = map.next_key::<String>()? {
-            match key.as_str() {
-                OP_PREPEND => {
-                    if let Some((existing_op, _)) = &self.op_and_var {
-                        return Err(serde::de::Error::custom(format!(
-                            "encountered {key} but operation already defined as {existing_op}",
-                        )));
-                    }
-                    self.op_and_var = Some((
-                        OpKind::Prepend,
-                        ConfKind::Operation(map.next_value::<Stringified>()?.0),
-                    ));
-                }
-                OP_PRIORITY => {
-                    if let Some((existing_op, _)) = &self.op_and_var {
-                        return Err(serde::de::Error::custom(format!(
-                            "encountered {key} but operation already defined as {existing_op}",
-                        )));
-                    }
-                    self.op_and_var = Some((
-                        OpKind::Priority,
-                        ConfKind::Priority(map.next_value::<u8>()?),
-                    ));
-                }
-                OP_COMMENT => {
-                    if let Some((existing_op, _)) = &self.op_and_var {
-                        return Err(serde::de::Error::custom(format!(
-                            "encountered {key} but operation already defined as {existing_op}",
-                        )));
-                    }
-                    self.op_and_var = Some((
-                        OpKind::Comment,
-                        ConfKind::Operation(map.next_value::<Stringified>()?.0),
-                    ));
-                }
-                OP_APPEND => {
-                    if let Some((existing_op, _)) = &self.op_and_var {
-                        return Err(serde::de::Error::custom(format!(
-                            "encountered {key} but operation already defined as {existing_op}",
-                        )));
-                    }
-                    self.op_and_var = Some((
-                        OpKind::Append,
-                        ConfKind::Operation(map.next_value::<Stringified>()?.0),
-                    ));
-                }
-                OP_SET => {
-                    if let Some((existing_op, _)) = &self.op_and_var {
-                        return Err(serde::de::Error::custom(format!(
-                            "encountered {key} but operation already defined as {existing_op}",
-                        )));
-                    }
-                    self.op_and_var = Some((
-                        OpKind::Set,
-                        ConfKind::Operation(map.next_value::<Stringified>()?.0),
-                    ));
-                }
-                "value" => self.value = Some(map.next_value::<Stringified>()?.0),
-                "separator" => {
-                    self.separator = map.next_value::<Option<Stringified>>()?.map(|s| s.0)
-                }
-                unknown_key => {
-                    let mut field_names = EnvOpVisitor::FIELD_NAMES_AS_ARRAY.to_vec();
-                    field_names.extend(AppendEnv::FIELD_NAMES_AS_ARRAY.to_vec());
-                    field_names.extend(EnvComment::FIELD_NAMES_AS_ARRAY.to_vec());
-                    field_names.extend(EnvPriority::FIELD_NAMES_AS_ARRAY.to_vec());
-                    field_names.extend(PrependEnv::FIELD_NAMES_AS_ARRAY.to_vec());
-                    field_names.extend(SetEnv::FIELD_NAMES_AS_ARRAY.to_vec());
-                    self.lints
-                        .push(Lint::Key(UnknownKey::new(unknown_key, field_names)));
-                    map.next_value::<serde::de::IgnoredAny>()?;
+            pub fn get_priority(&self) -> u8 {
+                match self {
+                    ConfKind::Priority(p) => *p,
+                    ConfKind::Operation(_) => 0,
                 }
             }
         }
 
-        // Comments and priority configs don't have any values.
-        self.value = self
-            .op_and_var
-            .as_ref()
-            .and_then(|(op_kind, _)| match op_kind {
-                OpKind::Comment | OpKind::Priority => None,
-                _ => Some(
-                    self.value
-                        .take()
-                        .ok_or_else(|| serde::de::Error::missing_field("value")),
-                ),
-            })
-            .transpose()?;
-
-        // Should contain some value by this point
-        if self.op_and_var.is_none() {
-            return Err(serde::de::Error::custom(format!(
-                "missing field to define operation and variable, expected one of {OP_NAMES:?}",
-            )));
+        #[derive(Default)]
+        struct EnvOpVisitor {
+            op_and_var: Option<(OpKind, ConfKind)>,
+            value: Option<String>,
+            separator: Option<String>,
         }
 
-        Ok(self)
+        impl<'de> serde::de::Visitor<'de> for EnvOpVisitor {
+            type Value = EnvOp;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("an environment operation")
+            }
+
+            fn visit_map<A>(mut self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        OP_PREPEND => {
+                            if let Some((existing_op, _)) = &self.op_and_var {
+                                return Err(serde::de::Error::custom(format!(
+                                    "encountered {key} but operation already defined as {existing_op}",
+                                )));
+                            }
+                            self.op_and_var = Some((
+                                OpKind::Prepend,
+                                ConfKind::Operation(map.next_value::<Stringified>()?.0),
+                            ));
+                        }
+                        OP_PRIORITY => {
+                            if let Some((existing_op, _)) = &self.op_and_var {
+                                return Err(serde::de::Error::custom(format!(
+                                    "encountered {key} but operation already defined as {existing_op}",
+                                )));
+                            }
+                            self.op_and_var = Some((
+                                OpKind::Priority,
+                                ConfKind::Priority(map.next_value::<u8>()?),
+                            ));
+                        }
+                        OP_COMMENT => {
+                            if let Some((existing_op, _)) = &self.op_and_var {
+                                return Err(serde::de::Error::custom(format!(
+                                    "encountered {key} but operation already defined as {existing_op}",
+                                )));
+                            }
+                            self.op_and_var = Some((
+                                OpKind::Comment,
+                                ConfKind::Operation(map.next_value::<Stringified>()?.0),
+                            ));
+                        }
+                        OP_APPEND => {
+                            if let Some((existing_op, _)) = &self.op_and_var {
+                                return Err(serde::de::Error::custom(format!(
+                                    "encountered {key} but operation already defined as {existing_op}",
+                                )));
+                            }
+                            self.op_and_var = Some((
+                                OpKind::Append,
+                                ConfKind::Operation(map.next_value::<Stringified>()?.0),
+                            ));
+                        }
+                        OP_SET => {
+                            if let Some((existing_op, _)) = &self.op_and_var {
+                                return Err(serde::de::Error::custom(format!(
+                                    "encountered {key} but operation already defined as {existing_op}",
+                                )));
+                            }
+                            self.op_and_var = Some((
+                                OpKind::Set,
+                                ConfKind::Operation(map.next_value::<Stringified>()?.0),
+                            ));
+                        }
+                        "value" => self.value = Some(map.next_value::<Stringified>()?.0),
+                        "separator" => {
+                            self.separator = map.next_value::<Option<Stringified>>()?.map(|s| s.0)
+                        }
+                        _ => {
+                            // ignore any unknown field for the sake of
+                            // forward compatibility
+                            map.next_value::<serde::de::IgnoredAny>()?;
+                        }
+                    }
+                }
+
+                // Comments and priority configs don't have any values.
+                let value = self
+                    .op_and_var
+                    .as_ref()
+                    .and_then(|(op_kind, _)| match op_kind {
+                        OpKind::Comment | OpKind::Priority => None,
+                        _ => Some(
+                            self.value
+                                .take()
+                                .ok_or_else(|| serde::de::Error::missing_field("value")),
+                        ),
+                    })
+                    .transpose()?;
+
+                match self.op_and_var.take() {
+                    Some((op, var)) => match op {
+                        OpKind::Prepend => Ok(EnvOp::Prepend(PrependEnv{
+                            prepend: var.get_op(),
+                            separator: self.separator.take(),
+                            value: value.unwrap_or_default()
+                        })),
+                        OpKind::Append => Ok(EnvOp::Append(AppendEnv{
+                            append: var.get_op(),
+                            separator: self.separator.take(),
+                            value: value.unwrap_or_default()
+                        })),
+                        OpKind::Set => Ok(EnvOp::Set(SetEnv{
+                            set: var.get_op(),
+                            value: value.unwrap_or_default()
+                        })),
+                        OpKind::Comment => Ok(EnvOp::Comment(EnvComment{
+                            comment: var.get_op()
+                        })),
+                        OpKind::Priority => Ok(EnvOp::Priority(EnvPriority{
+                            priority: var.get_priority()
+                        }))
+                    },
+                    None => Err(serde::de::Error::custom(format!(
+                        "missing field to define operation and variable, expected one of {OP_NAMES:?}",
+                    ))),
+                }
+            }
+        }
+        deserializer.deserialize_map(EnvOpVisitor::default())
     }
 }
 
@@ -427,7 +376,7 @@ impl<'de> serde::de::Visitor<'de> for EnvOpVisitor {
 ///
 /// The separator used defaults to the path separator for the current
 /// host operating system (':' for unix, ';' for windows)
-#[derive(Clone, Debug, Eq, FieldNamesAsArray, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct AppendEnv {
     pub append: String,
     pub value: String,
@@ -473,7 +422,7 @@ impl AppendEnv {
 }
 
 /// Adds a comment to the generated environment script
-#[derive(Clone, Debug, Eq, FieldNamesAsArray, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct EnvComment {
     pub comment: String,
 }
@@ -491,7 +440,7 @@ impl EnvComment {
 }
 
 /// Assigns a priority to the generated environment script
-#[derive(Clone, Debug, Eq, FieldNamesAsArray, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct EnvPriority {
     pub priority: u8,
 }
@@ -516,7 +465,7 @@ impl EnvPriority {
 ///
 /// The separator used defaults to the path separator for the current
 /// host operating system (':' for unix, ';' for windows)
-#[derive(Clone, Debug, Eq, FieldNamesAsArray, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct PrependEnv {
     pub prepend: String,
     pub value: String,
@@ -562,7 +511,7 @@ impl PrependEnv {
 }
 
 /// Operates on an environment variable by setting it to a value
-#[derive(Clone, Debug, Eq, FieldNamesAsArray, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct SetEnv {
     pub set: String,
     pub value: String,
