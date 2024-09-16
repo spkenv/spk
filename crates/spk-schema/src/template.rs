@@ -7,7 +7,7 @@ use std::path::Path;
 
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::Named;
-use crate::Result;
+use crate::{FromYaml, Result};
 
 /// Can be rendered into a recipe.
 #[enum_dispatch::enum_dispatch]
@@ -18,7 +18,15 @@ pub trait Template: Named + Sized {
     fn file_path(&self) -> &Path;
 
     /// Render this template with the provided values.
-    fn render(&self, options: &OptionMap) -> Result<Self::Output>;
+    fn render(&self, options: &OptionMap) -> Result<Self::Output>
+    where
+        Self::Output: FromYaml,
+    {
+        Ok(Self::Output::from_yaml(self.render_to_string(options)?)?)
+    }
+
+    /// Render this template but return the rendered string instead.
+    fn render_to_string(&self, options: &OptionMap) -> Result<String>;
 }
 
 pub trait TemplateExt: Template {
