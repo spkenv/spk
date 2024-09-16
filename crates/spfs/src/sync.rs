@@ -69,13 +69,98 @@ impl SyncPolicy {
     }
 }
 
+impl<T> SyncReporter for Arc<T>
+where
+    T: SyncReporter,
+{
+    fn visit_env(&self, env: &tracking::EnvSpec) {
+        (**self).visit_env(env)
+    }
+    fn synced_env(&self, result: &SyncEnvResult) {
+        (**self).synced_env(result)
+    }
+    fn visit_env_item(&self, item: &tracking::EnvSpecItem) {
+        (**self).visit_env_item(item)
+    }
+    fn synced_env_item(&self, result: &SyncEnvItemResult) {
+        (**self).synced_env_item(result)
+    }
+    fn visit_tag(&self, tag: &tracking::TagSpec) {
+        (**self).visit_tag(tag)
+    }
+    fn synced_object(&self, result: &SyncObjectResult) {
+        (**self).synced_object(result)
+    }
+    fn visit_platform(&self, platform: &graph::Platform) {
+        (**self).visit_platform(platform)
+    }
+    fn synced_platform(&self, result: &SyncPlatformResult) {
+        (**self).synced_platform(result)
+    }
+    fn visit_layer(&self, layer: &graph::Layer) {
+        (**self).visit_layer(layer)
+    }
+    fn synced_layer(&self, result: &SyncLayerResult) {
+        (**self).synced_layer(result)
+    }
+    fn visit_manifest(&self, manifest: &graph::Manifest) {
+        (**self).visit_manifest(manifest)
+    }
+    fn synced_manifest(&self, result: &SyncManifestResult) {
+        (**self).synced_manifest(result)
+    }
+    fn visit_annotation(&self, annotation: &graph::Annotation) {
+        (**self).visit_annotation(annotation)
+    }
+    fn synced_annotation(&self, result: &SyncAnnotationResult) {
+        (**self).synced_annotation(result)
+    }
+    fn visit_entry(&self, entry: &graph::Entry<'_>) {
+        (**self).visit_entry(entry)
+    }
+    fn synced_entry(&self, result: &SyncEntryResult) {
+        (**self).synced_entry(result)
+    }
+    fn visit_blob(&self, blob: &graph::Blob) {
+        (**self).visit_blob(blob)
+    }
+    fn synced_blob(&self, result: &SyncBlobResult) {
+        (**self).synced_blob(result)
+    }
+    fn visit_payload(&self, digest: encoding::Digest) {
+        (**self).visit_payload(digest)
+    }
+    fn synced_payload(&self, result: &SyncPayloadResult) {
+        (**self).synced_payload(result)
+    }
+}
+
+#[derive(Clone)]
+#[enum_dispatch::enum_dispatch(SyncReporter)]
+pub enum SyncReporters {
+    Silent(Arc<SilentSyncReporter>),
+    Console(Arc<ConsoleSyncReporter>),
+}
+
+impl SyncReporters {
+    /// Create a new silent reporter that does not output any progress
+    pub fn silent() -> Self {
+        Self::Silent(Arc::new(SilentSyncReporter::default()))
+    }
+
+    /// Create a new console reporter that shows a progress bar
+    pub fn console() -> Self {
+        Self::Console(Arc::new(ConsoleSyncReporter::default()))
+    }
+}
+
 /// Handles the syncing of data between repositories
 ///
 /// The syncer can be cloned efficiently
-pub struct Syncer<'src, 'dst, Reporter: SyncReporter = SilentSyncReporter> {
+pub struct Syncer<'src, 'dst> {
     src: &'src storage::RepositoryHandle,
     dest: &'dst storage::RepositoryHandle,
-    reporter: Arc<Reporter>,
+    reporter: SyncReporters,
     policy: SyncPolicy,
     manifest_semaphore: Arc<Semaphore>,
     payload_semaphore: Arc<Semaphore>,
@@ -90,19 +175,14 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         Self {
             src,
             dest,
-            reporter: Arc::new(SilentSyncReporter::default()),
+            reporter: SyncReporters::silent(),
             policy: SyncPolicy::default(),
             manifest_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_MANIFESTS)),
             payload_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_PAYLOADS)),
             processed_digests: Arc::new(Default::default()),
         }
     }
-}
 
-impl<'src, 'dst, Reporter> Syncer<'src, 'dst, Reporter>
-where
-    Reporter: SyncReporter,
-{
     /// Creates a new syncer pulling from the provided source
     ///
     /// This new instance shares the same resource pool and cache
@@ -112,11 +192,11 @@ where
     pub fn clone_with_source<'src2>(
         &self,
         source: &'src2 storage::RepositoryHandle,
-    ) -> Syncer<'src2, 'dst, Reporter> {
+    ) -> Syncer<'src2, 'dst> {
         Syncer {
             src: source,
             dest: self.dest,
-            reporter: Arc::clone(&self.reporter),
+            reporter: self.reporter.clone(),
             policy: self.policy,
             manifest_semaphore: Arc::clone(&self.manifest_semaphore),
             payload_semaphore: Arc::clone(&self.payload_semaphore),
@@ -151,15 +231,11 @@ where
     }
 
     /// Report progress to the given instance, replacing any existing one
-    pub fn with_reporter<T, R>(self, reporter: T) -> Syncer<'src, 'dst, R>
-    where
-        T: Into<Arc<R>>,
-        R: SyncReporter,
-    {
+    pub fn with_reporter(self, reporter: SyncReporters) -> Syncer<'src, 'dst> {
         Syncer {
             src: self.src,
             dest: self.dest,
-            reporter: reporter.into(),
+            reporter,
             policy: self.policy,
             manifest_semaphore: self.manifest_semaphore,
             payload_semaphore: self.payload_semaphore,
@@ -538,6 +614,7 @@ where
 ///
 /// Unless the sync runs into errors, every call to visit_* is
 /// followed up by a call to the corresponding synced_*.
+#[enum_dispatch::enum_dispatch]
 pub trait SyncReporter: Send + Sync {
     /// Called when an environment has been identified to sync
     fn visit_env(&self, _env: &tracking::EnvSpec) {}

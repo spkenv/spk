@@ -94,7 +94,7 @@ impl Run for Debug {
             if !local_repo.has_object(layer).await {
                 if let storage::RepositoryHandle::SPFS(repo) = repo {
                     let syncer = spfs::Syncer::new(repo, &local_repo)
-                        .with_reporter(spfs::sync::ConsoleSyncReporter::default());
+                        .with_reporter(spfs::sync::SyncReporters::console());
                     syncer.sync_digest(layer).await?;
                 }
             }

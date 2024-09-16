@@ -131,7 +131,7 @@ impl<'a> Dynamic<'a> {
             let handle = local.clone().into();
             let syncer = spfs::Syncer::new(&remote, &handle)
                 .with_policy(spfs::sync::SyncPolicy::LatestTags)
-                .with_reporter(spfs::sync::ConsoleSyncReporter::default());
+                .with_reporter(spfs::sync::SyncReporters::console());
             let r = syncer.sync_env(env_spec).await.wrap_err("sync reference")?;
             let env_spec = r.env;
 

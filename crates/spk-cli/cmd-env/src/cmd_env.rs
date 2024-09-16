@@ -8,7 +8,7 @@ use std::ffi::OsString;
 use clap::Args;
 use miette::{Context, Result};
 use spk_cli_common::{build_required_packages, flags, CommandArgs, Run};
-use spk_exec::setup_runtime;
+use spk_exec::setup_runtime_with_reporter;
 #[cfg(feature = "statsd")]
 use spk_solve::{get_metrics_client, SPK_RUN_TIME_METRIC};
 
@@ -44,6 +44,10 @@ pub struct Env {
     /// spawn a new shell
     #[clap(raw = true)]
     pub command: Vec<String>,
+
+    /// Do not display any progress bars when syncing objects.
+    #[clap(long)]
+    pub no_progress_bars: bool,
 }
 
 #[async_trait::async_trait]
@@ -84,7 +88,14 @@ impl Run for Env {
 
         rt.status.editable =
             self.runtime.editable() || self.requests.any_build_stage_requests(&self.requested)?;
-        setup_runtime(&mut rt, &solution).await?;
+        setup_runtime_with_reporter(&mut rt, &solution, {
+            if self.no_progress_bars {
+                spfs::sync::SyncReporters::silent
+            } else {
+                spfs::sync::SyncReporters::console
+            }
+        })
+        .await?;
 
         let env = solution.to_environment(Some(std::env::vars()));
 

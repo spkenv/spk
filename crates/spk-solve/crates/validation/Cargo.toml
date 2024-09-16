@@ -23,7 +23,7 @@ migration-to-components = [
 [dependencies]
 colored = { workspace = true }
 dashmap = { workspace = true }
-enum_dispatch = "0.3.8"
+enum_dispatch = { workspace = true }
 futures = { workspace = true }
 itertools = { workspace = true }
 once_cell = { workspace = true }

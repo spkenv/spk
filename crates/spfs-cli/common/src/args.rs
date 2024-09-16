@@ -54,6 +54,10 @@ pub struct Sync {
         default_value_t = spfs::sync::DEFAULT_MAX_CONCURRENT_PAYLOADS
     )]
     pub max_concurrent_payloads: usize,
+
+    /// Do not display any progress bars when syncing objects.
+    #[clap(long)]
+    pub no_progress_bars: bool,
 }
 
 impl Sync {
@@ -63,13 +67,18 @@ impl Sync {
         &self,
         src: &'src spfs::storage::RepositoryHandle,
         dest: &'dst spfs::storage::RepositoryHandle,
-    ) -> spfs::Syncer<'src, 'dst, spfs::sync::ConsoleSyncReporter> {
+    ) -> spfs::Syncer<'src, 'dst> {
         let policy = self.sync_policy();
-        spfs::Syncer::new(src, dest)
+        let syncer = spfs::Syncer::new(src, dest)
             .with_policy(policy)
             .with_max_concurrent_manifests(self.max_concurrent_manifests)
-            .with_max_concurrent_payloads(self.max_concurrent_payloads)
-            .with_reporter(spfs::sync::ConsoleSyncReporter::default())
+            .with_max_concurrent_payloads(self.max_concurrent_payloads);
+
+        if !self.no_progress_bars {
+            syncer.with_reporter(spfs::sync::SyncReporters::console())
+        } else {
+            syncer
+        }
     }
 
     /// The selected sync policy for these options

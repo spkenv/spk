@@ -24,6 +24,10 @@ pub struct Convert {
     #[clap(flatten)]
     pub formatter_settings: flags::DecisionFormatterSettings,
 
+    /// Do not display any progress bars when syncing objects.
+    #[clap(long)]
+    pub no_progress_bars: bool,
+
     /// The converter to run
     converter: String,
 
@@ -57,6 +61,7 @@ impl Run for Convert {
             requests: self.requests.clone(),
             verbose: self.verbose,
             formatter_settings: self.formatter_settings.clone(),
+            no_progress_bars: self.no_progress_bars,
             requested: vec![converter_package],
             command,
         };
