@@ -30,7 +30,16 @@ pub use component_spec::{ComponentFileMatchMode, ComponentSpec};
 pub use component_spec_list::ComponentSpecList;
 pub use deprecate::{Deprecate, DeprecateMut};
 pub use embedded_packages_list::EmbeddedPackagesList;
-pub use environ::{AppendEnv, EnvComment, EnvOp, EnvPriority, OpKind, PrependEnv, SetEnv};
+pub use environ::{
+    AppendEnv,
+    EnvComment,
+    EnvOp,
+    EnvPriority,
+    OpKind,
+    PrependEnv,
+    RuntimeEnvironment,
+    SetEnv,
+};
 pub use error::{Error, Result};
 pub use input_variant::InputVariant;
 pub use install_spec::InstallSpec;

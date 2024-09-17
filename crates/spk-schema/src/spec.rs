@@ -36,6 +36,7 @@ use crate::{
     Recipe,
     RequirementsList,
     Result,
+    RuntimeEnvironment,
     Template,
     TemplateExt,
     Test,
@@ -378,6 +379,15 @@ impl Recipe for SpecRecipe {
     }
 }
 
+impl HasVersion for SpecRecipe {
+    fn version(&self) -> &Version {
+        match self {
+            SpecRecipe::V0Package(r) => r.version(),
+            SpecRecipe::V0Platform(r) => r.version(),
+        }
+    }
+}
+
 impl Named for SpecRecipe {
     fn name(&self) -> &PkgName {
         match self {
@@ -387,11 +397,11 @@ impl Named for SpecRecipe {
     }
 }
 
-impl HasVersion for SpecRecipe {
-    fn version(&self) -> &Version {
+impl RuntimeEnvironment for SpecRecipe {
+    fn runtime_environment(&self) -> &[crate::EnvOp] {
         match self {
-            SpecRecipe::V0Package(r) => r.version(),
-            SpecRecipe::V0Platform(r) => r.version(),
+            SpecRecipe::V0Package(r) => r.runtime_environment(),
+            SpecRecipe::V0Platform(r) => r.runtime_environment(),
         }
     }
 }
@@ -529,6 +539,14 @@ impl Satisfy<VarRequest> for Spec {
     }
 }
 
+impl HasVersion for Spec {
+    fn version(&self) -> &Version {
+        match self {
+            Spec::V0Package(r) => r.version(),
+        }
+    }
+}
+
 impl Named for Spec {
     fn name(&self) -> &PkgName {
         match self {
@@ -537,10 +555,10 @@ impl Named for Spec {
     }
 }
 
-impl HasVersion for Spec {
-    fn version(&self) -> &Version {
+impl RuntimeEnvironment for Spec {
+    fn runtime_environment(&self) -> &[crate::EnvOp] {
         match self {
-            Spec::V0Package(r) => r.version(),
+            Spec::V0Package(r) => r.runtime_environment(),
         }
     }
 }
@@ -606,12 +624,6 @@ impl Package for Spec {
     fn components(&self) -> &super::ComponentSpecList {
         match self {
             Spec::V0Package(spec) => spec.components(),
-        }
-    }
-
-    fn runtime_environment(&self) -> &Vec<super::EnvOp> {
-        match self {
-            Spec::V0Package(spec) => spec.runtime_environment(),
         }
     }
 

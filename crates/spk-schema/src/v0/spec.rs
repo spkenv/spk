@@ -58,6 +58,7 @@ use crate::{
     Recipe,
     RequirementsList,
     Result,
+    RuntimeEnvironment,
     SourceSpec,
     TestStage,
     ValidationSpec,
@@ -181,24 +182,6 @@ impl Spec<BuildIdent> {
     }
 }
 
-impl<Ident: Named> Named for Spec<Ident> {
-    fn name(&self) -> &PkgName {
-        self.pkg.name()
-    }
-}
-
-impl<Ident: HasVersion> HasVersion for Spec<Ident> {
-    fn version(&self) -> &Version {
-        self.pkg.version()
-    }
-}
-
-impl<Ident: HasVersion> Versioned for Spec<Ident> {
-    fn compat(&self) -> &Compat {
-        &self.compat
-    }
-}
-
 impl<Ident> Deprecate for Spec<Ident> {
     fn is_deprecated(&self) -> bool {
         self.deprecated
@@ -214,6 +197,30 @@ impl<Ident> DeprecateMut for Spec<Ident> {
     fn undeprecate(&mut self) -> Result<()> {
         self.deprecated = false;
         Ok(())
+    }
+}
+
+impl<Ident: HasVersion> HasVersion for Spec<Ident> {
+    fn version(&self) -> &Version {
+        self.pkg.version()
+    }
+}
+
+impl<Ident: Named> Named for Spec<Ident> {
+    fn name(&self) -> &PkgName {
+        self.pkg.name()
+    }
+}
+
+impl<Ident> RuntimeEnvironment for Spec<Ident> {
+    fn runtime_environment(&self) -> &[EnvOp] {
+        &self.install.environment
+    }
+}
+
+impl<Ident: HasVersion> Versioned for Spec<Ident> {
+    fn compat(&self) -> &Compat {
+        &self.compat
     }
 }
 
@@ -277,10 +284,6 @@ impl Package for Spec<BuildIdent> {
 
     fn components(&self) -> &ComponentSpecList {
         &self.install.components
-    }
-
-    fn runtime_environment(&self) -> &Vec<EnvOp> {
-        &self.install.environment
     }
 
     fn get_build_options(&self) -> &Vec<Opt> {

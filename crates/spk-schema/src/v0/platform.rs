@@ -36,6 +36,7 @@ use crate::{
     Recipe,
     RequirementsList,
     Result,
+    RuntimeEnvironment,
     Script,
     TestStage,
     Variant,
@@ -148,15 +149,22 @@ impl DeprecateMut for Platform {
     }
 }
 
+impl HasVersion for Platform {
+    fn version(&self) -> &Version {
+        self.platform.version()
+    }
+}
+
 impl Named for Platform {
     fn name(&self) -> &PkgName {
         self.platform.name()
     }
 }
 
-impl HasVersion for Platform {
-    fn version(&self) -> &Version {
-        self.platform.version()
+impl RuntimeEnvironment for Platform {
+    fn runtime_environment(&self) -> &[crate::EnvOp] {
+        // Platforms don't have any EnvOps
+        &[]
     }
 }
 

@@ -3,6 +3,7 @@
 // https://github.com/spkenv/spk
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::option_map::Stringified;
@@ -22,6 +23,42 @@ const OP_PREPEND: &str = "prepend";
 const OP_PRIORITY: &str = "priority";
 const OP_SET: &str = "set";
 const OP_NAMES: &[&str] = &[OP_APPEND, OP_COMMENT, OP_PREPEND, OP_SET];
+
+/// Some item that contains a list of [`EnvOp`] operations
+pub trait RuntimeEnvironment {
+    /// The set of operations to perform on the environment when running this package
+    fn runtime_environment(&self) -> &[EnvOp];
+}
+
+impl<T> RuntimeEnvironment for Box<T>
+where
+    T: RuntimeEnvironment,
+{
+    #[inline]
+    fn runtime_environment(&self) -> &[EnvOp] {
+        (**self).runtime_environment()
+    }
+}
+
+impl<T> RuntimeEnvironment for &T
+where
+    T: RuntimeEnvironment,
+{
+    #[inline]
+    fn runtime_environment(&self) -> &[EnvOp] {
+        (**self).runtime_environment()
+    }
+}
+
+impl<T> RuntimeEnvironment for Arc<T>
+where
+    T: RuntimeEnvironment,
+{
+    #[inline]
+    fn runtime_environment(&self) -> &[EnvOp] {
+        (**self).runtime_environment()
+    }
+}
 
 /// The set of operation types for use in deserialization
 #[derive(Copy, Clone, Debug, PartialEq, strum::Display)]
