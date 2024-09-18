@@ -15,6 +15,7 @@ use spk_schema_foundation::ident_component::ComponentBTreeSet;
 use spk_schema_foundation::name::PkgNameBuf;
 use spk_schema_foundation::option_map::{OptFilter, Stringified};
 use spk_schema_foundation::version::IncompatibleReason;
+use spk_schema_foundation::IsDefault;
 use spk_schema_ident::{AnyIdent, BuildIdent, Ident, RangeIdent, VersionIdent};
 
 use super::variant_spec::VariantSpecEntryKey;
@@ -85,7 +86,7 @@ pub struct Spec<Ident> {
     pub build: BuildSpec,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tests: Vec<TestSpec>,
-    #[serde(default, skip_serializing_if = "InstallSpec::is_default")]
+    #[serde(default, skip_serializing_if = "IsDefault::is_default")]
     pub install: InstallSpec,
 }
 

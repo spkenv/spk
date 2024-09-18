@@ -10,6 +10,7 @@ use spk_schema::foundation::option_map;
 use spk_schema::ident::version_ident;
 use spk_schema::ident_component::Component;
 use spk_schema::option_map::HOST_OPTIONS;
+use spk_schema::RuntimeEnvironment;
 use spk_storage::fixtures::*;
 
 use super::Build;
@@ -727,4 +728,37 @@ build:
             "should capture file/directory with leading dot: {path}"
         );
     }
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_package_with_environment_ops_preserves_ops_in_recipe(tmpdir: tempfile::TempDir) {
+    let rt = spfs_runtime().await;
+
+    build_package!(
+        tmpdir,
+        "env-ops.spk.yaml",
+        br#"
+api: v0/package
+pkg: env-ops/1.0.0
+build:
+  script:
+    - true
+install:
+  environment:
+    - set: FOO
+      value: bar
+"#
+    );
+
+    let recipe = rt
+        .tmprepo
+        .read_recipe(&version_ident!("env-ops/1.0.0"))
+        .await
+        .unwrap();
+
+    assert!(
+        !recipe.runtime_environment().is_empty(),
+        "should have environment ops"
+    );
 }

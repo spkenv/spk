@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::option_map::Stringified;
+use spk_schema_foundation::IsDefault;
 
 #[cfg(test)]
 #[path = "./environ_test.rs"]
@@ -189,6 +190,12 @@ impl EnvOp {
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct EnvOpList(Vec<EnvOp>);
+
+impl IsDefault for EnvOpList {
+    fn is_default(&self) -> bool {
+        self.0.is_empty()
+    }
+}
 
 impl std::ops::Deref for EnvOpList {
     type Target = Vec<EnvOp>;

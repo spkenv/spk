@@ -5,6 +5,7 @@
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::name::{PkgName, PkgNameBuf};
+use spk_schema_foundation::IsDefault;
 
 #[cfg(test)]
 #[path = "./validation_test.rs"]
@@ -35,10 +36,6 @@ pub struct ValidationSpec {
 }
 
 impl ValidationSpec {
-    pub fn is_default(&self) -> bool {
-        self.rules.is_empty() && self.disabled.is_empty()
-    }
-
     /// The rules as specified in the spec file. Usually this is not
     /// what you want, see [`Self::to_expanded_rules`].
     ///
@@ -103,6 +100,12 @@ impl ValidationSpec {
                 },
             },
         ]
+    }
+}
+
+impl IsDefault for ValidationSpec {
+    fn is_default(&self) -> bool {
+        self.rules.is_empty() && self.disabled.is_empty()
     }
 }
 

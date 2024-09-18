@@ -11,6 +11,7 @@ use spk_schema_foundation::name::PkgName;
 use spk_schema_foundation::option_map::{OptionMap, Stringified, HOST_OPTIONS};
 use spk_schema_foundation::spec_ops::{HasVersion, Named, Versioned};
 use spk_schema_foundation::version::Version;
+use spk_schema_foundation::IsDefault;
 use spk_schema_ident::{
     BuildIdent,
     InclusionPolicy,
@@ -112,9 +113,9 @@ impl PlatformRequirements {
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Serialize)]
 pub struct Platform {
     pub platform: VersionIdent,
-    #[serde(default, skip_serializing_if = "Meta::is_default")]
+    #[serde(default, skip_serializing_if = "IsDefault::is_default")]
     pub meta: Meta,
-    #[serde(default, skip_serializing_if = "Compat::is_default")]
+    #[serde(default, skip_serializing_if = "IsDefault::is_default")]
     pub compat: Compat,
     #[serde(default, skip_serializing_if = "is_false")]
     pub deprecated: bool,

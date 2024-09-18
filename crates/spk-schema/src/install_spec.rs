@@ -3,18 +3,31 @@
 // https://github.com/spkenv/spk
 
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::IsDefault;
 use spk_schema_ident::BuildIdent;
 
 use super::{ComponentSpecList, EmbeddedPackagesList, EnvOp, OpKind, RequirementsList};
 use crate::foundation::option_map::OptionMap;
-use crate::Result;
+use crate::{EnvOpList, Result};
 
 #[cfg(test)]
 #[path = "./install_spec_test.rs"]
 mod install_spec_test;
 
 /// A set of structured installation parameters for a package.
-#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(
+    Clone,
+    Debug,
+    Default,
+    Deserialize,
+    Eq,
+    Hash,
+    is_default_derive_macro::IsDefault,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+)]
 pub struct InstallSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub requirements: RequirementsList,
@@ -25,16 +38,12 @@ pub struct InstallSpec {
     #[serde(
         default,
         deserialize_with = "deserialize_env_conf",
-        skip_serializing_if = "Vec::is_empty"
+        skip_serializing_if = "IsDefault::is_default"
     )]
     pub environment: EnvOpList,
 }
 
 impl InstallSpec {
-    pub fn is_default(&self) -> bool {
-        self.requirements.is_empty() && self.embedded.is_empty() && self.components.is_default()
-    }
-
     /// Render all requests with a package pin using the given resolved packages.
     pub fn render_all_pins<'a>(
         &mut self,

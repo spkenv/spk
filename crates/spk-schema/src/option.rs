@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_component::ComponentBTreeSetBuf;
 use spk_schema_foundation::option_map::Stringified;
 use spk_schema_foundation::version::Compat;
+use spk_schema_foundation::IsDefault;
 use spk_schema_ident::{NameAndValue, PinnableValue, RangeIdent};
 
 use crate::foundation::name::{OptName, OptNameBuf, PkgName, PkgNameBuf};
@@ -60,8 +61,8 @@ impl Default for Inheritance {
     }
 }
 
-impl Inheritance {
-    pub fn is_default(&self) -> bool {
+impl IsDefault for Inheritance {
+    fn is_default(&self) -> bool {
         self == &Self::default()
     }
 }

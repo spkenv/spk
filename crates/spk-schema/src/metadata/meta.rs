@@ -7,6 +7,7 @@ use std::process::{Command, Stdio};
 
 use serde::{Deserialize, Serialize};
 use spk_config::Metadata;
+use spk_schema_foundation::IsDefault;
 
 use crate::{Error, Result};
 
@@ -27,10 +28,6 @@ pub struct Meta {
 }
 
 impl Meta {
-    pub fn is_default(&self) -> bool {
-        self == &Self::default()
-    }
-
     pub fn has_label_with_value(&self, label: &str, value: &str) -> bool {
         if let Some(label_value) = self.labels.get(label) {
             return *label_value == value;
@@ -81,5 +78,11 @@ impl Meta {
             }
         }
         Ok(0)
+    }
+}
+
+impl IsDefault for Meta {
+    fn is_default(&self) -> bool {
+        self == &Self::default()
     }
 }
