@@ -47,6 +47,7 @@ use crate::{
     DeprecateMut,
     EmbeddedPackagesList,
     EnvOp,
+    EnvOpList,
     Error,
     Inheritance,
     InputVariant,
@@ -676,7 +677,7 @@ impl Recipe for Spec<VersionIdent> {
         let mut build = updated.map_ident(|i| i.into_build(Build::BuildId(digest)));
 
         // Expand env variables from EnvOp.
-        let mut updated_ops = Vec::new();
+        let mut updated_ops = EnvOpList::default();
         let mut build_env_vars = build_env.env_vars();
         build_env_vars.extend(build.get_build_env());
         for op in build.install.environment.iter() {

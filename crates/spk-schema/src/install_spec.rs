@@ -27,7 +27,7 @@ pub struct InstallSpec {
         deserialize_with = "deserialize_env_conf",
         skip_serializing_if = "Vec::is_empty"
     )]
-    pub environment: Vec<EnvOp>,
+    pub environment: EnvOpList,
 }
 
 impl InstallSpec {
@@ -53,14 +53,14 @@ impl InstallSpec {
     }
 }
 
-fn deserialize_env_conf<'de, D>(deserializer: D) -> std::result::Result<Vec<EnvOp>, D::Error>
+fn deserialize_env_conf<'de, D>(deserializer: D) -> std::result::Result<EnvOpList, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
     struct EnvConfVisitor;
 
     impl<'de> serde::de::Visitor<'de> for EnvConfVisitor {
-        type Value = Vec<EnvOp>;
+        type Value = EnvOpList;
 
         fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
             f.write_str("an environment configuration")
@@ -70,7 +70,7 @@ where
         where
             A: serde::de::SeqAccess<'de>,
         {
-            let mut vec = Vec::new();
+            let mut vec = EnvOpList::default();
 
             while let Some(elem) = seq.next_element::<EnvOp>()? {
                 if vec.iter().any(|x: &EnvOp| x.kind() == OpKind::Priority)

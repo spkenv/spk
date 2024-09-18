@@ -34,6 +34,7 @@ pub use environ::{
     AppendEnv,
     EnvComment,
     EnvOp,
+    EnvOpList,
     EnvPriority,
     OpKind,
     PrependEnv,

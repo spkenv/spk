@@ -187,6 +187,23 @@ impl EnvOp {
     }
 }
 
+#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct EnvOpList(Vec<EnvOp>);
+
+impl std::ops::Deref for EnvOpList {
+    type Target = Vec<EnvOp>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for EnvOpList {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 impl<'de> Deserialize<'de> for EnvOp {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
