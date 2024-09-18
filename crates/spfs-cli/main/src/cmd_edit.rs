@@ -38,9 +38,7 @@ impl CmdEdit {
         if !self.off {
             match spfs::make_active_runtime_editable().await {
                 Ok(_) => tracing::info!("edit mode enabled"),
-                Err(Error::RuntimeAlreadyEditable) => {
-                    return Ok(0);
-                }
+                Err(Error::RuntimeAlreadyEditable) => {}
                 Err(err) => {
                     return Err(err.into());
                 }
