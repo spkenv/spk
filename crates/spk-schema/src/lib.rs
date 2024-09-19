@@ -3,6 +3,7 @@
 // https://github.com/spkenv/spk
 
 mod build_spec;
+mod component_embedded_packages;
 mod component_spec;
 mod component_spec_list;
 mod deprecate;
@@ -26,6 +27,7 @@ pub mod validation;
 pub mod variant;
 
 pub use build_spec::{BuildSpec, Script};
+pub use component_embedded_packages::ComponentEmbeddedPackagesList;
 pub use component_spec::{ComponentFileMatchMode, ComponentSpec};
 pub use component_spec_list::ComponentSpecList;
 pub use deprecate::{Deprecate, DeprecateMut};

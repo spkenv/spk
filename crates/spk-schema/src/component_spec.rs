@@ -35,8 +35,12 @@ pub struct ComponentSpec {
     pub uses: Vec<Component>,
     #[serde(default)]
     pub requirements: super::RequirementsList,
-    #[serde(default)]
-    pub embedded: super::EmbeddedPackagesList,
+    #[serde(
+        default,
+        skip_serializing_if = "super::ComponentEmbeddedPackagesList::is_fabricated"
+    )]
+    pub embedded: super::ComponentEmbeddedPackagesList,
+
     #[serde(default)]
     pub file_match_mode: ComponentFileMatchMode,
 }
