@@ -106,13 +106,13 @@ embedded:
         );
 
         assert_eq!(
-            component.embedded[0].components.len(),
+            component.embedded[0].components().len(),
             1,
             "expecting the build and run components to get mapped 1:1"
         );
 
         assert_eq!(
-            *component.embedded[0].components.iter().next().unwrap(),
+            *component.embedded[0].components().iter().next().unwrap(),
             component.name,
             "expecting the component names to agree"
         );
@@ -165,13 +165,13 @@ embedded:
         );
 
         assert_eq!(
-            component.embedded[0].components.len(),
+            component.embedded[0].components().len(),
             1,
             "expecting all the host package's components to get mapped 1:1"
         );
 
         assert_eq!(
-            *component.embedded[0].components.iter().next().unwrap(),
+            *component.embedded[0].components().iter().next().unwrap(),
             component.name,
             "expecting the component names to agree"
         );
@@ -188,7 +188,6 @@ embedded:
 #[case::comp1("comp1", "1.0.0", &["build", "run"])]
 #[case::comp2("comp2", "2.0.0", &["build", "run"])]
 #[case::v3_with_all("v3-with-all", "3.0.0", &["build", "run", "aa", "bb", "cc"])]
-#[case::v3_with_components_elided("v3-with-components-elided", "3.0.0", &["build", "run", "aa", "bb", "cc"])]
 #[case::v3_with_subset_of_components("v3-with-subset-of-components", "3.0.0", &["aa", "bb"])]
 fn test_embedding_multiple_versions_of_the_same_package(
     #[case] component_name: &str,
@@ -210,9 +209,6 @@ components:
   - name: v3-with-all
     embedded:
       - embedded:all/3.0.0
-  - name: v3-with-components-elided
-    embedded:
-      - embedded/3.0.0
   - name: v3-with-subset-of-components
     embedded:
       - embedded:{aa,bb}/3.0.0
@@ -277,7 +273,7 @@ embedded:
             .cloned()
             .collect::<HashSet<_>>(),
         comp.embedded[0]
-            .components
+            .components()
             .iter()
             .map(|c| c.as_str())
             .collect::<HashSet<_>>(),

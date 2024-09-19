@@ -88,10 +88,7 @@ impl From<RawInstallSpec> for InstallSpec {
         // Expand any use of "all" in the defined embedded components.
         for component in install.components.iter_mut() {
             'embedded_package: for embedded_package in component.embedded.iter_mut() {
-                // Also expand if no components were explicitly specified.
-                if !(embedded_package.components.is_empty()
-                    || embedded_package.components.remove(&Component::All))
-                {
+                if !(embedded_package.components().contains(&Component::All)) {
                     continue;
                 }
 
@@ -117,13 +114,16 @@ impl From<RawInstallSpec> for InstallSpec {
                     }
                 }
 
-                embedded_package.components.extend(
-                    target_embedded_package
-                        .components()
-                        .names()
-                        .into_iter()
-                        .cloned(),
-                );
+                let new_components = target_embedded_package.components().names();
+                if new_components.is_empty() {
+                    // Empty components set? The embedded package is not allowed
+                    // to have an empty component set.
+                    continue;
+                }
+
+                embedded_package
+                    .replace_all(new_components.into_iter().cloned())
+                    .expect("new_components guaranteed to be non-empty");
             }
         }
 
@@ -146,10 +146,10 @@ impl From<RawInstallSpec> for InstallSpec {
                 .iter()
                 .filter_map(|embedded| {
                     if embedded.components().names().contains(&component.name) {
-                        Some(ComponentEmbeddedPackage {
-                            pkg: OptVersionIdent::new(embedded.name().to_owned(), None),
-                            components: [component.name.clone()].into(),
-                        })
+                        Some(ComponentEmbeddedPackage::new(
+                            OptVersionIdent::new(embedded.name().to_owned(), None),
+                            component.name.clone(),
+                        ))
                     } else {
                         None
                     }

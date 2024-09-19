@@ -287,9 +287,9 @@ The component spec defines a single component of a package. Components can be in
 
 #### ComponentEmbeddedPackagesSpec
 
-| Value | Description                                                                                                                                                                                                                                                                      |
-| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| _str_ | A package and component(s), with optional version, in the form of either `pkg-name:comp-name[/version]` or `pkg-name:{comp1,comp2,...,compn}[/version]`, referring to an embedded package and its component(s) defined in the `embedded` section of [InstallSpec](#installspec). |
+| Value | Description                                                                                                                                                                                                                                                                                                          |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _str_ | A package and component(s), with optional version, in the form of either `pkg-name:comp-name[/version]` or `pkg-name:{comp1,comp2,...,compn}[/version]`, referring to an embedded package and its component(s) defined in the `embedded` section of [InstallSpec](#installspec). At least one component is required. |
 
 #### ComponentFileMatchMode
 

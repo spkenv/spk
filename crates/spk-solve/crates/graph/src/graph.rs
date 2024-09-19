@@ -489,7 +489,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                     // packages declared in embedded.
                     for embedded in embedded.packages_matching_embedded_package(embedded_package) {
                         (*merged_changes.entry(embedded).or_insert(BTreeSet::new()))
-                            .extend(embedded_package.components.iter().cloned());
+                            .extend(embedded_package.components().iter().cloned());
                     }
                 }
             }

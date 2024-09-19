@@ -749,7 +749,7 @@ impl Solver {
                                             }
 
                                             let overlapping: Vec<_> = remaining_missing_components
-                                                .intersection(&embedded_package.components)
+                                                .intersection(embedded_package.components())
                                                 .collect();
                                             if overlapping.is_empty() {
                                                 continue;
