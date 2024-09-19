@@ -84,7 +84,7 @@ async fn test_archive_io() {
             check: false,
             max_concurrent_manifests: 10,
             max_concurrent_payloads: 10,
-            no_progress_bars: true,
+            progress: None,
         },
         files: vec![filename],
     }

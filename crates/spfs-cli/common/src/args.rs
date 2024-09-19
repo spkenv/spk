@@ -16,6 +16,16 @@ use tracing_subscriber::prelude::*;
 
 const SPFS_LOG: &str = "SPFS_LOG";
 
+/// Options for showing progress
+#[derive(Clone, Copy, Debug, Default, clap::ValueEnum)]
+pub enum Progress {
+    /// Show progress bars (default)
+    #[default]
+    Bars,
+    /// Do not show any progress
+    None,
+}
+
 /// Command line flags for configuring sync operations
 #[derive(Debug, Clone, clap::Args)]
 pub struct Sync {
@@ -55,9 +65,9 @@ pub struct Sync {
     )]
     pub max_concurrent_payloads: usize,
 
-    /// Do not display any progress bars when syncing objects.
-    #[clap(long)]
-    pub no_progress_bars: bool,
+    /// Options for showing progress
+    #[clap(long, value_enum)]
+    pub progress: Option<Progress>,
 }
 
 impl Sync {
@@ -74,10 +84,9 @@ impl Sync {
             .with_max_concurrent_manifests(self.max_concurrent_manifests)
             .with_max_concurrent_payloads(self.max_concurrent_payloads);
 
-        if !self.no_progress_bars {
-            syncer.with_reporter(spfs::sync::SyncReporters::console())
-        } else {
-            syncer
+        match self.progress.unwrap_or_default() {
+            Progress::Bars => syncer.with_reporter(spfs::sync::SyncReporters::console()),
+            Progress::None => syncer,
         }
     }
 
