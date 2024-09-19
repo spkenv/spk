@@ -96,16 +96,30 @@ impl From<crate::Error> for GetMergedRequestError {
     }
 }
 
+#[async_trait::async_trait]
 impl FormatError for Error {
-    fn format_error(&self, verbosity: u8) -> String {
+    async fn format_error(&self, verbosity: u8) -> String {
         let mut msg = String::new();
         msg.push_str("Failed to resolve");
         match self {
-            Error::FailedToResolve(_graph) => {
+            Error::FailedToResolve(graph) => {
                 // TODO: provide a summary based on the graph
                 msg.push_str(
                     ": there is no solution for these requests using the available packages",
                 );
+                msg.push_str("\n * TODO: provide a summary based on the graph");
+                let root = graph.root.read().await;
+                for d in root.output_decisions() {
+                    msg.push_str("\n * D");
+                    for c in &d.changes {
+                        msg.push_str("\n C: ");
+                        msg.push_str(format!("{c:?}").as_str());
+                    }
+                    for n in &d.notes {
+                        msg.push_str("\n N: ");
+                        msg.push_str(format!("{n:?}").as_str());
+                    }
+                }
             }
             Error::SolverError(reason) => {
                 msg.push_str("\n * ");

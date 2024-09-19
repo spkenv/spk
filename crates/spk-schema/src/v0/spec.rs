@@ -14,7 +14,14 @@ use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::ident_component::ComponentBTreeSet;
 use spk_schema_foundation::name::PkgNameBuf;
 use spk_schema_foundation::option_map::{OptFilter, Stringified};
-use spk_schema_foundation::version::IncompatibleReason;
+use spk_schema_foundation::version::{
+    BuildIdProblem,
+    CommaSeparated,
+    ComponentsMissingProblem,
+    IncompatibleReason,
+    PackageNameProblem,
+    VarOptionProblem,
+};
 use spk_schema_foundation::IsDefault;
 use spk_schema_ident::{AnyIdent, BuildIdent, Ident, RangeIdent, VersionIdent};
 
@@ -355,11 +362,11 @@ impl Package for Spec<BuildIdent> {
                 .get(option.full_name().without_namespace())
                 .map(String::as_str);
             let compat = option.validate(value);
-            if !compat.is_ok() {
-                return Compatibility::incompatible(format!(
-                    "invalid value for {}: {compat}",
-                    option.full_name(),
-                ));
+            if let Compatibility::Incompatible(incompatible) = compat {
+                return Compatibility::Incompatible(IncompatibleReason::BuildOptionMismatch {
+                    name: option.full_name().to_owned(),
+                    inner_reason: Box::new(incompatible),
+                });
             }
 
             must_exist.remove(option.full_name().without_namespace());
@@ -367,9 +374,7 @@ impl Package for Spec<BuildIdent> {
 
         if !must_exist.is_empty() {
             let missing = must_exist;
-            return Compatibility::incompatible(format!(
-                "Package does not define requested build options: {missing:?}",
-            ));
+            return Compatibility::Incompatible(IncompatibleReason::BuildOptionsMissing(missing));
         }
 
         Compatibility::Compatible
@@ -697,10 +702,11 @@ impl Recipe for Spec<VersionIdent> {
 impl Satisfy<PkgRequest> for Spec<BuildIdent> {
     fn check_satisfies_request(&self, pkg_request: &PkgRequest) -> Compatibility {
         if pkg_request.pkg.name != *self.pkg.name() {
-            return Compatibility::incompatible(format!(
-                "different package name: {} != {}",
-                pkg_request.pkg.name,
-                self.pkg.name()
+            return Compatibility::Incompatible(IncompatibleReason::PackageNameMismatch(
+                PackageNameProblem::PkgRequest {
+                    self_name: self.pkg.name().to_owned(),
+                    other_name: pkg_request.pkg.name.clone(),
+                },
             ));
         }
 
@@ -708,9 +714,7 @@ impl Satisfy<PkgRequest> for Spec<BuildIdent> {
             // deprecated builds are only okay if their build
             // was specifically requested
             if pkg_request.pkg.build.as_ref() != Some(self.pkg.build()) {
-                return Compatibility::incompatible(
-                    "Build is deprecated and was not specifically requested".to_string(),
-                );
+                return Compatibility::Incompatible(IncompatibleReason::BuildDeprecated);
             }
         }
 
@@ -718,7 +722,7 @@ impl Satisfy<PkgRequest> for Spec<BuildIdent> {
             || pkg_request.prerelease_policy == Some(PreReleasePolicy::ExcludeAll))
             && !self.version().pre.is_empty()
         {
-            return Compatibility::incompatible("prereleases not allowed".to_string());
+            return Compatibility::Incompatible(IncompatibleReason::PrereleasesNotAllowed);
         }
 
         let source_package_requested = pkg_request.pkg.build == Some(Build::Source);
@@ -738,17 +742,21 @@ impl Satisfy<PkgRequest> for Spec<BuildIdent> {
                 .sorted()
                 .collect_vec();
             if !missing_components.is_empty() {
-                return Compatibility::incompatible(format!(
-                    "does not define requested components: [{}], found [{}]",
-                    missing_components
-                        .into_iter()
-                        .map(Component::to_string)
-                        .join(", "),
-                    available_components
-                        .iter()
-                        .map(Component::to_string)
-                        .sorted()
-                        .join(", ")
+                return Compatibility::Incompatible(IncompatibleReason::ComponentsMissing(
+                    ComponentsMissingProblem::ComponentsNotDefined {
+                        missing: CommaSeparated(
+                            missing_components
+                                .into_iter()
+                                .map(Component::to_string)
+                                .collect(),
+                        ),
+                        available: CommaSeparated(
+                            available_components
+                                .into_iter()
+                                .map(|c| c.to_string())
+                                .collect(),
+                        ),
+                    },
                 ));
             }
         }
@@ -767,10 +775,11 @@ impl Satisfy<PkgRequest> for Spec<BuildIdent> {
             return Compatibility::Compatible;
         }
 
-        Compatibility::incompatible(format!(
-            "Package and request differ in builds: requested {:?}, got {:?}",
-            pkg_request.pkg.build,
-            self.pkg.build()
+        Compatibility::Incompatible(IncompatibleReason::BuildIdMismatch(
+            BuildIdProblem::PkgRequest {
+                self_build: self.pkg.build().clone(),
+                requested: pkg_request.pkg.build.clone(),
+            },
         ))
     }
 }
@@ -797,9 +806,8 @@ where
         match opt {
             None => {
                 if opt_required {
-                    return Compatibility::incompatible(format!(
-                        "Package does not define requested option: {}",
-                        var_request.var
+                    return Compatibility::Incompatible(IncompatibleReason::VarOptionMissing(
+                        var_request.var.clone(),
                     ));
                 }
                 Compatibility::Compatible
@@ -819,42 +827,46 @@ where
                     let base_version = exact.clone();
                     let Ok(base_version) = Version::from_str(&base_version.unwrap_or_default())
                     else {
-                        return Compatibility::incompatible(format!(
-                            "Incompatible build option '{}': '{base}' != '{}' and '{base}' is not a valid version number",
-                            var_request.var,
-                            request_value.unwrap_or_default(),
-                            base = exact.unwrap_or_default()
+                        return Compatibility::Incompatible(IncompatibleReason::VarOptionMismatch(
+                            VarOptionProblem::IncompatibleBuildOptionInvalidVersion {
+                                var_request: var_request.var.clone(),
+                                base: exact.unwrap_or_default(),
+                                request_value: request_value.unwrap_or_default().to_string(),
+                            },
                         ));
                     };
 
                     let Ok(request_version) = Version::from_str(request_value.unwrap_or_default())
                     else {
-                        return Compatibility::incompatible(format!(
-                            "Incompatible build option '{}': '{base}' != '{request}' and '{request}' is not a valid version number",
-                            var_request.var,
-                            request = request_value.unwrap_or_default(),
-                            base = exact.unwrap_or_default()
+                        return Compatibility::Incompatible(IncompatibleReason::VarOptionMismatch(
+                            VarOptionProblem::IncompatibleBuildOptionInvalidVersion {
+                                var_request: var_request.var.clone(),
+                                base: exact.unwrap_or_default(),
+                                request_value: request_value.unwrap_or_default().to_string(),
+                            },
                         ));
                     };
 
-                    let mut result = compat.is_binary_compatible(&base_version, &request_version);
-                    if let Compatibility::Incompatible(IncompatibleReason::Other(msg)) = &mut result
-                    {
-                        *msg = format!(
-                            "Incompatible build option '{}': '{}' != '{}' and {msg}",
-                            var_request.var,
-                            exact.unwrap_or_else(|| "None".to_string()),
-                            request_value.unwrap_or_default()
-                        );
+                    let result = compat.is_binary_compatible(&base_version, &request_version);
+                    if let Compatibility::Incompatible(incompatible) = result {
+                        return Compatibility::Incompatible(IncompatibleReason::VarOptionMismatch(
+                            VarOptionProblem::IncompatibleBuildOptionWithContext {
+                                var_request: var_request.var.clone(),
+                                exact: exact.unwrap_or_else(|| "None".to_string()),
+                                request_value: request_value.unwrap_or_default().to_string(),
+                                context: Box::new(incompatible),
+                            },
+                        ));
                     }
                     return result;
                 }
 
-                Compatibility::incompatible(format!(
-                    "Incompatible build option '{}': '{}' != '{}'",
-                    var_request.var,
-                    exact.unwrap_or_else(|| "None".to_string()),
-                    request_value.unwrap_or_default()
+                Compatibility::Incompatible(IncompatibleReason::VarOptionMismatch(
+                    VarOptionProblem::IncompatibleBuildOption {
+                        var_request: var_request.var.clone(),
+                        exact: exact.unwrap_or_else(|| "None".to_string()),
+                        request_value: request_value.unwrap_or_default().to_string(),
+                    },
                 ))
             }
         }

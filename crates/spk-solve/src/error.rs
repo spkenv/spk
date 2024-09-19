@@ -74,8 +74,9 @@ pub struct OutOfOptions {
     pub notes: Vec<Note>,
 }
 
+#[async_trait::async_trait]
 impl FormatError for Error {
-    fn format_error(&self, verbosity: u8) -> String {
+    async fn format_error(&self, verbosity: u8) -> String {
         let mut msg = String::new();
         msg.push_str("Failed to resolve");
         match self {
@@ -86,7 +87,7 @@ impl FormatError for Error {
                 msg.push_str("\n * ");
                 msg.push_str(err.as_str());
             }
-            Error::GraphError(err) => return err.format_error(verbosity),
+            Error::GraphError(err) => return err.format_error(verbosity).await,
             err => {
                 msg.push_str("\n * ");
                 msg.push_str(err.to_string().as_str());

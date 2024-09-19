@@ -20,6 +20,7 @@ migration-to-components = []
 
 [dependencies]
 arc-swap = { workspace = true }
+async-trait = { workspace = true }
 colored = { workspace = true }
 data-encoding = "2.3"
 enum_dispatch = "0.3.8"
@@ -28,6 +29,7 @@ format_serde_error = { version = "0.3", default-features = false, features = [
     "colored",
 ] }
 ignore = "0.4.18"
+indexmap = { workspace = true }
 itertools = { workspace = true }
 nom = { workspace = true }
 nom-supreme = { workspace = true }
@@ -41,6 +43,7 @@ rstest = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_yaml = { workspace = true }
 spfs = { workspace = true }
+strum = { workspace = true, features = ["derive"] }
 sys-info = "0.9.0"
 tempfile = { workspace = true }
 thiserror = { workspace = true }

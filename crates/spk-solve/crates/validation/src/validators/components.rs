@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use itertools::Itertools;
+use std::collections::BTreeSet;
+
+use spk_schema::version::{CommaSeparated, ComponentsMissingProblem, IncompatibleReason};
 
 use super::prelude::*;
 use crate::validators::EmbeddedPackageValidator;
@@ -101,7 +103,9 @@ impl ComponentsValidator {
             return Ok(Compatibility::Compatible);
         }
 
-        Ok(Compatibility::incompatible("Not an embedded package"))
+        Ok(Compatibility::Incompatible(
+            IncompatibleReason::PackageNotAnEmbeddedPackage,
+        ))
     }
 
     fn check_for_missing_components<P>(
@@ -126,25 +130,23 @@ impl ComponentsValidator {
             .components()
             .resolve_uses(request.pkg.components.iter());
 
-        let missing_components: std::collections::HashSet<_> = required_components
+        let missing_components: std::collections::BTreeSet<_> = required_components
             .iter()
-            .filter(|n| !available_components.contains(n))
+            .filter(|&n| (!available_components.contains(n)))
+            .map(|n| n.to_string())
             .collect();
 
         if !missing_components.is_empty() {
-            return Ok(Compatibility::incompatible(format!(
-                "no published files for some required components: [{}], found [{}]",
-                required_components
-                    .iter()
-                    .map(Component::to_string)
-                    .sorted()
-                    .join(", "),
-                available_components
-                    .into_iter()
-                    .map(Component::to_string)
-                    .sorted()
-                    .join(", ")
-            )));
+            return Ok(Compatibility::Incompatible(
+                IncompatibleReason::ComponentsMissing(
+                    ComponentsMissingProblem::ComponentsNotDefined {
+                        missing: CommaSeparated(missing_components),
+                        available: CommaSeparated(BTreeSet::<String>::from_iter(
+                            available_components.into_iter().map(|s| s.to_string()),
+                        )),
+                    },
+                ),
+            ));
         }
 
         Ok(Compatibility::Compatible)

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use spk_schema::version::IncompatibleReason;
+
 use super::prelude::*;
 use crate::ValidatorT;
 
@@ -28,8 +30,8 @@ impl ValidatorT for DeprecationValidator {
         recipe: &R,
     ) -> crate::Result<Compatibility> {
         if recipe.is_deprecated() {
-            Ok(Compatibility::incompatible(
-                "recipe is deprecated for this version".to_owned(),
+            Ok(Compatibility::Incompatible(
+                IncompatibleReason::RecipeDeprecated,
             ))
         } else {
             Ok(Compatibility::Compatible)
@@ -53,8 +55,8 @@ impl ValidatorT for DeprecationValidator {
         if request.pkg.build.as_ref() == Some(package.ident().build()) {
             return Ok(Compatibility::Compatible);
         }
-        Ok(Compatibility::incompatible(
-            "build is deprecated (and not requested exactly)".to_owned(),
+        Ok(Compatibility::Incompatible(
+            IncompatibleReason::BuildDeprecated,
         ))
     }
 }

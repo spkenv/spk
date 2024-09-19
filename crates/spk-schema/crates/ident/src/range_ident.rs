@@ -13,7 +13,14 @@ use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::ident_component::{Component, Components};
 use spk_schema_foundation::ident_ops::parsing::KNOWN_REPOSITORY_NAMES;
 use spk_schema_foundation::name::{PkgName, PkgNameBuf, RepositoryNameBuf};
-use spk_schema_foundation::version::{CompatRule, Compatibility};
+use spk_schema_foundation::version::{
+    BuildIdProblem,
+    CompatRule,
+    Compatibility,
+    IncompatibleReason,
+    PackageNameProblem,
+    PackageRepoProblem,
+};
 use spk_schema_foundation::version_range::{
     DoubleEqualsVersion,
     EqualsVersion,
@@ -23,7 +30,7 @@ use spk_schema_foundation::version_range::{
     VersionRange,
 };
 
-use crate::{AnyIdent, BuildIdent, Error, LocatedBuildIdent, Result, Satisfy, VersionIdent};
+use crate::{AnyIdent, BuildIdent, LocatedBuildIdent, Result, Satisfy, VersionIdent};
 
 #[cfg(test)]
 #[path = "./range_ident_test.rs"]
@@ -145,9 +152,11 @@ impl RangeIdent {
 
     pub fn contains(&self, other: &RangeIdent) -> Compatibility {
         if other.name != self.name {
-            return Compatibility::incompatible(format!(
-                "Version selectors are for different packages: {} != {}",
-                self.name, other.name
+            return Compatibility::Incompatible(IncompatibleReason::PackageNameMismatch(
+                PackageNameProblem::VersionSelector {
+                    self_name: self.name.clone(),
+                    other_name: other.name.clone(),
+                },
             ));
         }
 
@@ -159,7 +168,12 @@ impl RangeIdent {
         if other.build.is_none() || self.build == other.build || self.build.is_none() {
             Compatibility::Compatible
         } else {
-            Compatibility::incompatible(format!("Incompatible builds: {self} && {other}"))
+            Compatibility::Incompatible(IncompatibleReason::BuildIdNotSuperset(
+                BuildIdProblem::VersionSelector {
+                    self_ident: self.to_string(),
+                    other_ident: other.to_string(),
+                },
+            ))
         }
     }
 
@@ -168,7 +182,7 @@ impl RangeIdent {
     /// This range ident will become restricted to the intersection
     /// of the current version range and the other, as well as
     /// their combined component requests.
-    pub fn restrict(&mut self, other: &RangeIdent, mode: RestrictMode) -> Result<()> {
+    pub fn restrict(&mut self, other: &RangeIdent, mode: RestrictMode) -> Compatibility {
         match (
             self.repository_name.as_ref(),
             other.repository_name.as_ref(),
@@ -180,15 +194,23 @@ impl RangeIdent {
                 self.repository_name = rn.cloned();
             }
             (Some(ours), Some(theirs)) => {
-                return Err(Error::String(format!(
-                    "Incompatible request for package {} from differing repos: {ours} != {theirs}",
-                    self.name,
-                )))
+                return Compatibility::Incompatible(IncompatibleReason::PackageRepoMismatch(
+                    PackageRepoProblem::Restrict {
+                        pkg: self.name.clone(),
+                        self_repo: ours.clone(),
+                        their_repo: theirs.clone(),
+                    },
+                ));
             }
         };
 
-        if let Err(err) = self.version.restrict(&other.version, mode) {
-            return Err(Error::wrap(format!("[{}]", self.name), err.into()));
+        if let Compatibility::Incompatible(incompatible) =
+            self.version.restrict(&other.version, mode)
+        {
+            return Compatibility::Incompatible(IncompatibleReason::Restrict {
+                pkg: self.name.clone(),
+                inner_reason: Box::new(incompatible),
+            });
         }
 
         for cmpt in other.components.iter() {
@@ -198,14 +220,17 @@ impl RangeIdent {
         }
 
         if other.build.is_none() {
-            Ok(())
+            Compatibility::Compatible
         } else if self.build == other.build || self.build.is_none() {
             self.build.clone_from(&other.build);
-            Ok(())
+            Compatibility::Compatible
         } else {
-            Err(Error::String(format!(
-                "Incompatible builds: {self} && {other}"
-            )))
+            Compatibility::Incompatible(IncompatibleReason::BuildIdMismatch(
+                BuildIdProblem::VersionSelector {
+                    self_ident: self.to_string(),
+                    other_ident: other.to_string(),
+                },
+            ))
         }
     }
 

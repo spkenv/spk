@@ -9,7 +9,7 @@ use indexmap::set::IndexSet;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_component::ComponentBTreeSetBuf;
 use spk_schema_foundation::option_map::Stringified;
-use spk_schema_foundation::version::Compat;
+use spk_schema_foundation::version::{Compat, IncompatibleReason, VarOptionProblem};
 use spk_schema_foundation::IsDefault;
 use spk_schema_ident::{NameAndValue, PinnableValue, RangeIdent};
 
@@ -436,17 +436,20 @@ impl VarOpt {
                 if value == assigned {
                     Compatibility::Compatible
                 } else {
-                    Compatibility::incompatible(format!(
-                        "incompatible option, wanted '{assigned}', got '{value}'"
+                    Compatibility::Incompatible(IncompatibleReason::VarOptionMismatch(
+                        VarOptionProblem::Incompatible {
+                            assigned: assigned.to_string(),
+                            value: value.to_string(),
+                        },
                     ))
                 }
             }
             (Some(value), _) => {
                 if !self.choices.is_empty() && !self.choices.contains(value) {
-                    Compatibility::incompatible(format!(
-                        "invalid value '{}', must be one of {:?}",
-                        value, self.choices
-                    ))
+                    Compatibility::Incompatible(IncompatibleReason::VarOptionIllegalChoice {
+                        value: value.to_string(),
+                        choices: self.choices.clone(),
+                    })
                 } else {
                     Compatibility::Compatible
                 }
@@ -571,18 +574,20 @@ impl PkgOpt {
         };
         let base_range = match VersionRange::from_str(base) {
             Err(err) => {
-                return Compatibility::incompatible(format!(
-                    "Invalid value '{}' for option '{}', not a valid package request: {}",
-                    base, self.pkg, err
-                ))
+                return Compatibility::Incompatible(IncompatibleReason::VersionRangeInvalid {
+                    value: base.clone(),
+                    option: self.pkg.clone(),
+                    err: err.to_string(),
+                })
             }
             Ok(r) => r,
         };
         match VersionRange::from_str(value) {
-            Err(err) => Compatibility::incompatible(format!(
-                "Invalid value '{}' for option '{}', not a valid package request: {}",
-                value, self.pkg, err
-            )),
+            Err(err) => Compatibility::Incompatible(IncompatibleReason::VersionRangeInvalid {
+                value: value.to_string(),
+                option: self.pkg.clone(),
+                err: err.to_string(),
+            }),
             Ok(value_range) => value_range.intersects(base_range),
         }
     }

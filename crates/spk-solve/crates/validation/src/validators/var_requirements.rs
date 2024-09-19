@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use spk_schema::version::IncompatibleReason;
+
 use super::prelude::*;
 use crate::ValidatorT;
 
@@ -31,10 +33,14 @@ impl ValidatorT for VarRequirementsValidator {
                     }
                     let requested = request.value.as_pinned().unwrap_or_default();
                     if requested != value.as_str() {
-                        return Ok(Compatibility::incompatible(format!(
-                            "package wants {}={requested}, resolve has {name}={value}",
-                            request.var
-                        )));
+                        return Ok(Compatibility::Incompatible(
+                            IncompatibleReason::VarRequirementMismatch {
+                                var: request.var.clone(),
+                                requested: requested.to_string(),
+                                name: name.clone(),
+                                value: value.clone(),
+                            },
+                        ));
                     }
                 }
             }

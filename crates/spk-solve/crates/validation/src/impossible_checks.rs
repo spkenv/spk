@@ -14,6 +14,7 @@ use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{InclusionPolicy, PkgRequest, RangeIdent, Request, RequestedBy};
 use spk_schema::spec_ops::{Versioned, WithVersion};
+use spk_schema::version::{ImpossibleRequestProblem, IncompatibleReason};
 use spk_schema::{AnyIdent, BuildIdent, Package, Spec};
 use spk_solve_graph::{GetMergedRequestError, GetMergedRequestResult};
 use spk_solve_solution::PackageSource;
@@ -348,7 +349,9 @@ impl ImpossibleRequestsChecker {
                         unresolved_request.pkg
                     );
                     let mut combined_request = request.clone();
-                    if let Err(err) = combined_request.restrict(unresolved_request) {
+                    if let Compatibility::Incompatible(incompatible) =
+                        combined_request.restrict(unresolved_request)
+                    {
                         // The requests cannot be combined, usually because
                         // their ranges do not intersect. This makes the request
                         // an impossible one, but the combined request cannot be
@@ -357,10 +360,15 @@ impl ImpossibleRequestsChecker {
                         // not cached for next time.
                         self.num_impossible_requests_found
                             .fetch_add(1, Ordering::Relaxed);
-                        return Ok(Compatibility::incompatible(format!(
-                            "depends on {} which generates an impossible request {},{unresolved_request} - {err}",
-                            request.pkg,request.pkg,
-                        )));
+                        return Ok(Compatibility::Incompatible(
+                            IncompatibleReason::ImpossibleRequest(
+                                ImpossibleRequestProblem::Restrict {
+                                    pkg: request.pkg.to_string(),
+                                    unresolved_request: unresolved_request.to_string(),
+                                    inner_reason: Box::new(incompatible),
+                                },
+                            ),
+                        ));
                     };
                     combined_request
                 }
@@ -395,10 +403,12 @@ impl ImpossibleRequestsChecker {
                     combined_request.pkg
                 );
                 self.cache_and_count_impossible_request(combined_request.pkg.clone());
-                return Ok(Compatibility::incompatible(format!(
-                    "depends on {} which generates an impossible request {}",
-                    request.pkg, combined_request.pkg
-                )));
+                return Ok(Compatibility::Incompatible(
+                    IncompatibleReason::ImpossibleRequest(ImpossibleRequestProblem::Cached {
+                        pkg: request.pkg.to_string(),
+                        combined_request: combined_request.pkg.to_string(),
+                    }),
+                ));
             }
 
             if self.possible_requests.contains_key(&combined_request.pkg) {
@@ -437,10 +447,12 @@ impl ImpossibleRequestsChecker {
                     combined_request.pkg
                 );
                 self.cache_and_count_impossible_request(combined_request.pkg.clone());
-                return Ok(Compatibility::incompatible(format!(
-                    "depends on {} which generates an impossible request {}",
-                    request.pkg, combined_request.pkg
-                )));
+                return Ok(Compatibility::Incompatible(
+                    IncompatibleReason::ImpossibleRequest(ImpossibleRequestProblem::Cached {
+                        pkg: request.pkg.to_string(),
+                        combined_request: combined_request.pkg.to_string(),
+                    }),
+                ));
             }
         }
 
@@ -824,9 +836,10 @@ async fn any_valid_build_in_version(
     }
 
     // This is only reached if none of the builds were compatible
-    let nothing_valid = Compatibility::incompatible(format!(
-        "None of {pkg_version}'s builds were compatible with {request}"
-    ));
+    let nothing_valid = Compatibility::Incompatible(IncompatibleReason::NoCompatibleBuilds {
+        pkg_version: pkg_version.to_string(),
+        request: request.to_string(),
+    });
     send_version_task_done_message(
         channel,
         pkg_version.clone(),

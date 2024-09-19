@@ -22,6 +22,7 @@ use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{InclusionPolicy, PkgRequest, Request, RequestedBy, VarRequest};
 use spk_schema::prelude::*;
+use spk_schema::version::IsSameReasonAs;
 use spk_schema::{
     AnyIdent,
     BuildIdent,
@@ -746,6 +747,10 @@ impl Node {
             )),
         );
     }
+
+    pub fn output_decisions(&self) -> impl Iterator<Item = &Arc<Decision>> {
+        self.outputs_decisions.iter()
+    }
 }
 
 /// Some additional information left by the solver
@@ -799,8 +804,8 @@ impl RequestPackage {
                     // Safety: `cloned_request` is not `None` by previous test.
                     let mut request = unsafe { cloned_request.take().unwrap_unchecked() };
                     match request.restrict(&existing_request) {
-                        Ok(_) => Arc::new(request.into()),
-                        Err(_) => {
+                        Compatibility::Compatible => Arc::new(request.into()),
+                        Compatibility::Incompatible(_) => {
                             // Keep looking
                             cloned_request = Some(request);
                             existing_request
@@ -1312,7 +1317,13 @@ impl State {
                     if request.pkg.name != merged.pkg.name {
                         continue;
                     }
-                    merged.restrict(request).map_err(crate::Error::from)?;
+                    if let incompatible @ Compatibility::Incompatible(_) = merged.restrict(request)
+                    {
+                        return Err(crate::Error::String(format!(
+                            "Incompatible requests for '{name}': {incompatible}",
+                        ))
+                        .into());
+                    }
                 }
             }
         }
@@ -1498,10 +1509,20 @@ impl State {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SkipPackageNoteReason {
     String(String),
     Compatibility(Compatibility),
+}
+
+impl IsSameReasonAs for SkipPackageNoteReason {
+    fn is_same_reason_as(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::String(s1), Self::String(s2)) => s1 == s2,
+            (Self::Compatibility(c1), Self::Compatibility(c2)) => c1.is_same_reason_as(c2),
+            _ => false,
+        }
+    }
 }
 
 impl std::fmt::Display for SkipPackageNoteReason {
@@ -1532,6 +1553,12 @@ impl SkipPackageNote {
             pkg,
             reason: SkipPackageNoteReason::String(reason.to_string()),
         }
+    }
+}
+
+impl IsSameReasonAs for SkipPackageNote {
+    fn is_same_reason_as(&self, other: &Self) -> bool {
+        self.pkg.name() == other.pkg.name() && self.reason.is_same_reason_as(&other.reason)
     }
 }
 

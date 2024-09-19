@@ -403,7 +403,7 @@ impl AppendEnv {
     /// Construct the tcsh source representation for this operation
     pub fn tcsh_source(&self) -> String {
         // tcsh will complain if we use a variable that is not defined
-        // so there is extra login in here to define it as needed
+        // so there is extra line in here to define it as needed
         [
             format!("if ( $?{} ) then", self.append),
             format!(

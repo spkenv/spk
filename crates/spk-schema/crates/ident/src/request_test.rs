@@ -3,7 +3,13 @@
 // https://github.com/spkenv/spk
 
 use rstest::rstest;
-use spk_schema_foundation::version::{Compatibility, IncompatibleReason, API_STR, BINARY_STR};
+use spk_schema_foundation::version::{
+    Compatibility,
+    InclusionPolicyProblem,
+    IncompatibleReason,
+    API_STR,
+    BINARY_STR,
+};
 use spk_schema_foundation::FromYaml;
 
 use super::{InclusionPolicy, PreReleasePolicy, Request};
@@ -86,7 +92,9 @@ fn test_prerelease_policy_restricts(
 #[case(
     "{pkg: something, prereleasePolicy: IncludeAll}",
     "{pkg: something, prereleasePolicy: ExcludeAll}",
-    Compatibility::Incompatible(IncompatibleReason::Other("prerelease policy IncludeAll is more inclusive than ExcludeAll".to_string()))
+    Compatibility::Incompatible(IncompatibleReason::InclusionPolicyNotSuperset(
+        InclusionPolicyProblem::Prerelease { our_policy: "IncludeAll".to_string(), other_policy: "ExcludeAll".to_string() }
+    ))
 )]
 // 2. ExcludeAll < IncludeAll
 #[case(
@@ -116,7 +124,9 @@ fn test_prerelease_policy_restricts(
 #[case(
     "{pkg: something, prereleasePolicy: IncludeAll}",
     "{pkg: something}",
-    Compatibility::Incompatible(IncompatibleReason::Other("prerelease policy IncludeAll is more inclusive than None".to_string()))
+    Compatibility::Incompatible(IncompatibleReason::InclusionPolicyNotSuperset(
+        InclusionPolicyProblem::Prerelease { our_policy: "IncludeAll".to_string(), other_policy: "None".to_string() }
+    ))
 )]
 // 7. None == None
 #[case("{pkg: something}", "{pkg: something}", Compatibility::Compatible)]
@@ -147,10 +157,7 @@ fn test_prerelease_policy_contains(
         .expect("expected pkg request");
 
     let compat = a.contains(&b);
-    assert!(
-        expected_compat == compat,
-        "expected prerelease contains compat to be: {expected_compat:?}"
-    )
+    assert_eq!(expected_compat, compat);
 }
 
 #[rstest]

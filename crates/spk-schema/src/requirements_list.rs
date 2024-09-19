@@ -7,7 +7,7 @@ use std::fmt::Write;
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::name::{OptName, PkgName};
-use spk_schema_foundation::version::Compatibility;
+use spk_schema_foundation::version::{Compatibility, IncompatibleReason};
 use spk_schema_foundation::IsDefault;
 use spk_schema_ident::{BuildIdent, PinPolicy};
 
@@ -71,7 +71,9 @@ impl RequirementsList {
             }
             match (existing, &request) {
                 (Request::Pkg(existing), Request::Pkg(request)) => {
-                    existing.restrict(request)?;
+                    if let incompatible @ Compatibility::Incompatible(_) = existing.restrict(request) {
+                        return Err(Error::String(format!("Cannot insert requirement: {incompatible}")))
+                    }
                 }
                 (existing, _) => {
                     return Err(Error::String(format!("Cannot insert requirement: one already exists and only pkg requests can be merged: {existing} + {request}")))
@@ -120,7 +122,9 @@ impl RequirementsList {
         if let Some((ours, theirs)) = global_opt_request {
             return ours.contains(theirs);
         }
-        Compatibility::incompatible(format!("No request exists for {}", theirs.name()))
+        Compatibility::Incompatible(IncompatibleReason::RequirementsNotSuperset {
+            name: theirs.name().to_owned(),
+        })
     }
 
     /// Remove a requirement from this list.

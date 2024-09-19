@@ -19,7 +19,7 @@ use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{PkgRequest, Request, RequestedBy, Satisfy, VarRequest};
 use spk_schema::ident_build::EmbeddedSource;
-use spk_schema::version::IncompatibleReason;
+use spk_schema::version::{IncompatibleReason, IsSameReasonAs};
 use spk_schema::{try_recipe, BuildIdent, Deprecate, Package, Recipe, Spec, SpecRecipe};
 use spk_solve_graph::{
     Change,
@@ -1174,7 +1174,7 @@ impl SolverRuntime {
     ) {
         // After encountering a solver error, start trying a new path from the
         // oldest fork. Experimentation shows that this is able to discover
-        // a valid solution must faster than going back to the newest fork,
+        // a valid solution much faster than going back to the newest fork,
         // for problem cases that get stuck in a bad path.
         match history.pop() {
             Some((n, _)) => {
@@ -1313,7 +1313,33 @@ impl SolverRuntime {
                         self.solver.increment_error_count(ErrorDetails::CouldNotSatisfy(err.request.pkg.to_string(), requested_by));
 
                         if let Some(d) = self.decision.as_mut() {
-                            Arc::make_mut(d).add_notes(err.notes.iter().cloned())
+                            'added_notes: {
+                                // Condense notes if possible. If all options
+                                // were skipped for the same reason, then
+                                // replace the individual skip notes with a
+                                // single summary note.
+                                if let Some(first) = err.notes.first() {
+                                    if err.notes.iter().all(|n| {
+                                        match (n, first) {
+                                            (Note::SkipPackageNote(n), Note::SkipPackageNote(first)) => n.is_same_reason_as(first),
+                                            (Note::Other(n), Note::Other(first)) => n == first,
+                                            _ => false,
+                                        }
+                                    }) {
+                                        match first {
+                                            Note::SkipPackageNote(first) => {
+                                                Arc::make_mut(d).add_notes(vec![Note::Other(format!("All options for '{}' were skipped: {}", first.pkg.name(), first.reason))]);
+                                            }
+                                            Note::Other(first) => {
+                                                Arc::make_mut(d).add_notes(vec![Note::Other(format!("All options were skipped: {first}"))]);
+                                            }
+                                        }
+                                        break 'added_notes;
+                                    }
+                                }
+
+                                Arc::make_mut(d).add_notes(err.notes.iter().cloned());
+                            }
                         }
                         yield Ok(to_yield);
                         continue 'outer;
