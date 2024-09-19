@@ -483,7 +483,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                 if !required.contains(&component.name) {
                     continue;
                 }
-                for embedded_package in component.embedded_packages.iter() {
+                for embedded_package in component.embedded.iter() {
                     // TODO: It should be validated elsewhere that
                     // component.embedded_packages only refers to valid
                     // packages declared in embedded.

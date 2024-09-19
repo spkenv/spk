@@ -39,7 +39,8 @@ pub struct ComponentSpec {
         default,
         skip_serializing_if = "super::ComponentEmbeddedPackagesList::is_fabricated"
     )]
-    pub embedded_packages: super::ComponentEmbeddedPackagesList,
+    pub embedded: super::ComponentEmbeddedPackagesList,
+
     #[serde(default)]
     pub file_match_mode: ComponentFileMatchMode,
 }
@@ -55,7 +56,7 @@ impl ComponentSpec {
             uses: Default::default(),
             files: Default::default(),
             requirements: Default::default(),
-            embedded_packages: Default::default(),
+            embedded: Default::default(),
             file_match_mode: Default::default(),
         })
     }
@@ -68,7 +69,7 @@ impl ComponentSpec {
             uses: Default::default(),
             files: FileMatcher::all(),
             requirements: Default::default(),
-            embedded_packages: Default::default(),
+            embedded: Default::default(),
             file_match_mode: Default::default(),
         }
     }
@@ -81,7 +82,7 @@ impl ComponentSpec {
             uses: Default::default(),
             files: FileMatcher::all(),
             requirements: Default::default(),
-            embedded_packages: Default::default(),
+            embedded: Default::default(),
             file_match_mode: Default::default(),
         }
     }

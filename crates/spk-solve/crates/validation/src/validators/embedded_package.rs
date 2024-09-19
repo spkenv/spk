@@ -107,7 +107,7 @@ impl EmbeddedPackageValidator {
                 continue;
             }
 
-            for embedded_package in component.embedded_packages.iter() {
+            for embedded_package in component.embedded.iter() {
                 for embedded in spec
                     .embedded()
                     .packages_matching_embedded_package(embedded_package)

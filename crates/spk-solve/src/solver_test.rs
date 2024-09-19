@@ -2393,8 +2393,8 @@ async fn test_solver_component_embedded_multiple_versions(
                 "pkg": "mypkg/1.0.0",
                 "install": {
                     "components": [
-                        {"name": "build", "embedded_packages": ["dep-e1:all/1.0.0"]},
-                        {"name": "run", "embedded_packages": ["dep-e1:all/2.0.0"]},
+                        {"name": "build", "embedded": ["dep-e1:all/1.0.0"]},
+                        {"name": "run", "embedded": ["dep-e1:all/2.0.0"]},
                     ],
                     "embedded": [
                         {"pkg": "dep-e1/1.0.0"},

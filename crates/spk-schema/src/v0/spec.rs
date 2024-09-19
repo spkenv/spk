@@ -145,7 +145,7 @@ impl<Ident> Spec<Ident> {
             files: Default::default(),
             uses: Default::default(),
             requirements: Default::default(),
-            embedded_packages: Default::default(),
+            embedded: Default::default(),
             file_match_mode: Default::default(),
         });
     }

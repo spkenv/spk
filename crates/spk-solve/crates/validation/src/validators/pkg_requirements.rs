@@ -138,7 +138,7 @@ impl PkgRequirementsValidator {
             if !required_components.contains(&component.name) {
                 continue;
             }
-            for embedded_package in component.embedded_packages.iter() {
+            for embedded_package in component.embedded.iter() {
                 for embedded in resolved
                     .embedded()
                     .packages_matching_embedded_package(embedded_package)
