@@ -728,7 +728,7 @@ impl Solver {
                                         missing.missing.iter().cloned().collect();
                                     let mut components_to_request = BTreeSet::new();
                                     for component in parent_spec.components().iter() {
-                                        for embedded_package in component.embedded_packages.iter() {
+                                        for embedded_package in component.embedded.iter() {
                                             if embedded_package.pkg.name() != missing.package {
                                                 continue;
                                             }

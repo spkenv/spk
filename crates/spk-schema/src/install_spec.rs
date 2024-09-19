@@ -77,7 +77,7 @@ impl From<RawInstallSpec> for InstallSpec {
 
         // Expand any use of "all" in the defined embedded components.
         for component in install.components.iter_mut() {
-            'embedded_package: for embedded_package in component.embedded_packages.iter_mut() {
+            'embedded_package: for embedded_package in component.embedded.iter_mut() {
                 // Also expand if no components were explicitly specified.
                 if !(embedded_package.components.is_empty()
                     || embedded_package.components.remove(&Component::All))
@@ -126,13 +126,12 @@ impl From<RawInstallSpec> for InstallSpec {
             }
         }
 
-        // Populate any missing components.embedded_packages with default
-        // values.
+        // Populate any missing components.embedded with default values.
         for component in install.components.iter_mut() {
-            if !component.embedded_packages.is_empty() {
+            if !component.embedded.is_empty() {
                 continue;
             }
-            component.embedded_packages = install
+            component.embedded = install
                 .embedded
                 .iter()
                 .filter_map(|embedded| {
@@ -146,7 +145,7 @@ impl From<RawInstallSpec> for InstallSpec {
                     }
                 })
                 .into();
-            component.embedded_packages.set_fabricated();
+            component.embedded.set_fabricated();
         }
 
         install
