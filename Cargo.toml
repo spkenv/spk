@@ -4,6 +4,7 @@ codegen-units = 1
 
 [workspace]
 members = [
+    "crates/is_default_derive_macro",
     "crates/progress_bar_derive_macro",
     "crates/spfs",
     "crates/spfs-encoding",
@@ -64,6 +65,7 @@ glob = "0.3"
 indicatif = "0.17.8"
 indexmap = "2.2"
 itertools = "0.12"
+is_default_derive_macro = { path = "crates/is_default_derive_macro" }
 libc = "0.2.80"
 miette = "7.0"
 nix = { version = "0.27.1", features = ["mount", "sched", "user"] }

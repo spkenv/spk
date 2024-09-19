@@ -4,6 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_build::EmbeddedSource;
+use spk_schema_foundation::IsDefault;
 use spk_schema_ident::AnyIdent;
 
 use super::{BuildSpec, InstallSpec, Spec};
@@ -17,6 +18,12 @@ mod embedded_packages_list_test;
 #[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
 pub struct EmbeddedPackagesList(Vec<Spec>);
+
+impl IsDefault for EmbeddedPackagesList {
+    fn is_default(&self) -> bool {
+        self.is_empty()
+    }
+}
 
 impl std::ops::Deref for EmbeddedPackagesList {
     type Target = Vec<Spec>;

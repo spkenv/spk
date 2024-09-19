@@ -1825,6 +1825,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7655c9839580ee829dfacba1d1278c2b7883e50a277ff7541299489d6bdfdc45"
 
 [[package]]
+name = "is_default_derive_macro"
+version = "0.42.0"
+dependencies = [
+ "indicatif",
+ "quote",
+ "syn 2.0.48",
+ "tracing",
+]
+
+[[package]]
 name = "itertools"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4351,6 +4361,7 @@ dependencies = [
  "format_serde_error",
  "ignore",
  "indexmap 2.2.3",
+ "is_default_derive_macro",
  "itertools 0.12.0",
  "miette",
  "nom",

@@ -8,6 +8,7 @@ use std::fmt::Write;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::name::{OptName, PkgName};
 use spk_schema_foundation::version::Compatibility;
+use spk_schema_foundation::IsDefault;
 use spk_schema_ident::{BuildIdent, PinPolicy};
 
 use crate::foundation::option_map::OptionMap;
@@ -26,6 +27,12 @@ mod requirements_list_test;
 #[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
 pub struct RequirementsList(Vec<Request>);
+
+impl IsDefault for RequirementsList {
+    fn is_default(&self) -> bool {
+        self.is_empty()
+    }
+}
 
 impl std::ops::Deref for RequirementsList {
     type Target = Vec<Request>;

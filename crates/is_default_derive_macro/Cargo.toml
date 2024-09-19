@@ -1,0 +1,23 @@
+[package]
+name = "is_default_derive_macro"
+version = { workspace = true }
+license-file = { workspace = true }
+homepage = { workspace = true }
+repository = { workspace = true }
+readme = { workspace = true }
+description = { workspace = true }
+edition = { workspace = true }
+
+[lints]
+workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = "2.0"
+quote = "1.0"
+indicatif = { workspace = true }
+
+[dev-dependencies]
+tracing = { workspace = true }

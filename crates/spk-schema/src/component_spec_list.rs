@@ -5,6 +5,7 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::IsDefault;
 
 use super::ComponentSpec;
 use crate::foundation::ident_component::Component;
@@ -19,8 +20,8 @@ mod component_spec_list_test;
 #[serde(transparent)]
 pub struct ComponentSpecList(Vec<ComponentSpec>);
 
-impl ComponentSpecList {
-    pub fn is_default(&self) -> bool {
+impl IsDefault for ComponentSpecList {
+    fn is_default(&self) -> bool {
         self == &Self::default()
     }
 }

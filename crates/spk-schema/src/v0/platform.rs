@@ -11,6 +11,7 @@ use spk_schema_foundation::name::PkgName;
 use spk_schema_foundation::option_map::{OptionMap, Stringified, HOST_OPTIONS};
 use spk_schema_foundation::spec_ops::{HasVersion, Named, Versioned};
 use spk_schema_foundation::version::Version;
+use spk_schema_foundation::IsDefault;
 use spk_schema_ident::{
     BuildIdent,
     InclusionPolicy,
@@ -36,6 +37,7 @@ use crate::{
     Recipe,
     RequirementsList,
     Result,
+    RuntimeEnvironment,
     Script,
     TestStage,
     Variant,
@@ -111,9 +113,9 @@ impl PlatformRequirements {
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Serialize)]
 pub struct Platform {
     pub platform: VersionIdent,
-    #[serde(default, skip_serializing_if = "Meta::is_default")]
+    #[serde(default, skip_serializing_if = "IsDefault::is_default")]
     pub meta: Meta,
-    #[serde(default, skip_serializing_if = "Compat::is_default")]
+    #[serde(default, skip_serializing_if = "IsDefault::is_default")]
     pub compat: Compat,
     #[serde(default, skip_serializing_if = "is_false")]
     pub deprecated: bool,
@@ -148,15 +150,22 @@ impl DeprecateMut for Platform {
     }
 }
 
+impl HasVersion for Platform {
+    fn version(&self) -> &Version {
+        self.platform.version()
+    }
+}
+
 impl Named for Platform {
     fn name(&self) -> &PkgName {
         self.platform.name()
     }
 }
 
-impl HasVersion for Platform {
-    fn version(&self) -> &Version {
-        self.platform.version()
+impl RuntimeEnvironment for Platform {
+    fn runtime_environment(&self) -> &[crate::EnvOp] {
+        // Platforms don't have any EnvOps
+        &[]
     }
 }
 

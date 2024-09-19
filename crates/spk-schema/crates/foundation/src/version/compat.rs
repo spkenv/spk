@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{Error, Result, Version, VERSION_SEP};
 use crate::name::PkgNameBuf;
-use crate::version;
+use crate::{version, IsDefault};
 
 #[cfg(test)]
 #[path = "./compat_test.rs"]
@@ -324,11 +324,6 @@ impl FromStr for Compat {
 }
 
 impl Compat {
-    // True if this is the default compatibility specification
-    pub fn is_default(&self) -> bool {
-        self == &Self::default()
-    }
-
     /// Create a compat rule set with two parts
     pub fn double(first: CompatRuleSet, second: CompatRuleSet) -> Self {
         Compat {
@@ -464,6 +459,13 @@ impl Compat {
         Compatibility::incompatible(format!(
             "Not compatible: {base} ({self}) [{required:?} compatibility not specified]",
         ))
+    }
+}
+
+impl IsDefault for Compat {
+    // True if this is the default compatibility specification
+    fn is_default(&self) -> bool {
+        self == &Self::default()
     }
 }
 

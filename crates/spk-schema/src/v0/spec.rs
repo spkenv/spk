@@ -15,6 +15,7 @@ use spk_schema_foundation::ident_component::ComponentBTreeSet;
 use spk_schema_foundation::name::PkgNameBuf;
 use spk_schema_foundation::option_map::{OptFilter, Stringified};
 use spk_schema_foundation::version::IncompatibleReason;
+use spk_schema_foundation::IsDefault;
 use spk_schema_ident::{AnyIdent, BuildIdent, Ident, RangeIdent, VersionIdent};
 
 use super::variant_spec::VariantSpecEntryKey;
@@ -47,6 +48,7 @@ use crate::{
     DeprecateMut,
     EmbeddedPackagesList,
     EnvOp,
+    EnvOpList,
     Error,
     Inheritance,
     InputVariant,
@@ -58,6 +60,7 @@ use crate::{
     Recipe,
     RequirementsList,
     Result,
+    RuntimeEnvironment,
     SourceSpec,
     TestStage,
     ValidationSpec,
@@ -83,7 +86,7 @@ pub struct Spec<Ident> {
     pub build: BuildSpec,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tests: Vec<TestSpec>,
-    #[serde(default, skip_serializing_if = "InstallSpec::is_default")]
+    #[serde(default, skip_serializing_if = "IsDefault::is_default")]
     pub install: InstallSpec,
 }
 
@@ -181,24 +184,6 @@ impl Spec<BuildIdent> {
     }
 }
 
-impl<Ident: Named> Named for Spec<Ident> {
-    fn name(&self) -> &PkgName {
-        self.pkg.name()
-    }
-}
-
-impl<Ident: HasVersion> HasVersion for Spec<Ident> {
-    fn version(&self) -> &Version {
-        self.pkg.version()
-    }
-}
-
-impl<Ident: HasVersion> Versioned for Spec<Ident> {
-    fn compat(&self) -> &Compat {
-        &self.compat
-    }
-}
-
 impl<Ident> Deprecate for Spec<Ident> {
     fn is_deprecated(&self) -> bool {
         self.deprecated
@@ -214,6 +199,30 @@ impl<Ident> DeprecateMut for Spec<Ident> {
     fn undeprecate(&mut self) -> Result<()> {
         self.deprecated = false;
         Ok(())
+    }
+}
+
+impl<Ident: HasVersion> HasVersion for Spec<Ident> {
+    fn version(&self) -> &Version {
+        self.pkg.version()
+    }
+}
+
+impl<Ident: Named> Named for Spec<Ident> {
+    fn name(&self) -> &PkgName {
+        self.pkg.name()
+    }
+}
+
+impl<Ident> RuntimeEnvironment for Spec<Ident> {
+    fn runtime_environment(&self) -> &[EnvOp] {
+        &self.install.environment
+    }
+}
+
+impl<Ident: HasVersion> Versioned for Spec<Ident> {
+    fn compat(&self) -> &Compat {
+        &self.compat
     }
 }
 
@@ -277,10 +286,6 @@ impl Package for Spec<BuildIdent> {
 
     fn components(&self) -> &ComponentSpecList {
         &self.install.components
-    }
-
-    fn runtime_environment(&self) -> &Vec<EnvOp> {
-        &self.install.environment
     }
 
     fn get_build_options(&self) -> &Vec<Opt> {
@@ -673,7 +678,7 @@ impl Recipe for Spec<VersionIdent> {
         let mut build = updated.map_ident(|i| i.into_build(Build::BuildId(digest)));
 
         // Expand env variables from EnvOp.
-        let mut updated_ops = Vec::new();
+        let mut updated_ops = EnvOpList::default();
         let mut build_env_vars = build_env.env_vars();
         build_env_vars.extend(build.get_build_env());
         for op in build.install.environment.iter() {

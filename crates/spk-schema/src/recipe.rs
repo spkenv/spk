@@ -26,7 +26,15 @@ pub trait BuildEnv {
 /// Can be used to build a package.
 #[enum_dispatch::enum_dispatch]
 pub trait Recipe:
-    Named + Versioned + super::Deprecate + Clone + Eq + std::hash::Hash + Sync + Send
+    Named
+    + Versioned
+    + super::Deprecate
+    + crate::RuntimeEnvironment
+    + Clone
+    + Eq
+    + std::hash::Hash
+    + Sync
+    + Send
 {
     type Output: super::Package;
     type Variant: super::Variant + Clone;

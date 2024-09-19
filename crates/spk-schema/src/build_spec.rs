@@ -13,6 +13,7 @@ use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::name::PkgName;
 use spk_schema_foundation::option_map::{OptionMap, Stringified, HOST_OPTIONS};
 use spk_schema_foundation::version::Compat;
+use spk_schema_foundation::IsDefault;
 use strum::Display;
 
 use super::{v0, Opt, ValidationSpec};
@@ -51,10 +52,6 @@ pub enum AutoHostVars {
 }
 
 impl AutoHostVars {
-    pub fn is_default(&self) -> bool {
-        self == &Self::default()
-    }
-
     fn names_added(&self) -> HashSet<&OptName> {
         let names = match self {
             AutoHostVars::Distro => DISTRO_ADDS,
@@ -128,6 +125,12 @@ impl AutoHostVars {
     }
 }
 
+impl IsDefault for AutoHostVars {
+    fn is_default(&self) -> bool {
+        self == &Self::default()
+    }
+}
+
 /// A set of structured inputs used to build a package.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct BuildSpec {
@@ -161,10 +164,6 @@ impl Default for BuildSpec {
 }
 
 impl BuildSpec {
-    pub fn is_default(&self) -> bool {
-        self == &Self::default()
-    }
-
     /// Returns this build's options, plus any additional ones needed
     /// for building the given variant
     pub fn opts_for_variant<V>(&self, variant: &V) -> Result<Vec<Opt>>
@@ -332,6 +331,12 @@ impl BuildSpec {
         }
         let digest = hasher.finish();
         Ok(BuildId::new_from_bytes(digest.as_ref()))
+    }
+}
+
+impl IsDefault for BuildSpec {
+    fn is_default(&self) -> bool {
+        self == &Self::default()
     }
 }
 

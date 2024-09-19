@@ -28,6 +28,7 @@ use spk_schema_foundation::version_range::{
     RestrictMode,
     VersionFilter,
 };
+use spk_schema_foundation::IsDefault;
 
 use super::AnyIdent;
 use crate::{BuildIdent, Error, RangeIdent, Result, Satisfy, VersionIdent};
@@ -45,8 +46,8 @@ pub enum PreReleasePolicy {
     IncludeAll,
 }
 
-impl PreReleasePolicy {
-    pub fn is_default(&self) -> bool {
+impl IsDefault for PreReleasePolicy {
+    fn is_default(&self) -> bool {
         matches!(self, &PreReleasePolicy::ExcludeAll)
     }
 }
@@ -73,8 +74,8 @@ pub enum InclusionPolicy {
     IfAlreadyPresent,
 }
 
-impl InclusionPolicy {
-    pub fn is_default(&self) -> bool {
+impl IsDefault for InclusionPolicy {
+    fn is_default(&self) -> bool {
         matches!(self, &InclusionPolicy::Always)
     }
 }
@@ -101,9 +102,9 @@ pub enum PinPolicy {
     IfPresentInBuildEnv,
 }
 
-impl PinPolicy {
+impl IsDefault for PinPolicy {
     #[inline]
-    pub fn is_default(&self) -> bool {
+    fn is_default(&self) -> bool {
         self == &PinPolicy::default()
     }
 }

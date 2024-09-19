@@ -15,7 +15,7 @@ use super::RequirementsList;
 use crate::foundation::ident_component::Component;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::version::Compatibility;
-use crate::{DeprecateMut, Opt};
+use crate::{DeprecateMut, Opt, RuntimeEnvironment};
 
 #[cfg(test)]
 #[path = "./package_test.rs"]
@@ -24,7 +24,15 @@ mod package_test;
 /// Can be resolved into an environment.
 #[enum_dispatch::enum_dispatch]
 pub trait Package:
-    Named + Versioned + super::Deprecate + Clone + Eq + std::hash::Hash + Sync + Send
+    Named
+    + Versioned
+    + super::Deprecate
+    + RuntimeEnvironment
+    + Clone
+    + Eq
+    + std::hash::Hash
+    + Sync
+    + Send
 {
     type Package;
 
@@ -61,9 +69,6 @@ pub trait Package:
 
     /// The components defined by this package
     fn components(&self) -> &super::ComponentSpecList;
-
-    /// The set of operations to perform on the environment when running this package
-    fn runtime_environment(&self) -> &Vec<super::EnvOp>;
 
     /// The list of build options for this package
     fn get_build_options(&self) -> &Vec<Opt>;
@@ -180,10 +185,6 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
         (**self).components()
     }
 
-    fn runtime_environment(&self) -> &Vec<super::EnvOp> {
-        (**self).runtime_environment()
-    }
-
     fn get_build_options(&self) -> &Vec<Opt> {
         (**self).get_build_options()
     }
@@ -260,10 +261,6 @@ impl<T: Package + Send + Sync> Package for Box<T> {
         (**self).components()
     }
 
-    fn runtime_environment(&self) -> &Vec<super::EnvOp> {
-        (**self).runtime_environment()
-    }
-
     fn get_build_options(&self) -> &Vec<Opt> {
         (**self).get_build_options()
     }
@@ -338,10 +335,6 @@ impl<T: Package + Send + Sync> Package for &T {
 
     fn components(&self) -> &super::ComponentSpecList {
         (**self).components()
-    }
-
-    fn runtime_environment(&self) -> &Vec<super::EnvOp> {
-        (**self).runtime_environment()
     }
 
     fn get_build_options(&self) -> &Vec<Opt> {
