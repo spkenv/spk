@@ -10,6 +10,8 @@ use spk_schema_foundation::ident_component::{Component, Components};
 use spk_schema_foundation::ident_ops::parsing::request_pkg_name_and_version;
 use spk_schema_ident::OptVersionIdent;
 
+use crate::{Error, Result};
+
 /// A struct describing a package that is embedded within a component of a
 /// host package.
 ///
@@ -19,7 +21,49 @@ use spk_schema_ident::OptVersionIdent;
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ComponentEmbeddedPackage {
     pub pkg: OptVersionIdent,
-    pub components: BTreeSet<Component>,
+    /// The components of the embedded package that are present in this
+    /// component. Must not be empty.
+    components: BTreeSet<Component>,
+}
+
+impl ComponentEmbeddedPackage {
+    /// Create a new `ComponentEmbeddedPackage` with a single component.
+    pub fn new(pkg: OptVersionIdent, component: Component) -> Self {
+        Self {
+            pkg,
+            components: [component].into(),
+        }
+    }
+
+    #[inline]
+    pub fn components(&self) -> &BTreeSet<Component> {
+        &self.components
+    }
+
+    /// Extend the set of components by the given iterable, replacing the `All`
+    /// component if present. The resulting set must not be empty.
+    pub fn replace_all<Iter>(&mut self, iter: Iter) -> Result<()>
+    where
+        Iter: IntoIterator<Item = Component>,
+    {
+        let mut components = BTreeSet::new();
+        components.extend(self.components.iter().filter(|c| !c.is_all()).cloned());
+        for component in iter {
+            if component.is_all() {
+                return Err(Error::String(
+                    "the All component is not allowed when replacing All".to_string(),
+                ));
+            }
+            components.insert(component);
+        }
+        if components.is_empty() {
+            return Err(Error::String(
+                "the resulting component set would be empty".to_string(),
+            ));
+        }
+        self.components = components;
+        Ok(())
+    }
 }
 
 impl std::fmt::Display for ComponentEmbeddedPackage {
@@ -53,15 +97,23 @@ impl<'de> Deserialize<'de> for ComponentEmbeddedPackage {
                 E: serde::de::Error,
             {
                 request_pkg_name_and_version::<nom_supreme::error::ErrorTree<_>>(v)
-                    .map(|(_, (name, components, opt_version))| Self::Value {
-                        pkg: OptVersionIdent::new(name.to_owned(), opt_version),
-                        components,
-                    })
                     .map_err(|err| match err {
                         nom::Err::Error(e) | nom::Err::Failure(e) => {
                             serde::de::Error::custom(e.to_string())
                         }
                         nom::Err::Incomplete(_) => unreachable!(),
+                    })
+                    .and_then(|(_, (name, components, opt_version))| {
+                        if components.is_empty() {
+                            return Err(serde::de::Error::custom(
+                                "the components embedded in this component must not be empty, use :all to embed all components",
+                            ));
+                        }
+
+                        Ok(Self::Value {
+                            pkg: OptVersionIdent::new(name.to_owned(), opt_version),
+                            components,
+                        })
                     })
             }
         }
