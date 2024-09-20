@@ -4,6 +4,7 @@
 
 use clap::Args;
 use miette::Result;
+use spfs::Error;
 
 /// Make the current runtime editable
 #[derive(Debug, Args)]
@@ -37,15 +38,9 @@ impl CmdEdit {
         if !self.off {
             match spfs::make_active_runtime_editable().await {
                 Ok(_) => tracing::info!("edit mode enabled"),
+                Err(Error::RuntimeAlreadyEditable) => {}
                 Err(err) => {
-                    if self.keep_runtime {
-                        // When --keep-runtime was also given, being
-                        // already editable isn't an error, but still
-                        // want to tell the user about it
-                        tracing::info!("{err}")
-                    } else {
-                        return Err(err.into());
-                    }
+                    return Err(err.into());
                 }
             };
         } else {
