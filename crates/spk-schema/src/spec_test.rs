@@ -321,7 +321,7 @@ sources:
   - git: https://downloads.testing/my-package/v{{ opt.typo }}
 "#;
     let tpl = SpecTemplate {
-        name: PkgName::new("my-package").unwrap().to_owned(),
+        name: Some(PkgName::new("my-package").unwrap().to_owned()),
         file_path: "my-package.spk.yaml".into(),
         template: SPEC.to_string(),
     };
@@ -345,13 +345,14 @@ fn test_template_namespace_options() {
     format_serde_error::never_color();
     static SPEC: &str = r#"pkg: mypackage/{{ opt.namespace.version }}"#;
     let tpl = SpecTemplate {
-        name: PkgName::new("my-package").unwrap().to_owned(),
+        name: Some(PkgName::new("my-package").unwrap().to_owned()),
         file_path: "my-package.spk.yaml".into(),
         template: SPEC.to_string(),
     };
     let options = option_map! {"namespace.version" => "1.0.0"};
-    let recipe = tpl
+    let rendered_data = tpl
         .render(&options)
         .expect("template should render with sub-object access");
+    let recipe = rendered_data.into_recipe().unwrap();
     assert_eq!(recipe.version().to_string(), "1.0.0");
 }

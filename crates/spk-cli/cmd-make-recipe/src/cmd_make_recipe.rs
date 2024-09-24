@@ -8,8 +8,7 @@ use clap::Args;
 use miette::{Context, IntoDiagnostic, Result};
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::FormatOptionMap;
-use spk_schema::foundation::spec_ops::Named;
-use spk_schema::{SpecTemplate, Template, TemplateExt};
+use spk_schema::{SpecFileData, SpecTemplate, Template, TemplateExt};
 
 /// Render a package spec template into a recipe
 ///
@@ -56,7 +55,11 @@ impl Run for MakeRecipe {
             }
         };
 
-        tracing::info!("rendering template for {}", template.name());
+        if let Some(name) = template.name() {
+            tracing::info!("rendering template for {name}");
+        } else {
+            tracing::info!("rendering template without a name");
+        }
         tracing::info!("using options {}", options.format_option_map());
         let data = spk_schema::TemplateData::new(&options);
         tracing::debug!("full template data: {data:#?}");
@@ -74,9 +77,15 @@ impl Run for MakeRecipe {
                 tracing::error!("This template did not render into a valid spec {err}");
                 Ok(1)
             }
-            Ok(_) => {
+            Ok(SpecFileData::Recipe(_)) => {
                 tracing::info!("Successfully rendered a valid spec");
                 Ok(0)
+            }
+            Ok(SpecFileData::Requests(_)) => {
+                tracing::error!(
+                    "This template did not render into a valid recipe spec. It is a requests spec"
+                );
+                Ok(2)
             }
         }
     }
