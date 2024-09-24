@@ -10,7 +10,6 @@ use miette::{bail, Context, Result};
 use spk_build::SourcePackageBuilder;
 use spk_cli_common::{flags, BuildArtifact, BuildResult, CommandArgs, Run};
 use spk_schema::foundation::format::FormatIdent;
-use spk_schema::foundation::spec_ops::Named;
 use spk_schema::ident::LocatedBuildIdent;
 use spk_schema::{Package, Recipe, SpecTemplate, Template, TemplateExt};
 use spk_storage as storage;
@@ -87,19 +86,29 @@ impl MakeSource {
                 .parent()
                 .map(ToOwned::to_owned)
                 .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
-
-            tracing::info!("rendering template for {}", template.name());
-            let recipe = template.render(&options)?;
+            if let Some(name) = template.name() {
+                tracing::info!("rendering template for {name}");
+            } else {
+                tracing::info!("rendering template without a name");
+            }
+            let rendered_data = template.render(&options)?;
+            let recipe = rendered_data.into_recipe().wrap_err_with(|| {
+                format!(
+                    "{filename} was expected to contain a recipe",
+                    filename = template.file_path().to_string_lossy()
+                )
+            })?;
             let ident = recipe.ident();
 
             tracing::info!("saving package recipe for {}", ident.format_ident());
             local.force_publish_recipe(&recipe).await?;
 
             tracing::info!("collecting sources for {}", ident.format_ident());
-            let (out, _components) = SourcePackageBuilder::from_recipe(recipe)
-                .build_and_publish(root, &local)
-                .await
-                .wrap_err("Failed to collect sources")?;
+            let (out, _components) =
+                SourcePackageBuilder::from_recipe(Arc::unwrap_or_clone(recipe))
+                    .build_and_publish(root, &local)
+                    .await
+                    .wrap_err("Failed to collect sources")?;
             tracing::info!("created {}", out.ident().format_ident());
             self.created_src.push(
                 template.file_path().display().to_string(),

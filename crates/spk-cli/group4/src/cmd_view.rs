@@ -226,10 +226,16 @@ impl View {
         options: &OptionMap,
         show_variants_with_tests: bool,
     ) -> Result<i32> {
-        let (_, template) = flags::find_package_template(self.package.as_ref())
+        let (filename, template) = flags::find_package_template(self.package.as_ref())
             .wrap_err("find package template")?
             .must_be_found();
-        let recipe = template.render(options)?;
+        let rendered_data = template.render(options)?;
+        let recipe = rendered_data.into_recipe().wrap_err_with(|| {
+            format!(
+                "{filename} was expected to contain a recipe",
+                filename = filename.to_string_lossy()
+            )
+        })?;
 
         let default_variants = recipe.default_variants(options);
         match &self.format {
