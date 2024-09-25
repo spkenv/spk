@@ -10,6 +10,7 @@ use std::task::Poll;
 
 use data_encoding::BASE32;
 use ring::digest::{Context, SHA256};
+use serde::Deserialize;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::{binary, Digest};
@@ -259,7 +260,7 @@ impl Decodable for String {
 }
 
 /// The first N bytes of a digest that may still be unambiguous as a reference
-#[derive(Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Clone)]
+#[derive(Deserialize, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Clone)]
 pub struct PartialDigest(Vec<u8>);
 
 impl PartialDigest {
