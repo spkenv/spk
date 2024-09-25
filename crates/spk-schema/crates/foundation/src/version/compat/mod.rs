@@ -198,11 +198,11 @@ pub enum IncompatibleReason {
         name: OptNameBuf,
         inner_reason: Box<IncompatibleReason>,
     },
-    #[strum(to_string = "package does not define requested build options: {missing:?}")]
+    #[strum(to_string = "package does not define requested build options: {0:?}")]
     BuildOptionsMissing(OptionMap),
     #[strum(to_string = "{0}")]
     ComponentsMissing(ComponentsMissingProblem),
-    #[strum(to_string = "embedded package conflicts with existing package in solve: {pkg}")]
+    #[strum(to_string = "embedded package conflicts with existing package in solve: {0}")]
     ConflictingEmbeddedPackage(PkgNameBuf),
     #[strum(
         to_string = "package {0} component {1} embeds {2} and conflicts with existing package in solve: {3}"

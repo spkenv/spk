@@ -136,7 +136,7 @@ spk-solve-validation = { path = "crates/spk-solve/crates/validation" }
 spk-storage = { path = "crates/spk-storage" }
 static_assertions = "1.1"
 strip-ansi-escapes = "0.2.0"
-strum = { version = "0.26.1", features = ["derive"] }
+strum = { version = "0.26.3", features = ["derive"] }
 tap = "1.0"
 tempfile = "3.3"
 thiserror = "1.0"

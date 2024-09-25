@@ -31,9 +31,9 @@ pub enum VersionForClause {
 
 #[derive(Clone, Debug, Eq, PartialEq, strum::Display)]
 pub enum VersionRangeProblem {
-    #[strum(to_string = "version too high {version_for_clause}")]
+    #[strum(to_string = "version too high {0}")]
     TooHigh(VersionForClause),
-    #[strum(to_string = "version too low {version_for_clause}")]
+    #[strum(to_string = "version too low {0}")]
     TooLow(VersionForClause),
     #[strum(to_string = "not {op} {bound} [too low]")]
     NotHighEnough { op: &'static str, bound: Version },
