@@ -3,10 +3,15 @@
 // https://github.com/spkenv/spk
 
 use std::borrow::Cow;
+use std::fmt::Display;
+use std::io::Read;
+use std::path::PathBuf;
 use std::str::FromStr;
 
+use serde::Deserialize;
+
 use super::tag::TagSpec;
-use crate::runtime::{LiveLayer, LiveLayerFile};
+use crate::runtime::{LiveLayer, SpfsFileApiVersion};
 use crate::{encoding, Error, Result};
 
 #[cfg(test)]
@@ -19,13 +24,160 @@ pub const ENV_SPEC_SEPARATOR: &str = "+";
 /// Recognized as an empty environment spec with no items
 pub const ENV_SPEC_EMPTY: &str = "-";
 
+// For the config file that contains the extra bind mounts
+const SPFS_FILE_SUFFIX_YAML: &str = ".spfs.yaml";
+const DEFAULT_LIVE_LAYER_FILENAME: &str = "layer.spfs.yaml";
+
+/// Used during the initial parsing to determine what kind of data is in a file
+#[derive(Deserialize, Debug)]
+struct SpfsFileApiVersionMapping {
+    #[serde(default = "SpfsFileApiVersion::default")]
+    api: SpfsFileApiVersion,
+}
+
+// TODO: rename SpfsEnvFile maybe?
+/// Enum of all the spfs env spec things that can be constructed from
+/// filepaths given on the command line.
+#[derive(Deserialize, Debug, Clone, Eq, PartialEq)]
+pub enum SpfsFile {
+    LiveLayer(LiveLayer),
+    EnvLayersFile(EnvSpecReferences),
+}
+
+impl SpfsFile {
+    pub fn parse(abs_filepath: &str) -> Result<Self> {
+        let path = std::path::Path::new(abs_filepath);
+
+        // This has to be an absolute path to distinguish it from tag
+        // specs, see EnvSpecItem parsing.
+        if path.is_absolute() {
+            let filepath = if path.is_dir() {
+                path.join(DEFAULT_LIVE_LAYER_FILENAME)
+            } else {
+                // Have to use the path as a string because the live
+                // layer filename suffix we are looking for has more
+                // than one '.' in it.
+                let path_string: String = path.display().to_string();
+                if !path_string.ends_with(SPFS_FILE_SUFFIX_YAML) {
+                    return Err(Error::String(format!(
+                        "Invalid: {path_string} does not have the spfs file suffix: {SPFS_FILE_SUFFIX_YAML}"
+        )));
+                }
+                path.to_path_buf()
+            };
+
+            let data = SpfsFile::load_data(filepath.clone())?;
+            let mut item = SpfsFile::from_yaml(&data)?;
+
+            // Live layers also need their parent path added to them
+            // and validation run.
+            if let SpfsFile::LiveLayer(mut live_layer) = item {
+                let parent = match filepath.parent() {
+                    Some(p) => p,
+                    None => {
+                        return Err(Error::String(format!(
+                            "Cannot have a live layer in the top-level root directory: {}",
+                            filepath.display()
+                        )))
+                    }
+                };
+                live_layer.set_parent_and_validate(parent.to_path_buf())?;
+                item = SpfsFile::LiveLayer(live_layer)
+            }
+
+            return Ok(item);
+        }
+
+        Err(Error::String(format!(
+            "Invalid: {} is not an absolute path to a spfs env file. It must be an absolute path to a file",
+            path.display()
+        )))
+    }
+
+    fn load_data(filepath: PathBuf) -> Result<String> {
+        tracing::debug!("Opening spfs env file: {}", filepath.display());
+
+        let file = std::fs::File::open(filepath.clone()).map_err(|err| {
+            Error::String(format!(
+                "Failed to open spfs env file: {} - {err}",
+                filepath.display()
+            ))
+        })?;
+
+        let mut data = String::new();
+        std::io::BufReader::new(file)
+            .read_to_string(&mut data)
+            .map_err(|err| {
+                Error::String(format!(
+                    "Failed to read data from spfs env file {}: {err}",
+                    filepath.display()
+                ))
+            })?;
+
+        Ok(data)
+    }
+
+    /// Create a SpfsFile item from the given yaml string
+    pub fn from_yaml(s: &str) -> Result<Self> {
+        let value: serde_yaml::Value = serde_yaml::from_str(s).map_err(Error::YAML)?;
+
+        // First work out what kind of data this is, based on the
+        // SpfsFileApiVersionMapping value.
+        let with_version = match serde_yaml::from_value::<SpfsFileApiVersionMapping>(value.clone())
+        {
+            Err(err) => {
+                return Err(Error::YAML(err));
+            }
+            Ok(m) => m,
+        };
+
+        // from from_yaml
+        let spec = match with_version.api {
+            SpfsFileApiVersion::V0Layer => {
+                let live_layer: LiveLayer = serde_yaml::from_value(value)?;
+                SpfsFile::LiveLayer(live_layer)
+            }
+            SpfsFileApiVersion::V0EnvLayerList => {
+                let layers_file: EnvSpecReferences = serde_yaml::from_value(value)?;
+                SpfsFile::EnvLayersFile(layers_file)
+            }
+        };
+        Ok(spec)
+    }
+}
+
+impl Display for SpfsFile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::LiveLayer(x) => x.fmt(f),
+            Self::EnvLayersFile(x) => x.fmt(f),
+        }
+    }
+}
+
+/// A list of env spec references (digests, tags, live layers, or even
+/// spfs files) read from a yaml file.
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct EnvSpecReferences {
+    /// The api format version of the live layer data
+    pub api: SpfsFileApiVersion,
+    /// The contents that the live layer will put into /spfs
+    pub layers: Vec<EnvSpecItem>,
+}
+
+impl Display for EnvSpecReferences {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: layers: {:?}", self.api, self.layers)
+    }
+}
+
 /// Specifies an spfs item that can appear in a runtime environment.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum EnvSpecItem {
     TagSpec(TagSpec),
     PartialDigest(encoding::PartialDigest),
     Digest(encoding::Digest),
-    LiveLayerFile(LiveLayerFile),
+    SpfsFile(SpfsFile),
 }
 
 impl EnvSpecItem {
@@ -40,8 +192,8 @@ impl EnvSpecItem {
             Self::TagSpec(spec) => repo.resolve_tag(spec).await.map(|t| t.target),
             Self::PartialDigest(part) => repo.resolve_full_digest(part).await,
             Self::Digest(digest) => Ok(*digest),
-            Self::LiveLayerFile(_) => Err(Error::String(String::from(
-                "Impossible operation: live layers do not have digests",
+            Self::SpfsFile(_) => Err(Error::String(String::from(
+                "Impossible operation: spfs env files do not have digests",
             ))),
         }
     }
@@ -65,8 +217,21 @@ impl EnvSpecItem {
     }
 
     /// Returns true if this item is a live layer file
-    pub fn is_livelayerfile(&self) -> bool {
-        matches!(self, Self::LiveLayerFile(_))
+    pub fn is_livelayer(&self) -> bool {
+        matches!(self, Self::SpfsFile(SpfsFile::LiveLayer(_)))
+    }
+}
+
+impl<'de> Deserialize<'de> for EnvSpecItem {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+
+        EnvSpecItem::from_str(&value).map_err(|err| {
+            serde::de::Error::custom(format!("deserializing EnvSpecItem failed: {err}"))
+        })
     }
 }
 
@@ -76,7 +241,7 @@ impl std::fmt::Display for EnvSpecItem {
             Self::TagSpec(x) => x.fmt(f),
             Self::PartialDigest(x) => x.fmt(f),
             Self::Digest(x) => x.fmt(f),
-            Self::LiveLayerFile(x) => x.fmt(f),
+            Self::SpfsFile(x) => x.fmt(f),
         }
     }
 }
@@ -148,14 +313,14 @@ impl EnvSpec {
     }
 
     /// Return a list of the live layers filtered out from the spec
-    pub fn load_live_layers(&self) -> Result<Vec<LiveLayer>> {
+    pub fn load_live_layers(&self) -> Vec<LiveLayer> {
         let mut live_layers = Vec::new();
         for item in self.items.iter() {
-            if let EnvSpecItem::LiveLayerFile(llf) = item {
-                live_layers.push(llf.load()?);
+            if let EnvSpecItem::SpfsFile(SpfsFile::LiveLayer(ll)) = item {
+                live_layers.push(ll.clone());
             }
         }
-        Ok(live_layers)
+        live_layers
     }
 
     /// TagSpec items are turned into Digest items using the digest
@@ -193,10 +358,9 @@ impl EnvSpec {
         R: crate::storage::Repository + ?Sized,
     {
         let mut new_items: Vec<EnvSpecItem> = Vec::with_capacity(self.items.len());
-
         for item in &self.items {
             // Filter out the LiveLayers entirely because they do not have digests
-            if let EnvSpecItem::LiveLayerFile(_) = item {
+            if let EnvSpecItem::SpfsFile(_) = item {
                 continue;
             }
             new_items.push(self.resolve_tag_item_to_digest_item(item, repos).await?);
@@ -302,9 +466,16 @@ fn parse_env_spec_items<S: AsRef<str>>(spec: S) -> Result<Vec<EnvSpecItem>> {
     }
     let mut items = Vec::new();
     for layer in spec.as_ref().split(ENV_SPEC_SEPARATOR) {
-        items.push(parse_env_spec_item(layer)?);
+        // Env list of layers files are immediately expanded into the
+        // env spec's items list at this point. Other items are just
+        // added as is.
+        let item = parse_env_spec_item(layer)?;
+        if let EnvSpecItem::SpfsFile(SpfsFile::EnvLayersFile(layers)) = item {
+            items.extend(layers.layers);
+        } else {
+            items.push(item);
+        }
     }
-
     Ok(items)
 }
 
@@ -313,7 +484,16 @@ fn parse_env_spec_item<S: AsRef<str>>(spec: S) -> Result<EnvSpecItem> {
     let spec = spec.as_ref();
     encoding::parse_digest(spec)
         .map(EnvSpecItem::Digest)
-        .or_else(|_| encoding::PartialDigest::parse(spec).map(EnvSpecItem::PartialDigest))
-        .or_else(|_| LiveLayerFile::parse(spec).map(EnvSpecItem::LiveLayerFile))
-        .or_else(|_| TagSpec::parse(spec).map(EnvSpecItem::TagSpec))
+        .or_else(|err| {
+            println!("Unable to parse as a Digest: {err}");
+            encoding::PartialDigest::parse(spec).map(EnvSpecItem::PartialDigest)
+        })
+        .or_else(|err| {
+            println!("Unable to parse as a Partial Digest: {err}");
+            SpfsFile::parse(spec).map(EnvSpecItem::SpfsFile)
+        })
+        .or_else(|err| {
+            println!("Unable to parse as a SpfsFile: {err}");
+            TagSpec::parse(spec).map(EnvSpecItem::TagSpec)
+        })
 }

@@ -210,7 +210,7 @@ impl CmdRun {
 
             self.exec_runtime_command(&mut runtime, &start_time).await
         } else if let Some(reference) = &self.reference {
-            let live_layers = reference.load_live_layers()?;
+            let live_layers = reference.load_live_layers();
             if !live_layers.is_empty() {
                 tracing::debug!("with live layers: {live_layers:?}");
             };
@@ -305,7 +305,7 @@ impl CmdRun {
                 let repo = spfs::storage::ProxyRepository::from_config(proxy_config)
                     .await
                     .wrap_err("Failed to build proxy repository for environment resolution")?;
-                for item in reference.iter().filter(|i| !i.is_livelayerfile()) {
+                for item in reference.iter().filter(|i| !i.is_livelayer()) {
                     let digest = item.resolve_digest(&repo).await?;
                     runtime.push_digest(digest);
                 }

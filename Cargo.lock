@@ -3841,6 +3841,7 @@ dependencies = [
  "rand",
  "ring",
  "rstest 0.15.0",
+ "serde",
  "spfs-proto",
  "thiserror",
  "tokio",
