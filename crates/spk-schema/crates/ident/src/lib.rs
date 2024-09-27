@@ -15,7 +15,7 @@ mod request;
 mod satisfy;
 
 pub use error::{Error, Result};
-pub use ident::Ident;
+pub use ident::{AsVersion, Ident};
 pub use ident_any::{parse_ident, AnyIdent, ToAnyWithoutBuild};
 pub use ident_build::{parse_build_ident, BuildIdent};
 pub use ident_located::{LocatedBuildIdent, LocatedVersionIdent};
