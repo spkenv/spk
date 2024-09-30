@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use spk_schema::foundation::format::{FormatComponents, FormatIdent};
 use spk_schema::foundation::ident_component::ComponentSet;
+use spk_schema::ident::AsVersionIdent;
 use spk_schema::{AnyIdent, BuildIdent, Package, Recipe, VersionIdent};
 use spk_storage as storage;
 use storage::{with_cache_policy, CachePolicy};
@@ -129,7 +130,7 @@ impl Publisher {
         I: AsRef<AnyIdent>,
     {
         let pkg = pkg.as_ref();
-        let recipe_ident = pkg.as_version();
+        let recipe_ident = pkg.as_version_ident();
         tracing::info!("loading recipe: {}", recipe_ident.format_ident());
         match with_cache_policy!(self.from, CachePolicy::BypassCache, {
             self.from.read_recipe(recipe_ident).await
@@ -192,7 +193,7 @@ impl Publisher {
                 })
                 .await?
             }
-            Some(build) => vec![pkg.to_build(build.clone())],
+            Some(build) => vec![pkg.to_build_ident(build.clone())],
         };
 
         for build in builds.iter() {

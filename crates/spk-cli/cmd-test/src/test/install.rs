@@ -109,7 +109,7 @@ where
         let build_to_test = self
             .recipe
             .ident()
-            .to_any(None)
+            .to_any_ident(None)
             .with_build(Some(Build::BuildId(build_digest_for_variant)));
 
         let pkg = RangeIdent::double_equals(&build_to_test, [Component::All]);

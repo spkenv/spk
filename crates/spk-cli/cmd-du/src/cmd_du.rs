@@ -18,7 +18,7 @@ use spfs::prelude::*;
 use spfs::tracking::Entry;
 use spfs::Digest;
 use spk_cli_common::{flags, CommandArgs, Run};
-use spk_schema::ident::parse_ident;
+use spk_schema::ident::{parse_ident, AsVersionIdent};
 use spk_schema::ident_build::Build;
 use spk_schema::ident_component::Component;
 use spk_schema::name::{PkgName, PkgNameBuf};
@@ -444,7 +444,7 @@ impl<T: Output> Du<T> {
             let repos = self.repos.get_repos_for_non_destructive_operation().await?;
             let (_, repo) = repos.get(repo_index).unwrap();
 
-            match repo.list_package_builds(pkg_ident.as_version()).await {
+            match repo.list_package_builds(pkg_ident.as_version_ident()).await {
                 Ok(builds) => {
                     for build in builds.iter().sorted_by_key(|k| *k) {
                         if build.is_embedded() {

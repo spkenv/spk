@@ -438,7 +438,7 @@ impl Recipe for Spec<VersionIdent> {
                     let given_value = options.get(opt.pkg.as_opt_name()).map(String::to_owned);
                     let mut req = opt.to_request(
                         given_value,
-                        RequestedBy::BinaryBuild(self.ident().to_build(build_digest.clone())),
+                        RequestedBy::BinaryBuild(self.ident().to_build_ident(build_digest.clone())),
                     )?;
                     if req.pkg.components.is_empty() {
                         // inject the default component for this context if needed
@@ -539,7 +539,9 @@ impl Recipe for Spec<VersionIdent> {
     }
 
     fn generate_source_build(&self, root: &Path) -> Result<Spec<BuildIdent>> {
-        let mut source = self.clone().map_ident(|i| i.into_build(Build::Source));
+        let mut source = self
+            .clone()
+            .map_ident(|i| i.into_build_ident(Build::Source));
         source.prune_for_source_build();
         for source in source.sources.iter_mut() {
             if let SourceSpec::Local(source) = source {
@@ -680,7 +682,7 @@ impl Recipe for Spec<VersionIdent> {
         // by `build_env`. The digest is expected to be based solely on the
         // input options and recipe.
         let digest = self.build_digest(variant.input_variant())?;
-        let mut build = updated.map_ident(|i| i.into_build(Build::BuildId(digest)));
+        let mut build = updated.map_ident(|i| i.into_build_ident(Build::BuildId(digest)));
 
         // Expand env variables from EnvOp.
         let mut updated_ops = EnvOpList::default();

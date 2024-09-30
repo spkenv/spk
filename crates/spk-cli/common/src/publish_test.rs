@@ -4,6 +4,7 @@
 
 use rstest::rstest;
 use spk_schema::foundation::ident_component::Component;
+use spk_schema::ident::AsVersionIdent;
 use spk_schema::Package;
 use spk_solve::{recipe, spec};
 use spk_storage::fixtures::*;
@@ -30,7 +31,7 @@ async fn test_publish_no_version_spec() {
     let destination = spfsrepo().await;
     let publisher = Publisher::new(rt.tmprepo.clone(), destination.repo.clone());
     publisher
-        .publish(spec.ident().base().to_any(None))
+        .publish(spec.ident().base().to_any_ident(None))
         .await
         .unwrap();
     destination.read_components(spec.ident()).await.unwrap();
@@ -58,8 +59,13 @@ async fn test_publish_build_also_publishes_spec() {
     let destination = spfsrepo().await;
     let publisher = Publisher::new(rt.tmprepo.clone(), destination.repo.clone());
     // Include build when publishing this spec.
-    publisher.publish(spec.ident().to_any()).await.unwrap();
-    let r = destination.read_recipe(spec.ident().as_version()).await;
+    publisher
+        .publish(spec.ident().to_any_ident())
+        .await
+        .unwrap();
+    let r = destination
+        .read_recipe(spec.ident().as_version_ident())
+        .await;
     assert!(
         r.is_ok(),
         "Expected to be able to read spec, but got error: {}",
@@ -92,7 +98,10 @@ async fn test_publish_multiple_builds_individually() {
             .unwrap();
 
         // Include build when publishing this spec.
-        publisher.publish(spec.ident().to_any()).await.unwrap();
+        publisher
+            .publish(spec.ident().to_any_ident())
+            .await
+            .unwrap();
     }
 
     {
@@ -109,7 +118,7 @@ async fn test_publish_multiple_builds_individually() {
             .unwrap();
 
         // Include build when publishing this spec.
-        let r = publisher.publish(spec.ident().to_any()).await;
+        let r = publisher.publish(spec.ident().to_any_ident()).await;
         assert!(
             r.is_ok(),
             "Expected second publish to succeed, but got error: {}",

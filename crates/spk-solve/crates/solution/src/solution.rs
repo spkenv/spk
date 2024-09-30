@@ -137,7 +137,7 @@ impl SolvedRequest {
     /// Format this solved request as an installed package(build)
     pub fn format_as_installed_package(&self) -> String {
         let mut installed =
-            PkgRequest::from_ident(self.spec.ident().to_any(), RequestedBy::DoesNotMatter);
+            PkgRequest::from_ident(self.spec.ident().to_any_ident(), RequestedBy::DoesNotMatter);
         installed.pkg.components = self
             .selected_components()
             .into_iter()

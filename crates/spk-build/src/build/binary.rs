@@ -149,7 +149,8 @@ where
 {
     /// Create a new builder that builds a binary package from the given recipe
     pub fn from_recipe(recipe: Recipe) -> Self {
-        let source = BuildSource::SourcePackage(recipe.ident().to_build(Build::Source).into());
+        let source =
+            BuildSource::SourcePackage(recipe.ident().to_build_ident(Build::Source).into());
         Self {
             recipe,
             source,
@@ -345,7 +346,7 @@ where
 
         let environment_filesystem = resolved_layers
             .get_environment_filesystem(
-                self.recipe.ident().to_build(Build::Source),
+                self.recipe.ident().to_build_ident(Build::Source),
                 &mut self.conflicting_packages,
             )
             .await?;
@@ -512,7 +513,7 @@ where
 
         let source_ident =
             VersionIdent::new(self.recipe.name().to_owned(), self.recipe.version().clone())
-                .into_any(Some(Build::Source));
+                .into_any_ident(Some(Build::Source));
         let sources_dir = data_path(&source_ident);
 
         let active_changes = spfs::runtime_active_changes()

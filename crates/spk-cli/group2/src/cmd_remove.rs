@@ -88,7 +88,7 @@ impl Run for Remove {
                             remove_all(repo_name, repo, &version).await?;
                         }
                         (version, Some(build)) => {
-                            remove_build(repo_name, repo, &version.into_build(build)).await?;
+                            remove_build(repo_name, repo, &version.into_build_ident(build)).await?;
                         }
                     }
                 }

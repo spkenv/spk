@@ -103,7 +103,7 @@ impl WithVersionAndBuildSet for PkgRequest {
             // This grabs a build for the version, from the first repo
             // that has a build for the version in it.
             let temp_ident: AnyIdent = new_request.pkg.clone().try_into()?;
-            let ident: VersionIdent = temp_ident.to_version();
+            let ident: VersionIdent = temp_ident.to_version_ident();
 
             for repo in repos {
                 match select_build_by {

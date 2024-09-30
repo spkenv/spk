@@ -22,7 +22,7 @@ use crate::{
     LocatedBuildIdent,
     RangeIdent,
     Result,
-    ToAnyWithoutBuild,
+    ToAnyIdentWithoutBuild,
 };
 
 /// Identifies a specific package name, version and build
@@ -50,29 +50,24 @@ macro_rules! build_ident_methods {
                 new
             }
 
-            /// Reinterpret this identifier as a [`crate::VersionIdent`]
-            pub fn as_version(&self) -> &VersionIdent {
-                self$(.$($access).+)?.base()
-            }
-
             /// Convert a copy of this identifier into a [`crate::VersionIdent`]
-            pub fn to_version(self) -> VersionIdent {
+            pub fn to_version_ident(self) -> VersionIdent {
                 self$(.$($access).+)?.base().clone()
             }
 
             /// Convert this identifier into a [`crate::VersionIdent`]
-            pub fn into_version(self) -> VersionIdent {
+            pub fn into_version_ident(self) -> VersionIdent {
                 self$(.$($access).+)?.into_base()
             }
 
             /// Turn this identifier into an [`AnyIdent`]
-            pub fn into_any(self) -> AnyIdent {
+            pub fn into_any_ident(self) -> AnyIdent {
                 AnyIdent::new(self$(.$($access).+)?.base, Some(self$(.$($access).+)?.target))
             }
 
             /// Turn a copy of this identifier into an [`AnyIdent`]
-            pub fn to_any(&self) -> AnyIdent {
-                self$(.$($access).+)?.clone().into_any()
+            pub fn to_any_ident(&self) -> AnyIdent {
+                self$(.$($access).+)?.clone().into_any_ident()
             }
 
             /// Return if this identifier can possibly have embedded packages
@@ -176,7 +171,7 @@ impl TryFrom<&IdentPartsBuf> for BuildIdent {
             .transpose()?
             .ok_or_else(|| Error::String("Ident must have an associated build id".into()))?;
 
-        Ok(VersionIdent::new(name, version).into_build(build))
+        Ok(VersionIdent::new(name, version).into_build_ident(build))
     }
 }
 
@@ -188,10 +183,10 @@ impl TagPath for BuildIdent {
     }
 }
 
-impl ToAnyWithoutBuild for BuildIdent {
+impl ToAnyIdentWithoutBuild for BuildIdent {
     #[inline]
-    fn to_any_without_build(&self) -> AnyIdent {
-        self.to_any()
+    fn to_any_ident_without_build(&self) -> AnyIdent {
+        self.to_any_ident()
     }
 }
 
@@ -226,7 +221,7 @@ impl TryFrom<RangeIdent> for BuildIdent {
         Ok(ri
             .version
             .try_into_version()
-            .map(|version| VersionIdent::new(name, version).into_build(build))?)
+            .map(|version| VersionIdent::new(name, version).into_build_ident(build))?)
     }
 }
 

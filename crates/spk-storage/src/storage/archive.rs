@@ -6,6 +6,7 @@ use std::convert::TryFrom;
 use std::path::Path;
 
 use itertools::{Itertools, Position};
+use spk_schema::ident::AsVersionIdent;
 use spk_schema::ident_ops::TagPathStrategy;
 use spk_schema::{AnyIdent, BuildIdent, VersionIdent};
 use variantly::Variantly;
@@ -66,10 +67,10 @@ where
     if pkg.build().is_none() {
         for repo in source_repos {
             to_transfer.extend(
-                repo.list_package_builds(pkg.as_version())
+                repo.list_package_builds(pkg.as_version_ident())
                     .await?
                     .into_iter()
-                    .map(|pkg| pkg.into_any()),
+                    .map(|pkg| pkg.into_any_ident()),
             );
         }
     } else {

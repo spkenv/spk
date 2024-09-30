@@ -39,7 +39,7 @@ async fn test_build_package_downstream_build_requests() {
 
     let mut environment = Solution::default();
     environment.add(
-        PkgRequest::from_ident(base_spec.ident().to_any(), RequestedBy::DoesNotMatter),
+        PkgRequest::from_ident(base_spec.ident().to_any_ident(), RequestedBy::DoesNotMatter),
         base_spec.clone(),
         spk_solve::PackageSource::SpkInternalTest,
     );
@@ -107,7 +107,7 @@ async fn test_build_package_downstream_runtime_request() {
 
     let mut environment = Solution::default();
     environment.add(
-        PkgRequest::from_ident(base_spec.ident().to_any(), RequestedBy::DoesNotMatter),
+        PkgRequest::from_ident(base_spec.ident().to_any_ident(), RequestedBy::DoesNotMatter),
         base_spec.clone(),
         spk_solve::PackageSource::SpkInternalTest,
     );

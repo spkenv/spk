@@ -22,7 +22,7 @@ use spk_schema::foundation::ident_build::{parse_build, Build};
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_schema::foundation::version::{parse_version, Version};
-use spk_schema::ident::{ToAnyWithoutBuild, VersionIdent};
+use spk_schema::ident::{AsVersionIdent, ToAnyIdentWithoutBuild, VersionIdent};
 use spk_schema::ident_build::parsing::embedded_source_package;
 use spk_schema::ident_build::{EmbeddedSource, EmbeddedSourcePackage};
 use spk_schema::ident_ops::{NormalizedTagStrategy, TagPath, TagPathStrategy, VerbatimTagStrategy};
@@ -349,7 +349,7 @@ where
                             None
                         }
                     })
-                    .map(|b| pkg.to_build(b))
+                    .map(|b| pkg.to_build_ident(b))
                     .collect::<HashSet<_>>()
             });
         }
@@ -365,7 +365,7 @@ where
     async fn get_embedded_package_builds(&self, pkg: &VersionIdent) -> Result<HashSet<BuildIdent>> {
         let mut builds = HashSet::new();
 
-        let pkg = pkg.to_any(Some(Build::Source));
+        let pkg = pkg.to_any_ident(Some(Build::Source));
         for pkg in Self::iter_possible_parts(&pkg, self.legacy_spk_version_tags) {
             let mut base = verbatim_build_spec_tag_if_enabled!(self, &pkg);
             // the package tag contains the name and build, but we need to
@@ -413,7 +413,7 @@ where
                                     .map(Build::Embedded)
                             })
                     })
-                    .map(|b| pkg.to_build(b)),
+                    .map(|b| pkg.to_build_ident(b)),
             );
         }
 
@@ -522,7 +522,7 @@ where
         let component_tags = package.into_components();
         let mut components = HashMap::with_capacity(component_tags.len());
         for (name, tag_spec) in component_tags.into_iter() {
-            let tag = self.resolve_tag(|| pkg.to_any(), &tag_spec).await?;
+            let tag = self.resolve_tag(|| pkg.to_any_ident(), &tag_spec).await?;
             components.insert(name, tag.target);
         }
         Ok(components)
@@ -548,7 +548,7 @@ where
                     .await
                     .map_err(|err| Error::FileReadError(filename, err))?;
                 Spec::from_yaml(&yaml)
-                    .map_err(|err| Error::InvalidPackageSpec(pkg.to_any(), err.to_string()))
+                    .map_err(|err| Error::InvalidPackageSpec(pkg.to_any_ident(), err.to_string()))
                     .map(Arc::new)
             })
             .await;
@@ -562,7 +562,9 @@ where
     async fn remove_embed_stub_from_storage(&self, pkg: &BuildIdent) -> Result<()> {
         self.with_build_spec_tag_for_pkg(pkg, |pkg, tag_spec, _| async move {
             match self.inner.remove_tag_stream(&tag_spec).await {
-                Err(spfs::Error::UnknownReference(_)) => Err(Error::PackageNotFound(pkg.to_any())),
+                Err(spfs::Error::UnknownReference(_)) => {
+                    Err(Error::PackageNotFound(pkg.to_any_ident()))
+                }
                 Err(err) => Err(err.into()),
                 Ok(_) => {
                     self.invalidate_caches();
@@ -622,7 +624,7 @@ where
             self.with_build_spec_tag_for_pkg(pkg, |_, tag_spec, _| async move {
                 match self.inner.remove_tag_stream(&tag_spec).await {
                     Err(spfs::Error::UnknownReference(_)) => {
-                        Err(Error::PackageNotFound(pkg.to_any()))
+                        Err(Error::PackageNotFound(pkg.to_any_ident()))
                     }
                     Err(err) => Err(err.into()),
                     Ok(_) => Ok(true),
@@ -671,7 +673,7 @@ where
             if deleted_something {
                 Ok(())
             } else {
-                Err(Error::PackageNotFound(pkg.to_any()))
+                Err(Error::PackageNotFound(pkg.to_any_ident()))
             }
         })
     }
@@ -710,7 +712,7 @@ where
         }
         let r: Result<Arc<_>> = async {
             let path = Self::build_spec_tag::<NormalizedTagStrategy, _>(
-                &VersionIdent::new_zero(name).into_any(None),
+                &VersionIdent::new_zero(name).into_any_ident(None),
             );
             let versions: HashSet<_> = self
                 .ls_tags(&path)
@@ -796,7 +798,7 @@ where
                     .await
                     .map_err(|err| Error::FileReadError(tag.target.to_string().into(), err))?;
                 Spec::from_yaml(yaml)
-                    .map_err(|err| Error::InvalidPackageSpec(pkg.to_any(), err.to_string()))
+                    .map_err(|err| Error::InvalidPackageSpec(pkg.to_any_ident(), err.to_string()))
                     .map(Arc::new)
             })
             .await;
@@ -822,7 +824,9 @@ where
                     .await
                     .map_err(|err| Error::FileReadError(tag.target.to_string().into(), err))?;
                 SpecRecipe::from_yaml(yaml)
-                    .map_err(|err| Error::InvalidPackageSpec(pkg.to_any(None), err.to_string()))
+                    .map_err(|err| {
+                        Error::InvalidPackageSpec(pkg.to_any_ident(None), err.to_string())
+                    })
                     .map(Arc::new)
             })
             .await;
@@ -837,7 +841,7 @@ where
         self.with_build_spec_tag_for_pkg(pkg, |pkg, tag_spec, _| async move {
             match self.inner.remove_tag_stream(&tag_spec).await {
                 Err(spfs::Error::UnknownReference(_)) => {
-                    Err(Error::PackageNotFound(pkg.to_any(None)))
+                    Err(Error::PackageNotFound(pkg.to_any_ident(None)))
                 }
                 Err(err) => Err(err.into()),
                 Ok(_) => {
@@ -861,10 +865,10 @@ where
         }
         for name in self.list_packages().await? {
             tracing::info!("Processing {name}...");
-            let mut pkg = VersionIdent::new_zero(&*name).into_any(None);
+            let mut pkg = VersionIdent::new_zero(&*name).into_any_ident(None);
             for version in self.list_package_versions(&name).await?.iter() {
                 pkg.set_version((**version).clone());
-                for build in self.list_package_builds(pkg.as_version()).await? {
+                for build in self.list_package_builds(pkg.as_version_ident()).await? {
                     if build.is_embedded() {
                         // XXX `lookup_package` isn't able to read embed stubs.
                         // Should it be able to?
@@ -1018,8 +1022,8 @@ where
     /// Find the tag for the build spec of a package and operate on it.
     async fn with_build_spec_tag_for_pkg<R, I, F, Fut>(&self, pkg: &I, f: F) -> Result<R>
     where
-        I: HasVersion + ToAnyWithoutBuild + WithVersion,
-        <I as WithVersion>::Output: TagPath + ToAnyWithoutBuild,
+        I: HasVersion + ToAnyIdentWithoutBuild + WithVersion,
+        <I as WithVersion>::Output: TagPath + ToAnyIdentWithoutBuild,
         F: Fn(<I as WithVersion>::Output, TagSpec, Tag) -> Fut,
         Fut: Future<Output = Result<R>>,
     {
@@ -1034,8 +1038,8 @@ where
     /// Find the tag for the build package of a package and operate on it.
     async fn with_build_package_tag_for_pkg<R, I, F, Fut>(&self, pkg: &I, f: F) -> Result<R>
     where
-        I: HasVersion + ToAnyWithoutBuild + WithVersion,
-        <I as WithVersion>::Output: TagPath + ToAnyWithoutBuild,
+        I: HasVersion + ToAnyIdentWithoutBuild + WithVersion,
+        <I as WithVersion>::Output: TagPath + ToAnyIdentWithoutBuild,
         F: Fn(<I as WithVersion>::Output, TagSpec, Tag) -> Fut,
         Fut: Future<Output = Result<R>>,
     {
@@ -1049,8 +1053,8 @@ where
 
     async fn with_tag_for_pkg<R, I, T, F, Fut>(&self, pkg: &I, tag_path: T, f: F) -> Result<R>
     where
-        I: HasVersion + ToAnyWithoutBuild + WithVersion,
-        <I as WithVersion>::Output: ToAnyWithoutBuild,
+        I: HasVersion + ToAnyIdentWithoutBuild + WithVersion,
+        <I as WithVersion>::Output: ToAnyIdentWithoutBuild,
         T: Fn(&<I as WithVersion>::Output) -> relative_path::RelativePathBuf,
         F: Fn(<I as WithVersion>::Output, TagSpec, Tag) -> Fut,
         Fut: Future<Output = Result<R>>,
@@ -1060,7 +1064,7 @@ where
             let tag_path = tag_path(&pkg);
             let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
             let tag = match self
-                .resolve_tag(|| pkg.to_any_without_build(), &tag_spec)
+                .resolve_tag(|| pkg.to_any_ident_without_build(), &tag_spec)
                 .await
             {
                 Ok(tag) => tag,
@@ -1074,7 +1078,8 @@ where
 
             return f(pkg, tag_spec, tag).await;
         }
-        Err(first_resolve_err.unwrap_or_else(|| Error::PackageNotFound(pkg.to_any_without_build())))
+        Err(first_resolve_err
+            .unwrap_or_else(|| Error::PackageNotFound(pkg.to_any_ident_without_build())))
     }
 
     async fn ls_tags(&self, path: &relative_path::RelativePath) -> Vec<Result<EntryType>> {
@@ -1190,14 +1195,14 @@ where
                 return Ok(StoredPackage::WithComponents(tag_specs));
             }
             let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
-            if self.has_tag(|| pkg.to_any(), &tag_spec).await {
+            if self.has_tag(|| pkg.to_any_ident(), &tag_spec).await {
                 return Ok(StoredPackage::WithoutComponents(tag_spec));
             }
             if first_resolve_err.is_none() {
-                first_resolve_err = Some(Error::PackageNotFound(pkg.to_any()));
+                first_resolve_err = Some(Error::PackageNotFound(pkg.to_any_ident()));
             }
         }
-        Err(first_resolve_err.unwrap_or_else(|| Error::PackageNotFound(pkg.to_any())))
+        Err(first_resolve_err.unwrap_or_else(|| Error::PackageNotFound(pkg.to_any_ident())))
     }
 
     /// Construct an spfs tag string to represent a binary package layer.

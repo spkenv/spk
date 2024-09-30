@@ -63,12 +63,12 @@ macro_rules! make_package {
                 $repo.force_publish_recipe(&recipe.into()).await.unwrap();
                 let build = spec.map_ident(|i| {
                     i.into_base()
-                        .into_build(spk_schema::foundation::ident_build::Build::Source)
+                        .into_build_ident(spk_schema::foundation::ident_build::Build::Source)
                 });
                 make_build_and_components!(build, [], $opts, [])
             }
             Some(b) => {
-                let build = spec.map_ident(|i| i.into_base().into_build(b));
+                let build = spec.map_ident(|i| i.into_base().into_build_ident(b));
                 make_build_and_components!(build, [], $opts, [])
             }
         }
@@ -134,7 +134,7 @@ macro_rules! make_build_and_components {
                 let dep = Arc::new($dep.clone());
                 solution.add(
                     spk_schema::ident::PkgRequest::from_ident(
-                        $dep.ident().to_any(),
+                        $dep.ident().to_any_ident(),
                         spk_schema::ident::RequestedBy::SpkInternalTest,
                     ),
                     Arc::clone(&dep),
@@ -157,12 +157,12 @@ macro_rules! make_build_and_components {
                 (spk_schema::Spec::V0Package(build), components)
             }
             Some(b @ spk_schema::foundation::ident_build::Build::Source) => {
-                let build = spec.map_ident(|i| i.into_base().into_build(b));
+                let build = spec.map_ident(|i| i.into_base().into_build_ident(b));
                 components.insert(spk_schema::foundation::ident_component::Component::Source, $crate::spfs::encoding::EMPTY_DIGEST.into());
                 (spk_schema::Spec::V0Package(build), components)
             }
             Some(b) => {
-                let build = spec.map_ident(|i| i.into_base().into_build(b));
+                let build = spec.map_ident(|i| i.into_base().into_build_ident(b));
                 let mut names = std::vec![$($component.to_string()),*];
                 if names.is_empty() {
                     names = build.components().iter().map(|c| c.name.to_string()).collect();

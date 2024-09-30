@@ -215,8 +215,8 @@ impl Recipe for Platform {
             let build_digest = self.build_digest(variant)?;
 
             requirements.insert_or_merge(Request::Pkg(PkgRequest::from_ident(
-                base.clone().into_any(None),
-                RequestedBy::BinaryBuild(self.ident().to_build(Build::BuildId(build_digest))),
+                base.clone().into_any_ident(None),
+                RequestedBy::BinaryBuild(self.ident().to_build_ident(Build::BuildId(build_digest))),
             )))?;
         }
 
@@ -231,7 +231,9 @@ impl Recipe for Platform {
     }
 
     fn generate_source_build(&self, _root: &Path) -> Result<Self::Output> {
-        Ok(Spec::new(self.platform.clone().into_build(Build::Source)))
+        Ok(Spec::new(
+            self.platform.clone().into_build_ident(Build::Source),
+        ))
     }
 
     fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>

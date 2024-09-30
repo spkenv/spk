@@ -77,7 +77,7 @@ impl<'de> Deserialize<'de> for EmbeddedPackagesList {
                     }
                     let embedded = embedded.map_ident(|i| {
                         i.into_base()
-                            .into_build(Build::Embedded(EmbeddedSource::Unknown))
+                            .into_build_ident(Build::Embedded(EmbeddedSource::Unknown))
                     });
                     embedded_stubs.push(Spec::V0Package(embedded));
                 }

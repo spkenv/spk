@@ -379,7 +379,7 @@ prop_compose! {
         version in arb_legal_version(),
         build in weighted(0.9, arb_non_embedded_build()),
     ) -> AnyIdent {
-        VersionIdent::new(name, version).into_any(build)
+        VersionIdent::new(name, version).into_any_ident(build)
     }
 }
 

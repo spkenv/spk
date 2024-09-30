@@ -21,7 +21,7 @@ async fn test_impossible_requests_checker_set_binary() {
     init_logging();
 
     let request = PkgRequest::from_ident(
-        version_ident!("my-pkg/1").to_any(None),
+        version_ident!("my-pkg/1").to_any_ident(None),
         RequestedBy::SpkInternalTest,
     );
 
@@ -131,7 +131,7 @@ async fn test_impossible_requests_checker_any_build_valid_for_request_valid_buil
     init_logging();
 
     let request = PkgRequest::from_ident(
-        version_ident!("my-pkg/1").to_any(None),
+        version_ident!("my-pkg/1").to_any_ident(None),
         RequestedBy::SpkInternalTest,
     );
     let repo = make_repo!(
@@ -164,7 +164,7 @@ async fn test_impossible_requests_checker_any_build_valid_for_request_no_valid_b
     init_logging();
 
     let request = PkgRequest::from_ident(
-        version_ident!("my-pkg/7.0.0").to_any(None),
+        version_ident!("my-pkg/7.0.0").to_any_ident(None),
         RequestedBy::SpkInternalTest,
     );
     let repo = make_repo!(
@@ -360,7 +360,7 @@ async fn test_impossible_requests_checker_validate_pkg_requests_include_embedded
     // This should combine with the embedded package and create an
     // impossible request.
     let same_pkg_request = PkgRequest::from_ident(
-        version_ident!("my-pkg/2").to_any(None),
+        version_ident!("my-pkg/2").to_any_ident(None),
         RequestedBy::SpkInternalTest,
     );
     let mut unresolved_requests: HashMap<PkgNameBuf, PkgRequest> = HashMap::new();
@@ -401,7 +401,7 @@ async fn test_impossible_requests_checker_validate_pkg_requests_no_requirements(
     );
 
     let request = PkgRequest::from_ident(
-        version_ident!("my-pkg/2").to_any(None),
+        version_ident!("my-pkg/2").to_any_ident(None),
         RequestedBy::SpkInternalTest,
     );
 
@@ -444,7 +444,7 @@ async fn test_impossible_requests_checker_with_uncombinable_requests() {
     );
 
     let request = PkgRequest::from_ident(
-        version_ident!("my-pkg/1.0.0").to_any(None),
+        version_ident!("my-pkg/1.0.0").to_any_ident(None),
         RequestedBy::SpkInternalTest,
     );
     let mut unresolved_requests: HashMap<PkgNameBuf, PkgRequest> = HashMap::new();

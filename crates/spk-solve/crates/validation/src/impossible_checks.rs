@@ -12,7 +12,14 @@ use spk_schema::foundation::format::{FormatChangeOptions, FormatRequest};
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Compatibility;
-use spk_schema::ident::{InclusionPolicy, PkgRequest, RangeIdent, Request, RequestedBy};
+use spk_schema::ident::{
+    AsVersionIdent,
+    InclusionPolicy,
+    PkgRequest,
+    RangeIdent,
+    Request,
+    RequestedBy,
+};
 use spk_schema::spec_ops::{Versioned, WithVersion};
 use spk_schema::version::{ImpossibleRequestProblem, IncompatibleReason};
 use spk_schema::{AnyIdent, BuildIdent, Package, Spec};
@@ -287,7 +294,7 @@ impl ImpossibleRequestsChecker {
         // satisfy it, so it doesn't need to be checked for
         // impossibility here.
         for embedded_package in package.embedded().iter() {
-            let embedded_id = embedded_package.ident().clone().to_version();
+            let embedded_id = embedded_package.ident().clone().to_version_ident();
             tracing::debug!(target: IMPOSSIBLE_CHECKS_TARGET, "{} Embedded id: {embedded_id}", package.ident());
             match unresolved_requests.get(embedded_id.name()) {
                 None => {}
@@ -296,7 +303,7 @@ impl ImpossibleRequestsChecker {
                     // package so the embedded package needs to be
                     // checked as if it was a requirement
                     let req = Request::Pkg(PkgRequest::from_ident(
-                        embedded_id.to_any(None),
+                        embedded_id.to_any_ident(None),
                         RequestedBy::Embedded(package.ident().clone()),
                     ));
                     tracing::debug!(target: IMPOSSIBLE_CHECKS_TARGET, "Embedded Added: {}", req.clone());
@@ -765,7 +772,9 @@ async fn any_valid_build_in_version(
     // version. That's okay this just needs to find one
     // that satisfies the request.
     let mut builds_read: u64 = 0;
-    let builds = repo.list_package_builds(pkg_version.as_version()).await?;
+    let builds = repo
+        .list_package_builds(pkg_version.as_version_ident())
+        .await?;
     tracing::debug!(
         target: IMPOSSIBLE_CHECKS_TARGET,
         "Version task {pkg_version} got {} builds",
@@ -828,8 +837,13 @@ async fn any_valid_build_in_version(
             );
 
             // Compatible, so send a message and return immediately
-            send_version_task_done_message(channel, build.to_any(), compat.clone(), builds_read)
-                .await;
+            send_version_task_done_message(
+                channel,
+                build.to_any_ident(),
+                compat.clone(),
+                builds_read,
+            )
+            .await;
 
             return Ok(compat);
         }

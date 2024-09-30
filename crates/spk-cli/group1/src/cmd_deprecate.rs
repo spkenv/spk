@@ -226,7 +226,7 @@ pub(crate) async fn change_deprecation_state(
                     }
                 }
                 (ident, Some(build)) => {
-                    let ident = ident.to_build(build);
+                    let ident = ident.to_build_ident(build);
                     match repo.read_package(&ident).await {
                         Ok(package) => {
                             to_action.push((
@@ -373,8 +373,8 @@ impl DeprecateMut for DeprecationTarget {
 impl DeprecationTarget {
     fn ident(&self) -> AnyIdent {
         match self {
-            DeprecationTarget::Recipe(r) => r.ident().to_any(None),
-            DeprecationTarget::Package(r) => r.ident().to_any(),
+            DeprecationTarget::Recipe(r) => r.ident().to_any_ident(None),
+            DeprecationTarget::Package(r) => r.ident().to_any_ident(),
         }
     }
 }

@@ -8,7 +8,7 @@ use rstest::rstest;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::pkg_name;
 use spk_schema::foundation::spec_ops::Named;
-use spk_schema::ident::{parse_build_ident, parse_version_ident};
+use spk_schema::ident::{parse_build_ident, parse_version_ident, AsVersionIdent};
 use spk_schema::{
     recipe,
     spec,
@@ -161,7 +161,7 @@ async fn test_repo_publish_package(#[case] repo: RepoKind) {
     .await
     .unwrap();
     assert_eq!(
-        repo.list_package_builds(spec.ident().as_version())
+        repo.list_package_builds(spec.ident().as_version_ident())
             .await
             .unwrap(),
         vec![spec.ident().clone()]
@@ -169,7 +169,7 @@ async fn test_repo_publish_package(#[case] repo: RepoKind) {
     assert_eq!(*repo.read_recipe(recipe.ident()).await.unwrap(), recipe);
     repo.remove_package(spec.ident()).await.unwrap();
     assert!(repo
-        .list_package_builds(spec.ident().as_version())
+        .list_package_builds(spec.ident().as_version_ident())
         .await
         .unwrap()
         .is_empty());
