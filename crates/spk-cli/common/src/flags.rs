@@ -24,7 +24,15 @@ use spk_schema::foundation::name::OptName;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::spec_ops::Named;
 use spk_schema::foundation::version::CompatRule;
-use spk_schema::ident::{parse_ident, AnyIdent, PkgRequest, Request, RequestedBy, VarRequest};
+use spk_schema::ident::{
+    parse_ident,
+    AnyIdent,
+    AsVersionIdent,
+    PkgRequest,
+    Request,
+    RequestedBy,
+    VarRequest,
+};
 use spk_schema::option_map::HOST_OPTIONS;
 use spk_schema::{Recipe, SpecRecipe, SpecTemplate, Template, TemplateExt, TestStage, VariantExt};
 #[cfg(feature = "statsd")]
@@ -366,7 +374,7 @@ impl Requests {
 
                 match stage {
                     TestStage::Sources => {
-                        let ident = recipe.ident().to_any(Some(Build::Source));
+                        let ident = recipe.ident().to_any_ident(Some(Build::Source));
                         idents.push(ident);
                         continue;
                     }
@@ -382,7 +390,7 @@ impl Requests {
             if path.is_file() {
                 let (_, template) = find_package_template(Some(&package))?.must_be_found();
                 let recipe = template.render(options)?;
-                idents.push(recipe.ident().to_any(None));
+                idents.push(recipe.ident().to_any_ident(None));
             } else {
                 idents.push(parse_ident(package)?)
             }
@@ -431,7 +439,7 @@ impl Requests {
                             bail!("Source stage does not accept a build variant specifier")
                         }
 
-                        let ident = recipe.ident().to_any(Some(Build::Source));
+                        let ident = recipe.ident().to_any_ident(Some(Build::Source));
                         out.push(
                             PkgRequest::from_ident_exact(ident, RequestedBy::CommandLine).into(),
                         );
@@ -467,7 +475,7 @@ impl Requests {
 
                         out.push(
                             PkgRequest::from_ident_exact(
-                                recipe.ident().to_any(None),
+                                recipe.ident().to_any_ident(None),
                                 RequestedBy::CommandLine,
                             )
                             .into(),
@@ -779,7 +787,7 @@ where
                         );
 
                         for repo in repos.iter() {
-                            match repo.read_recipe(pkg.as_version()).await {
+                            match repo.read_recipe(pkg.as_version_ident()).await {
                                 Ok(recipe) => {
                                     tracing::debug!(
                                         "Using recipe found for {}",

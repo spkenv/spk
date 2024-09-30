@@ -11,7 +11,7 @@ use spk_schema_foundation::ident_ops::{TagPath, TagPathStrategy};
 use spk_schema_foundation::name::{PkgName, PkgNameBuf};
 use spk_schema_foundation::version::Version;
 
-use crate::{parsing, AnyIdent, AsVersion, BuildIdent, Ident, Result, ToAnyWithoutBuild};
+use crate::{parsing, AnyIdent, AsVersionIdent, BuildIdent, Ident, Result, ToAnyIdentWithoutBuild};
 
 /// Identifies a package name and number version.
 pub type VersionIdent = Ident<PkgNameBuf, Version>;
@@ -26,7 +26,7 @@ impl VersionIdent {
     }
 
     /// Copy this identifier and add the given build.
-    pub fn to_any(&self, build: Option<Build>) -> AnyIdent {
+    pub fn to_any_ident(&self, build: Option<Build>) -> AnyIdent {
         AnyIdent {
             base: self.clone(),
             target: build,
@@ -34,7 +34,7 @@ impl VersionIdent {
     }
 
     /// Turn this identifier into one with an optional build.
-    pub fn into_any(self, build: Option<Build>) -> AnyIdent {
+    pub fn into_any_ident(self, build: Option<Build>) -> AnyIdent {
         AnyIdent {
             base: self,
             target: build,
@@ -42,7 +42,7 @@ impl VersionIdent {
     }
 
     /// Copy this identifier and add the given build.
-    pub fn to_build(&self, build: Build) -> BuildIdent {
+    pub fn to_build_ident(&self, build: Build) -> BuildIdent {
         BuildIdent {
             base: self.clone(),
             target: build,
@@ -50,7 +50,7 @@ impl VersionIdent {
     }
 
     /// Turn this identifier into one for the given build.
-    pub fn into_build(self, build: Build) -> BuildIdent {
+    pub fn into_build_ident(self, build: Build) -> BuildIdent {
         BuildIdent {
             base: self,
             target: build,
@@ -58,8 +58,8 @@ impl VersionIdent {
     }
 }
 
-impl AsVersion for VersionIdent {
-    fn as_version(&self) -> &VersionIdent {
+impl AsVersionIdent for VersionIdent {
+    fn as_version_ident(&self) -> &VersionIdent {
         self
     }
 }
@@ -154,10 +154,10 @@ impl TagPath for VersionIdent {
     }
 }
 
-impl ToAnyWithoutBuild for VersionIdent {
+impl ToAnyIdentWithoutBuild for VersionIdent {
     #[inline]
-    fn to_any_without_build(&self) -> AnyIdent {
-        self.to_any(None)
+    fn to_any_ident_without_build(&self) -> AnyIdent {
+        self.to_any_ident(None)
     }
 }
 

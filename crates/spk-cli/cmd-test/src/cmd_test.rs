@@ -189,7 +189,7 @@ impl Run for CmdTest {
                                                 BuildSource::SourcePackage(
                                                     recipe
                                                         .ident()
-                                                        .to_any(Some(Build::Source))
+                                                        .to_any_ident(Some(Build::Source))
                                                         .into(),
                                                 )
                                             },

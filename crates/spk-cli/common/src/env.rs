@@ -111,7 +111,8 @@ pub async fn current_env() -> crate::Result<Solution> {
         .into_iter()
         .zip(components_in_runtime.into_iter())
     {
-        let range_ident = RangeIdent::equals(&spec.ident().to_any(), components.keys().cloned());
+        let range_ident =
+            RangeIdent::equals(&spec.ident().to_any_ident(), components.keys().cloned());
 
         let package_solve_data = if let Some(data) = solve_data.get(spec.ident()) {
             data

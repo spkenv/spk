@@ -29,7 +29,7 @@ async fn test_strongly_inherited_vars_require_desc() {
 
     let mut environment = Solution::default();
     environment.add(
-        PkgRequest::from_ident(package.ident().to_any(), RequestedBy::DoesNotMatter),
+        PkgRequest::from_ident(package.ident().to_any_ident(), RequestedBy::DoesNotMatter),
         package.clone(),
         spk_solve::PackageSource::SpkInternalTest,
     );

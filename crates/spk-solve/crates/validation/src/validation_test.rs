@@ -36,15 +36,15 @@ fn test_src_package_install_requests_are_not_considered() {
     let state = State::new(
         vec![
             PkgRequest::from_ident(
-                build_ident!("my-pkg/1.0.0/src").to_any(),
+                build_ident!("my-pkg/1.0.0/src").to_any_ident(),
                 RequestedBy::SpkInternalTest,
             ),
             PkgRequest::from_ident(
-                version_ident!("embedded/1.0.0").to_any(None),
+                version_ident!("embedded/1.0.0").to_any_ident(None),
                 RequestedBy::SpkInternalTest,
             ),
             PkgRequest::from_ident(
-                version_ident!("dependency/1").to_any(None),
+                version_ident!("dependency/1").to_any_ident(None),
                 RequestedBy::SpkInternalTest,
             ),
         ]

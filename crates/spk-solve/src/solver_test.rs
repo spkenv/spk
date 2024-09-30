@@ -979,7 +979,11 @@ async fn test_solver_deprecated_build(mut solver: Solver) {
     solver.reset();
     solver.add_repository(repo);
     solver.add_request(
-        PkgRequest::from_ident(deprecated_build.to_any(), RequestedBy::SpkInternalTest).into(),
+        PkgRequest::from_ident(
+            deprecated_build.to_any_ident(),
+            RequestedBy::SpkInternalTest,
+        )
+        .into(),
     );
 
     let solution = run_and_print_resolve_for_tests(&solver).await.unwrap();
@@ -1015,7 +1019,7 @@ async fn test_solver_deprecated_version(mut solver: Solver) {
     solver.add_repository(repo);
     solver.add_request(
         PkgRequest::new(
-            RangeIdent::equals(&deprecated.ident().to_any(), []),
+            RangeIdent::equals(&deprecated.ident().to_any_ident(), []),
             RequestedBy::SpkInternalTest,
         )
         .into(),

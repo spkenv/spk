@@ -36,7 +36,7 @@ async fn test_build_with_circular_dependency() {
 
     let mut environment = Solution::default();
     environment.add(
-        PkgRequest::from_ident(old_build.ident().to_any(), RequestedBy::DoesNotMatter),
+        PkgRequest::from_ident(old_build.ident().to_any_ident(), RequestedBy::DoesNotMatter),
         old_build.clone(),
         spk_solve::PackageSource::SpkInternalTest,
     );

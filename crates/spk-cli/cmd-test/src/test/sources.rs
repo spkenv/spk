@@ -102,7 +102,7 @@ impl<'a> PackageSourceTester<'a> {
         if self.source.is_none() {
             // we only require the source package to actually exist
             // if a local directory has not been specified for the test
-            let source_pkg = self.recipe.ident().to_any(Some(Build::Source));
+            let source_pkg = self.recipe.ident().to_any_ident(Some(Build::Source));
             let mut ident_range = RangeIdent::equals(&source_pkg, [Component::Source]);
             ident_range.components.insert(Component::Source);
             let request = PkgRequest::new(ident_range, RequestedBy::SourceTest(source_pkg))
@@ -128,7 +128,7 @@ impl<'a> PackageSourceTester<'a> {
 
         let source_dir = match &self.source {
             Some(source) => source.clone(),
-            None => source_package_path(&self.recipe.ident().to_build(Build::Source))
+            None => source_package_path(&self.recipe.ident().to_build_ident(Build::Source))
                 .to_path(&self.prefix),
         };
 

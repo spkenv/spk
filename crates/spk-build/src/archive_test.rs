@@ -37,7 +37,7 @@ async fn test_archive_create_parents() {
             panic!("only spfs repositories are supported")
         }
     };
-    export_package::<NormalizedTagStrategy>(&[repo], &spec.ident().to_any(), filename)
+    export_package::<NormalizedTagStrategy>(&[repo], &spec.ident().to_any_ident(), filename)
         .await
         .expect("export should create dirs as needed");
 }

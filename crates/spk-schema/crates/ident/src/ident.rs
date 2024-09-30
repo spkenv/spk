@@ -205,14 +205,14 @@ where
 }
 
 /// Idents that can be turned into a [`VersionIdent`] can implement this trait.
-pub trait AsVersion {
+pub trait AsVersionIdent {
     /// Return a borrowed version of this ident converted into a
     /// [`VersionIdent`].
-    fn as_version(&self) -> &VersionIdent;
+    fn as_version_ident(&self) -> &VersionIdent;
 }
 
-impl<T> AsVersion for Ident<VersionIdent, T> {
-    fn as_version(&self) -> &VersionIdent {
-        self.base().as_version()
+impl<T> AsVersionIdent for Ident<VersionIdent, T> {
+    fn as_version_ident(&self) -> &VersionIdent {
+        self.base().as_version_ident()
     }
 }

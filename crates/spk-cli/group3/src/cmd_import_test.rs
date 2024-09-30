@@ -40,9 +40,13 @@ async fn test_archive_io() {
             panic!("only spfs repositories are supported")
         }
     };
-    spk_storage::export_package::<NormalizedTagStrategy>(&[repo], spec.ident().to_any(), &filename)
-        .await
-        .expect("failed to export");
+    spk_storage::export_package::<NormalizedTagStrategy>(
+        &[repo],
+        spec.ident().to_any_ident(),
+        &filename,
+    )
+    .await
+    .expect("failed to export");
     let mut actual = Vec::new();
     let mut tarfile = tar::Archive::new(std::fs::File::open(&filename).unwrap());
     for entry in tarfile.entries().unwrap() {
