@@ -11,6 +11,7 @@ use relative_path::RelativePathBuf;
 use spfs::encoding::Digest;
 use spfs::graph::object::EncodingFormat;
 use spfs::prelude::*;
+use spfs::sync::reporter::SyncReporters;
 use spfs::tracking::{Entry, EntryKind};
 use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
 use spk_schema::foundation::ident_component::Component;
@@ -240,20 +241,57 @@ pub fn solution_to_resolved_runtime_layers(solution: &Solution) -> Result<Resolv
 
 /// List the necessary layers to have all solution packages, pulling them if
 /// required by the given runtime.
+///
+/// The default Syncer reporter is used. See
+/// ['resolve_runtime_layers_with_reporter'] to be able to customize the
+/// reporter.
 pub async fn resolve_runtime_layers(
     requires_localization: bool,
     solution: &Solution,
 ) -> Result<Vec<Digest>> {
+    resolve_runtime_layers_with_reporter(requires_localization, solution, SyncReporters::console)
+        .await
+}
+
+/// List the necessary layers to have all solution packages, pulling them if
+/// required by the given runtime.
+///
+/// The Syncer reporter is customizable.
+pub async fn resolve_runtime_layers_with_reporter<F>(
+    requires_localization: bool,
+    solution: &Solution,
+    reporter: F,
+) -> Result<Vec<Digest>>
+where
+    F: Fn() -> SyncReporters,
+{
     let resolved = solution_to_resolved_runtime_layers(solution)?;
     if requires_localization {
-        pull_resolved_runtime_layers(&resolved).await
+        pull_resolved_runtime_layers_with_reporter(&resolved, reporter).await
     } else {
         Ok(resolved.layers())
     }
 }
 
 /// Pull and return the specified resolved layers.
+///
+/// The default Syncer reporter is used. See
+/// [`pull_resolved_runtime_layers_with_reporter`] to be able to customize the
+/// reporter.
 pub async fn pull_resolved_runtime_layers(resolved_layers: &ResolvedLayers) -> Result<Vec<Digest>> {
+    pull_resolved_runtime_layers_with_reporter(resolved_layers, SyncReporters::console).await
+}
+
+/// Pull and return the specified resolved layers.
+///
+/// The Syncer reporter is customizable.
+pub async fn pull_resolved_runtime_layers_with_reporter<F>(
+    resolved_layers: &ResolvedLayers,
+    reporter: F,
+) -> Result<Vec<Digest>>
+where
+    F: Fn() -> SyncReporters,
+{
     let local_repo = storage::local_repository().await?;
     let mut stack = Vec::with_capacity(resolved_layers.0.len());
     let mut to_sync = Vec::new();
@@ -279,8 +317,7 @@ pub async fn pull_resolved_runtime_layers(resolved_layers: &ResolvedLayers) -> R
                 to_sync_count,
                 spec.ident().format_ident(),
             );
-            let syncer = spfs::Syncer::new(repo, &local_repo)
-                .with_reporter(spfs::sync::ConsoleSyncReporter::default());
+            let syncer = spfs::Syncer::new(repo, &local_repo).with_reporter(reporter());
             syncer.sync_digest(digest).await?;
         }
     }
@@ -295,8 +332,23 @@ pub async fn setup_current_runtime(solution: &Solution) -> Result<()> {
 }
 
 pub async fn setup_runtime(rt: &mut spfs::runtime::Runtime, solution: &Solution) -> Result<()> {
-    let stack =
-        resolve_runtime_layers(rt.config.mount_backend.requires_localization(), solution).await?;
+    setup_runtime_with_reporter(rt, solution, SyncReporters::console).await
+}
+
+pub async fn setup_runtime_with_reporter<F>(
+    rt: &mut spfs::runtime::Runtime,
+    solution: &Solution,
+    reporter: F,
+) -> Result<()>
+where
+    F: Fn() -> SyncReporters,
+{
+    let stack = resolve_runtime_layers_with_reporter(
+        rt.config.mount_backend.requires_localization(),
+        solution,
+        reporter,
+    )
+    .await?;
     rt.status.stack = spfs::graph::Stack::from_iter(stack);
 
     let spfs_config = spfs::Config::current()?;

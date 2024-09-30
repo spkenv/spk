@@ -28,7 +28,7 @@ impl Run for Import {
     type Output = i32;
 
     async fn run(&mut self) -> Result<Self::Output> {
-        let mut summary = spfs::sync::SyncSummary::default();
+        let mut summary = spfs::sync::reporter::SyncSummary::default();
         let local_repo = spk_storage::local_repository().await?;
         // src and dst are the same here which is useless, but we will
         // be using this syncer to create more useful ones for each archive
