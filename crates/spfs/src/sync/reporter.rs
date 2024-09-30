@@ -12,8 +12,12 @@ use crate::{encoding, graph, tracking};
 #[derive(Clone)]
 #[enum_dispatch::enum_dispatch(SyncReporter)]
 pub enum SyncReporters {
+    /// No sync progress is displayed.
     Silent(Arc<SilentSyncReporter>),
+    /// Show progress bars while syncing.
     Console(Arc<ConsoleSyncReporter>),
+    /// Provide a custom implementation for a SyncReporter.
+    Custom(Arc<Box<dyn SyncReporter>>),
 }
 
 impl SyncReporters {
@@ -25,6 +29,11 @@ impl SyncReporters {
     /// Create a new console reporter that shows a progress bar
     pub fn console() -> Self {
         Self::Console(Arc::new(ConsoleSyncReporter::default()))
+    }
+
+    /// Create a reporter with custom behavior
+    pub fn custom(reporter: Box<dyn SyncReporter>) -> Self {
+        Self::Custom(Arc::new(reporter))
     }
 }
 
@@ -164,6 +173,135 @@ where
     }
     fn synced_payload(&self, result: &SyncPayloadResult) {
         (**self).synced_payload(result)
+    }
+}
+
+impl SyncReporter for Box<dyn SyncReporter> {
+    fn visit_env(&self, env: &tracking::EnvSpec) {
+        (**self).visit_env(env)
+    }
+    fn synced_env(&self, result: &SyncEnvResult) {
+        (**self).synced_env(result)
+    }
+    fn visit_env_item(&self, item: &tracking::EnvSpecItem) {
+        (**self).visit_env_item(item)
+    }
+    fn synced_env_item(&self, result: &SyncEnvItemResult) {
+        (**self).synced_env_item(result)
+    }
+    fn visit_tag(&self, tag: &tracking::TagSpec) {
+        (**self).visit_tag(tag)
+    }
+    fn synced_object(&self, result: &SyncObjectResult) {
+        (**self).synced_object(result)
+    }
+    fn visit_platform(&self, platform: &graph::Platform) {
+        (**self).visit_platform(platform)
+    }
+    fn synced_platform(&self, result: &SyncPlatformResult) {
+        (**self).synced_platform(result)
+    }
+    fn visit_layer(&self, layer: &graph::Layer) {
+        (**self).visit_layer(layer)
+    }
+    fn synced_layer(&self, result: &SyncLayerResult) {
+        (**self).synced_layer(result)
+    }
+    fn visit_manifest(&self, manifest: &graph::Manifest) {
+        (**self).visit_manifest(manifest)
+    }
+    fn synced_manifest(&self, result: &SyncManifestResult) {
+        (**self).synced_manifest(result)
+    }
+    fn visit_annotation(&self, annotation: &graph::Annotation) {
+        (**self).visit_annotation(annotation)
+    }
+    fn synced_annotation(&self, result: &SyncAnnotationResult) {
+        (**self).synced_annotation(result)
+    }
+    fn visit_entry(&self, entry: &graph::Entry<'_>) {
+        (**self).visit_entry(entry)
+    }
+    fn synced_entry(&self, result: &SyncEntryResult) {
+        (**self).synced_entry(result)
+    }
+    fn visit_blob(&self, blob: &graph::Blob) {
+        (**self).visit_blob(blob)
+    }
+    fn synced_blob(&self, result: &SyncBlobResult) {
+        (**self).synced_blob(result)
+    }
+    fn visit_payload(&self, digest: encoding::Digest) {
+        (**self).visit_payload(digest)
+    }
+    fn synced_payload(&self, result: &SyncPayloadResult) {
+        (**self).synced_payload(result)
+    }
+}
+
+impl<T> SyncReporter for Box<Arc<T>>
+where
+    T: SyncReporter,
+{
+    fn visit_env(&self, env: &tracking::EnvSpec) {
+        (***self).visit_env(env)
+    }
+    fn synced_env(&self, result: &SyncEnvResult) {
+        (***self).synced_env(result)
+    }
+    fn visit_env_item(&self, item: &tracking::EnvSpecItem) {
+        (***self).visit_env_item(item)
+    }
+    fn synced_env_item(&self, result: &SyncEnvItemResult) {
+        (***self).synced_env_item(result)
+    }
+    fn visit_tag(&self, tag: &tracking::TagSpec) {
+        (***self).visit_tag(tag)
+    }
+    fn synced_object(&self, result: &SyncObjectResult) {
+        (***self).synced_object(result)
+    }
+    fn visit_platform(&self, platform: &graph::Platform) {
+        (***self).visit_platform(platform)
+    }
+    fn synced_platform(&self, result: &SyncPlatformResult) {
+        (***self).synced_platform(result)
+    }
+    fn visit_layer(&self, layer: &graph::Layer) {
+        (***self).visit_layer(layer)
+    }
+    fn synced_layer(&self, result: &SyncLayerResult) {
+        (***self).synced_layer(result)
+    }
+    fn visit_manifest(&self, manifest: &graph::Manifest) {
+        (***self).visit_manifest(manifest)
+    }
+    fn synced_manifest(&self, result: &SyncManifestResult) {
+        (***self).synced_manifest(result)
+    }
+    fn visit_annotation(&self, annotation: &graph::Annotation) {
+        (***self).visit_annotation(annotation)
+    }
+    fn synced_annotation(&self, result: &SyncAnnotationResult) {
+        (***self).synced_annotation(result)
+    }
+    fn visit_entry(&self, entry: &graph::Entry<'_>) {
+        (***self).visit_entry(entry)
+    }
+    fn synced_entry(&self, result: &SyncEntryResult) {
+        (***self).synced_entry(result)
+    }
+    fn visit_blob(&self, blob: &graph::Blob) {
+        (***self).visit_blob(blob)
+    }
+    fn synced_blob(&self, result: &SyncBlobResult) {
+        (***self).synced_blob(result)
+    }
+    fn visit_payload(&self, digest: encoding::Digest) {
+        (***self).visit_payload(digest)
+    }
+    fn synced_payload(&self, result: &SyncPayloadResult) {
+        (***self).synced_payload(result)
     }
 }
 
