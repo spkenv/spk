@@ -85,7 +85,7 @@ impl Sync {
             .with_max_concurrent_payloads(self.max_concurrent_payloads);
 
         match self.progress.unwrap_or_default() {
-            Progress::Bars => syncer.with_reporter(spfs::sync::SyncReporters::console()),
+            Progress::Bars => syncer.with_reporter(spfs::sync::reporter::SyncReporters::console()),
             Progress::None => syncer,
         }
     }

@@ -16,7 +16,7 @@ use crate::prelude::*;
 use crate::storage::fs::{FsHashStore, ManifestRenderPath, OpenFsRepository, RenderStore};
 use crate::storage::tag::TagSpecAndTagStream;
 use crate::storage::{EntryType, LocalRepository, TagNamespace, TagNamespaceBuf, TagStorageMut};
-use crate::sync::SyncReporters;
+use crate::sync::reporter::SyncReporters;
 use crate::tracking::BlobRead;
 use crate::{encoding, graph, storage, tracking, Error, Result};
 

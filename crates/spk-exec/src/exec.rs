@@ -11,7 +11,7 @@ use relative_path::RelativePathBuf;
 use spfs::encoding::Digest;
 use spfs::graph::object::EncodingFormat;
 use spfs::prelude::*;
-use spfs::sync::SyncReporters;
+use spfs::sync::reporter::SyncReporters;
 use spfs::tracking::{Entry, EntryKind};
 use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
 use spk_schema::foundation::ident_component::Component;

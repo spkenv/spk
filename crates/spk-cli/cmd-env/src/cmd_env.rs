@@ -91,8 +91,8 @@ impl Run for Env {
             self.runtime.editable() || self.requests.any_build_stage_requests(&self.requested)?;
         setup_runtime_with_reporter(&mut rt, &solution, {
             match self.progress.unwrap_or_default() {
-                Progress::Bars => spfs::sync::SyncReporters::console,
-                Progress::None => spfs::sync::SyncReporters::silent,
+                Progress::Bars => spfs::sync::reporter::SyncReporters::console,
+                Progress::None => spfs::sync::reporter::SyncReporters::silent,
             }
         })
         .await?;

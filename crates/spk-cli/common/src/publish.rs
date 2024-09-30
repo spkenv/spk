@@ -232,7 +232,7 @@ impl Publisher {
                 }
             };
             syncer
-                .with_reporter(spfs::sync::SyncReporters::console())
+                .with_reporter(spfs::sync::reporter::SyncReporters::console())
                 .sync_env(env_spec)
                 .await?;
             self.to.publish_package(&spec, &components).await?;
