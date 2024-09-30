@@ -23,7 +23,7 @@ use spk_schema_foundation::version::{
     VarOptionProblem,
 };
 use spk_schema_foundation::IsDefault;
-use spk_schema_ident::{AnyIdent, BuildIdent, Ident, RangeIdent, VersionIdent};
+use spk_schema_ident::{AnyIdent, AsVersionIdent, BuildIdent, Ident, RangeIdent, VersionIdent};
 
 use super::variant_spec::VariantSpecEntryKey;
 use super::TestSpec;
@@ -979,7 +979,7 @@ impl SpecVisitor<VersionIdent, Build> {
 
 impl<'de, B, T> serde::de::Visitor<'de> for SpecVisitor<B, T>
 where
-    Ident<B, T>: Named + serde::de::DeserializeOwned,
+    Ident<B, T>: spk_schema_ident::AsVersionIdent + Named + serde::de::DeserializeOwned,
 {
     type Value = Spec<Ident<B, T>>;
 
@@ -1013,6 +1013,13 @@ where
             .pkg
             .take()
             .ok_or_else(|| serde::de::Error::missing_field("pkg"))?;
+
+        // Update the requester field of any test requirements.
+        let mut tests = self.tests.take().unwrap_or_default();
+        for test in tests.iter_mut() {
+            test.add_requester(pkg.as_version_ident());
+        }
+
         Ok(Spec {
             meta: self.meta.take().unwrap_or_default(),
             compat: self.compat.take().unwrap_or_default(),
@@ -1029,7 +1036,7 @@ where
                 Some(build_spec) => build_spec.try_into().map_err(serde::de::Error::custom)?,
                 None => Default::default(),
             },
-            tests: self.tests.take().unwrap_or_default(),
+            tests,
             install: self.install.take().unwrap_or_default(),
             pkg,
         })
