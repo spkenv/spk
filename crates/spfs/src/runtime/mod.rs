@@ -4,6 +4,8 @@
 
 //! Handles the setup and initialization of runtime environments
 
+mod config_nu;
+mod env_nu;
 #[cfg(unix)]
 pub mod overlayfs;
 #[cfg(unix)]
