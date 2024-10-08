@@ -7,7 +7,7 @@ use std::ffi::OsString;
 
 use clap::Args;
 use miette::{Context, Result};
-use spfs::tracking::SpfsFile;
+use spfs::tracking::SpfsSpecFile;
 use spk_cli_common::{build_required_packages, flags, CommandArgs, Run};
 use spk_exec::setup_runtime;
 #[cfg(feature = "statsd")]
@@ -63,7 +63,7 @@ impl Run for Env {
             // This is the equivalent of load_live_layers() without an EnvSpec
             let mut live_layers = Vec::new();
             for filepath in live_layer_files.iter() {
-                if let SpfsFile::LiveLayer(live_layer) = SpfsFile::parse(filepath)? {
+                if let SpfsSpecFile::LiveLayer(live_layer) = SpfsSpecFile::parse(filepath)? {
                     live_layers.push(live_layer);
                 }
             }

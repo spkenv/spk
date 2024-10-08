@@ -9,6 +9,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use super::spfs_spec_api_version::SpfsSpecApiVersion;
 use crate::{Error, Result};
 
 #[cfg(test)]
@@ -63,27 +64,26 @@ pub enum LiveLayerContents {
     BindMount(BindMount),
 }
 
-// TODO: move and rename? where should this live?
-/// Supported LiveLayer api versions
-#[derive(Debug, Deserialize, Serialize, Copy, Clone, Eq, PartialEq, strum::Display)]
-pub enum SpfsFileApiVersion {
-    #[serde(rename = "v0/layer", alias = "v0/livelayer")]
-    V0Layer,
-    #[serde(rename = "v0/layerlist")]
-    V0EnvLayerList,
-}
+// /// Supported LiveLayer api versions
+// #[derive(Debug, Deserialize, Serialize, Copy, Clone, Eq, PartialEq, strum::Display)]
+// pub enum SpfsSpecApiVersion {
+//     #[serde(rename = "v0/layer", alias = "v0/livelayer")]
+//     V0Layer,
+//     #[serde(rename = "v0/layerlist")]
+//     V0EnvLayerList,
+// }
 
-impl Default for SpfsFileApiVersion {
-    fn default() -> Self {
-        Self::V0Layer
-    }
-}
+// impl Default for SpfsSpecApiVersion {
+//     fn default() -> Self {
+//         Self::V0Layer
+//     }
+// }
 
 /// Data needed to add a live layer onto an /spfs overlayfs.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct LiveLayer {
     /// The api format version of the live layer data
-    pub api: SpfsFileApiVersion,
+    pub api: SpfsSpecApiVersion,
     /// The contents that the live layer will put into /spfs
     pub contents: Vec<LiveLayerContents>,
 }
