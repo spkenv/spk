@@ -146,9 +146,9 @@ pub async fn compute_environment_manifest(
             tracking::EnvSpecItem::TagSpec(t) => {
                 Some(repo.resolve_tag(t).map_ok(|t| t.target).boxed())
             }
-            // SpfsFiles are stored in the runtime, not as spfs
+            // SpfsSpecFiles are stored in the runtime, not as spfs
             // objects/layers, so this filters them out.
-            tracking::EnvSpecItem::SpfsFile(_) => None,
+            tracking::EnvSpecItem::SpfsSpecFile(_) => None,
         })
         .collect();
     let stack = stack_futures.try_collect().await?;
