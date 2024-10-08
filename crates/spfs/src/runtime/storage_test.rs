@@ -12,7 +12,7 @@ use super::{makedirs_with_perms, Data, Storage};
 use crate::fixtures::*;
 use crate::graph::object::{DigestStrategy, EncodingFormat};
 use crate::graph::{AnnotationValue, Layer, Platform};
-use crate::runtime::{BindMount, KeyValuePair, LiveLayer, LiveLayerContents, SpfsFileApiVersion};
+use crate::runtime::{BindMount, KeyValuePair, LiveLayer, LiveLayerContents, SpfsSpecApiVersion};
 use crate::storage::prelude::Database;
 use crate::{encoding, Config};
 
@@ -561,7 +561,7 @@ async fn test_runtime_ensure_extra_bind_mount_locations_exist(tmpdir: tempfile::
         dest: mountpoint,
     };
     let live_layer = LiveLayer {
-        api: SpfsFileApiVersion::V0Layer,
+        api: SpfsSpecApiVersion::V0Layer,
         contents: vec![LiveLayerContents::BindMount(mount)],
     };
     let live_layers = vec![live_layer];

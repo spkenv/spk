@@ -214,7 +214,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
                 self.sync_tag(tag_spec).await.map(SyncEnvItemResult::Tag)?
             }
             // These are not objects in spfs, so they are not syncable
-            tracking::EnvSpecItem::SpfsFile(_) => {
+            tracking::EnvSpecItem::SpfsSpecFile(_) => {
                 return Ok(SyncEnvItemResult::Object(SyncObjectResult::Ignorable))
             }
         };
