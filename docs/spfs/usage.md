@@ -106,6 +106,36 @@ The pruning process will always prefer keeping a tag version over removing it wh
 
 The spfs runtime uses a temporary, in-memory filesystem, which means that large sets of changes can run out of space because of RAM limitations. The size of this filesystem can be overridden using the `SPFS_FILESYSTEM_TMPFS_SIZE` variable (eg `SPFS_FILESYSTEM_TMPFS_SIZE=10G`). Note that specifying values close to or larger than the available memory on the system may cause deadlocks or system instability.
 
+## Shorter spfs run command lines: list of layers in a file
+
+Spfs supports using a yaml file for the list of layer references, the digests or tags, for the runtime environment instead of putting them all on the command line. You can pass an absolute filepath to `spfs run`. Spfs will read the file and use the layer references in the order they are in the file. More than one filepath can be given, and these file paths can be mix with digest or tag references on the command line.
+
+For example:
+```sh
+# using a list of layers file
+> spfs run /path/to/list/of/layers.spfs.yaml
+
+# or, with digests
+> spfs run SOMEDIGEST+/path/to/list/of/layers.spfs.yaml+SOMEOTHERDIGEST
+
+# or, with digests and tags
+> spfs run SOMEDIGEST+/path/to/list/of/layers.spfs.yaml+SOMETAG
+```
+
+Example `layers.spfs.yaml` file containing a list of layers, a mixture of digests and tags, with specific fields in yaml format:
+
+```yaml
+# layers.spfs.yaml
+api: v0/layerlist
+layers:
+  - A7USTIBXPXHMD5CYEIIOBMFLM3X77ESVR3WAUXQ7XQQGTHKH7DMQ====
+  - spfs/some/tag/to/something/tagged/in/spfs/repo
+  - M4JTN4ENZVHV4LEOZ5ONOFYOXQGN2OZBWOGDQXAQ54K5C6QAR2AQ====
+  - 6PJDUUENJYFFDKZWRKHDUXK4FGGZ7FHDYMZ7P4CXORUG6TUMDJ7A====
+```
+
+List of layers files are distinguished from live layer files by their `api: v0/layerlist` field.
+
 
 ## Live Layers: external directories and files in a spfs runtime
 
@@ -115,7 +145,7 @@ A live layer is configured by a yaml file, called `layer.spfs.yaml` by default.
 
 You can give `spfs run` the path to a live layer file, or the path to a directory that contains a 'layer.spfs.yaml' file, as one of the REFS on the command line that will make up the spfs runtime, e.g. `spfs run digest+digest+livelayerfile+tag+digest`. Multiple files can be specified on the command line. `spfs run` will put a live layer into /spfs each for config file specified.
 
-Example `layer.spfs.yaml` file in `/some/directory/somewhere/`:
+Example `layer.spfs.yaml` file containing live layer data in `/some/directory/somewhere/`, in yaml format:
 
 ```yaml
 # layer.spfs.yaml
@@ -127,7 +157,7 @@ contents:
     dest: test_data/some.data
 ```
 
-The `api:` field is required to indicate which version of live layer is in the file.
+The `api:` field is required to indicate which version of live layer is in the file.  Live layers files are distinguished from list of layer files by their `api: v0/layer` field.
 
 The `contents:` field is required and tells spfs what this live layer will add into /spfs. It is a list of items. Currently spfs supports bind mount items in live layers. Each bind mount consists of a source (`bind:` or `src:`) path and a destination (`dest:`) path. 
 

@@ -121,7 +121,7 @@ impl SpfsSpecFile {
         let value: serde_yaml::Value = serde_yaml::from_str(s).map_err(Error::YAML)?;
 
         // First work out what kind of data this is, based on the
-        // SpfsFileApiVersionMapping value.
+        // SpfsSpecApiVersionMapping value.
         let with_version = match serde_yaml::from_value::<SpfsSpecApiVersionMapping>(value.clone())
         {
             Err(err) => {
