@@ -255,8 +255,10 @@ pub struct Solver {
 impl Solver {
     pub async fn get_solver(&self, options: &Options) -> Result<solve::Solver> {
         let option_map = options.get_options()?;
+
         let mut solver = solve::Solver::default();
         solver.update_options(option_map);
+
         for (name, repo) in self.repos.get_repos_for_non_destructive_operation().await? {
             tracing::debug!(repo=%name, "using repository");
             solver.add_repository(repo);
@@ -272,9 +274,6 @@ impl Solver {
             self.check_impossible_builds || self.check_impossible_all,
         );
 
-        for r in options.get_var_requests()? {
-            solver.add_request(r.into());
-        }
         Ok(solver)
     }
 }
@@ -399,27 +398,34 @@ impl Requests {
         Ok(idents)
     }
 
-    /// Parse and build a request from the given string and these flags
+    /// Parse and build a request, and any extra options, from the
+    /// given string and these flags. If the request expands into
+    /// multiple requests, such as from a request file, this will
+    /// return the last request. Any options returned are filtered to
+    /// exclude any (override) options given in the options parameter.
     pub async fn parse_request<R: AsRef<str>>(
         &self,
         request: R,
         options: &Options,
         repos: &[Arc<storage::RepositoryHandle>],
-    ) -> Result<Request> {
-        Ok(self
+    ) -> Result<(Request, OptionMap)> {
+        let (mut requests, extra_options) = self
             .parse_requests([request.as_ref()], options, repos)
-            .await?
-            .pop()
-            .unwrap())
+            .await?;
+        let last_request = requests.pop().unwrap();
+        Ok((last_request, extra_options))
     }
 
-    /// Parse and build requests from the given strings and these flags.
+    /// Parse and build requests, and any extra options, from the
+    /// given strings and these flags. Any options returned are
+    /// filtered to exclude any (override) options given in the
+    /// options parameter.
     pub async fn parse_requests<I, S>(
         &self,
         requests: I,
         options: &Options,
         repos: &[Arc<storage::RepositoryHandle>],
-    ) -> Result<Vec<Request>>
+    ) -> Result<(Vec<Request>, OptionMap)>
     where
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
@@ -427,6 +433,7 @@ impl Requests {
         let mut out = Vec::<Request>::new();
         let override_options = options.get_options()?;
         let mut templating_options = override_options.clone();
+        let mut extra_options = OptionMap::default();
 
         // From the positional REQUESTS arg
         for r in requests.into_iter() {
@@ -445,25 +452,18 @@ impl Requests {
                     )
                 })?;
 
-                for request in requests_from_file.requirements {
-                    // First, add all the requests, pkg and var, to
-                    // the requests lists
-                    out.push(request.clone());
+                out.extend(requests_from_file.requirements);
 
-                    // Then, add any var requests to the templating
-                    // options for use with subsequent requests files
-                    // or package@stage spec files read in later
-                    // iterations of the outer loop
-                    if let Some(var) = request.into_var() {
-                        // There is no command line override
-                        // option for this name so can update it.
-                        if override_options.get(&var.var).is_none() {
-                            // Forcing a var request into an option
-                            templating_options.insert(
-                                var.var,
-                                var.value.as_pinned().unwrap_or_default().to_string(),
-                            );
-                        }
+                for (name, value) in requests_from_file.options {
+                    // Command line override options take precedence.
+                    // Only when there is no command line override for
+                    // this option name is it used
+                    if override_options.get(&name).is_none() {
+                        // For template values in later files and specs
+                        templating_options.insert(OptName::new(&name)?.into(), value.clone());
+                        // For later use by commands, usually when
+                        // setting up a solver
+                        extra_options.insert(OptName::new(&name)?.into(), value);
                     }
                 }
                 continue;
@@ -481,7 +481,7 @@ impl Requests {
             )
             .into())
         } else {
-            Ok(out)
+            Ok((out, extra_options))
         }
     }
 

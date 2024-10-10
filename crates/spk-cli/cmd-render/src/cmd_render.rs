@@ -42,10 +42,11 @@ impl Run for Render {
     async fn run(&mut self) -> Result<Self::Output> {
         let mut solver = self.solver.get_solver(&self.options).await?;
 
-        let requests = self
+        let (requests, extra_options) = self
             .requests
             .parse_requests(&self.packages, &self.options, solver.repositories())
             .await?;
+        solver.update_options(extra_options);
         for name in requests {
             solver.add_request(name);
         }
