@@ -59,7 +59,7 @@ impl CmdLs {
             }
             EnvSpecItem::PartialDigest(_)
             | EnvSpecItem::Digest(_)
-            | EnvSpecItem::LiveLayerFile(_) => (),
+            | EnvSpecItem::SpfsSpecFile(_) => (),
         }
 
         let item = repo.read_ref(&self.reference.to_string()).await?;

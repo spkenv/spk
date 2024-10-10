@@ -208,7 +208,7 @@ where
                 self.sync_tag(tag_spec).await.map(SyncEnvItemResult::Tag)?
             }
             // These are not objects in spfs, so they are not syncable
-            tracking::EnvSpecItem::LiveLayerFile(_) => {
+            tracking::EnvSpecItem::SpfsSpecFile(_) => {
                 return Ok(SyncEnvItemResult::Object(SyncObjectResult::Ignorable))
             }
         };
