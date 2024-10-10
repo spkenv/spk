@@ -484,15 +484,15 @@ fn parse_env_spec_item<S: AsRef<str>>(spec: S) -> Result<EnvSpecItem> {
     encoding::parse_digest(spec)
         .map(EnvSpecItem::Digest)
         .or_else(|err| {
-            println!("Unable to parse as a Digest: {err}");
+            tracing::debug!("Unable to parse as a Digest: {err}");
             encoding::PartialDigest::parse(spec).map(EnvSpecItem::PartialDigest)
         })
         .or_else(|err| {
-            println!("Unable to parse as a Partial Digest: {err}");
+            tracing::debug!("Unable to parse as a Partial Digest: {err}");
             SpfsSpecFile::parse(spec).map(EnvSpecItem::SpfsSpecFile)
         })
         .or_else(|err| {
-            println!("Unable to parse as a SpfsSpecFile: {err}");
+            tracing::debug!("Unable to parse as a SpfsSpecFile: {err}");
             TagSpec::parse(spec).map(EnvSpecItem::TagSpec)
         })
 }
