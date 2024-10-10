@@ -224,10 +224,11 @@ impl Bake {
         // with it.
         let mut solver = self.solver.get_solver(&self.options).await?;
 
-        let requests = self
+        let (requests, extra_options) = self
             .requests
             .parse_requests(&self.requested, &self.options, solver.repositories())
             .await?;
+        solver.update_options(extra_options);
         for request in requests {
             solver.add_request(request)
         }
