@@ -207,10 +207,16 @@ impl View {
     }
 
     fn print_variants_info(&self, options: &OptionMap) -> Result<i32> {
-        let (_, template) = flags::find_package_template(self.package.as_ref())
+        let (filename, template) = flags::find_package_template(self.package.as_ref())
             .wrap_err("find package template")?
             .must_be_found();
-        let recipe = template.render(options)?;
+        let rendered_data = template.render(options)?;
+        let recipe = rendered_data.into_recipe().wrap_err_with(|| {
+            format!(
+                "{filename} was expected to contain a recipe",
+                filename = filename.to_string_lossy()
+            )
+        })?;
 
         let default_variants = recipe.default_variants(options);
         match &self.format {
@@ -418,7 +424,7 @@ impl View {
         let solver = self.solver.get_solver(&self.options).await?;
         let repos = solver.repositories();
 
-        let parsed_request = match self
+        let (parsed_request, _extra_options) = match self
             .requests
             .parse_request(&package, &self.options, repos)
             .await
@@ -558,7 +564,9 @@ impl View {
     async fn print_package_info_from_solve(&self, package: &String) -> Result<i32> {
         let mut solver = self.solver.get_solver(&self.options).await?;
 
-        let request = match self
+        // _extra_option are unused here because getting package info
+        // from a solve is basically deprecated and should be removed soon.
+        let (request, _extra_options) = match self
             .requests
             .parse_request(&package, &self.options, solver.repositories())
             .await

@@ -50,11 +50,11 @@ impl Run for Install {
             current_env().map_err(|err| err.into())
         )?;
 
-        let requests = self
+        let (requests, extra_options) = self
             .requests
             .parse_requests(&self.packages, &self.options, solver.repositories())
             .await?;
-
+        solver.update_options(extra_options);
         for solved in env.items() {
             solver.add_request(solved.request.clone().into());
         }
