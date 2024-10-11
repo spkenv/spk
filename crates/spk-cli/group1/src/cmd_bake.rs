@@ -11,6 +11,10 @@ use spk_schema::ident::RequestedBy;
 use spk_schema::Package;
 use spk_solve::solution::{get_spfs_layers_to_packages, LayerPackageAndComponents, PackageSource};
 
+#[cfg(test)]
+#[path = "./cmd_bake_test.rs"]
+mod cmd_bake_test;
+
 // Verbosity level above which repo and component names will be
 // included in the package display values.
 const NO_VERBOSITY: u8 = 0;
