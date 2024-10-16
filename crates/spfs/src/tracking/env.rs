@@ -267,7 +267,7 @@ impl<'de> Deserialize<'de> for EnvSpecItem {
 
         EnvSpecItem::from_str(&value).map_err(|err| {
             // Unfortunately, serde errors call .display() on their
-            // paramater and store that internally. So we lose the
+            // parameter and store that internally. So we lose the
             // original error object here.
             serde::de::Error::custom(format!("deserializing EnvSpecItem failed: {err}"))
         })
