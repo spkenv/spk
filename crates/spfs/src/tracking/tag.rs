@@ -5,6 +5,7 @@
 use std::io::BufRead;
 
 use chrono::prelude::*;
+use serde::Deserialize;
 
 use crate::encoding::prelude::*;
 use crate::{encoding, Error, Result};
@@ -186,7 +187,7 @@ impl encoding::Decodable for Tag {
 ///     eg: spi/main   # latest tag in the spi/main stream
 ///         spi/main~0 # latest tag in the spi/main stream
 ///         spi/main~4 # the tag 4 versions behind the latest in the stream
-#[derive(Eq, PartialEq, Hash, Clone)]
+#[derive(Eq, Deserialize, PartialEq, Hash, Clone)]
 pub struct TagSpec(Option<String>, String, u64);
 
 impl std::fmt::Debug for TagSpec {

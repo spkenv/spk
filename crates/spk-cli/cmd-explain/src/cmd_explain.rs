@@ -40,7 +40,7 @@ pub struct Explain {
     #[clap(long, hide = true)]
     pub keep_runtime: bool,
     #[clap(long, hide = true)]
-    pub live_layer: Option<Vec<spfs::runtime::LiveLayerFile>>,
+    pub live_layer: Option<Vec<String>>,
 }
 
 #[async_trait::async_trait]

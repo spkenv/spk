@@ -15,6 +15,7 @@ workspace = true
 [dependencies]
 data-encoding = { workspace = true }
 ring = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 spfs-proto = { path = "../spfs-proto" }
 tokio = { version = "1.20", features = ["io-util", "io-std"] }
 thiserror = { workspace = true }
