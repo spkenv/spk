@@ -148,7 +148,7 @@ pub async fn compute_environment_manifest(
             }
             // SpfsSpecFiles are stored in the runtime, not as spfs
             // objects/layers, so this filters them out.
-            tracking::EnvSpecItem::SpfsSpecFile(_) => None,
+            tracking::EnvSpecItem::SpecFile(_) => None,
         })
         .collect();
     let stack = stack_futures.try_collect().await?;

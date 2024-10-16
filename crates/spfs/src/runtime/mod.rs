@@ -7,7 +7,7 @@
 pub mod live_layer;
 #[cfg(unix)]
 pub mod overlayfs;
-pub mod spfs_spec_api_version;
+pub mod spec_api_version;
 #[cfg(unix)]
 mod startup_csh;
 #[cfg(windows)]
@@ -21,7 +21,7 @@ pub mod winfsp;
 pub use live_layer::{BindMount, LiveLayer, LiveLayerContents};
 #[cfg(unix)]
 pub use overlayfs::is_removed_entry;
-pub use spfs_spec_api_version::SpfsSpecApiVersion;
+pub use spec_api_version::SpecApiVersion;
 pub use storage::{
     makedirs_with_perms,
     Author,

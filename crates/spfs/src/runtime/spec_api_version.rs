@@ -6,14 +6,14 @@ use serde::{Deserialize, Serialize};
 
 /// Supported spfs spec api versions
 #[derive(Debug, Deserialize, Serialize, Copy, Clone, Eq, PartialEq, strum::Display)]
-pub enum SpfsSpecApiVersion {
+pub enum SpecApiVersion {
     #[serde(rename = "v0/layer", alias = "v0/livelayer")]
     V0Layer,
     #[serde(rename = "v0/layerlist")]
     V0EnvLayerList,
 }
 
-impl Default for SpfsSpecApiVersion {
+impl Default for SpecApiVersion {
     fn default() -> Self {
         Self::V0Layer
     }

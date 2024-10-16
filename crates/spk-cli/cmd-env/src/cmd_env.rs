@@ -68,7 +68,7 @@ impl Run for Env {
             // This is the equivalent of load_live_layers() without an EnvSpec
             let mut live_layers = Vec::new();
             for filepath in live_layer_files.iter() {
-                if let SpfsSpecFile::LiveLayer(live_layer) = SpfsSpecFile::parse(filepath)? {
+                if let SpecFile::LiveLayer(live_layer) = SpecFile::parse(filepath)? {
                     live_layers.push(live_layer);
                 }
             }

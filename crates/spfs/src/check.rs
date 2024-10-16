@@ -161,7 +161,7 @@ where
                 .check_tag_spec(tag_spec)
                 .await
                 .map(CheckEnvItemResult::Tag)?,
-            tracking::EnvSpecItem::SpfsSpecFile(_) => {
+            tracking::EnvSpecItem::SpecFile(_) => {
                 // These items do not need checking, they can be ignored.
                 // They do no represent spfs objects in a repo.
                 CheckEnvItemResult::Object(CheckObjectResult::Ignorable)
