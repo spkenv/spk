@@ -3,11 +3,13 @@
 // https://github.com/spkenv/spk
 
 use std::borrow::Cow;
+use std::collections::HashSet;
 use std::fmt::Display;
 use std::io::Read;
 use std::path::PathBuf;
 use std::str::FromStr;
 
+use once_cell::sync::Lazy;
 use serde::Deserialize;
 
 use super::tag::TagSpec;
@@ -27,6 +29,11 @@ pub const ENV_SPEC_EMPTY: &str = "-";
 // For the config file that contains the extra bind mounts
 const SPFS_FILE_SUFFIX_YAML: &str = ".spfs.yaml";
 const DEFAULT_LIVE_LAYER_FILENAME: &str = "layer.spfs.yaml";
+
+// For preventing recursive loops when reading list of layers spfs
+// spec files from the command line
+static SEEN_SPEC_FILES: Lazy<std::sync::Mutex<HashSet<std::path::PathBuf>>> =
+    Lazy::new(|| std::sync::Mutex::new(HashSet::new()));
 
 /// Used during the initial parsing to determine what kind of data is in a file
 #[derive(Deserialize, Debug)]
@@ -49,6 +56,7 @@ impl SpfsSpecFile {
 
         // This has to be an absolute path to distinguish it from tag
         // specs, see EnvSpecItem parsing.
+        tracing::debug!("SpfsSpecFile::parse: {abs_filepath}");
         if path.is_absolute() {
             let filepath = if path.is_dir() {
                 path.join(DEFAULT_LIVE_LAYER_FILENAME)
@@ -64,6 +72,21 @@ impl SpfsSpecFile {
                 }
                 path.to_path_buf()
             };
+
+            // Do not want to get into a recursive loop loading a file
+            // we've seen before.
+            let mut seen_files = SEEN_SPEC_FILES.lock().unwrap();
+            if let Some(file_seen_before) = seen_files.get(path) {
+                tracing::debug!(
+                    "This is a duplicate spec file: {}",
+                    file_seen_before.display()
+                );
+                return Err(Error::DuplicateSpecFileReference(
+                    file_seen_before.to_path_buf(),
+                ));
+            }
+            seen_files.insert(path.to_path_buf());
+            drop(seen_files);
 
             let data = SpfsSpecFile::load_data(filepath.clone())?;
             let mut item = SpfsSpecFile::from_yaml(&data)?;
@@ -164,6 +187,21 @@ pub struct EnvSpecReferences {
     pub layers: Vec<EnvSpecItem>,
 }
 
+impl EnvSpecReferences {
+    pub fn flatten(&self) -> Vec<EnvSpecItem> {
+        let mut items = Vec::with_capacity(self.layers.len());
+        for item in &self.layers {
+            if let EnvSpecItem::SpfsSpecFile(SpfsSpecFile::EnvLayersFile(nested)) = item {
+                items.extend(nested.flatten())
+            } else {
+                items.push(item.clone());
+            }
+        }
+
+        items
+    }
+}
+
 impl Display for EnvSpecReferences {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}: layers: {:?}", self.api, self.layers)
@@ -229,6 +267,9 @@ impl<'de> Deserialize<'de> for EnvSpecItem {
         let value = String::deserialize(deserializer)?;
 
         EnvSpecItem::from_str(&value).map_err(|err| {
+            // Unfortunately, serde errors call .display() on their
+            // paramater and store that internally. So we lose the
+            // original error object here.
             serde::de::Error::custom(format!("deserializing EnvSpecItem failed: {err}"))
         })
     }
@@ -465,12 +506,11 @@ fn parse_env_spec_items<S: AsRef<str>>(spec: S) -> Result<Vec<EnvSpecItem>> {
     }
     let mut items = Vec::new();
     for layer in spec.as_ref().split(ENV_SPEC_SEPARATOR) {
-        // Env list of layers files are immediately expanded into the
-        // env spec's items list at this point. Other items are just
-        // added as is.
         let item = parse_env_spec_item(layer)?;
+        // Env list of layers files are immediately expanded into the
+        // EnvSpec's items list. Other items are just added as is.
         if let EnvSpecItem::SpfsSpecFile(SpfsSpecFile::EnvLayersFile(layers)) = item {
-            items.extend(layers.layers);
+            items.extend(layers.flatten());
         } else {
             items.push(item);
         }
@@ -493,6 +533,30 @@ fn parse_env_spec_item<S: AsRef<str>>(spec: S) -> Result<EnvSpecItem> {
         })
         .or_else(|err| {
             tracing::debug!("Unable to parse as a SpfsSpecFile: {err}");
+
+            // A duplicate spec file reference error from trying to
+            // parse a spfs spec file means the spec is a path to a
+            // spfs spec file, but the file involved has already been
+            // read in. The env spec item parsing should stop
+            // immediately and not do the tag spec parsing fallback.
+            if let Error::DuplicateSpecFileReference(ref _filepath) = err {
+                // This will catch duplicate files given on the command line
+                return Err(err);
+            }
+            if let Error::YAML(ref error) = err {
+                // This will catch a duplicate spec file reference
+                // that was inside another spec file. Unfortunately
+                // these errors lose the original error object, they
+                // are turned into internal strings, so we have to
+                // check against the error string.
+                if error
+                    .to_string()
+                    .starts_with("deserializing EnvSpecItem failed: Found duplicate spec file")
+                {
+                    return Err(err);
+                }
+            }
+
             TagSpec::parse(spec).map(EnvSpecItem::TagSpec)
         })
 }
