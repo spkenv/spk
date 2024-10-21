@@ -208,9 +208,8 @@ fn test_config_env_overrides<F: Fn(&Config) -> R, R: ToString>(
     let config = load_config();
     // Restore env
     for (var, orig) in cleared_vars.iter() {
-        match orig {
-            Some(orig) => std::env::set_var(var, orig),
-            None => {}
+        if let Some(orig) = orig {
+            std::env::set_var(var, orig)
         }
     }
     for (var, (_, orig)) in env_vars_to_set.iter().zip(generated_values.iter()) {
