@@ -1,5 +1,5 @@
 <a id="logo"
-  href='{{ (cond (and (ne .Site.Params.landingPageURL nil) (.Site.IsMultiLingual)) .Site.Params.landingPageURL "/") }}'>
+  href='{{ (cond (and (ne .Site.Params.landingPageURL nil) (hugo.IsMultilingual)) .Site.Params.landingPageURL "/") }}'>
   <div id="spk-logo" style="width:100%; height:100%;">
     {{if and (.File) (strings.Contains .File.Path "spfs/")}}
     <img style="max-width: 200px" alt="SPFS Logo" src="/images/spfs_white.png" />

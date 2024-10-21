@@ -129,14 +129,12 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime, config: &crate::Confi
         },
     )
     .await
-    .map(|result| {
+    .inspect(|_| {
         if had_to_retry.load(Ordering::Relaxed) {
             // Want to know if this happened...
             #[cfg(feature = "sentry")]
             tracing::error!(target: "sentry", "read mount namespace succeeded after retries");
         }
-
-        result
     })
     .unwrap_or_default();
 

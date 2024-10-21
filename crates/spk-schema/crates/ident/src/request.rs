@@ -726,9 +726,8 @@ impl std::hash::Hash for PkgRequest {
         self.pkg.hash(state);
         self.prerelease_policy.hash(state);
         self.inclusion_policy.hash(state);
-        match &self.pin {
-            Some(p) => p.hash(state),
-            None => {}
+        if let Some(p) = &self.pin {
+            p.hash(state)
         };
         self.required_compat.hash(state);
         // The 'requested_by' field is not included in the hash

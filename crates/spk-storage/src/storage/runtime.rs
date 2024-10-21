@@ -539,16 +539,13 @@ async fn find_layers_by_filenames<S: AsRef<str>>(
 
         let mut paths_remaining = false;
         for (index, path_opt) in paths.iter_mut() {
-            match path_opt {
-                Some(path) => {
-                    if manifest.get_path(path).is_some() {
-                        results[*index] = layer.digest()?;
-                        *path_opt = None;
-                    } else {
-                        paths_remaining = true;
-                    }
+            if let Some(path) = path_opt {
+                if manifest.get_path(path).is_some() {
+                    results[*index] = layer.digest()?;
+                    *path_opt = None;
+                } else {
+                    paths_remaining = true;
                 }
-                None => {}
             }
         }
 
