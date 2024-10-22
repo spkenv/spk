@@ -7,6 +7,8 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use crate::VersionIdent;
+
 #[cfg(test)]
 #[path = "./ident_test.rs"]
 mod ident_test;
@@ -199,5 +201,18 @@ where
             }
         }
         deserializer.deserialize_str(IdentVisitor(PhantomData))
+    }
+}
+
+/// Idents that can be turned into a [`VersionIdent`] can implement this trait.
+pub trait AsVersionIdent {
+    /// Return a borrowed version of this ident converted into a
+    /// [`VersionIdent`].
+    fn as_version_ident(&self) -> &VersionIdent;
+}
+
+impl<T> AsVersionIdent for Ident<VersionIdent, T> {
+    fn as_version_ident(&self) -> &VersionIdent {
+        self.base().as_version_ident()
     }
 }

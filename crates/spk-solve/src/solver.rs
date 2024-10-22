@@ -619,7 +619,7 @@ impl Solver {
                                         // which is a bad choice for any solve, so
                                         // discard this build and try another.
                                         notes.push(Note::SkipPackageNote(SkipPackageNote::new(
-                                            spec.ident().to_any(),
+                                            spec.ident().to_any_ident(),
                                             compat,
                                         )));
                                         self.number_builds_skipped += 1;
@@ -654,7 +654,7 @@ impl Solver {
                                 // by some other package?
                                 if conflicting_pkg.ident().is_embedded() {
                                     notes.push(Note::SkipPackageNote(SkipPackageNote::new(
-                                        spec.ident().to_any(),
+                                        spec.ident().to_any_ident(),
                                         Compatibility::Incompatible({
                                             match conflicting_pkg_source {
                                                 PackageSource::Embedded { parent } => {
@@ -698,7 +698,7 @@ impl Solver {
                             }
                             compat @ Compatibility::Incompatible(_) => {
                                 notes.push(Note::SkipPackageNote(SkipPackageNote::new(
-                                    spec.ident().to_any(),
+                                    spec.ident().to_any_ident(),
                                     compat.clone(),
                                 )));
                                 self.number_builds_skipped += 1;
@@ -708,7 +708,7 @@ impl Solver {
                     } else {
                         if let PackageSource::Embedded { .. } = source {
                             notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
-                                spec.ident().to_any(),
+                                spec.ident().to_any_ident(),
                                 &compat,
                             )));
                             self.number_builds_skipped += 1;
@@ -741,7 +741,7 @@ impl Solver {
                         compat = self.validate_recipe(&node.state, &recipe)?;
                         if !&compat {
                             notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
-                                spec.ident().to_any(),
+                                spec.ident().to_any_ident(),
                                 format!("building from source is not possible with this recipe: {compat}"),
                             )));
                             self.number_builds_skipped += 1;
@@ -752,7 +752,7 @@ impl Solver {
                             Err(err) => {
                                 notes.push(Note::SkipPackageNote(
                                     SkipPackageNote::new_from_message(
-                                        spec.ident().to_any(),
+                                        spec.ident().to_any_ident(),
                                         format!("cannot resolve build env for source build: {err}"),
                                     ),
                                 ));
@@ -768,7 +768,7 @@ impl Solver {
                         compat = self.validate_package(&node.state, &new_spec, &new_source)?;
                         if !&compat {
                             notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
-                                spec.ident().to_any(),
+                                spec.ident().to_any_ident(),
                                 format!("building from source not possible: {compat}"),
                             )));
                             self.number_builds_skipped += 1;
@@ -783,7 +783,7 @@ impl Solver {
                             Err(err) => {
                                 notes.push(Note::SkipPackageNote(
                                     SkipPackageNote::new_from_message(
-                                        spec.ident().to_any(),
+                                        spec.ident().to_any_ident(),
                                         format!("cannot build package from source: {err}"),
                                     ),
                                 ));

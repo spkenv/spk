@@ -257,8 +257,10 @@ impl Run for MakeBinary {
                 );
 
                 if self.env {
-                    let request =
-                        PkgRequest::from_ident(out.ident().to_any(), RequestedBy::CommandLine);
+                    let request = PkgRequest::from_ident(
+                        out.ident().to_any_ident(),
+                        RequestedBy::CommandLine,
+                    );
                     let mut cmd = std::process::Command::new(spk_exe());
                     cmd.args(["env", "--enable-repo", "local"])
                         .arg(request.pkg.to_string());

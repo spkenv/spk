@@ -459,7 +459,7 @@ impl View {
         //   spk info python/3.7.3 --> output the version's spec (a recipe)
         if !request.pkg.version.is_empty() {
             let temp_ident: AnyIdent = request.pkg.clone().try_into()?;
-            let ident: VersionIdent = temp_ident.to_version();
+            let ident: VersionIdent = temp_ident.to_version_ident();
             for repo in repos {
                 match repo.read_recipe(&ident).await {
                     Ok(version_recipe) => {

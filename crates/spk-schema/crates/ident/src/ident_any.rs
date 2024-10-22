@@ -35,28 +35,23 @@ impl AnyIdent {
         Self::new(self.base().clone(), build)
     }
 
-    /// Reinterpret this identifier as a [`crate::VersionIdent`]
-    pub fn as_version(&self) -> &VersionIdent {
-        self.base()
-    }
-
     /// Convert a copy of this identifier into a [`crate::VersionIdent`]
-    pub fn to_version(self) -> VersionIdent {
+    pub fn to_version_ident(self) -> VersionIdent {
         self.base().clone()
     }
 
     /// Convert this identifier into a [`crate::VersionIdent`]
-    pub fn into_version(self) -> VersionIdent {
+    pub fn into_version_ident(self) -> VersionIdent {
         self.into_base()
     }
 
     /// Return a copy of this pointing to the given build.
-    pub fn to_build(&self, build: Build) -> BuildIdent {
+    pub fn to_build_ident(&self, build: Build) -> BuildIdent {
         BuildIdent::new(self.base().clone(), build)
     }
 
     /// Convert this ident into a [`BuildIdent`] if possible
-    pub fn into_build(self) -> Option<BuildIdent> {
+    pub fn into_build_ident(self) -> Option<BuildIdent> {
         let (base, target) = self.into_inner();
         target.map(|build| BuildIdent::new(base, build))
     }
@@ -201,7 +196,7 @@ impl TryFrom<&IdentPartsBuf> for AnyIdent {
             .map(|v| v.parse::<Build>())
             .transpose()?;
 
-        Ok(VersionIdent::new(name, version).into_any(build))
+        Ok(VersionIdent::new(name, version).into_any_ident(build))
     }
 }
 
@@ -218,7 +213,7 @@ impl From<&AnyIdent> for IdentPartsBuf {
 
 impl From<PkgNameBuf> for AnyIdent {
     fn from(name: PkgNameBuf) -> Self {
-        VersionIdent::new_zero(name).into_any(None)
+        VersionIdent::new_zero(name).into_any_ident(None)
     }
 }
 
@@ -240,7 +235,7 @@ impl TryFrom<RangeIdent> for AnyIdent {
         Ok(ri
             .version
             .try_into_version()
-            .map(|version| VersionIdent::new(name, version).into_any(build))?)
+            .map(|version| VersionIdent::new(name, version).into_any_ident(build))?)
     }
 }
 
@@ -249,7 +244,7 @@ impl TryFrom<&RangeIdent> for AnyIdent {
 
     fn try_from(ri: &RangeIdent) -> Result<Self> {
         Ok(ri.version.clone().try_into_version().map(|version| {
-            VersionIdent::new(ri.name.clone(), version).into_any(ri.build.clone())
+            VersionIdent::new(ri.name.clone(), version).into_any_ident(ri.build.clone())
         })?)
     }
 }
@@ -259,7 +254,7 @@ pub fn parse_ident<S: AsRef<str>>(source: S) -> Result<AnyIdent> {
     Ident::from_str(source.as_ref())
 }
 
-pub trait ToAnyWithoutBuild {
+pub trait ToAnyIdentWithoutBuild {
     /// Copy this identifier and remove the build, if any.
-    fn to_any_without_build(&self) -> AnyIdent;
+    fn to_any_ident_without_build(&self) -> AnyIdent;
 }

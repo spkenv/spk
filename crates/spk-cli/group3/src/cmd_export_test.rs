@@ -64,7 +64,11 @@ async fn test_export_works_with_missing_builds() {
     filename.ensure();
     spk_storage::export_package::<NormalizedTagStrategy>(
         &[repo],
-        red_spec.ident().clone().to_version().to_any(None),
+        red_spec
+            .ident()
+            .clone()
+            .to_version_ident()
+            .to_any_ident(None),
         &filename,
     )
     .await

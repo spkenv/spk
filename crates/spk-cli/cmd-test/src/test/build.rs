@@ -34,7 +34,8 @@ pub struct PackageBuildTester<'a> {
 
 impl<'a> PackageBuildTester<'a> {
     pub fn new(recipe: SpecRecipe, script: String) -> Self {
-        let source = BuildSource::SourcePackage(recipe.ident().to_any(Some(Build::Source)).into());
+        let source =
+            BuildSource::SourcePackage(recipe.ident().to_any_ident(Some(Build::Source)).into());
         Self {
             prefix: PathBuf::from("/spfs"),
             recipe,

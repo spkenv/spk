@@ -13,7 +13,7 @@ use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::{FormatComponents, FormatIdent, FormatOptionMap};
 use spk_schema::foundation::ident_component::ComponentSet;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
-use spk_schema::ident::{parse_ident, AnyIdent};
+use spk_schema::ident::{parse_ident, AnyIdent, AsVersionIdent};
 use spk_schema::ident_ops::parsing::{ident_parts, IdentParts, KNOWN_REPOSITORY_NAMES};
 use spk_schema::option_map::{get_host_options_filters, OptFilter};
 use spk_schema::spec_ops::WithVersion;
@@ -173,7 +173,7 @@ impl<T: Output> Run for Ls<T> {
                     // inventory the builds of this version (do not depend on
                     // the existence of a "version spec").
 
-                    let mut builds = repo.list_package_builds(ident.as_version()).await?;
+                    let mut builds = repo.list_package_builds(ident.as_version_ident()).await?;
                     if builds.is_empty() {
                         // Does a version with no builds really exist?
                         continue;
@@ -243,7 +243,7 @@ impl<T: Output> Run for Ls<T> {
                 // Given a package version (or build), list all its builds
                 let pkg = parse_ident(package)?;
                 for (_, repo) in repos {
-                    for build in repo.list_package_builds(pkg.as_version()).await? {
+                    for build in repo.list_package_builds(pkg.as_version_ident()).await? {
                         // Doing this here slows the listing down, but
                         // the spec file is the only place that holds
                         // the deprecation status.
@@ -351,7 +351,7 @@ impl<T: Output> Ls<T> {
             versions.sort();
             versions.reverse();
             for pkg in versions {
-                let mut builds = repo.list_package_builds(pkg.as_version()).await?;
+                let mut builds = repo.list_package_builds(pkg.as_version_ident()).await?;
                 builds.sort();
                 for build in builds {
                     if let Some(IdentParts {
@@ -431,7 +431,7 @@ impl<T: Output> Ls<T> {
 
             for pkg in versions {
                 let mut found_a_match = false;
-                for build in repo.list_package_builds(pkg.as_version()).await? {
+                for build in repo.list_package_builds(pkg.as_version_ident()).await? {
                     let spec = match repo.read_package(&build).await {
                         Ok(spec) => spec,
                         Err(err) => {

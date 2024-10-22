@@ -31,7 +31,7 @@ where
         + TagError<&'b str, &'static str>,
 {
     let (input, ident) = package_ident(input)?;
-    let mut ident = ident.into_any(None);
+    let mut ident = ident.into_any_ident(None);
     let (input, version_and_build) = opt(preceded(char('/'), version_and_build))(input)?;
     match version_and_build {
         Some(v_and_b) => {
@@ -82,7 +82,10 @@ where
 {
     let (input, ident) = package_ident(input)?;
     let (input, v_and_b) = preceded(char('/'), version_and_required_build)(input)?;
-    Ok((input, ident.with_target(v_and_b.0).into_build(v_and_b.1)))
+    Ok((
+        input,
+        ident.with_target(v_and_b.0).into_build_ident(v_and_b.1),
+    ))
 }
 
 /// Parse a package name in the context of an identity string into an [`Ident`].

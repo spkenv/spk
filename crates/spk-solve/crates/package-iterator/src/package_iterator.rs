@@ -12,7 +12,7 @@ use once_cell::sync::Lazy;
 use spk_schema::foundation::name::{OptNameBuf, PkgNameBuf, RepositoryNameBuf};
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::Version;
-use spk_schema::ident::VersionIdent;
+use spk_schema::ident::{AsVersionIdent, VersionIdent};
 use spk_schema::version::Compatibility;
 use spk_schema::{AnyIdent, BuildIdent, Package, Spec};
 use spk_solve_solution::PackageSource;
@@ -191,7 +191,7 @@ impl PackageIterator for RepositoryPackageIterator {
                     ));
                 };
                 let pkg = VersionIdent::new(self.package_name.clone(), (**version).clone())
-                    .into_any(None);
+                    .into_any_ident(None);
                 if !self.builds_map.contains_key(version) {
                     match RepositoryBuildIterator::new(
                         pkg.clone(),
@@ -369,7 +369,7 @@ impl RepositoryBuildIterator {
 
         let mut recipe = None;
         for (repo_name, repo) in &repos {
-            let builds = repo.list_package_builds(pkg.as_version()).await?;
+            let builds = repo.list_package_builds(pkg.as_version_ident()).await?;
             for build in builds {
                 // Only return non-stubs or stubs depending on caller's
                 // choice.
@@ -389,7 +389,7 @@ impl RepositoryBuildIterator {
                 }
             }
             if recipe.is_none() {
-                recipe = match repo.read_recipe(pkg.as_version()).await {
+                recipe = match repo.read_recipe(pkg.as_version_ident()).await {
                     Ok(spec) => Some(spec),
                     Err(spk_storage::Error::PackageNotFound(_)) => None,
                     Err(err) => return Err(err.into()),
