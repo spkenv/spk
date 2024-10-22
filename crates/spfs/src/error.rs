@@ -166,7 +166,7 @@ pub enum Error {
     #[error("OverlayFS mount backend is not supported on windows.")]
     OverlayFsUnsupportedOnWindows,
 
-    #[error("Found duplicate spec file ({0}). Spec files can only be given once and must not contain circular references")]
+    #[error("Found duplicate spec file ({0}). Spec files can only be given once and must not contain circular references.")]
     DuplicateSpecFileReference(PathBuf),
 
     #[error("{context}")]
