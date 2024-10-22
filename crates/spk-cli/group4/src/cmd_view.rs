@@ -30,12 +30,13 @@ use spk_schema::{
     RequirementsList,
     Spec,
     Template,
+    TestStage,
     Variant,
     VersionIdent,
 };
 use spk_solve::solution::{get_spfs_layers_to_packages, LayerPackageAndComponents};
 use spk_storage;
-use strum::{Display, EnumString, VariantNames};
+use strum::{Display, EnumString, IntoEnumIterator, VariantNames};
 
 /// Constants for the valid output formats
 #[derive(Default, Display, EnumString, VariantNames, Clone)]
@@ -99,8 +100,13 @@ pub struct View {
     package: Option<String>,
 
     /// Display information about the variants defined by the package
-    #[clap(long)]
+    #[clap(long, group = "variants_info")]
     variants: bool,
+
+    /// Display information about the variants defined by the package, including
+    /// their defined tests.
+    #[clap(long, group = "variants_info")]
+    variants_with_tests: bool,
 
     // TODO: we can remove this, along with the solving call, once the
     // no solving method is bedded in.
@@ -115,9 +121,9 @@ impl Run for View {
     type Output = i32;
 
     async fn run(&mut self) -> Result<Self::Output> {
-        if self.variants {
+        if self.variants || self.variants_with_tests {
             let options = self.options.get_options()?;
-            return self.print_variants_info(&options);
+            return self.print_variants_info(&options, self.variants_with_tests);
         }
 
         let package = match (&self.package, &self.filepath, &self.pkg) {
@@ -189,6 +195,15 @@ struct PrintVariant<'a> {
     additional_requirements: Cow<'a, RequirementsList>,
 }
 
+#[derive(Serialize)]
+struct PrintVariantWithTests<'a> {
+    #[serde(flatten)]
+    print_variant: PrintVariant<'a>,
+    /// The number of tests per stage that would be run for this variant,
+    /// considering any selectors defined.
+    tests: BTreeMap<TestStage, u32>,
+}
+
 impl View {
     async fn print_current_env(&self) -> Result<i32> {
         let solution = current_env().await?;
@@ -206,7 +221,11 @@ impl View {
         Ok(0)
     }
 
-    fn print_variants_info(&self, options: &OptionMap) -> Result<i32> {
+    fn print_variants_info(
+        &self,
+        options: &OptionMap,
+        show_variants_with_tests: bool,
+    ) -> Result<i32> {
         let (_, template) = flags::find_package_template(self.package.as_ref())
             .wrap_err("find package template")?
             .must_be_found();
@@ -218,19 +237,49 @@ impl View {
                 OutputFormat::Yaml => tracing::warn!("No yaml format for variants"),
                 OutputFormat::Json => {
                     let mut variants = BTreeMap::new();
+                    let mut variants_with_tests = BTreeMap::new();
+
                     for (index, variant) in default_variants.iter().enumerate() {
                         let variant_info = PrintVariant {
                             options: variant.options(),
                             additional_requirements: variant.additional_requirements(),
                         };
-                        variants.insert(index, variant_info);
+                        if show_variants_with_tests {
+                            let mut tests = BTreeMap::new();
+
+                            for stage in TestStage::iter() {
+                                let selected = recipe
+                                    .get_tests(stage, variant)
+                                    .wrap_err("Failed to select tests for this variant")?;
+                                tests.insert(stage, selected.len() as u32);
+                            }
+
+                            variants_with_tests.insert(
+                                index,
+                                PrintVariantWithTests {
+                                    print_variant: variant_info,
+                                    tests,
+                                },
+                            );
+                        } else {
+                            variants.insert(index, variant_info);
+                        }
                     }
 
-                    serde_json::to_writer(std::io::stdout(), &variants)
-                        .into_diagnostic()
-                        .wrap_err("Failed to serialize loaded spec")?
+                    if show_variants_with_tests {
+                        serde_json::to_writer(std::io::stdout(), &variants_with_tests)
+                            .into_diagnostic()
+                            .wrap_err("Failed to serialize variant info")?
+                    } else {
+                        serde_json::to_writer(std::io::stdout(), &variants)
+                            .into_diagnostic()
+                            .wrap_err("Failed to serialize variant info")?
+                    }
                 }
             },
+            None if show_variants_with_tests => {
+                tracing::warn!("--variants-with-tests requires json format");
+            }
             None => {
                 // Variants are not printed in yaml format
                 for (index, variant) in default_variants.iter().enumerate() {
