@@ -610,7 +610,9 @@ impl Recipe for Spec<VersionIdent> {
             Err(err) => return Err(Error::String(format!("Failed to load spk config: {err}"))),
         };
 
-        updated.meta.update_metadata(&config.metadata)?;
+        if let Err(err) = updated.meta.update_metadata(&config.metadata) {
+            tracing::warn!("Failed to collect extra package metadata: {err}");
+        }
 
         let mut missing_build_requirements = HashMap::new();
         let mut missing_runtime_requirements: HashMap<OptNameBuf, (String, Option<String>)> =

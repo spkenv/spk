@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use std::io::Read;
 use std::path::Path;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use enum_dispatch::enum_dispatch;
 use format_serde_error::SerdeError;
@@ -136,7 +137,7 @@ macro_rules! spec {
 /// A generic, structured data object that can be turned into a recipe
 /// when provided with the necessary option values
 pub struct SpecTemplate {
-    name: PkgNameBuf,
+    name: Option<PkgNameBuf>,
     file_path: std::path::PathBuf,
     template: String,
 }
@@ -148,20 +149,18 @@ impl SpecTemplate {
     }
 }
 
-impl Named for SpecTemplate {
-    fn name(&self) -> &PkgName {
-        &self.name
+impl SpecTemplate {
+    pub fn name(&self) -> Option<&PkgNameBuf> {
+        self.name.as_ref()
     }
 }
 
 impl Template for SpecTemplate {
-    type Output = SpecRecipe;
-
     fn file_path(&self) -> &Path {
         &self.file_path
     }
 
-    fn render(&self, options: &OptionMap) -> Result<Self::Output> {
+    fn render(&self, options: &OptionMap) -> Result<SpecFileData> {
         let data = super::TemplateData::new(options);
         let rendered = spk_schema_tera::render_template(
             self.file_path.to_string_lossy(),
@@ -169,7 +168,9 @@ impl Template for SpecTemplate {
             &data,
         )
         .map_err(Error::InvalidTemplate)?;
-        Ok(SpecRecipe::from_yaml(rendered)?)
+
+        let file_data = SpecFileData::from_yaml(rendered)?;
+        Ok(file_data)
     }
 }
 
@@ -177,8 +178,10 @@ impl TemplateExt for SpecTemplate {
     fn from_file(path: &Path) -> Result<Self> {
         let file_path =
             dunce::canonicalize(path).map_err(|err| Error::InvalidPath(path.to_owned(), err))?;
+
         let file = std::fs::File::open(&file_path)
             .map_err(|err| Error::FileOpenError(file_path.to_owned(), err))?;
+
         let mut template = String::new();
         std::io::BufReader::new(file)
             .read_to_string(&mut template)
@@ -202,33 +205,48 @@ impl TemplateExt for SpecTemplate {
             tracing::warn!(
                 "Spec file is missing the 'api' field, this may be an error in the future"
             );
-            tracing::warn!(" > for specs in the original spk format, add 'api: v0/package'");
+            tracing::warn!(
+                " > for package specs in the original spk format, add a 'api: v0/package' line"
+            );
         }
 
         let name_field = match api {
-            Some(serde_yaml::Value::String(api)) if api == "v0/platform" => "platform",
-            _ => "pkg",
+            Some(serde_yaml::Value::String(api)) => {
+                let field = api.split("/").nth(1).unwrap_or("pkg");
+                if field == "package" {
+                    "pkg"
+                } else {
+                    field
+                }
+            }
+            Some(_) => "pkg",
+            None => "pkg",
         };
 
-        let pkg = template_value
-            .get(serde_yaml::Value::String(name_field.to_string()))
-            .ok_or_else(|| {
+        let name = if name_field == "requirements" {
+            // This is Spec data and does not have a name, e.g. Requests(V0::Requirements)
+            None
+        } else {
+            // Read the name from the name field, check it is a valid
+            // string, and turn it into a PkgNameBuf
+            let pkg = template_value
+                .get(serde_yaml::Value::String(name_field.to_string()))
+                .ok_or_else(|| {
+                    crate::Error::String(format!(
+                        "Missing '{name_field}' field in spec file: {file_path:?}"
+                    ))
+                })?;
+
+            let pkg = pkg.as_str().ok_or_else(|| {
                 crate::Error::String(format!(
-                    "Missing {name_field} field in spec file: {file_path:?}"
+                    "Invalid value for '{name_field}' field: expected string, got {pkg:?} in {file_path:?}"
                 ))
             })?;
 
-        let pkg = pkg.as_str().ok_or_else(|| {
-            crate::Error::String(format!(
-                "Invalid value for '{name_field}' field: expected string, got {pkg:?} in {file_path:?}"
-            ))
-        })?;
-
-        let name = PkgNameBuf::from_str(
             // it should never be possible for split to return 0 results
             // but this trick avoids the use of unwrap
-            pkg.split('/').next().unwrap_or(pkg),
-        )?;
+            Some(PkgNameBuf::from_str(pkg.split('/').next().unwrap_or(pkg))?)
+        };
 
         Ok(Self {
             file_path,
@@ -424,18 +442,15 @@ impl FromYaml for SpecRecipe {
         // the 'api' field does not exist in a spec. To do this properly
         // and still be able to maintain source location data for
         // yaml errors, we need to deserialize twice: once to get the
-        // api version, and a second time to deserialize that version
+        // api version, and a second time to deserialize that version.
+        // deserializing into a value and then using from_value
+        // instead of using from_str twice will lose useful context
+        // info if the parsing errors.
 
         // the name of this struct appears in error messages when the
         // root of the yaml doc is not a mapping, so we use something
-        // fairly generic, eg: 'expected struct YamlMapping'
-        #[derive(Deserialize)]
-        struct YamlMapping {
-            #[serde(default = "ApiVersion::default")]
-            api: ApiVersion,
-        }
-
-        let with_version = match serde_yaml::from_str::<YamlMapping>(&yaml) {
+        // fairly generic, eg: 'expected struct DataApiVersionMapping'
+        let with_version = match serde_yaml::from_str::<DataApiVersionMapping>(&yaml) {
             // we cannot simply use map_err because we need the compiler
             // to understand that we only pass ownership of 'yaml' if
             // the function is returning
@@ -456,7 +471,99 @@ impl FromYaml for SpecRecipe {
                     .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
                 Ok(Self::V0Platform(inner))
             }
+            ApiVersion::V0Requirements => {
+                // Reading a list of requests/requirements file is not
+                // supported here. But it might be in future.
+                unimplemented!()
+            }
         }
+    }
+}
+
+// Used during the initial parsing to determine what kind of data is in a file
+#[derive(Deserialize)]
+struct DataApiVersionMapping {
+    #[serde(default = "ApiVersion::default")]
+    api: ApiVersion,
+}
+
+/// Enum for the kinds of data in a spk yaml file
+#[derive(Debug)]
+pub enum SpecFileData {
+    /// A package or platform recipe
+    Recipe(Arc<SpecRecipe>),
+    /// A list of requests
+    Requests(v0::Requirements),
+}
+
+impl SpecFileData {
+    /// Return a SpecRecipe from this SpecFileData. Errors if it is
+    /// not SpecRecipe
+    pub fn into_recipe(self) -> Result<Arc<SpecRecipe>> {
+        match self {
+            SpecFileData::Recipe(r) => Ok(r.to_owned()),
+            SpecFileData::Requests(_) => {
+                Err(Error::String(
+                    "A package or platform recipe spec is required in this context. This is requests data."
+                        .to_string(),
+                )
+                )
+            }
+        }
+    }
+
+    /// Return a list of requests/requirements from this SpecFileData.
+    /// Errors if it is not a list of requests
+    pub fn into_requests(self) -> Result<v0::Requirements> {
+        match self {
+            SpecFileData::Recipe(_) => {
+                Err(Error::String(
+                    "Requests data is required in this context. This is a package or platform recipe spec."
+                        .to_string(),
+                )
+                )
+            }
+            SpecFileData::Requests(r) => Ok(r.to_owned()),
+        }
+    }
+
+    pub fn from_yaml<S: Into<String>>(yaml: S) -> Result<SpecFileData> {
+        let yaml = yaml.into();
+
+        let value: serde_yaml::Value =
+            serde_yaml::from_str(&yaml).map_err(Error::SpecEncodingError)?;
+
+        // First work out what kind of data this is, based on the
+        // DataApiVersionMapping value.
+        let with_version = match serde_yaml::from_value::<DataApiVersionMapping>(value.clone()) {
+            // we cannot simply use map_err because we need the compiler
+            // to understand that we only pass ownership of 'yaml' if
+            // the function is returning
+            Err(err) => {
+                return Err(SerdeError::new(yaml, SerdeYamlError(err)).into());
+            }
+            Ok(m) => m,
+        };
+
+        // Create the appropriate object from the parsed value
+        let spec = match with_version.api {
+            ApiVersion::V0Package => {
+                let inner = serde_yaml::from_value(value)
+                    .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
+                SpecFileData::Recipe(Arc::new(SpecRecipe::V0Package(inner)))
+            }
+            ApiVersion::V0Platform => {
+                let inner = serde_yaml::from_value(value)
+                    .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
+                SpecFileData::Recipe(Arc::new(SpecRecipe::V0Platform(inner)))
+            }
+            ApiVersion::V0Requirements => {
+                let requests: v0::Requirements = serde_yaml::from_value(value)
+                    .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
+                SpecFileData::Requests(requests)
+            }
+        };
+        Ok(spec)
     }
 }
 
@@ -699,18 +806,15 @@ impl FromYaml for Spec {
         // the 'api' field does not exist in a spec. To do this properly
         // and still be able to maintain source location data for
         // yaml errors, we need to deserialize twice: once to get the
-        // api version, and a second time to deserialize that version
+        // api version, and a second time to deserialize that version.
+        // deserializing into a value and then using from_value
+        // instead of using from_str twice will lose useful context
+        // info if the parsing errors.
 
         // the name of this struct appears in error messages when the
         // root of the yaml doc is not a mapping, so we use something
-        // fairly generic, eg: 'expected struct YamlMapping'
-        #[derive(Deserialize)]
-        struct YamlMapping {
-            #[serde(default = "ApiVersion::default")]
-            api: ApiVersion,
-        }
-
-        let with_version = match serde_yaml::from_str::<YamlMapping>(&yaml) {
+        // fairly generic, eg: 'expected struct DataApiVersionMapping'
+        let with_version = match serde_yaml::from_str::<DataApiVersionMapping>(&yaml) {
             // we cannot simply use map_err because we need the compiler
             // to understand that we only pass ownership of 'yaml' if
             // the function is returning
@@ -731,6 +835,11 @@ impl FromYaml for Spec {
                     .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
                 Ok(Self::V0Package(inner))
             }
+            ApiVersion::V0Requirements => {
+                // Reading a list of requests/requirement file is not
+                // supported here. But it might be in future.
+                unimplemented!()
+            }
         }
     }
 }
@@ -747,6 +856,8 @@ pub enum ApiVersion {
     V0Package,
     #[serde(rename = "v0/platform")]
     V0Platform,
+    #[serde(rename = "v0/requirements")]
+    V0Requirements,
 }
 
 impl Default for ApiVersion {

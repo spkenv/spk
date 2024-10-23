@@ -50,7 +50,7 @@ pub use recipe::{BuildEnv, Recipe};
 pub use requirements_list::RequirementsList;
 pub use serde_json;
 pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
-pub use spec::{Spec, SpecRecipe, SpecTemplate, SpecVariant};
+pub use spec::{ApiVersion, Spec, SpecFileData, SpecRecipe, SpecTemplate, SpecVariant};
 pub use spk_schema_foundation::option_map::{self, OptionMap};
 pub use spk_schema_foundation::{
     self as foundation,

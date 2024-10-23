@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use clap::Args;
-use miette::Result;
+use miette::{Result, WrapErr};
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::Recipe;
 
@@ -34,12 +34,18 @@ impl Run for NumVariants {
             .map(|(_, r)| Arc::new(r))
             .collect::<Vec<_>>();
 
-        let (recipe, _) = flags::find_package_recipe_from_template_or_repo(
+        let (spec_data, filename) = flags::find_package_recipe_from_template_or_repo(
             self.package.as_ref(),
             &options,
             &repos,
         )
         .await?;
+        let recipe = spec_data.into_recipe().wrap_err_with(|| {
+            format!(
+                "{filename} was expected to contain a recipe",
+                filename = filename.to_string_lossy()
+            )
+        })?;
 
         println!("{}", recipe.default_variants(&options).len());
 
