@@ -3,6 +3,7 @@
 // https://github.com/spkenv/spk
 
 use std::io;
+use std::path::PathBuf;
 use std::str::Utf8Error;
 
 use miette::Diagnostic;
@@ -164,6 +165,9 @@ pub enum Error {
 
     #[error("OverlayFS mount backend is not supported on windows.")]
     OverlayFsUnsupportedOnWindows,
+
+    #[error("Found duplicate spec file ({0}). Spec files can only be given once and must not contain circular references.")]
+    DuplicateSpecFileReference(PathBuf),
 
     #[error("{context}")]
     Wrapped {

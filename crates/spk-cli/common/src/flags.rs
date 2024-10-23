@@ -16,7 +16,6 @@ use solve::{
     MultiSolverKind,
     DEFAULT_SOLVER_RUN_FILE_PREFIX,
 };
-use spfs::runtime::LiveLayerFile;
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
@@ -79,8 +78,8 @@ pub struct Runtime {
 
     /// Path to a live layer config file that will be added to the
     /// /spfs filesystem over the top of the existing spfs layers
-    #[clap(long, value_name = "LAYER_FILE")]
-    pub live_layer: Option<Vec<LiveLayerFile>>,
+    #[clap(long, value_name = "LIVE_LAYER_FILE")]
+    pub live_layer: Option<Vec<String>>,
 }
 
 impl Runtime {
