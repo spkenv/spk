@@ -169,22 +169,19 @@ async fn test_remote_config_with_tag_namespace_from_address() {
     )
 }
 
-static ENV_MUTEX: once_cell::sync::Lazy<std::sync::Mutex<()>> =
-    once_cell::sync::Lazy::new(|| std::sync::Mutex::new(()));
-
 #[rstest]
 #[case::single_underscores_still_works(&["SPFS_STORAGE_ROOT"], 0, &[], |config: &Config| config.storage.root.display().to_string())]
 #[case::single_underscores_has_precedence(&["SPFS_STORAGE_ROOT", "SPFS_STORAGE__ROOT"], 0, &[], |config: &Config| config.storage.root.display().to_string())]
 #[case::double_underscores_will_work(&["SPFS_STORAGE__ROOT"], 0, &["SPFS_STORAGE_ROOT"], |config: &Config| config.storage.root.display().to_string())]
+// Environment manipulation is not thread safe, so run these test cases
+// serially.
+#[serial_test::serial(env)]
 fn test_config_env_overrides<F: Fn(&Config) -> R, R: ToString>(
     #[case] env_vars_to_set: &[&str],
     #[case] expected_index: usize,
     #[case] env_vars_to_clear: &[&str],
     #[case] get_field: F,
 ) {
-    // Environment manipulation is not thread safe, so run these test cases
-    // serially.
-    let _guard = ENV_MUTEX.lock().unwrap();
     let generated_values = env_vars_to_set
         .iter()
         .map(|&var| {
