@@ -121,8 +121,8 @@ pub fn format_changes<'a, U1: 'a, U2: 'a>(
 }
 
 /// Return a human-readable representation of the sync summary data.
-pub fn format_sync_summary(summary: &super::sync::SyncSummary) -> String {
-    let super::sync::SyncSummary {
+pub fn format_sync_summary(summary: &super::sync::reporter::SyncSummary) -> String {
+    let super::sync::reporter::SyncSummary {
         skipped_tags,
         synced_tags,
         skipped_objects,

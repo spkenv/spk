@@ -16,6 +16,7 @@ use crate::prelude::*;
 use crate::storage::fs::{FsHashStore, ManifestRenderPath, OpenFsRepository, RenderStore};
 use crate::storage::tag::TagSpecAndTagStream;
 use crate::storage::{EntryType, LocalRepository, TagNamespace, TagNamespaceBuf, TagStorageMut};
+use crate::sync::reporter::SyncReporters;
 use crate::tracking::BlobRead;
 use crate::{encoding, graph, storage, tracking, Error, Result};
 
@@ -238,7 +239,7 @@ impl PayloadStorage for FallbackProxy {
                     .with_reporter(
                         // There may already be a progress bar in use in this
                         // context, so don't make another one here.
-                        crate::sync::SilentSyncReporter::default(),
+                        SyncReporters::silent(),
                     );
                 match syncer.sync_digest(digest).await {
                     Ok(_) => {

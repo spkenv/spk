@@ -16,6 +16,16 @@ use tracing_subscriber::prelude::*;
 
 const SPFS_LOG: &str = "SPFS_LOG";
 
+/// Options for showing progress
+#[derive(Clone, Copy, Debug, Default, clap::ValueEnum)]
+pub enum Progress {
+    /// Show progress bars (default)
+    #[default]
+    Bars,
+    /// Do not show any progress
+    None,
+}
+
 /// Command line flags for configuring sync operations
 #[derive(Debug, Clone, clap::Args)]
 pub struct Sync {
@@ -54,6 +64,10 @@ pub struct Sync {
         default_value_t = spfs::sync::DEFAULT_MAX_CONCURRENT_PAYLOADS
     )]
     pub max_concurrent_payloads: usize,
+
+    /// Options for showing progress
+    #[clap(long, value_enum)]
+    pub progress: Option<Progress>,
 }
 
 impl Sync {
@@ -63,13 +77,17 @@ impl Sync {
         &self,
         src: &'src spfs::storage::RepositoryHandle,
         dest: &'dst spfs::storage::RepositoryHandle,
-    ) -> spfs::Syncer<'src, 'dst, spfs::sync::ConsoleSyncReporter> {
+    ) -> spfs::Syncer<'src, 'dst> {
         let policy = self.sync_policy();
-        spfs::Syncer::new(src, dest)
+        let syncer = spfs::Syncer::new(src, dest)
             .with_policy(policy)
             .with_max_concurrent_manifests(self.max_concurrent_manifests)
-            .with_max_concurrent_payloads(self.max_concurrent_payloads)
-            .with_reporter(spfs::sync::ConsoleSyncReporter::default())
+            .with_max_concurrent_payloads(self.max_concurrent_payloads);
+
+        match self.progress.unwrap_or_default() {
+            Progress::Bars => syncer.with_reporter(spfs::sync::reporter::SyncReporters::console()),
+            Progress::None => syncer,
+        }
     }
 
     /// The selected sync policy for these options

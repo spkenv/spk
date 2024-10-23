@@ -4,6 +4,7 @@
 
 use clap::Args;
 use miette::Result;
+use spfs_cli_common::Progress;
 use spk_cli_common::{flags, CommandArgs, Run};
 
 /// Convert a package from an external packaging system for use in spk
@@ -23,6 +24,10 @@ pub struct Convert {
 
     #[clap(flatten)]
     pub formatter_settings: flags::DecisionFormatterSettings,
+
+    /// Options for showing progress
+    #[clap(long, value_enum)]
+    pub progress: Option<Progress>,
 
     /// The converter to run
     converter: String,
@@ -57,6 +62,7 @@ impl Run for Convert {
             requests: self.requests.clone(),
             verbose: self.verbose,
             formatter_settings: self.formatter_settings.clone(),
+            progress: self.progress,
             requested: vec![converter_package],
             command,
         };
