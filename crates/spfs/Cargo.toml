@@ -41,6 +41,7 @@ data-encoding = "2.3"
 derive_builder = { workspace = true }
 dirs = { workspace = true }
 dunce = { workspace = true }
+enum_dispatch = { workspace = true }
 faccess = "0.2.3"
 flatbuffers = { workspace = true }
 futures = { workspace = true }

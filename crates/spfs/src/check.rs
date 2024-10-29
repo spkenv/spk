@@ -14,7 +14,8 @@ use tokio::sync::Semaphore;
 
 use crate::graph::AnnotationValue;
 use crate::prelude::*;
-use crate::sync::{SyncObjectResult, SyncPayloadResult, SyncPolicy};
+use crate::sync::reporter::{SyncObjectResult, SyncPayloadResult};
+use crate::sync::SyncPolicy;
 use crate::{encoding, graph, storage, tracking, Error, Result};
 
 #[cfg(test)]
