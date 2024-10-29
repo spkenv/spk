@@ -1374,8 +1374,8 @@ impl State {
 
     /// Get a mapping of pkg name -> merged request for the unresolved
     /// PkgRequests in this state
-    pub fn get_unresolved_requests(&self) -> &HashMap<PkgNameBuf, PkgRequest> {
-        self.cached_unresolved_pkg_requests.get_or_init(|| {
+    pub fn get_unresolved_requests(&self) -> Result<&HashMap<PkgNameBuf, PkgRequest>> {
+        self.cached_unresolved_pkg_requests.get_or_try_init(|| {
             let mut unresolved: HashMap<PkgNameBuf, PkgRequest> = HashMap::new();
 
             for req in self.pkg_requests.iter() {
@@ -1383,13 +1383,11 @@ impl State {
                     continue;
                 }
                 if self.get_current_resolve(&req.pkg.name).is_err() {
-                    unresolved.insert(
-                        req.pkg.name.clone(),
-                        self.get_merged_request(&req.pkg.name).unwrap(),
-                    );
+                    let merged = self.get_merged_request(&req.pkg.name)?;
+                    unresolved.insert(req.pkg.name.clone(), merged);
                 }
             }
-            unresolved
+            Ok(unresolved)
         })
     }
 

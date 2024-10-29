@@ -243,9 +243,9 @@ where
         }
     }
 
-    fn show_unresolved_requests(&self, state: &Arc<State>) {
+    fn show_unresolved_requests(&self, state: &Arc<State>) -> Result<()> {
         let unresolved_requests = state
-            .get_unresolved_requests()
+            .get_unresolved_requests()?
             .iter()
             .map(|(n, r)| {
                 r.format_request(
@@ -264,6 +264,7 @@ where
             unresolved_requests.join("\n  "),
             unresolved_requests.len()
         );
+        Ok(())
     }
 
     fn show_var_requests(&self, state: &Arc<State>) {
@@ -290,11 +291,12 @@ where
         );
     }
 
-    fn show_state(&self, state: &Arc<State>) {
+    fn show_state(&self, state: &Arc<State>) -> Result<()> {
         self.show_resolved_packages(state);
-        self.show_unresolved_requests(state);
+        self.show_unresolved_requests(state)?;
         self.show_var_requests(state);
         self.show_options(state);
+        Ok(())
     }
 
     fn show_full_menu(&self, prompt_prefix: &str) {
@@ -343,10 +345,10 @@ where
                 match selection {
                     '?' => self.show_full_menu(&prompt_prefix),
                     'r' => self.show_resolved_packages(state),
-                    'u' => self.show_unresolved_requests(state),
+                    'u' => self.show_unresolved_requests(state)?,
                     'v' => self.show_var_requests(state),
                     'o' => self.show_options(state),
-                    's' | 'a' => self.show_state(state),
+                    's' | 'a' => self.show_state(state)?,
                     'c' => {
                         self.remove_step_and_stop_setting();
                         break;

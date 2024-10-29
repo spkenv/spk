@@ -555,7 +555,7 @@ impl Solver {
                 let builds_with_impossible_requests = if self.impossible_checks.use_in_build_keys {
                     let impossible_check_start = Instant::now();
                     let start_number = self.request_validator.num_build_specs_read();
-                    let unresolved = node.state.get_unresolved_requests();
+                    let unresolved = node.state.get_unresolved_requests()?;
 
                     let problematic_builds = self
                         .check_builds_for_impossible_requests(unresolved, builds.clone())
@@ -608,7 +608,7 @@ impl Solver {
                                     // are used to check the new requests this
                                     // build would add, if it was used to
                                     // resolve the current request.
-                                    let unresolved = node.state.get_unresolved_requests();
+                                    let unresolved = node.state.get_unresolved_requests()?;
                                     let compat = self
                                         .check_requirements_for_impossible_requests(
                                             &spec, unresolved,
@@ -844,7 +844,7 @@ impl Solver {
 
         let tasks = FuturesUnordered::new();
 
-        let initial_requests = initial_state.get_unresolved_requests();
+        let initial_requests = initial_state.get_unresolved_requests()?;
         for (count, req) in initial_requests.values().enumerate() {
             // Have to make a dummy spec for an "initialrequest"
             // package to interact with the request_validator's
