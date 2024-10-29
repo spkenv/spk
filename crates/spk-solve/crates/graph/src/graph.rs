@@ -1375,25 +1375,20 @@ impl State {
     /// Get a mapping of pkg name -> merged request for the unresolved
     /// PkgRequests in this state
     pub fn get_unresolved_requests(&self) -> Result<&HashMap<PkgNameBuf, PkgRequest>> {
-        match self.cached_unresolved_pkg_requests.get() {
-            Some(hm) => Ok(hm),
-            None => {
-                let mut unresolved: HashMap<PkgNameBuf, PkgRequest> = HashMap::new();
+        self.cached_unresolved_pkg_requests.get_or_try_init(|| {
+            let mut unresolved: HashMap<PkgNameBuf, PkgRequest> = HashMap::new();
 
-                for req in self.pkg_requests.iter() {
-                    if unresolved.contains_key(&req.pkg.name) {
-                        continue;
-                    }
-                    if self.get_current_resolve(&req.pkg.name).is_err() {
-                        let merged = self.get_merged_request(&req.pkg.name)?;
-                        unresolved.insert(req.pkg.name.clone(), merged);
-                    }
+            for req in self.pkg_requests.iter() {
+                if unresolved.contains_key(&req.pkg.name) {
+                    continue;
                 }
-                Ok(self
-                    .cached_unresolved_pkg_requests
-                    .get_or_init(|| unresolved))
+                if self.get_current_resolve(&req.pkg.name).is_err() {
+                    let merged = self.get_merged_request(&req.pkg.name)?;
+                    unresolved.insert(req.pkg.name.clone(), merged);
+                }
             }
-        }
+            Ok(unresolved)
+        })
     }
 
     pub fn get_ordered_resolved_packages(&self) -> &Arc<Vec<Arc<Spec>>> {
