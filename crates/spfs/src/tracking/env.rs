@@ -35,6 +35,12 @@ const DEFAULT_LIVE_LAYER_FILENAME: &str = "layer.spfs.yaml";
 static SEEN_SPEC_FILES: Lazy<std::sync::Mutex<HashSet<PathBuf>>> =
     Lazy::new(|| std::sync::Mutex::new(HashSet::new()));
 
+/// For clearing the seen spec files cache
+pub fn clear_seen_spec_file_cache() {
+    let mut seen_files = SEEN_SPEC_FILES.lock().unwrap();
+    seen_files.clear();
+}
+
 /// Used during the initial parsing to determine what kind of data is in a file
 #[derive(Deserialize, Debug)]
 struct SpecApiVersionMapping {
