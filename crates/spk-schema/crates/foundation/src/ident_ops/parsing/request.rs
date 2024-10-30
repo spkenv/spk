@@ -44,7 +44,8 @@ where
 
 /// Parse a package name with optional components and optional version.
 ///
-/// The package name must either be followed by a `/` or the end of input.
+/// The package name must either be followed by a `/` and a version, or the end
+/// of input.
 ///
 /// Examples:
 /// - `"package-name"`
