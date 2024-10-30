@@ -41,11 +41,28 @@ fn test_env_spec_with_live_layer_dir(tmpdir: tempfile::TempDir) {
 #[rstest]
 fn test_env_spec_with_live_layer_file(tmpdir: tempfile::TempDir) {
     let dir = tmpdir.path();
-    let file_path = dir.join("layer.spfs.yaml");
+    let file_path = dir.join("livelayer.spfs.yaml");
     let mut tmp_file = File::create(file_path.clone()).unwrap();
     writeln!(tmp_file, "# test live layer").unwrap();
 
     let env_spec = EnvSpec::parse(file_path.display().to_string())
-        .expect("absolute path to layer.spfs.yaml should be valid");
+        .expect("absolute path to livelayer.spfs.yaml should be valid");
+    assert!(!env_spec.is_empty());
+}
+
+#[rstest]
+fn test_env_spec_with_runspec_file(tmpdir: tempfile::TempDir) {
+    let dir = tmpdir.path();
+    let file_path = dir.join("runspec.spfs.yaml");
+    let mut tmp_file = File::create(file_path.clone()).unwrap();
+    writeln!(
+        tmp_file,
+        "# test run spec\napi: spfs/v0/runspec\nlayers:\n
+  - A7USTIBXPXHMD5CYEIIOBMFLM3X77ESVR3WAUXQ7XQQGTHKH7DMQ===="
+    )
+    .unwrap();
+
+    let env_spec = EnvSpec::parse(file_path.display().to_string())
+        .expect("absolute path to runspec.spfs.yaml should be valid");
     assert!(!env_spec.is_empty());
 }

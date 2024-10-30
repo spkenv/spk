@@ -87,7 +87,7 @@ fn test_live_layer_file_load(tmpdir: tempfile::TempDir) {
     std::fs::create_dir(subdir.clone()).unwrap();
 
     let yaml = format!(
-        "# test live layer\napi: v0/layer\ncontents:\n - bind: {}\n   dest: /spfs/test\n",
+        "# test live layer\napi: v0/livelayer\ncontents:\n - bind: {}\n   dest: /spfs/test\n",
         subdir.display()
     );
 
@@ -112,7 +112,7 @@ fn test_live_layer_minimal_deserialize() {
     // if more LiveLayer fields are added in future, they should have
     // #[serde(default)] set or be optional, so they are backwards
     // compatible with existing live layer configurations.
-    let yaml: &str = "api: v0/layer\ncontents:\n";
+    let yaml: &str = "api: v0/livelayer\ncontents:\n";
 
     let layer: LiveLayer = serde_yaml::from_str(yaml).unwrap();
 
@@ -122,7 +122,7 @@ fn test_live_layer_minimal_deserialize() {
 #[rstest]
 #[should_panic]
 fn test_live_layer_deserialize_fail_no_contents_field() {
-    let yaml: &str = "api: v0/layer\n";
+    let yaml: &str = "api: v0/livelayer\n";
 
     // This should panic because the contents: field is missing
     let _layer: LiveLayer = serde_yaml::from_str(yaml).unwrap();
