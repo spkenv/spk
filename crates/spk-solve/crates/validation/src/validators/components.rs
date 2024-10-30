@@ -38,25 +38,9 @@ impl ValidatorT for ComponentsValidator {
             return Ok(Compatibility::Incompatible(reason));
         }
 
-        let required_components = spec
-            .components()
-            .resolve_uses(request.pkg.components.iter());
-
-        for component in spec.components().iter() {
-            if !required_components.contains(&component.name) {
-                continue;
-            }
-
-            for embedded in component.embedded.iter() {
-                let compat = EmbeddedPackageValidator::validate_embedded_package_against_state(
-                    spec, embedded, state,
-                )?;
-                if !&compat {
-                    return Ok(compat);
-                }
-            }
-        }
-        Ok(Compatible)
+        EmbeddedPackageValidator::validate_embedded_packages_in_required_components(
+            spec, &request, state,
+        )
     }
 
     fn validate_recipe<R: Recipe>(
@@ -122,7 +106,7 @@ impl ComponentsValidator {
         let available_components: std::collections::HashSet<_> = match source {
             PackageSource::Repository { components, .. } => components.keys().collect(),
             PackageSource::BuildFromSource { .. } => package.components().names(),
-            PackageSource::Embedded { .. } => package.components().names(),
+            PackageSource::Embedded { components, .. } => components.iter().collect(),
             PackageSource::SpkInternalTest => package.components().names(),
         };
 

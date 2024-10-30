@@ -166,7 +166,7 @@ impl FormatChange for Change {
                                         vec![RequestedBy::PackageVersion(recipe.ident().clone())
                                             .to_string()]
                                     }
-                                    PackageSource::Embedded { parent } => {
+                                    PackageSource::Embedded { parent, .. } => {
                                         vec![RequestedBy::Embedded(parent.clone()).to_string()]
                                     }
                                     _ => {
@@ -283,7 +283,11 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
             changes
                 .extend(self.requirements_to_changes(&spec.runtime_requirements(), &requested_by));
             changes.extend(self.components_to_changes(spec.components(), requester_ident));
-            changes.extend(self.embedded_to_changes(spec.embedded(), requester_ident));
+            changes.extend(self.embedded_to_changes(
+                spec.embedded(),
+                spec.components(),
+                requester_ident,
+            ));
             changes.push(Self::options_to_change(spec));
 
             Ok(changes)
@@ -306,7 +310,11 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
         let requested_by = RequestedBy::PackageBuild(requester_ident.clone());
         changes.extend(self.requirements_to_changes(&spec.runtime_requirements(), &requested_by));
         changes.extend(self.components_to_changes(spec.components(), requester_ident));
-        changes.extend(self.embedded_to_changes(spec.embedded(), requester_ident));
+        changes.extend(self.embedded_to_changes(
+            spec.embedded(),
+            spec.components(),
+            requester_ident,
+        ));
         changes.push(Self::options_to_change(&spec));
 
         changes
@@ -331,6 +339,35 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                 Change::StepBack(StepBack::new(
                     format!(
                         "Package {} embeds package already resolved: {conflicting_package_name}",
+                        request.pkg.name
+                    ),
+                    self.base,
+                    counter,
+                )),
+                Change::RequestPackage(RequestPackage::prioritize(request)),
+            ];
+
+            changes
+        };
+
+        Decision {
+            changes: generate_changes(),
+            notes: Vec::default(),
+        }
+    }
+
+    /// Make this package the next request to be considered.
+    pub fn reconsider_package_with_additional_components(
+        self,
+        request: PkgRequest,
+        package_with_unsatisfied_components: &PkgName,
+        counter: Arc<AtomicU64>,
+    ) -> Decision {
+        let generate_changes = || {
+            let changes = vec![
+                Change::StepBack(StepBack::new(
+                    format!(
+                        "Package {package_with_unsatisfied_components} needs additional components from {}",
                         request.pkg.name
                     ),
                     self.base,
@@ -383,7 +420,6 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                 continue;
             }
             changes.extend(self.requirements_to_changes(&component.requirements, &requested_by));
-            changes.extend(self.embedded_to_changes(&component.embedded, requester));
         }
         changes
     }
@@ -437,8 +473,56 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
     fn embedded_to_changes(
         &self,
         embedded: &EmbeddedPackagesList,
+        components: &ComponentSpecList,
         parent: &BuildIdent,
     ) -> Vec<Change> {
+        let required = components.resolve_uses(self.components.iter().cloned());
+        if !required.is_empty() {
+            let mut merged_changes = HashMap::new();
+            for component in components.iter() {
+                if !required.contains(&component.name) {
+                    continue;
+                }
+                for embedded_package in component.embedded.iter() {
+                    // TODO: It should be validated elsewhere that
+                    // component.embedded_packages only refers to valid
+                    // packages declared in embedded.
+                    for embedded in embedded.packages_matching_embedded_package(embedded_package) {
+                        (*merged_changes.entry(embedded).or_insert(BTreeSet::new()))
+                            .extend(embedded_package.components().iter().cloned());
+                    }
+                }
+            }
+            if !merged_changes.is_empty() {
+                let mut changes = Vec::new();
+
+                for (spec, components) in merged_changes.into_iter() {
+                    let components_as_hashset = components.iter().cloned().collect();
+
+                    changes.push({
+                        let mut req_pkg = RequestPackage::new(PkgRequest::from_ident(
+                            spec.ident().to_any_ident(),
+                            RequestedBy::Embedded(parent.clone()),
+                        ));
+                        req_pkg.request.pkg.components = components;
+                        Change::RequestPackage(req_pkg)
+                    });
+
+                    changes.extend(self.set_package(
+                        Arc::new((*spec).clone()),
+                        PackageSource::Embedded {
+                            parent: parent.clone(),
+                            components: components_as_hashset,
+                        },
+                    ));
+                }
+
+                return changes;
+            }
+        }
+
+        // Fallback behavior: add all embedded packages.
+
         embedded
             .iter()
             .flat_map(|embedded| {
@@ -452,6 +536,7 @@ impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
                     Arc::new(embedded.clone()),
                     PackageSource::Embedded {
                         parent: parent.clone(),
+                        components: Default::default(),
                     },
                 ));
                 changes

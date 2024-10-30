@@ -76,24 +76,52 @@ impl PkgRequirementsValidator {
             }
         };
 
+        let mut was_embedded = None;
+
         let (resolved, provided_components) = match state.get_current_resolve(&request.pkg.name) {
             Ok((spec, source, _)) => match source {
                 PackageSource::Repository { components, .. } => (spec, components.keys().collect()),
-                PackageSource::BuildFromSource { .. }
-                | PackageSource::Embedded { .. }
-                | PackageSource::SpkInternalTest => (spec, spec.components().names()),
+                PackageSource::Embedded { parent, components } => {
+                    was_embedded = Some(parent);
+                    (spec, components.iter().collect())
+                }
+                PackageSource::BuildFromSource { .. } | PackageSource::SpkInternalTest => {
+                    (spec, spec.components().names())
+                }
             },
             Err(spk_solve_graph::GetCurrentResolveError::PackageNotResolved(_)) => {
                 return Ok(Compatible)
             }
         };
 
-        let compat = Self::validate_request_against_existing_resolve(
+        let compat = match Self::validate_request_against_existing_resolve(
             &request,
             resolved,
             provided_components,
-        )?;
-        if !&compat {
+        )? {
+            Compatible => Compatible,
+            Compatibility::Incompatible(reason) => match (reason, was_embedded) {
+                (
+                    IncompatibleReason::ComponentsMissing(
+                        ComponentsMissingProblem::ComponentsNotProvided {
+                            package,
+                            needed,
+                            have,
+                        },
+                    ),
+                    Some(parent),
+                ) => Compatibility::Incompatible(IncompatibleReason::ComponentsMissing(
+                    ComponentsMissingProblem::EmbeddedComponentsNotProvided {
+                        embedder: parent.name().to_owned(),
+                        embedded: package,
+                        needed,
+                        have,
+                    },
+                )),
+                (reason, _) => Compatibility::Incompatible(reason),
+            },
+        };
+        if !compat.is_ok() {
             return Ok(compat);
         }
 
@@ -110,24 +138,30 @@ impl PkgRequirementsValidator {
             if !required_components.contains(&component.name) {
                 continue;
             }
-            for embedded in component.embedded.iter() {
-                let compat = EmbeddedPackageValidator::validate_embedded_package_against_state(
-                    &**resolved,
-                    embedded,
-                    state,
-                )?;
-                if let Compatibility::Incompatible(compat) = compat {
-                    return Ok(Compatibility::Incompatible(
-                        IncompatibleReason::ConflictingEmbeddedPackageRequirement(
-                            resolved.name().to_owned(),
-                            component.name.to_string(),
-                            embedded.name().to_owned(),
-                            Box::new(compat),
-                        ),
-                    ));
+            for embedded_package in component.embedded.iter() {
+                for embedded in resolved
+                    .embedded()
+                    .packages_matching_embedded_package(embedded_package)
+                {
+                    let compat = EmbeddedPackageValidator::validate_embedded_package_against_state(
+                        &**resolved,
+                        embedded,
+                        state,
+                    )?;
+                    if let Compatibility::Incompatible(compat) = compat {
+                        return Ok(Compatibility::Incompatible(
+                            IncompatibleReason::ConflictingEmbeddedPackageRequirement(
+                                resolved.name().to_owned(),
+                                component.name.to_string(),
+                                embedded.name().to_owned(),
+                                Box::new(compat),
+                            ),
+                        ));
+                    }
                 }
             }
         }
+
         Ok(Compatible)
     }
 
