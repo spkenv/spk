@@ -4,8 +4,10 @@
 
 //! Handles the setup and initialization of runtime environments
 
+pub mod live_layer;
 #[cfg(unix)]
 pub mod overlayfs;
+pub mod spec_api_version;
 #[cfg(unix)]
 mod startup_csh;
 #[cfg(windows)]
@@ -16,18 +18,17 @@ mod storage;
 #[cfg(windows)]
 pub mod winfsp;
 
+pub use live_layer::{BindMount, LiveLayer, LiveLayerContents};
 #[cfg(unix)]
 pub use overlayfs::is_removed_entry;
+pub use spec_api_version::SpecApiVersion;
 pub use storage::{
     makedirs_with_perms,
     Author,
-    BindMount,
     Config,
     Data,
     KeyValuePair,
     KeyValuePairBuf,
-    LiveLayer,
-    LiveLayerFile,
     MountBackend,
     OwnedRuntime,
     Runtime,
