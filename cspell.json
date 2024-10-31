@@ -602,6 +602,7 @@
     "RTTI",
     "ruleset",
     "runme",
+    "runspec",
     "runtimes",
     "RUSTC",
     "RUSTDOCFLAGS",
