@@ -7,7 +7,7 @@ use std::ffi::OsString;
 
 use clap::Args;
 use miette::{Context, Result};
-use spfs::tracking::{SpfsFile, SpfsSpecFile};
+use spfs::tracking::SpecFile;
 use spfs_cli_common::Progress;
 use spk_cli_common::{build_required_packages, flags, CommandArgs, Run};
 use spk_exec::setup_runtime_with_reporter;
