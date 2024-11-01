@@ -335,7 +335,7 @@ pub struct Logging {
     pub syslog: bool,
 
     /// Enables timestamp in logging (always enabled in file log)
-    #[clap(long, global = true, env = "SPFS_LOG_TIMESTAMP")]
+    #[clap(long, global = true, value_parser = clap::builder::BoolishValueParser::new(), env = "SPFS_LOG_TIMESTAMP")]
     pub timestamp: bool,
 }
 
