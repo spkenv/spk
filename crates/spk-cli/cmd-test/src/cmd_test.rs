@@ -100,9 +100,15 @@ impl Run for CmdTest {
                 }
             };
 
-            let (recipe, filename) =
+            let (spec_data, filename) =
                 flags::find_package_recipe_from_template_or_repo(Some(&name), &options, &repos)
                     .await?;
+            let recipe = spec_data.into_recipe().wrap_err_with(|| {
+                format!(
+                    "{filename} was expected to contain a recipe",
+                    filename = filename.to_string_lossy()
+                )
+            })?;
 
             for stage in stages {
                 tracing::info!("Testing {}@{stage}...", filename.display());

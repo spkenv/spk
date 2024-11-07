@@ -139,12 +139,18 @@ impl Run for MakeBinary {
             (!self.options.no_host).then(|| HOST_OPTIONS.get().unwrap_or_default());
 
         for package in packages {
-            let (recipe, filename) = flags::find_package_recipe_from_template_or_repo(
+            let (spec_data, filename) = flags::find_package_recipe_from_template_or_repo(
                 package.as_ref().map(|p| p.get_specifier()),
                 &options,
                 &repos,
             )
             .await?;
+            let recipe = spec_data.into_recipe().wrap_err_with(|| {
+                format!(
+                    "{filename} was expected to contain a recipe",
+                    filename = filename.to_string_lossy()
+                )
+            })?;
             let ident = recipe.ident();
 
             tracing::info!("saving package recipe for {}", ident.format_ident());

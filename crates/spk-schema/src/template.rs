@@ -6,19 +6,16 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use crate::foundation::option_map::OptionMap;
-use crate::foundation::spec_ops::Named;
-use crate::Result;
+use crate::{Result, SpecFileData};
 
 /// Can be rendered into a recipe.
 #[enum_dispatch::enum_dispatch]
-pub trait Template: Named + Sized {
-    type Output: super::Recipe;
-
+pub trait Template: Sized {
     /// Identify the location of this template on disk
     fn file_path(&self) -> &Path;
 
     /// Render this template with the provided values.
-    fn render(&self, options: &OptionMap) -> Result<Self::Output>;
+    fn render(&self, options: &OptionMap) -> Result<SpecFileData>;
 }
 
 pub trait TemplateExt: Template {

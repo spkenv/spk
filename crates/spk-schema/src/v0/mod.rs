@@ -3,12 +3,14 @@
 // https://github.com/spkenv/spk
 
 mod platform;
+mod requirements;
 mod spec;
 mod test_spec;
 mod variant;
 mod variant_spec;
 
 pub use platform::Platform;
+pub use requirements::Requirements;
 pub use spec::Spec;
 pub use test_spec::TestSpec;
 pub use variant::Variant;

@@ -27,7 +27,7 @@ fn test_yaml_short() {
 
     let expected = r#"
  1 | short and wrong
-   | ^ invalid type: string "short and wrong", expected struct YamlMapping
+   | ^ invalid type: string "short and wrong", expected struct DataApiVersionMapping
 "#;
 
     let message = err.to_string();

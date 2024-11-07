@@ -21,7 +21,6 @@ use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::OptName;
 use spk_schema::foundation::option_map::OptionMap;
-use spk_schema::foundation::spec_ops::Named;
 use spk_schema::foundation::version::CompatRule;
 use spk_schema::ident::{
     parse_ident,
@@ -33,7 +32,16 @@ use spk_schema::ident::{
     VarRequest,
 };
 use spk_schema::option_map::HOST_OPTIONS;
-use spk_schema::{Recipe, SpecRecipe, SpecTemplate, Template, TemplateExt, TestStage, VariantExt};
+use spk_schema::{
+    Recipe,
+    SpecFileData,
+    SpecRecipe,
+    SpecTemplate,
+    Template,
+    TemplateExt,
+    TestStage,
+    VariantExt,
+};
 #[cfg(feature = "statsd")]
 use spk_solve::{get_metrics_client, SPK_RUN_TIME_METRIC};
 pub use variant::{Variant, VariantBuildStatus, VariantLocation};
@@ -246,8 +254,10 @@ pub struct Solver {
 impl Solver {
     pub async fn get_solver(&self, options: &Options) -> Result<solve::Solver> {
         let option_map = options.get_options()?;
+
         let mut solver = solve::Solver::default();
         solver.update_options(option_map);
+
         for (name, repo) in self.repos.get_repos_for_non_destructive_operation().await? {
             tracing::debug!(repo=%name, "using repository");
             solver.add_repository(repo);
@@ -263,9 +273,6 @@ impl Solver {
             self.check_impossible_builds || self.check_impossible_all,
         );
 
-        for r in options.get_var_requests()? {
-            solver.add_request(r.into());
-        }
         Ok(solver)
     }
 }
@@ -289,10 +296,6 @@ pub struct Options {
     #[clap(long = "opt", short)]
     pub options: Vec<String>,
 
-    /// Specify build/resolve options from a json or yaml file (see --opt/-o)
-    #[clap(long, value_hint = ValueHint::FilePath)]
-    pub options_file: Vec<std::path::PathBuf>,
-
     /// Do not add the default options for the current host system
     #[clap(long)]
     pub no_host: bool,
@@ -306,16 +309,6 @@ impl Options {
                 .get()
                 .wrap_err("Failed to compute options for current host")?,
         };
-
-        for filename in self.options_file.iter() {
-            let reader = std::fs::File::open(filename)
-                .into_diagnostic()
-                .wrap_err_with(|| format!("Failed to open: {filename:?}"))?;
-            let options: OptionMap = serde_yaml::from_reader(reader)
-                .into_diagnostic()
-                .wrap_err_with(|| format!("Failed to parse as option mapping: {filename:?}"))?;
-            opts.extend(options);
-        }
 
         for pair in self.options.iter() {
             let pair = pair.trim();
@@ -387,8 +380,14 @@ impl Requests {
 
             let path = std::path::Path::new(package);
             if path.is_file() {
-                let (_, template) = find_package_template(Some(&package))?.must_be_found();
-                let recipe = template.render(options)?;
+                let (filename, template) = find_package_template(Some(&package))?.must_be_found();
+                let rendered_data = template.render(options)?;
+                let recipe = rendered_data.into_recipe().wrap_err_with(|| {
+                    format!(
+                        "{filename} was expected to contain a recipe",
+                        filename = filename.to_string_lossy()
+                    )
+                })?;
                 idents.push(recipe.ident().to_any_ident(None));
             } else {
                 idents.push(parse_ident(package)?)
@@ -398,57 +397,125 @@ impl Requests {
         Ok(idents)
     }
 
-    /// Parse and build a request from the given string and these flags
+    /// Parse and build a request, and any extra options, from the
+    /// given string and these flags. If the request expands into
+    /// multiple requests, such as from a request file, this will
+    /// return the last request. Any options returned are filtered to
+    /// exclude any (override) options given in the options parameter.
     pub async fn parse_request<R: AsRef<str>>(
         &self,
         request: R,
         options: &Options,
         repos: &[Arc<storage::RepositoryHandle>],
-    ) -> Result<Request> {
-        Ok(self
+    ) -> Result<(Request, OptionMap)> {
+        let (mut requests, extra_options) = self
             .parse_requests([request.as_ref()], options, repos)
-            .await?
-            .pop()
-            .unwrap())
+            .await?;
+        let last_request = requests.pop().unwrap();
+        Ok((last_request, extra_options))
     }
 
-    /// Parse and build requests from the given strings and these flags.
+    /// Parse and build requests, and any extra options, from the
+    /// given strings and these flags. Any options returned are
+    /// filtered to exclude any (override) options given in the
+    /// options parameter.
     pub async fn parse_requests<I, S>(
         &self,
         requests: I,
         options: &Options,
         repos: &[Arc<storage::RepositoryHandle>],
-    ) -> Result<Vec<Request>>
+    ) -> Result<(Vec<Request>, OptionMap)>
     where
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
         let mut out = Vec::<Request>::new();
-        let options = options.get_options()?;
+        let override_options = options.get_options()?;
+        let mut templating_options = override_options.clone();
+        let mut extra_options = OptionMap::default();
+
+        // From the positional REQUESTS arg
         for r in requests.into_iter() {
-            let r = r.as_ref();
-            if r.contains('@') {
-                let (recipe, _, stage, build_variant) = parse_stage_specifier(r, &options, repos)
-                    .await
-                    .wrap_err_with(|| format!("parsing {r} as a filename with stage specifier"))?;
+            let r: &str = r.as_ref();
 
-                match stage {
-                    TestStage::Sources => {
-                        if build_variant.is_some() {
-                            bail!("Source stage does not accept a build variant specifier")
-                        }
+            // Is it a filepath to a package requests yaml file?
+            if r.ends_with(".spk.yaml") {
+                let (spec, filename) =
+                    find_package_recipe_from_template_or_repo(Some(&r), &templating_options, repos)
+                        .await
+                        .wrap_err_with(|| format!("finding requests file {r}"))?;
+                let requests_from_file = spec.into_requests().wrap_err_with(|| {
+                    format!(
+                        "{filename} was expected to contain a list of requests",
+                        filename = filename.to_string_lossy()
+                    )
+                })?;
 
-                        let ident = recipe.ident().to_any_ident(Some(Build::Source));
-                        out.push(
-                            PkgRequest::from_ident_exact(ident, RequestedBy::CommandLine).into(),
-                        );
+                out.extend(requests_from_file.requirements);
+
+                for (name, value) in requests_from_file.options {
+                    // Command line override options take precedence.
+                    // Only when there is no command line override for
+                    // this option name is it used
+                    if override_options.get(&name).is_none() {
+                        // For template values in later files and specs
+                        templating_options.insert(OptName::new(&name)?.into(), value.clone());
+                        // For later use by commands, usually when
+                        // setting up a solver
+                        extra_options.insert(OptName::new(&name)?.into(), value);
+                    }
+                }
+                continue;
+            }
+
+            let reqs = self
+                .parse_cli_or_pkg_file_request(r, &templating_options, repos)
+                .await?;
+            out.extend(reqs);
+        }
+
+        if out.is_empty() {
+            Err(Error::String(
+                "Needs at least one request: Missing required argument <REQUESTS> ... ".to_string(),
+            )
+            .into())
+        } else {
+            Ok((out, extra_options))
+        }
+    }
+
+    async fn parse_cli_or_pkg_file_request(
+        &self,
+        request: &str,
+        options: &OptionMap,
+        repos: &[Arc<storage::RepositoryHandle>],
+    ) -> Result<Vec<Request>> {
+        // Parses a command line request into one or more requests.
+        // 'file@stage' strings can expand into more than one request.
+        let mut out = Vec::<Request>::new();
+
+        if request.contains('@') {
+            let (recipe, _, stage, build_variant) = parse_stage_specifier(request, options, repos)
+                .await
+                .wrap_err_with(|| {
+                    format!("parsing {request} as a filename with stage specifier")
+                })?;
+
+            match stage {
+                TestStage::Sources => {
+                    if build_variant.is_some() {
+                        bail!("Source stage does not accept a build variant specifier")
                     }
 
-                    TestStage::Build => {
-                        let requirements = match build_variant {
-                            Some(VariantIndex(index)) => {
-                                let default_variants = recipe.default_variants(&options);
-                                let variant =
+                    let ident = recipe.ident().to_any_ident(Some(Build::Source));
+                    out.push(PkgRequest::from_ident_exact(ident, RequestedBy::CommandLine).into());
+                }
+
+                TestStage::Build => {
+                    let requirements = match build_variant {
+                        Some(VariantIndex(index)) => {
+                            let default_variants = recipe.default_variants(options);
+                            let variant =
                                     default_variants
                                         .iter()
                                         .skip(index)
@@ -460,71 +527,72 @@ impl Requests {
                                             recipe.ident().format_ident()
                                         ))?
                                         .with_overrides(options.clone());
-                                recipe.get_build_requirements(&variant)?
-                            }
-                            None => recipe.get_build_requirements(&options)?,
-                        };
-                        out.extend(requirements.into_owned());
-                    }
-
-                    TestStage::Install => {
-                        if build_variant.is_some() {
-                            bail!("Install stage does not accept a build variant specifier")
+                            recipe.get_build_requirements(&variant)?
                         }
+                        None => recipe.get_build_requirements(&options)?,
+                    };
+                    out.extend(requirements.into_owned());
+                }
 
-                        out.push(
-                            PkgRequest::from_ident_exact(
-                                recipe.ident().to_any_ident(None),
-                                RequestedBy::CommandLine,
-                            )
-                            .into(),
-                        )
+                TestStage::Install => {
+                    if build_variant.is_some() {
+                        bail!("Install stage does not accept a build variant specifier")
                     }
-                }
-                continue;
-            }
-            let value: serde_yaml::Value = serde_yaml::from_str(r)
-                .into_diagnostic()
-                .wrap_err("Request was not a valid yaml value")?;
-            let mut request_data = match value {
-                v @ serde_yaml::Value::String(_) => {
-                    let mut mapping = serde_yaml::Mapping::with_capacity(1);
-                    mapping.insert("pkg".into(), v);
-                    mapping
-                }
-                serde_yaml::Value::Mapping(m) => m,
-                _ => {
-                    bail!(
-                        "Invalid request, expected either a string or a mapping, got: {:?}",
-                        value
+
+                    out.push(
+                        PkgRequest::from_ident_exact(
+                            recipe.ident().to_any_ident(None),
+                            RequestedBy::CommandLine,
+                        )
+                        .into(),
                     )
                 }
-            };
-
-            let prerelease_policy_key = "prereleasePolicy".into();
-            if self.pre && !request_data.contains_key(&prerelease_policy_key) {
-                request_data.insert(prerelease_policy_key, "IncludeAll".into());
             }
-
-            let mut req = serde_yaml::from_value::<Request>(request_data.into())
-                .into_diagnostic()
-                .wrap_err(format!("Failed to parse request {r}"))?
-                .into_pkg()
-                .ok_or_else(|| miette!("Expected a package request, got None"))?;
-            req.add_requester(RequestedBy::CommandLine);
-
-            if req.pkg.components.is_empty() {
-                if req.pkg.is_source() {
-                    req.pkg.components.insert(Component::Source);
-                } else {
-                    req.pkg.components.insert(Component::default_for_run());
-                }
-            }
-            if req.required_compat.is_none() {
-                req.required_compat = Some(CompatRule::API);
-            }
-            out.push(req.into());
+            return Ok(out);
         }
+
+        // This is request without a '@' stage specifier
+        let value: serde_yaml::Value = serde_yaml::from_str(request)
+            .into_diagnostic()
+            .wrap_err("Request was not a valid yaml value")?;
+        let mut request_data = match value {
+            v @ serde_yaml::Value::String(_) => {
+                let mut mapping = serde_yaml::Mapping::with_capacity(1);
+                mapping.insert("pkg".into(), v);
+                mapping
+            }
+            serde_yaml::Value::Mapping(m) => m,
+            _ => {
+                bail!(
+                    "Invalid request, expected either a string or a mapping, got: {:?}",
+                    value
+                )
+            }
+        };
+
+        let prerelease_policy_key = "prereleasePolicy".into();
+        if self.pre && !request_data.contains_key(&prerelease_policy_key) {
+            request_data.insert(prerelease_policy_key, "IncludeAll".into());
+        }
+
+        let mut req = serde_yaml::from_value::<Request>(request_data.into())
+            .into_diagnostic()
+            .wrap_err_with(|| format!("Failed to parse request {request}"))?
+            .into_pkg()
+            .ok_or_else(|| miette!("Expected a package request, got None"))?;
+        req.add_requester(RequestedBy::CommandLine);
+
+        if req.pkg.components.is_empty() {
+            if req.pkg.is_source() {
+                req.pkg.components.insert(Component::Source);
+            } else {
+                req.pkg.components.insert(Component::default_for_run());
+            }
+        }
+        if req.required_compat.is_none() {
+            req.required_compat = Some(CompatRule::API);
+        }
+        out.push(req.into());
 
         Ok(out)
     }
@@ -584,7 +652,14 @@ pub async fn parse_stage_specifier(
             .await
             .wrap_err_with(|| format!("finding package recipe for {package}"))?;
 
-    Ok((spec, filename, stage, build_variant))
+    let recipe = spec.into_recipe().wrap_err_with(|| {
+        format!(
+            "{filename} was expected to contain a recipe",
+            filename = filename.to_string_lossy()
+        )
+    })?;
+
+    Ok((recipe, filename, stage, build_variant))
 }
 
 /// The result of the [`find_package_template`] function.
@@ -718,17 +793,20 @@ where
                 return Err(err.into());
             }
         };
-        if template.name().as_str() == package.as_ref() {
-            return Ok(Found {
-                path,
-                template: Arc::new(template),
-            });
+        if let Some(name) = template.name() {
+            if name.as_str() == package.as_ref() {
+                return Ok(Found {
+                    path,
+                    template: Arc::new(template),
+                });
+            }
         }
     }
 
     Ok(NotFound(package.as_ref().to_owned()))
 }
 
+// TODO: rename this because it is more than package recipe spec now?
 /// Find a package recipe either from a template file in the current
 /// directory, or published version of the requested package, if any.
 ///
@@ -741,7 +819,7 @@ pub async fn find_package_recipe_from_template_or_repo<S>(
     package_name: Option<&S>,
     options: &OptionMap,
     repos: &[Arc<storage::RepositoryHandle>],
-) -> Result<(Arc<SpecRecipe>, std::path::PathBuf)>
+) -> Result<(SpecFileData, std::path::PathBuf)>
 where
     S: AsRef<str>,
 {
@@ -757,8 +835,14 @@ where
         )
     })? {
         FindPackageTemplateResult::Found { path, template } => {
-            let recipe = template.render(options)?;
-            Ok((Arc::new(recipe), path))
+            let found = template.render(options).wrap_err_with(|| {
+                format!(
+                    "{filename} was expected to contain a valid spk yaml data file",
+                    filename = path.to_string_lossy()
+                )
+            })?;
+            tracing::debug!("Rendered template from the data in {path:?}");
+            Ok((found, path))
         }
         FindPackageTemplateResult::MultipleTemplateFiles(files) => {
             // must_be_found() will exit the program when called on MultipleTemplateFiles
@@ -792,7 +876,10 @@ where
                                         "Using recipe found for {}",
                                         recipe.ident().format_ident(),
                                     );
-                                    return Ok((recipe, std::path::PathBuf::from(&name.as_ref())));
+                                    return Ok((
+                                        SpecFileData::Recipe(recipe),
+                                        std::path::PathBuf::from(&name.as_ref()),
+                                    ));
                                 }
 
                                 Err(spk_storage::Error::PackageNotFound(_)) => continue,
