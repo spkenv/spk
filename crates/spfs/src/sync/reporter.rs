@@ -343,10 +343,13 @@ impl SyncReporter for ConsoleSyncReporter {
     }
 
     fn synced_env(&self, _result: &SyncEnvResult) {
-        let bars = self.get_bars();
-        bars.manifests.abandon();
-        bars.payloads.abandon();
-        bars.bytes.abandon();
+        // Don't cause the bars to be initialized here if they haven't already
+        // been, calling abandon will briefly display some zero-progress bars.
+        if let Some(bars) = self.bars.get() {
+            bars.manifests.abandon();
+            bars.payloads.abandon();
+            bars.bytes.abandon();
+        }
     }
 }
 
