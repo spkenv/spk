@@ -24,6 +24,7 @@ pub use storage::{
     BindMount,
     Config,
     Data,
+    EnvKeyValue,
     KeyValuePair,
     KeyValuePairBuf,
     LiveLayer,

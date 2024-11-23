@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-pub fn source<T>(_tmpdir: Option<&T>) -> String
-where
-    T: AsRef<str>,
-{
+use itertools::Itertools;
+
+use super::EnvKeyValue;
+
+pub fn source(_environment_overrides: &[EnvKeyValue]) -> String {
+    // TODO: Support environment overrides on Windows
     r#"
 param (
     [string]$RunCommand
