@@ -9,6 +9,7 @@ alt="SPK Logo" src="website/static/images/spk_black.png#gh-light-mode-only"/>
 alt="SPK Logo" src="website/static/images/spk_white.png#gh-dark-mode-only"/>
 
 [![Docs Badge](https://img.shields.io/badge/docs-passing-green.svg)](https://spkenv.dev)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/9740/badge)](https://www.bestpractices.dev/projects/9740)
 
 - **SPK** - A Package Manager for high-velocity software environments, built on SPFS.
 - **SPFS** - Filesystem isolation, capture, and distribution.
