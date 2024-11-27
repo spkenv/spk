@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::borrow::Cow;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -153,17 +154,18 @@ impl<T> BlobStorage for PinnedRepository<T> where T: BlobStorage + 'static {}
 impl<T> ManifestStorage for PinnedRepository<T> where T: ManifestStorage + 'static {}
 impl<T> LayerStorage for PinnedRepository<T> where T: LayerStorage + 'static {}
 impl<T> PlatformStorage for PinnedRepository<T> where T: PlatformStorage + 'static {}
-impl<T> Repository for PinnedRepository<T>
+impl<T> Address for PinnedRepository<T>
 where
     T: Repository + 'static,
 {
-    fn address(&self) -> url::Url {
-        let mut base = self.inner.address();
+    fn address(&self) -> Cow<'_, url::Url> {
+        let mut base = self.inner.address().into_owned();
         base.query_pairs_mut()
             .append_pair("when", &self.pin.to_string());
-        base
+        Cow::Owned(base)
     }
 }
+impl<T> Repository for PinnedRepository<T> where T: Repository + 'static {}
 
 impl<T> std::fmt::Debug for PinnedRepository<T>
 where

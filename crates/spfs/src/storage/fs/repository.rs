@@ -262,11 +262,12 @@ impl BlobStorage for FsRepository {}
 impl ManifestStorage for FsRepository {}
 impl LayerStorage for FsRepository {}
 impl PlatformStorage for FsRepository {}
-impl Repository for FsRepository {
-    fn address(&self) -> url::Url {
-        url::Url::from_directory_path(self.root()).unwrap()
+impl Address for FsRepository {
+    fn address(&self) -> Cow<'_, url::Url> {
+        Cow::Owned(url::Url::from_directory_path(self.root()).unwrap())
     }
 }
+impl Repository for FsRepository {}
 
 impl std::fmt::Debug for FsRepository {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -538,11 +539,12 @@ impl BlobStorage for OpenFsRepository {}
 impl ManifestStorage for OpenFsRepository {}
 impl LayerStorage for OpenFsRepository {}
 impl PlatformStorage for OpenFsRepository {}
-impl Repository for OpenFsRepository {
-    fn address(&self) -> url::Url {
-        url::Url::from_directory_path(self.root()).unwrap()
+impl Address for OpenFsRepository {
+    fn address(&self) -> Cow<'_, url::Url> {
+        Cow::Owned(url::Url::from_directory_path(self.root()).unwrap())
     }
 }
+impl Repository for OpenFsRepository {}
 
 impl std::fmt::Debug for OpenFsRepository {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

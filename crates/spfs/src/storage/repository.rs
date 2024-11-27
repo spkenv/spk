@@ -39,7 +39,8 @@ impl std::fmt::Display for Ref {
 /// Represents a storage location for spfs data.
 #[async_trait]
 pub trait Repository:
-    super::TagStorage
+    super::Address
+    + super::TagStorage
     + super::PayloadStorage
     + super::ManifestStorage
     + super::BlobStorage
@@ -51,9 +52,6 @@ pub trait Repository:
     + Send
     + Sync
 {
-    /// Return the address of this repository.
-    fn address(&self) -> url::Url;
-
     /// Return true if this repository contains the given reference.
     async fn has_ref(&self, reference: &str) -> bool {
         self.read_ref(reference).await.is_ok()
@@ -115,10 +113,6 @@ pub trait Repository:
 
 #[async_trait::async_trait]
 impl<T: Repository> Repository for &T {
-    fn address(&self) -> url::Url {
-        Repository::address(&**self)
-    }
-
     async fn has_ref(&self, reference: &str) -> bool {
         (**self).has_ref(reference).await
     }

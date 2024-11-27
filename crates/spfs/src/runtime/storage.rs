@@ -918,7 +918,7 @@ impl Storage {
     }
 
     /// The address of the underlying repository being used
-    pub fn address(&self) -> url::Url {
+    pub fn address(&self) -> Cow<'_, url::Url> {
         self.inner.address()
     }
 
@@ -935,7 +935,7 @@ impl Storage {
             // is run to do it.
             let mut cmd = bootstrap::build_spfs_remove_durable_command(
                 name.as_ref().to_string(),
-                self.inner.address(),
+                &self.inner.address(),
             )?
             .into_std();
             tracing::trace!("running: {cmd:?}");
