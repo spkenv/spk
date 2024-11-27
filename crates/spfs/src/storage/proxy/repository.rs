@@ -331,10 +331,6 @@ impl TagStorageMut for ProxyRepository {
     }
 }
 
-impl BlobStorage for ProxyRepository {}
-impl ManifestStorage for ProxyRepository {}
-impl LayerStorage for ProxyRepository {}
-impl PlatformStorage for ProxyRepository {}
 impl Address for ProxyRepository {
     fn address(&self) -> Cow<'_, url::Url> {
         let config = Config {
@@ -348,4 +344,3 @@ impl Address for ProxyRepository {
         Cow::Owned(config.to_address().expect("config creates a valid url"))
     }
 }
-impl Repository for ProxyRepository {}

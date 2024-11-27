@@ -150,10 +150,6 @@ where
     }
 }
 
-impl<T> BlobStorage for PinnedRepository<T> where T: BlobStorage + 'static {}
-impl<T> ManifestStorage for PinnedRepository<T> where T: ManifestStorage + 'static {}
-impl<T> LayerStorage for PinnedRepository<T> where T: LayerStorage + 'static {}
-impl<T> PlatformStorage for PinnedRepository<T> where T: PlatformStorage + 'static {}
 impl<T> Address for PinnedRepository<T>
 where
     T: Repository + 'static,
@@ -165,7 +161,6 @@ where
         Cow::Owned(base)
     }
 }
-impl<T> Repository for PinnedRepository<T> where T: Repository + 'static {}
 
 impl<T> std::fmt::Debug for PinnedRepository<T>
 where
