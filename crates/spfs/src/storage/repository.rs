@@ -99,16 +99,6 @@ pub trait Repository:
         }
         Ok(aliases)
     }
-
-    /// Commit the data from 'reader' as a blob in this repository
-    async fn commit_blob(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
-        // Safety: it is unsafe to write data without also creating a blob
-        // to track that payload, which is exactly what this function is doing
-        let (digest, size) = unsafe { self.write_data(reader).await? };
-        let blob = graph::Blob::new(digest, size);
-        self.write_object(&blob).await?;
-        Ok(digest)
-    }
 }
 
 /// Blanket implementation.
@@ -127,6 +117,22 @@ impl<T> Repository for T where
         + Sync
 {
 }
+
+#[async_trait]
+pub trait RepositoryExt: super::PayloadStorage + graph::DatabaseExt {
+    /// Commit the data from 'reader' as a blob in this repository
+    async fn commit_blob(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
+        // Safety: it is unsafe to write data without also creating a blob
+        // to track that payload, which is exactly what this function is doing
+        let (digest, size) = unsafe { self.write_data(reader).await? };
+        let blob = graph::Blob::new(digest, size);
+        self.write_object(&blob).await?;
+        Ok(digest)
+    }
+}
+
+/// Blanket implementation.
+impl<T> RepositoryExt for T where T: super::PayloadStorage + graph::DatabaseExt {}
 
 /// Accessor methods for types only applicable to repositories that have
 /// payloads and renders, e.g., local repositories.

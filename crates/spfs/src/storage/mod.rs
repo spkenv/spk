@@ -24,15 +24,15 @@ pub mod rpc;
 pub mod tar;
 
 pub use address::Address;
-pub use blob::BlobStorage;
+pub use blob::{BlobStorage, BlobStorageExt};
 pub use error::OpenRepositoryError;
 pub use handle::RepositoryHandle;
-pub use layer::LayerStorage;
+pub use layer::{LayerStorage, LayerStorageExt};
 pub use manifest::ManifestStorage;
 pub use payload::PayloadStorage;
-pub use platform::PlatformStorage;
+pub use platform::{PlatformStorage, PlatformStorageExt};
 pub use proxy::{Config, ProxyRepository};
-pub use repository::{LocalRepository, Repository};
+pub use repository::{LocalRepository, Repository, RepositoryExt};
 pub use tag::{EntryType, TagStorage, TagStorageMut};
 pub use tag_namespace::{TagNamespace, TagNamespaceBuf, TAG_NAMESPACE_MARKER};
 

@@ -68,19 +68,6 @@ impl graph::DatabaseView for super::RpcRepository {
 
 #[async_trait::async_trait]
 impl graph::Database for super::RpcRepository {
-    async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
-        let request = proto::WriteObjectRequest {
-            object: Some(obj.into()),
-        };
-        self.db_client
-            .clone()
-            .write_object(request)
-            .await?
-            .into_inner()
-            .to_result()?;
-        Ok(())
-    }
-
     async fn remove_object(&self, digest: encoding::Digest) -> Result<()> {
         let request = proto::RemoveObjectRequest {
             digest: Some(digest.into()),
@@ -110,5 +97,21 @@ impl graph::Database for super::RpcRepository {
             .await?
             .into_inner()
             .to_result()?)
+    }
+}
+
+#[async_trait::async_trait]
+impl graph::DatabaseExt for super::RpcRepository {
+    async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
+        let request = proto::WriteObjectRequest {
+            object: Some(obj.into()),
+        };
+        self.db_client
+            .clone()
+            .write_object(request)
+            .await?
+            .into_inner()
+            .to_result()?;
+        Ok(())
     }
 }

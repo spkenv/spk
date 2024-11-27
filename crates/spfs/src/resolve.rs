@@ -211,7 +211,7 @@ pub(crate) async fn resolve_overlay_dirs<R>(
     skip_runtime_save: bool,
 ) -> Result<Vec<graph::Manifest>>
 where
-    R: Repository + ManifestRenderPath,
+    R: Repository + graph::DatabaseExt + ManifestRenderPath,
 {
     enum ResolvedManifest {
         Existing {

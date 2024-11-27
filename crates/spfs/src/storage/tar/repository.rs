@@ -250,12 +250,6 @@ impl graph::DatabaseView for TarRepository {
 
 #[async_trait::async_trait]
 impl graph::Database for TarRepository {
-    async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
-        self.repo.write_object(obj).await?;
-        self.up_to_date.store(false, Ordering::Release);
-        Ok(())
-    }
-
     async fn remove_object(&self, digest: encoding::Digest) -> Result<()> {
         self.repo.remove_object(digest).await?;
         self.up_to_date.store(false, Ordering::Release);
@@ -275,6 +269,15 @@ impl graph::Database for TarRepository {
             self.up_to_date.store(false, Ordering::Release);
         }
         Ok(deleted)
+    }
+}
+
+#[async_trait::async_trait]
+impl graph::DatabaseExt for TarRepository {
+    async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
+        self.repo.write_object(obj).await?;
+        self.up_to_date.store(false, Ordering::Release);
+        Ok(())
     }
 }
 

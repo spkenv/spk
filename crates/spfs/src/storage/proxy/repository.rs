@@ -165,11 +165,6 @@ impl graph::DatabaseView for ProxyRepository {
 
 #[async_trait::async_trait]
 impl graph::Database for ProxyRepository {
-    async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
-        self.primary.write_object(obj).await?;
-        Ok(())
-    }
-
     async fn remove_object(&self, digest: encoding::Digest) -> Result<()> {
         self.primary.remove_object(digest).await?;
         Ok(())
@@ -184,6 +179,14 @@ impl graph::Database for ProxyRepository {
             .primary
             .remove_object_if_older_than(older_than, digest)
             .await?)
+    }
+}
+
+#[async_trait::async_trait]
+impl graph::DatabaseExt for ProxyRepository {
+    async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
+        self.primary.write_object(obj).await?;
+        Ok(())
     }
 }
 

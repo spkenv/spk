@@ -37,7 +37,13 @@ pub trait PlatformStorage: graph::Database + Sync + Send {
             }),
         }
     }
+}
 
+/// Blanket implementation.
+impl<T> PlatformStorage for T where T: graph::Database + Sync + Send {}
+
+#[async_trait::async_trait]
+pub trait PlatformStorageExt: graph::DatabaseExt {
     /// Create and storage a new platform for the given platform.
     /// Layers are ordered bottom to top.
     async fn create_platform(&self, layers: graph::Stack) -> Result<graph::Platform> {
@@ -48,4 +54,4 @@ pub trait PlatformStorage: graph::Database + Sync + Send {
 }
 
 /// Blanket implementation.
-impl<T> PlatformStorage for T where T: graph::Database + Sync + Send {}
+impl<T> PlatformStorageExt for T where T: graph::DatabaseExt + Sync + Send {}

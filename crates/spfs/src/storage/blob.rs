@@ -33,7 +33,13 @@ pub trait BlobStorage: graph::Database + Sync + Send {
             }),
         }
     }
+}
 
+/// Blanket implementation.
+impl<T> BlobStorage for T where T: graph::Database + Sync + Send {}
+
+#[async_trait::async_trait]
+pub trait BlobStorageExt: graph::DatabaseExt {
     /// Store the given blob
     async fn write_blob(&self, blob: graph::Blob) -> Result<()> {
         self.write_object(&blob).await
@@ -41,4 +47,4 @@ pub trait BlobStorage: graph::Database + Sync + Send {
 }
 
 /// Blanket implementation.
-impl<T> BlobStorage for T where T: graph::Database + Sync + Send {}
+impl<T> BlobStorageExt for T where T: graph::DatabaseExt + Sync + Send {}
