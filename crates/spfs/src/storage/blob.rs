@@ -40,4 +40,5 @@ pub trait BlobStorage: graph::Database + Sync + Send {
     }
 }
 
-impl<T: BlobStorage> BlobStorage for &T {}
+/// Blanket implementation.
+impl<T> BlobStorage for T where T: graph::Database + Sync + Send {}

@@ -43,4 +43,5 @@ pub trait ManifestStorage: graph::Database + Sync + Send {
     }
 }
 
-impl<T: ManifestStorage> ManifestStorage for &T {}
+/// Blanket implementation.
+impl<T> ManifestStorage for T where T: graph::Database + Sync + Send {}

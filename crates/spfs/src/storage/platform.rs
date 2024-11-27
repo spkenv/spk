@@ -47,4 +47,5 @@ pub trait PlatformStorage: graph::Database + Sync + Send {
     }
 }
 
-impl<T: PlatformStorage> PlatformStorage for &T {}
+/// Blanket implementation.
+impl<T> PlatformStorage for T where T: graph::Database + Sync + Send {}
