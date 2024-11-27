@@ -335,8 +335,8 @@ impl BlobStorage for ProxyRepository {}
 impl ManifestStorage for ProxyRepository {}
 impl LayerStorage for ProxyRepository {}
 impl PlatformStorage for ProxyRepository {}
-impl Repository for ProxyRepository {
-    fn address(&self) -> url::Url {
+impl Address for ProxyRepository {
+    fn address(&self) -> Cow<'_, url::Url> {
         let config = Config {
             primary: self.primary.address().to_string(),
             secondary: self
@@ -345,6 +345,7 @@ impl Repository for ProxyRepository {
                 .map(|s| s.address().to_string())
                 .collect(),
         };
-        config.to_address().expect("config creates a valid url")
+        Cow::Owned(config.to_address().expect("config creates a valid url"))
     }
 }
+impl Repository for ProxyRepository {}

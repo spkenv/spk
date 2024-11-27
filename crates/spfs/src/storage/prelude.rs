@@ -4,6 +4,7 @@
 
 pub use super::config::{FromConfig, FromUrl};
 pub use super::{
+    Address,
     BlobStorage,
     LayerStorage,
     ManifestStorage,

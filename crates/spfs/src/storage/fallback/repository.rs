@@ -366,8 +366,8 @@ impl BlobStorage for FallbackProxy {}
 impl ManifestStorage for FallbackProxy {}
 impl LayerStorage for FallbackProxy {}
 impl PlatformStorage for FallbackProxy {}
-impl Repository for FallbackProxy {
-    fn address(&self) -> url::Url {
+impl Address for FallbackProxy {
+    fn address(&self) -> Cow<'_, url::Url> {
         let config = Config {
             primary: self.primary.address().to_string(),
             secondary: self
@@ -376,11 +376,14 @@ impl Repository for FallbackProxy {
                 .map(|s| s.address().to_string())
                 .collect(),
         };
-        config
-            .to_address()
-            .expect("We should not fail to create a url")
+        Cow::Owned(
+            config
+                .to_address()
+                .expect("We should not fail to create a url"),
+        )
     }
 }
+impl Repository for FallbackProxy {}
 
 impl LocalRepository for FallbackProxy {
     #[inline]

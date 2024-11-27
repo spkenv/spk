@@ -159,7 +159,7 @@ where
         name_and_repo: NameAndRepositoryWithTagStrategy<S, T, TagStrategy>,
     ) -> Result<Self> {
         let inner = name_and_repo.repo.into();
-        let address = inner.address();
+        let address = inner.address().into_owned();
         Ok(Self {
             caches: CachesForAddress::new(&address),
             address,
@@ -175,7 +175,7 @@ where
 impl<S> SpfsRepository<S> {
     pub async fn new(name: &str, address: &str) -> Result<Self> {
         let inner = spfs::open_repository(address).await?;
-        let address = inner.address();
+        let address = inner.address().into_owned();
         Ok(Self {
             caches: CachesForAddress::new(&address),
             address,
@@ -1313,7 +1313,7 @@ pub async fn local_repository() -> Result<SpfsRepository<NormalizedTagStrategy>>
     let config = spfs::get_config()?;
     let repo = config.get_local_repository().await?;
     let inner: spfs::prelude::RepositoryHandle = repo.into();
-    let address = inner.address();
+    let address = inner.address().into_owned();
     Ok(SpfsRepository {
         caches: CachesForAddress::new(&address),
         address,
@@ -1333,7 +1333,7 @@ pub async fn remote_repository<S: AsRef<str>, TagStrategy>(
 ) -> Result<SpfsRepository<TagStrategy>> {
     let config = spfs::get_config()?;
     let inner = config.get_remote(&name).await?;
-    let address = inner.address();
+    let address = inner.address().into_owned();
     Ok(SpfsRepository {
         caches: CachesForAddress::new(&address),
         address,
