@@ -250,9 +250,6 @@ impl<T: DatabaseView> DatabaseView for &T {
 
 #[async_trait::async_trait]
 pub trait Database: DatabaseView {
-    /// Write an object to the database, for later retrieval.
-    async fn write_object<T: ObjectProto>(&self, obj: &FlatObject<T>) -> Result<()>;
-
     /// Remove an object from the database.
     async fn remove_object(&self, digest: encoding::Digest) -> Result<()>;
 
@@ -269,10 +266,6 @@ pub trait Database: DatabaseView {
 
 #[async_trait::async_trait]
 impl<T: Database> Database for &T {
-    async fn write_object<O: ObjectProto>(&self, obj: &FlatObject<O>) -> Result<()> {
-        Database::write_object(&**self, obj).await
-    }
-
     async fn remove_object(&self, digest: encoding::Digest) -> Result<()> {
         Database::remove_object(&**self, digest).await
     }
@@ -283,5 +276,18 @@ impl<T: Database> Database for &T {
         digest: encoding::Digest,
     ) -> Result<bool> {
         Database::remove_object_if_older_than(&**self, older_than, digest).await
+    }
+}
+
+#[async_trait::async_trait]
+pub trait DatabaseExt: Send + Sync {
+    /// Write an object to the database, for later retrieval.
+    async fn write_object<T: ObjectProto>(&self, obj: &FlatObject<T>) -> Result<()>;
+}
+
+#[async_trait::async_trait]
+impl<T: DatabaseExt + Send + Sync> DatabaseExt for &T {
+    async fn write_object<O: ObjectProto>(&self, obj: &FlatObject<O>) -> Result<()> {
+        DatabaseExt::write_object(&**self, obj).await
     }
 }

@@ -56,10 +56,6 @@ impl DatabaseView for super::FsRepository {
 
 #[async_trait::async_trait]
 impl graph::Database for super::FsRepository {
-    async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
-        self.opened().await?.write_object(obj).await
-    }
-
     async fn remove_object(&self, digest: encoding::Digest) -> crate::Result<()> {
         self.opened().await?.remove_object(digest).await
     }
@@ -73,6 +69,13 @@ impl graph::Database for super::FsRepository {
             .await?
             .remove_object_if_older_than(older_than, digest)
             .await
+    }
+}
+
+#[async_trait::async_trait]
+impl graph::DatabaseExt for super::FsRepository {
+    async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
+        self.opened().await?.write_object(obj).await
     }
 }
 
@@ -127,6 +130,77 @@ impl DatabaseView for super::OpenFsRepository {
 
 #[async_trait::async_trait]
 impl graph::Database for super::OpenFsRepository {
+    async fn remove_object(&self, digest: encoding::Digest) -> crate::Result<()> {
+        let filepath = self.objects.build_digest_path(&digest);
+
+        // this might fail but we don't consider that fatal just yet
+        #[cfg(unix)]
+        let _ = tokio::fs::set_permissions(&filepath, std::fs::Permissions::from_mode(0o777)).await;
+
+        if let Err(err) = tokio::fs::remove_file(&filepath).await {
+            return match err.kind() {
+                std::io::ErrorKind::NotFound => Ok(()),
+                _ => Err(Error::StorageWriteError(
+                    "remove_file on object file in remove_object",
+                    filepath,
+                    err,
+                )),
+            };
+        }
+        tracing::trace!(%digest, "removed object from db");
+        Ok(())
+    }
+
+    async fn remove_object_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> crate::Result<bool> {
+        let filepath = self.objects.build_digest_path(&digest);
+
+        // this might fail but we don't consider that fatal just yet
+        #[cfg(unix)]
+        let _ = tokio::fs::set_permissions(&filepath, std::fs::Permissions::from_mode(0o777)).await;
+
+        let metadata = tokio::fs::symlink_metadata(&filepath)
+            .await
+            .map_err(|err| match err.kind() {
+                std::io::ErrorKind::NotFound => Error::UnknownObject(digest),
+                _ => Error::StorageReadError(
+                    "symlink_metadata on digest path",
+                    filepath.clone(),
+                    err,
+                ),
+            })?;
+
+        let mtime = metadata.modified().map_err(|err| {
+            Error::StorageReadError(
+                "modified on symlink metadata of digest path",
+                filepath.clone(),
+                err,
+            )
+        })?;
+
+        if DateTime::<Utc>::from(mtime) >= older_than {
+            return Ok(false);
+        }
+
+        if let Err(err) = tokio::fs::remove_file(&filepath).await {
+            return match err.kind() {
+                std::io::ErrorKind::NotFound => Ok(true),
+                _ => Err(Error::StorageWriteError(
+                    "remove_file on object file in remove_object_if_older_than",
+                    filepath,
+                    err,
+                )),
+            };
+        }
+        Ok(true)
+    }
+}
+
+#[async_trait::async_trait]
+impl graph::DatabaseExt for super::OpenFsRepository {
     async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
         let digest = obj.digest()?;
         let filepath = self.objects.build_digest_path(&digest);
@@ -206,73 +280,5 @@ impl graph::Database for super::OpenFsRepository {
                 ))
             }
         }
-    }
-
-    async fn remove_object(&self, digest: encoding::Digest) -> crate::Result<()> {
-        let filepath = self.objects.build_digest_path(&digest);
-
-        // this might fail but we don't consider that fatal just yet
-        #[cfg(unix)]
-        let _ = tokio::fs::set_permissions(&filepath, std::fs::Permissions::from_mode(0o777)).await;
-
-        if let Err(err) = tokio::fs::remove_file(&filepath).await {
-            return match err.kind() {
-                std::io::ErrorKind::NotFound => Ok(()),
-                _ => Err(Error::StorageWriteError(
-                    "remove_file on object file in remove_object",
-                    filepath,
-                    err,
-                )),
-            };
-        }
-        tracing::trace!(%digest, "removed object from db");
-        Ok(())
-    }
-
-    async fn remove_object_if_older_than(
-        &self,
-        older_than: DateTime<Utc>,
-        digest: encoding::Digest,
-    ) -> crate::Result<bool> {
-        let filepath = self.objects.build_digest_path(&digest);
-
-        // this might fail but we don't consider that fatal just yet
-        #[cfg(unix)]
-        let _ = tokio::fs::set_permissions(&filepath, std::fs::Permissions::from_mode(0o777)).await;
-
-        let metadata = tokio::fs::symlink_metadata(&filepath)
-            .await
-            .map_err(|err| match err.kind() {
-                std::io::ErrorKind::NotFound => Error::UnknownObject(digest),
-                _ => Error::StorageReadError(
-                    "symlink_metadata on digest path",
-                    filepath.clone(),
-                    err,
-                ),
-            })?;
-
-        let mtime = metadata.modified().map_err(|err| {
-            Error::StorageReadError(
-                "modified on symlink metadata of digest path",
-                filepath.clone(),
-                err,
-            )
-        })?;
-
-        if DateTime::<Utc>::from(mtime) >= older_than {
-            return Ok(false);
-        }
-
-        if let Err(err) = tokio::fs::remove_file(&filepath).await {
-            return match err.kind() {
-                std::io::ErrorKind::NotFound => Ok(true),
-                _ => Err(Error::StorageWriteError(
-                    "remove_file on object file in remove_object_if_older_than",
-                    filepath,
-                    err,
-                )),
-            };
-        }
-        Ok(true)
     }
 }
