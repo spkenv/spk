@@ -1185,7 +1185,7 @@ impl Storage {
     pub async fn durable_path(&self, name: String) -> Result<PathBuf> {
         match &*self.inner {
             RepositoryHandle::FS(repo) => {
-                let mut upper_root_path = repo.root();
+                let mut upper_root_path = repo.fs_impl.root();
                 upper_root_path.push(DURABLE_EDITS_DIR);
                 upper_root_path.push(name);
                 Ok(upper_root_path)

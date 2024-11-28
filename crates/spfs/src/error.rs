@@ -229,7 +229,7 @@ impl Error {
 
     /// Create an [`Error::FailedToOpenRepository`] instance for
     /// a repository using its address and root cause.
-    pub fn failed_to_open_repository<R: storage::Repository>(
+    pub fn failed_to_open_repository<R: storage::Address>(
         repo: &R,
         source: storage::OpenRepositoryError,
     ) -> Self {

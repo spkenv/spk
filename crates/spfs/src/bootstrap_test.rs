@@ -33,7 +33,7 @@ async fn test_shell_initialization_startup_scripts(
     };
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::FsRepository::create(&root)
+        crate::storage::fs::MaybeOpenFsRepository::create(&root)
             .await
             .unwrap(),
     );
@@ -118,7 +118,7 @@ async fn test_shell_initialization_no_startup_scripts(
     };
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::FsRepository::create(&root)
+        crate::storage::fs::MaybeOpenFsRepository::create(&root)
             .await
             .unwrap(),
     );

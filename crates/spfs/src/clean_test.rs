@@ -453,7 +453,7 @@ async fn test_clean_untagged_objects_layers_platforms(#[future] tmprepo: TempRep
 async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
     init_logging();
     let tmprepo = Arc::new(
-        storage::fs::FsRepository::create(tmpdir.path())
+        storage::fs::MaybeOpenFsRepository::create(tmpdir.path())
             .await
             .unwrap()
             .into(),
@@ -482,12 +482,12 @@ async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
     };
     let fs_repo = fs_repo.opened().await.unwrap();
 
-    storage::fs::Renderer::new(&*fs_repo)
+    storage::fs::Renderer::new(&fs_repo)
         .render_manifest(&manifest.to_graph_manifest(), None)
         .await
         .unwrap();
 
-    let files = list_files(fs_repo.objects.root());
+    let files = list_files(fs_repo.fs_impl.objects.root());
     assert!(!files.is_empty(), "should have stored data");
 
     let cleaner = Cleaner::new(&tmprepo).with_reporter(TracingCleanReporter);
@@ -497,7 +497,7 @@ async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
         .expect("failed to clean repo");
     println!("{result:#?}");
 
-    let files = list_files(fs_repo.renders.as_ref().unwrap().renders.root());
+    let files = list_files(fs_repo.fs_impl.renders.as_ref().unwrap().renders.root());
     assert_eq!(
         files,
         Vec::<String>::new(),
