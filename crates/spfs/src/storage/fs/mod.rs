@@ -31,10 +31,13 @@ pub use renderer::{
     DEFAULT_MAX_CONCURRENT_BLOBS,
     DEFAULT_MAX_CONCURRENT_BRANCHES,
 };
+#[cfg(test)]
+pub use repository::MaybeOpenFsRepositoryImpl;
 pub use repository::{
     read_last_migration_version,
     Config,
-    FsRepository,
+    FsRepositoryOps,
+    MaybeOpenFsRepository,
     OpenFsRepository,
     Params,
     RenderStore,
