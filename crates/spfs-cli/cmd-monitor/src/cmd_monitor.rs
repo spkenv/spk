@@ -8,12 +8,17 @@ use clap::Parser;
 #[cfg(feature = "sentry")]
 use cli::configure_sentry;
 use miette::{Context, IntoDiagnostic, Result};
-use spfs::Error;
 use spfs_cli_common as cli;
 use spfs_cli_common::CommandName;
 use tokio::io::AsyncReadExt;
-use tokio::signal::unix::{signal, SignalKind};
 use tokio::time::timeout;
+
+mod signal;
+#[cfg(unix)]
+use signal::unix_signal_handler::UnixSignalHandler as SignalHandlerImpl;
+use signal::SignalHandler;
+#[cfg(windows)]
+use windows_signal_handler::WindowsSignalHandler as SignalHandlerImpl;
 
 fn main() -> Result<()> {
     // because this function exits right away it does not
@@ -86,11 +91,10 @@ impl CmdMonitor {
         rt.block_on(self.wait_for_ready());
         // clean up this runtime and all other threads before detaching
         drop(rt);
-
+        #[cfg(unix)]
         nix::unistd::daemon(self.no_chdir, self.no_close)
             .into_diagnostic()
             .wrap_err("Failed to daemonize the monitor process")?;
-
         #[cfg(feature = "sentry")]
         {
             // Initialize sentry after the call to `daemon` so it is safe for
@@ -142,12 +146,7 @@ impl CmdMonitor {
     }
 
     pub async fn run_async(&mut self, config: &spfs::Config) -> Result<i32> {
-        let mut interrupt = signal(SignalKind::interrupt())
-            .map_err(|err| Error::process_spawn_error("signal()", err, None))?;
-        let mut quit = signal(SignalKind::quit())
-            .map_err(|err| Error::process_spawn_error("signal()", err, None))?;
-        let mut terminate = signal(SignalKind::terminate())
-            .map_err(|err| Error::process_spawn_error("signal()", err, None))?;
+        let signal_future = SignalHandlerImpl::build_signal_future();
 
         let repo = spfs::open_repository(&self.runtime_storage).await?;
         let storage = spfs::runtime::Storage::new(repo)?;
@@ -165,9 +164,7 @@ impl CmdMonitor {
             }
             // we explicitly catch any signal related to interruption
             // and will act by cleaning up the runtime early
-            _ = terminate.recv() => Err(spfs::Error::String("Terminate signal received, cleaning up runtime early".to_string())),
-            _ = interrupt.recv() => Err(spfs::Error::String("Interrupt signal received, cleaning up runtime early".to_string())),
-            _ = quit.recv() => Err(spfs::Error::String("Quit signal received, cleaning up runtime early".to_string())),
+            _ = signal_future => Err(spfs::Error::String("Signal received, cleaning up runtime early".to_string())),
         };
         tracing::trace!("runtime empty of processes ");
 
