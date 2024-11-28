@@ -361,7 +361,8 @@ impl TagStorageMut for FallbackProxy {
         &mut self,
         tag_namespace: Option<TagNamespaceBuf>,
     ) -> Result<Option<TagNamespaceBuf>> {
-        Ok(Arc::make_mut(&mut self.primary).set_tag_namespace(tag_namespace))
+        Ok(Arc::make_mut(&mut Arc::make_mut(&mut self.primary).fs_impl)
+            .set_tag_namespace(tag_namespace))
     }
 }
 
@@ -386,12 +387,12 @@ impl Address for FallbackProxy {
 impl LocalRepository for FallbackProxy {
     #[inline]
     fn payloads(&self) -> &FsHashStore {
-        self.primary.payloads()
+        self.primary.fs_impl.payloads()
     }
 
     #[inline]
     fn render_store(&self) -> Result<&RenderStore> {
-        self.primary.render_store()
+        self.primary.fs_impl.render_store()
     }
 }
 

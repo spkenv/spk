@@ -68,7 +68,7 @@ pub struct TarRepository {
     up_to_date: AtomicBool,
     archive: std::path::PathBuf,
     repo_dir: tempfile::TempDir,
-    repo: crate::storage::fs::FsRepository,
+    repo: crate::storage::fs::MaybeOpenFsRepository,
 }
 
 #[async_trait::async_trait]
@@ -158,7 +158,7 @@ impl TarRepository {
             up_to_date: AtomicBool::new(false),
             archive: path,
             repo_dir: tmpdir,
-            repo: crate::storage::fs::FsRepository::create(&repo_path).await?,
+            repo: crate::storage::fs::MaybeOpenFsRepository::create(&repo_path).await?,
         })
     }
 
