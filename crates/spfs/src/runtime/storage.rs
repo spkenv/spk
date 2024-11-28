@@ -423,6 +423,10 @@ impl OwnedRuntime {
     }
 }
 
+/// A key-value pair for setting environment variables.
+#[derive(Clone, Debug)]
+pub struct EnvKeyValue(pub String, pub String);
+
 /// Represents an active spfs session.
 ///
 /// The runtime contains the working files for a spfs
@@ -790,24 +794,24 @@ impl Runtime {
     /// defined location.
     pub fn ensure_startup_scripts(
         &self,
-        tmpdir_value_for_child_process: Option<&String>,
+        environment_overrides_for_child_process: &[EnvKeyValue],
     ) -> Result<()> {
         #[cfg(unix)]
         std::fs::write(
             &self.config.sh_startup_file,
-            startup_sh::source(tmpdir_value_for_child_process),
+            startup_sh::source(environment_overrides_for_child_process),
         )
         .map_err(|err| Error::RuntimeWriteError(self.config.sh_startup_file.clone(), err))?;
         #[cfg(unix)]
         std::fs::write(
             &self.config.csh_startup_file,
-            startup_csh::source(tmpdir_value_for_child_process),
+            startup_csh::source(environment_overrides_for_child_process),
         )
         .map_err(|err| Error::RuntimeWriteError(self.config.csh_startup_file.clone(), err))?;
         #[cfg(windows)]
         std::fs::write(
             &self.config.ps_startup_file,
-            startup_ps::source(tmpdir_value_for_child_process),
+            startup_ps::source(environment_overrides_for_child_process),
         )
         .map_err(|err| Error::RuntimeWriteError(self.config.ps_startup_file.clone(), err))?;
         Ok(())

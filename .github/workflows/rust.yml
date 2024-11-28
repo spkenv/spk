@@ -102,6 +102,12 @@ jobs:
         run: |
           export PATH="$PWD/target/debug:$PATH"
           make packages.lint
+      - name: Configure SPFS for Integration tests
+        run: |
+          cat << EOF > /etc/spfs.toml
+          [environment]
+          variable_names_to_preserve = ["TMPDIR"]
+          EOF
       - name: SPFS Integration Tests - Regular User
         run: |
           # Run tests as a normal user to verify privilege escalation

@@ -11,6 +11,10 @@ mkdir -p "$ORIGIN_REPO"
 # Pre-create a repo
 SPFS_REMOTE_origin_ADDRESS="file://${ORIGIN_REPO}?create=true" spfs ls-tags -r origin
 export SPFS_REMOTE_origin_ADDRESS="file://${ORIGIN_REPO}"
+cat << EOF > /etc/spfs.toml
+[environment]
+variable_names_to_preserve = ["TMPDIR"]
+EOF
 # Run tests as a normal user to verify privilege escalation
 useradd -m e2e
 su e2e -c /tests/run_tests.sh

@@ -175,6 +175,11 @@ worker_threads = 2
 # the number of blocking threads used for IO operations in the
 # runtime monitor process.
 max_blocking_threads = 2
+
+# Optional environment variable names to preserve the value when creating an
+# spfs runtime.
+[environment]
+variable_names_to_preserve = ["TMPDIR", "LD_LIBRARY_PATH"]
 ```
 
 ### SPK Configuration
