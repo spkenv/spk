@@ -13,13 +13,13 @@ use crate::fixtures::*;
 async fn test_commit_empty(tmpdir: tempfile::TempDir) {
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::FsRepository::create(&root)
+        crate::storage::fs::MaybeOpenFsRepository::create(&root)
             .await
             .unwrap(),
     );
     let storage = crate::runtime::Storage::new(repo).unwrap();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::FsRepository::create(root)
+        crate::storage::fs::MaybeOpenFsRepository::create(root)
             .await
             .unwrap(),
     );

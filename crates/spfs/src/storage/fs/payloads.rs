@@ -8,13 +8,13 @@ use std::pin::Pin;
 use futures::future::ready;
 use futures::{Stream, StreamExt, TryFutureExt};
 
-use super::{FsRepository, OpenFsRepository};
+use super::{MaybeOpenFsRepository, OpenFsRepository};
 use crate::storage::prelude::*;
 use crate::tracking::BlobRead;
 use crate::{Error, Result, encoding, graph};
 
 #[async_trait::async_trait]
-impl crate::storage::PayloadStorage for FsRepository {
+impl crate::storage::PayloadStorage for MaybeOpenFsRepository {
     async fn has_payload(&self, digest: encoding::Digest) -> bool {
         let Ok(opened) = self.opened().await else {
             return false;
@@ -54,26 +54,26 @@ impl crate::storage::PayloadStorage for FsRepository {
 #[async_trait::async_trait]
 impl crate::storage::PayloadStorage for OpenFsRepository {
     async fn has_payload(&self, digest: encoding::Digest) -> bool {
-        let path = self.payloads.build_digest_path(&digest);
+        let path = self.fs_impl.payloads.build_digest_path(&digest);
         tokio::fs::symlink_metadata(path).await.is_ok()
     }
 
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
-        Box::pin(self.payloads.iter())
+        Box::pin(self.fs_impl.payloads.iter())
     }
 
     async unsafe fn write_data(
         &self,
         reader: Pin<Box<dyn BlobRead>>,
     ) -> Result<(encoding::Digest, u64)> {
-        self.payloads.write_data(reader).await
+        self.fs_impl.payloads.write_data(reader).await
     }
 
     async fn open_payload(
         &self,
         digest: encoding::Digest,
     ) -> Result<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
-        let path = self.payloads.build_digest_path(&digest);
+        let path = self.fs_impl.payloads.build_digest_path(&digest);
         match tokio::fs::File::open(&path).await {
             Ok(file) => Ok((Box::pin(tokio::io::BufReader::new(file)), path)),
             Err(err) => match err.kind() {
@@ -97,7 +97,7 @@ impl crate::storage::PayloadStorage for OpenFsRepository {
     }
 
     async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
-        let path = self.payloads.build_digest_path(&digest);
+        let path = self.fs_impl.payloads.build_digest_path(&digest);
         match tokio::fs::remove_file(&path).await {
             Ok(()) => Ok(()),
             Err(err) => match err.kind() {
