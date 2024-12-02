@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+#[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 
 use chrono::prelude::*;
@@ -107,6 +108,7 @@ async fn test_tag_no_duplication(
     );
 }
 
+#[cfg(unix)]
 #[rstest]
 #[tokio::test]
 async fn test_tag_permissions(tmpdir: tempfile::TempDir) {
