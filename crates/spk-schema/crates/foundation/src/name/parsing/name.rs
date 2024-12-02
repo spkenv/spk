@@ -68,7 +68,7 @@ where
 ///
 /// A package name must be at least [`PkgName::MIN_LEN`] characters and no
 /// more than [`PkgName::MAX_LEN`] characters.
-pub fn package_name<'a, E>(input: &'a str) -> IResult<&'a str, &PkgName, E>
+pub fn package_name<'a, E>(input: &'a str) -> IResult<&'a str, &'a PkgName, E>
 where
     E: ParseError<&'a str> + ContextError<&'a str>,
 {

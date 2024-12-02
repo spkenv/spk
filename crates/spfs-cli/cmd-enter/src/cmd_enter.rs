@@ -11,10 +11,12 @@ use clap::{Args, Parser};
 #[cfg(feature = "sentry")]
 use cli::configure_sentry;
 use miette::{Context, Result};
+#[cfg(unix)]
 use spfs::monitor::SPFS_MONITOR_FOREGROUND_LOGGING_VAR;
 use spfs::storage::fs::RenderSummary;
 use spfs_cli_common as cli;
 use spfs_cli_common::CommandName;
+#[cfg(unix)]
 use tokio::io::AsyncWriteExt;
 
 // The runtime setup process manages the current namespace

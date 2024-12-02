@@ -17,12 +17,12 @@ pub async fn exit_runtime(_rt: &runtime::Runtime) -> Result<()> {
 
 /// Turn the given runtime into a durable runtime, this should only
 /// ever be called with the active runtime
-pub async fn make_runtime_durable(rt: &runtime::Runtime) -> Result<()> {
+pub async fn make_runtime_durable(_rt: &runtime::Runtime) -> Result<()> {
     todo!()
 }
 /// Reinitialize the current spfs runtime as a durable rt (after runtime config changes).
 ///
-pub async fn change_to_durable_runtime(rt: &mut runtime::Runtime) -> Result<RenderSummary> {
+pub async fn change_to_durable_runtime(_rt: &mut runtime::Runtime) -> Result<RenderSummary> {
     Err(Error::OverlayFsUnsupportedOnWindows)
 }
 
@@ -40,7 +40,7 @@ pub async fn reinitialize_runtime(_rt: &mut runtime::Runtime) -> Result<RenderSu
 /// the mount namespacing operated per-thread and so restricts our ability to move execution.
 pub async fn initialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSummary> {
     tracing::debug!("computing runtime manifest");
-    let manifest = super::compute_runtime_manifest(rt).await?;
+    let _manifest = super::compute_runtime_manifest(rt).await?;
 
     let configurator = env::RuntimeConfigurator::default();
     match rt.config.mount_backend {

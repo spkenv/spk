@@ -174,7 +174,7 @@ impl ManifestRenderPath for OpenFsRepository {
 struct BlobSemaphore(Arc<Semaphore>);
 
 /// A newtype to represent holding the permit specifically for the blob semaphore.
-// dead_code: .0 is never read, but it still serves a purpose.
+// Allow: .0 is never read, but it still serves a purpose.
 #[allow(dead_code)]
 struct BlobSemaphorePermit<'a>(tokio::sync::SemaphorePermit<'a>);
 

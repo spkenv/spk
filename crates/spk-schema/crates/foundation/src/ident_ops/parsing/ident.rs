@@ -109,7 +109,7 @@ where
 /// - `"pkg-name:comp/1.0/CU7ZWOIF"`
 pub fn ident_parts_with_components<'b, E>(
     input: &'b str,
-) -> IResult<&'b str, (IdentParts, BTreeSet<Component>), E>
+) -> IResult<&'b str, (IdentParts<'b>, BTreeSet<Component>), E>
 where
     E: ParseError<&'b str>
         + ContextError<&'b str>

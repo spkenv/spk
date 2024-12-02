@@ -150,15 +150,21 @@ impl OpenFsRepository {
 }
 
 /// A semaphore for limiting the concurrency of blob renders.
+// Allow: not used on Windows (yet?).
+#[allow(dead_code)]
 struct BlobSemaphore(Arc<Semaphore>);
 
 /// A newtype to represent holding the permit specifically for the blob semaphore.
+// Allow: .0 is never read, but it still serves a purpose.
+#[allow(dead_code)]
 struct BlobSemaphorePermit<'a>(tokio::sync::SemaphorePermit<'a>);
 
 impl BlobSemaphore {
     /// Acquires a permit from the blob semaphore.
     ///
     /// Wrapper around [`tokio::sync::Semaphore::acquire`].
+    // Allow: not used on Windows (yet?).
+    #[allow(dead_code)]
     async fn acquire(&self) -> BlobSemaphorePermit<'_> {
         BlobSemaphorePermit(
             self.0
@@ -172,7 +178,7 @@ impl BlobSemaphore {
 /// Renders manifest data to a directory on disk
 pub struct Renderer<'repo, Repo, Reporter: RenderReporter = SilentRenderReporter> {
     repo: &'repo Repo,
-    reporter: Arc<Reporter>,
+    _reporter: Arc<Reporter>,
     blob_semaphore: BlobSemaphore,
     max_concurrent_branches: usize,
 }
@@ -181,7 +187,7 @@ impl<'repo, Repo> Renderer<'repo, Repo, SilentRenderReporter> {
     pub fn new(repo: &'repo Repo) -> Self {
         Self {
             repo,
-            reporter: Arc::new(SilentRenderReporter),
+            _reporter: Arc::new(SilentRenderReporter),
             blob_semaphore: BlobSemaphore(Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_BLOBS))),
             max_concurrent_branches: DEFAULT_MAX_CONCURRENT_BRANCHES,
         }
@@ -201,7 +207,7 @@ where
     {
         Renderer {
             repo: self.repo,
-            reporter: reporter.into(),
+            _reporter: reporter.into(),
             blob_semaphore: self.blob_semaphore,
             max_concurrent_branches: self.max_concurrent_branches,
         }

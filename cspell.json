@@ -781,6 +781,7 @@
     "werror",
     "whitebox",
     "widec",
+    "winapi",
     "winfsp",
     "WINTHREAD",
     "WKVI",
