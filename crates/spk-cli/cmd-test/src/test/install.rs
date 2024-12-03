@@ -142,7 +142,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<'a, V> Tester for PackageInstallTester<'a, V>
+impl<V> Tester for PackageInstallTester<'_, V>
 where
     V: Clone + Variant + Send,
 {

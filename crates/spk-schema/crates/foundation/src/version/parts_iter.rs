@@ -22,7 +22,7 @@ impl NormalizedPartsIter<'_> {
     }
 }
 
-impl<'a> Iterator for NormalizedPartsIter<'a> {
+impl Iterator for NormalizedPartsIter<'_> {
     type Item = u32;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -69,7 +69,7 @@ impl MinimumPartsPartIter<'_> {
     }
 }
 
-impl<'a> Iterator for MinimumPartsPartIter<'a> {
+impl Iterator for MinimumPartsPartIter<'_> {
     type Item = u32;
 
     fn next(&mut self) -> Option<Self::Item> {

@@ -179,7 +179,7 @@ impl serde::Serialize for Stack {
 
 pub struct Iter<'a>(Option<&'a Entry>);
 
-impl<'a> Iterator for Iter<'a> {
+impl Iterator for Iter<'_> {
     type Item = Digest;
 
     fn next(&mut self) -> Option<Self::Item> {

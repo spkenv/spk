@@ -126,7 +126,7 @@ struct VariantInfoIter<'v, 'r, 'o> {
     state: VariantInfoIterState<'v, 'r>,
 }
 
-impl<'v, 'r, 'o> Iterator for VariantInfoIter<'v, 'r, 'o> {
+impl<'r> Iterator for VariantInfoIter<'_, 'r, '_> {
     type Item = Result<VariantInfo<'r>>;
 
     fn next(&mut self) -> Option<Self::Item> {

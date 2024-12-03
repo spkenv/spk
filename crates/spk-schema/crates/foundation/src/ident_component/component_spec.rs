@@ -165,7 +165,7 @@ impl<'de> Deserialize<'de> for Component {
         D: serde::Deserializer<'de>,
     {
         struct ComponentVisitor;
-        impl<'de> serde::de::Visitor<'de> for ComponentVisitor {
+        impl serde::de::Visitor<'_> for ComponentVisitor {
             type Value = Component;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {

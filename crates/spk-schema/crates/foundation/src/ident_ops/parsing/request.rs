@@ -29,7 +29,7 @@ use crate::version::Version;
 /// - `"package-name:{comp1,comp2}/"`
 pub fn range_ident_pkg_name<'a, E>(
     input: &'a str,
-) -> IResult<&'a str, (&PkgName, BTreeSet<Component>), E>
+) -> IResult<&'a str, (&'a PkgName, BTreeSet<Component>), E>
 where
     E: ParseError<&'a str> + ContextError<&'a str> + TagError<&'a str, &'static str>,
 {
@@ -56,7 +56,7 @@ where
 /// - `"package-name:{comp1,comp2}/1.0.0"`
 pub fn request_pkg_name_and_version<'a, E>(
     input: &'a str,
-) -> IResult<&'a str, (&PkgName, BTreeSet<Component>, Option<Version>), E>
+) -> IResult<&'a str, (&'a PkgName, BTreeSet<Component>, Option<Version>), E>
 where
     E: ParseError<&'a str>
         + ContextError<&'a str>

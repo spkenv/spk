@@ -85,7 +85,7 @@ impl<'de> Deserialize<'de> for ComponentEmbeddedPackage {
     {
         struct EmbeddedComponentsVisitor;
 
-        impl<'de> serde::de::Visitor<'de> for EmbeddedComponentsVisitor {
+        impl serde::de::Visitor<'_> for EmbeddedComponentsVisitor {
             type Value = ComponentEmbeddedPackage;
 
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {

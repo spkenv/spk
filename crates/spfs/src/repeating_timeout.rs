@@ -34,6 +34,8 @@ pin_project! {
 pub struct Elapsed(());
 
 impl<S: Stream> RepeatingTimeout<S> {
+    // Allow: not used on Windows.
+    #[allow(dead_code)]
     pub(super) fn new(stream: S, duration: Duration) -> Self {
         let next = Instant::now() + duration;
         let deadline = tokio::time::sleep_until(next);

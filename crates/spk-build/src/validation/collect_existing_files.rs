@@ -22,10 +22,10 @@ pub struct CollectExistingFilesValidator<'a> {
     pub packages: &'a Vec<NameOrCurrent>,
 }
 
-impl<'a> super::validator::sealed::Sealed for CollectExistingFilesValidator<'a> {}
+impl super::validator::sealed::Sealed for CollectExistingFilesValidator<'_> {}
 
 #[async_trait::async_trait]
-impl<'a> super::Validator for CollectExistingFilesValidator<'a> {
+impl super::Validator for CollectExistingFilesValidator<'_> {
     async fn validate_setup<P, V>(&self, _setup: &BuildSetupReport<P, V>) -> Report
     where
         P: Package,

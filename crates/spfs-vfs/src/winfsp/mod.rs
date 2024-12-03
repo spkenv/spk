@@ -43,7 +43,7 @@ pub struct Config {
 /// that are managed via the [`Router`].
 pub struct Service {
     //repos: Vec<Arc<spfs::storage::RepositoryHandle>>,
-    config: Config,
+    _config: Config,
     router: Router,
     host: HostController,
     // ttl: Duration,
@@ -92,7 +92,7 @@ impl Service {
         Ok(Arc::new(Self {
             host,
             router,
-            config,
+            _config: config,
         }))
     }
 

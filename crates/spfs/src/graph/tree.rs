@@ -80,7 +80,7 @@ impl<'buf> Tree<'buf> {
     }
 }
 
-impl<'buf> encoding::Digestible for Tree<'buf> {
+impl encoding::Digestible for Tree<'_> {
     type Error = crate::Error;
 
     fn digest(&self) -> std::result::Result<spfs_proto::Digest, Self::Error> {
@@ -90,13 +90,13 @@ impl<'buf> encoding::Digestible for Tree<'buf> {
     }
 }
 
-impl<'buf> std::fmt::Debug for Tree<'buf> {
+impl std::fmt::Debug for Tree<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("Tree {{ {:?} }}", self.digest().unwrap()))
     }
 }
 
-impl<'buf> HasKind for Tree<'buf> {
+impl HasKind for Tree<'_> {
     #[inline]
     fn kind(&self) -> ObjectKind {
         ObjectKind::Tree

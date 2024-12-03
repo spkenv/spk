@@ -181,7 +181,7 @@ impl<'a> PackageBuildTester<'a> {
 }
 
 #[async_trait::async_trait]
-impl<'a> Tester for PackageBuildTester<'a> {
+impl Tester for PackageBuildTester<'_> {
     async fn test(&mut self) -> Result<()> {
         self.test().await
     }

@@ -1313,6 +1313,9 @@ pub fn makedirs_with_perms<P: AsRef<Path>>(dirname: P, perms: u32) -> std::io::R
     let dirname = dirname.as_ref();
     #[cfg(unix)]
     let perms = std::fs::Permissions::from_mode(perms);
+    #[cfg(windows)]
+    // Avoid unused variable warning.
+    let _perms = perms;
 
     if !dirname.is_absolute() {
         return Err(std::io::Error::new(

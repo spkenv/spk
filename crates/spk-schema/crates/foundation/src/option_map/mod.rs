@@ -332,7 +332,7 @@ impl<'de> Deserialize<'de> for Stringified {
 #[derive(Default)]
 pub struct StringifyVisitor;
 
-impl<'de> serde::de::Visitor<'de> for StringifyVisitor {
+impl serde::de::Visitor<'_> for StringifyVisitor {
     type Value = Stringified;
 
     fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {

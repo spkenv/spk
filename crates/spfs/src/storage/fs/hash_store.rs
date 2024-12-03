@@ -369,6 +369,11 @@ impl FsHashStore {
             }
         }
 
+        #[cfg(windows)]
+        if created_new_file || object_permissions.is_some() {
+            // avoid unused variable warning
+        }
+
         Ok((digest, copied))
     }
 

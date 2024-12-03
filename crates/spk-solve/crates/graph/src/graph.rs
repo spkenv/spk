@@ -251,7 +251,7 @@ impl<'state> DecisionBuilder<'state, 'static> {
     }
 }
 
-impl<'state, 'cmpt> DecisionBuilder<'state, 'cmpt> {
+impl<'state> DecisionBuilder<'state, '_> {
     pub fn with_components<'a>(
         self,
         components: impl IntoIterator<Item = &'a Component>,

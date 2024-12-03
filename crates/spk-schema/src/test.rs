@@ -60,7 +60,7 @@ impl<'de> Deserialize<'de> for TestStage {
     {
         struct TestStageVisitor;
 
-        impl<'de> serde::de::Visitor<'de> for TestStageVisitor {
+        impl serde::de::Visitor<'_> for TestStageVisitor {
             type Value = TestStage;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {

@@ -20,6 +20,11 @@ impl Command for ScrollRegion {
     fn write_ansi(&self, f: &mut impl std::fmt::Write) -> std::fmt::Result {
         write!(f, csi!("{};{}r"), self.0 + 1, self.1 + 1)
     }
+
+    #[cfg(windows)]
+    fn execute_winapi(&self) -> std::io::Result<()> {
+        unimplemented!()
+    }
 }
 
 /// Reset the terminal scroll region to the entire screen.
@@ -28,6 +33,11 @@ struct ResetScrollRegion;
 impl Command for ResetScrollRegion {
     fn write_ansi(&self, f: &mut impl std::fmt::Write) -> std::fmt::Result {
         write!(f, csi!("r"))
+    }
+
+    #[cfg(windows)]
+    fn execute_winapi(&self) -> std::io::Result<()> {
+        unimplemented!()
     }
 }
 
@@ -49,6 +59,7 @@ impl StatusLine {
         // Monitor SIGWINCH to know when the terminal has been resized,
         // to update our saved dimensions.
         let sig_winch_tripped = Arc::new(AtomicBool::new(false));
+        #[cfg(unix)]
         let _ = signal_hook::flag::register(
             signal_hook::consts::SIGWINCH,
             Arc::clone(&sig_winch_tripped),

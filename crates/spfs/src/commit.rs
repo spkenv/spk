@@ -51,7 +51,7 @@ pub struct WriteToRepositoryBlobHasher<'repo> {
 }
 
 #[tonic::async_trait]
-impl<'repo> BlobHasher for WriteToRepositoryBlobHasher<'repo> {
+impl BlobHasher for WriteToRepositoryBlobHasher<'_> {
     async fn hash_blob(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
         self.repo.commit_blob(reader).await
     }

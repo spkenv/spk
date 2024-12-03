@@ -106,7 +106,7 @@ impl<'a> AnnotationValue<'a> {
     }
 }
 
-impl<'a> Display for AnnotationValue<'a> {
+impl Display for AnnotationValue<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             AnnotationValue::String(v) => {
@@ -125,7 +125,7 @@ impl<'a> Display for AnnotationValue<'a> {
 #[derive(Copy, Clone)]
 pub struct Annotation<'buf>(pub(super) spfs_proto::Annotation<'buf>);
 
-impl<'buf> std::fmt::Debug for Annotation<'buf> {
+impl std::fmt::Debug for Annotation<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Annotation")
             .field("key", &self.key())
@@ -193,7 +193,7 @@ impl<'buf> Annotation<'buf> {
     }
 }
 
-impl<'buf> std::fmt::Display for Annotation<'buf> {
+impl std::fmt::Display for Annotation<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("{}: {:?}", self.key(), self.value()))
     }

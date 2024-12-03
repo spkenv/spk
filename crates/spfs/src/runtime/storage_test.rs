@@ -2,13 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
 use futures::TryStreamExt;
 use rstest::rstest;
 use spfs_encoding::Digestible;
 
-use super::{makedirs_with_perms, Data, Storage};
+#[cfg(unix)]
+use super::makedirs_with_perms;
+use super::{Data, Storage};
 use crate::fixtures::*;
 use crate::graph::object::{DigestStrategy, EncodingFormat};
 use crate::graph::{AnnotationValue, Layer, Platform};
@@ -583,6 +586,7 @@ async fn test_runtime_ensure_extra_bind_mount_locations_exist(tmpdir: tempfile::
     assert!(runtime.prepare_live_layers().await.is_ok())
 }
 
+#[cfg(unix)]
 #[rstest]
 fn test_makedirs_dont_change_existing(tmpdir: tempfile::TempDir) {
     let chkdir = tmpdir.path().join("my_dir");

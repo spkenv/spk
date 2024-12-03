@@ -8,10 +8,12 @@ use clap::Parser;
 #[cfg(feature = "sentry")]
 use cli::configure_sentry;
 use miette::{Context, IntoDiagnostic, Result};
+#[cfg(unix)]
 use spfs::Error;
 use spfs_cli_common as cli;
 use spfs_cli_common::CommandName;
 use tokio::io::AsyncReadExt;
+#[cfg(unix)]
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::time::timeout;
 
@@ -87,6 +89,7 @@ impl CmdMonitor {
         // clean up this runtime and all other threads before detaching
         drop(rt);
 
+        #[cfg(unix)]
         nix::unistd::daemon(self.no_chdir, self.no_close)
             .into_diagnostic()
             .wrap_err("Failed to daemonize the monitor process")?;
@@ -142,10 +145,13 @@ impl CmdMonitor {
     }
 
     pub async fn run_async(&mut self, config: &spfs::Config) -> Result<i32> {
+        #[cfg(unix)]
         let mut interrupt = signal(SignalKind::interrupt())
             .map_err(|err| Error::process_spawn_error("signal()", err, None))?;
+        #[cfg(unix)]
         let mut quit = signal(SignalKind::quit())
             .map_err(|err| Error::process_spawn_error("signal()", err, None))?;
+        #[cfg(unix)]
         let mut terminate = signal(SignalKind::terminate())
             .map_err(|err| Error::process_spawn_error("signal()", err, None))?;
 
@@ -158,6 +164,7 @@ impl CmdMonitor {
         tracing::trace!("upgraded to owned runtime, waiting for empty runtime");
 
         let fut = spfs::monitor::wait_for_empty_runtime(&owned, config);
+        #[cfg(unix)]
         let res = tokio::select! {
             res = fut => {
                 tracing::info!("Monitor detected no more processes, cleaning up runtime...");
@@ -169,7 +176,8 @@ impl CmdMonitor {
             _ = interrupt.recv() => Err(spfs::Error::String("Interrupt signal received, cleaning up runtime early".to_string())),
             _ = quit.recv() => Err(spfs::Error::String("Quit signal received, cleaning up runtime early".to_string())),
         };
-        tracing::trace!("runtime empty of processes ");
+        #[cfg(windows)]
+        let res = fut.await;
 
         // need to reload the runtime here to get any changes made to
         // the runtime while it was running so we don't blast them the

@@ -24,7 +24,7 @@ pub fn spawn_monitor_for_runtime(_rt: &runtime::Runtime) -> Result<tokio::proces
 ///
 /// This is a privileged operation that may fail with a permission
 /// issue if the calling process is not root or CAP_NET_ADMIN
-pub async fn wait_for_empty_runtime(_rt: &runtime::Runtime) -> Result<()> {
+pub async fn wait_for_empty_runtime(_rt: &runtime::Runtime, _config: &crate::Config) -> Result<()> {
     todo!()
 }
 
