@@ -557,8 +557,10 @@ pub fn get_parent_pids(root: Option<u32>) -> std::result::Result<Vec<u32>, winfs
     let no_more_files = HRESULT::from(ERROR_NO_MORE_FILES);
     let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, child)? };
     let mut parents = HashMap::new();
-    let mut process = PROCESSENTRY32::default();
-    process.dwSize = std::mem::size_of::<PROCESSENTRY32>() as u32;
+    let mut process = PROCESSENTRY32 {
+        dwSize: std::mem::size_of::<PROCESSENTRY32>() as u32,
+        ..Default::default()
+    };
     loop {
         match unsafe { Process32Next(snapshot, &mut process as *mut PROCESSENTRY32) } {
             Ok(()) => {

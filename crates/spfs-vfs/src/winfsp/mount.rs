@@ -167,9 +167,7 @@ impl Mount {
         let Ok(relative) = path.strip_prefix(r"\\") else {
             return None;
         };
-        let Some(str_path) = relative.to_str() else {
-            return None;
-        };
+        let str_path = relative.to_str()?;
 
         const TRIM_END: &[char] = &['/'];
         let path = str_path.replace('\\', "/");
@@ -183,15 +181,11 @@ impl Mount {
             return entry;
         }
         for step in path.split('/') {
-            let Some(current) = entry.take() else {
-                return None;
-            };
+            let current = entry.take()?;
             let EntryKind::Tree = current.kind else {
                 return None;
             };
-            let Some(child) = current.entries.get(step) else {
-                return None;
-            };
+            let child = current.entries.get(step)?;
             entry = self
                 .inodes
                 .get(&child.user_data)
