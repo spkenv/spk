@@ -384,7 +384,7 @@ impl<'de> Deserialize<'de> for RangeIdent {
     {
         struct RangeIdentVisitor;
 
-        impl<'de> serde::de::Visitor<'de> for RangeIdentVisitor {
+        impl serde::de::Visitor<'_> for RangeIdentVisitor {
             type Value = RangeIdent;
 
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {

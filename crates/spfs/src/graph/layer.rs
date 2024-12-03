@@ -189,7 +189,7 @@ pub struct LayerBuilder<'a> {
     annotations: Vec<KeyAnnotationValuePair<'a>>,
 }
 
-impl<'a> Default for LayerBuilder<'a> {
+impl Default for LayerBuilder<'_> {
     fn default() -> Self {
         Self {
             header: super::object::HeaderBuilder::new(ObjectKind::Layer),

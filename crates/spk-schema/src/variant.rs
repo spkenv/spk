@@ -34,7 +34,7 @@ impl Variant for OptionMap {
     }
 }
 
-impl<'a, T> Variant for &'a T
+impl<T> Variant for &T
 where
     T: Variant,
 {

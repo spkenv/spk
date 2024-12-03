@@ -16,7 +16,7 @@ pub(crate) enum LimitedValidRange<'a> {
     Range(&'a Version, &'a Version),
 }
 
-impl<'a> LimitedValidRange<'a> {
+impl LimitedValidRange<'_> {
     /// Return true if there exists any version that is valid in both ranges.
     fn intersects(&self, other: &ValidRange) -> bool {
         match other {
@@ -72,7 +72,7 @@ impl<'a> LimitedValidRange<'a> {
     }
 }
 
-impl<'a> std::fmt::Display for LimitedValidRange<'a> {
+impl std::fmt::Display for LimitedValidRange<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Format these ranges using rust slice syntax.
         match self {
@@ -100,7 +100,7 @@ pub(crate) enum ValidRange<'a> {
     Pair(LimitedValidRange<'a>, LimitedValidRange<'a>),
 }
 
-impl<'a> ValidRange<'a> {
+impl ValidRange<'_> {
     /// Return true if there exists any version that is valid in both ranges.
     pub(crate) fn intersects(&self, other: &ValidRange) -> bool {
         match self {
@@ -111,7 +111,7 @@ impl<'a> ValidRange<'a> {
     }
 }
 
-impl<'a> std::fmt::Display for ValidRange<'a> {
+impl std::fmt::Display for ValidRange<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ValidRange::Total => f.pad(".."),

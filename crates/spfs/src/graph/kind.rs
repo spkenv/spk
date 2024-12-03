@@ -44,56 +44,56 @@ pub trait HasKind {
     fn kind(&self) -> ObjectKind;
 }
 
-impl<'buf> Kind for spfs_proto::Platform<'buf> {
+impl Kind for spfs_proto::Platform<'_> {
     #[inline]
     fn kind() -> ObjectKind {
         ObjectKind::Platform
     }
 }
 
-impl<'buf> HasKind for spfs_proto::Platform<'buf> {
+impl HasKind for spfs_proto::Platform<'_> {
     #[inline]
     fn kind(&self) -> ObjectKind {
         <Self as Kind>::kind()
     }
 }
 
-impl<'buf> Kind for spfs_proto::Layer<'buf> {
+impl Kind for spfs_proto::Layer<'_> {
     #[inline]
     fn kind() -> ObjectKind {
         ObjectKind::Layer
     }
 }
 
-impl<'buf> HasKind for spfs_proto::Layer<'buf> {
+impl HasKind for spfs_proto::Layer<'_> {
     #[inline]
     fn kind(&self) -> ObjectKind {
         <Self as Kind>::kind()
     }
 }
 
-impl<'buf> Kind for spfs_proto::Manifest<'buf> {
+impl Kind for spfs_proto::Manifest<'_> {
     #[inline]
     fn kind() -> ObjectKind {
         ObjectKind::Manifest
     }
 }
 
-impl<'buf> HasKind for spfs_proto::Manifest<'buf> {
+impl HasKind for spfs_proto::Manifest<'_> {
     #[inline]
     fn kind(&self) -> ObjectKind {
         <Self as Kind>::kind()
     }
 }
 
-impl<'buf> Kind for spfs_proto::Blob<'buf> {
+impl Kind for spfs_proto::Blob<'_> {
     #[inline]
     fn kind() -> ObjectKind {
         ObjectKind::Blob
     }
 }
 
-impl<'buf> HasKind for spfs_proto::Blob<'buf> {
+impl HasKind for spfs_proto::Blob<'_> {
     #[inline]
     fn kind(&self) -> ObjectKind {
         <Self as Kind>::kind()

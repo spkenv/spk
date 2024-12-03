@@ -385,7 +385,7 @@ impl<'a> TryFrom<Option<&'a super::annotation::Value>> for graph::AnnotationValu
     }
 }
 
-impl<'buf> From<&graph::Tree<'buf>> for super::Tree {
+impl From<&graph::Tree<'_>> for super::Tree {
     fn from(source: &graph::Tree) -> Self {
         Self {
             entries: source.entries().map(|e| (&e).into()).collect(),
@@ -393,7 +393,7 @@ impl<'buf> From<&graph::Tree<'buf>> for super::Tree {
     }
 }
 
-impl<'buf> From<&graph::Entry<'buf>> for super::Entry {
+impl From<&graph::Entry<'_>> for super::Entry {
     fn from(source: &graph::Entry) -> Self {
         let kind = match source.kind() {
             tracking::EntryKind::Tree => super::EntryKind::Tree as i32,

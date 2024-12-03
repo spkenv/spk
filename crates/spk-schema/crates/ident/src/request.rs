@@ -142,7 +142,7 @@ impl<'de> Deserialize<'de> for PinPolicy {
     {
         struct PinPolicyVisitor;
 
-        impl<'de> serde::de::Visitor<'de> for PinPolicyVisitor {
+        impl serde::de::Visitor<'_> for PinPolicyVisitor {
             type Value = PinPolicy;
 
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -1140,7 +1140,7 @@ where
             Name: FromStr,
             <Name as FromStr>::Err: std::fmt::Display;
 
-        impl<'de, Name> serde::de::Visitor<'de> for NameAndValueVisitor<Name>
+        impl<Name> serde::de::Visitor<'_> for NameAndValueVisitor<Name>
         where
             Name: FromStr,
             <Name as FromStr>::Err: std::fmt::Display,
@@ -1237,7 +1237,7 @@ impl<'de> Deserialize<'de> for PinValue {
     {
         struct PinValueVisitor;
 
-        impl<'de> serde::de::Visitor<'de> for PinValueVisitor {
+        impl serde::de::Visitor<'_> for PinValueVisitor {
             type Value = PinValue;
 
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {

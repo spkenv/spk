@@ -58,7 +58,7 @@ impl Router {
         tracing::debug!("Computing environment manifest...");
         let mut manifest = Err(spfs::Error::UnknownReference(env_spec.to_string()));
         for repo in self.repos.iter() {
-            manifest = spfs::compute_environment_manifest(&env_spec, &repo).await;
+            manifest = spfs::compute_environment_manifest(&env_spec, repo).await;
             if manifest.is_ok() {
                 break;
             }

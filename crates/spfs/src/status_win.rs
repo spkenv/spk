@@ -42,7 +42,7 @@ pub async fn initialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSumma
     tracing::debug!("computing runtime manifest");
     let _manifest = super::compute_runtime_manifest(rt).await?;
 
-    let configurator = env::RuntimeConfigurator::default();
+    let configurator = env::RuntimeConfigurator;
     match rt.config.mount_backend {
         #[cfg(feature = "winfsp-backend")]
         runtime::MountBackend::WinFsp => {

@@ -9,7 +9,9 @@ use futures::TryStreamExt;
 use rstest::rstest;
 use spfs_encoding::Digestible;
 
-use super::{makedirs_with_perms, Data, Storage};
+#[cfg(unix)]
+use super::makedirs_with_perms;
+use super::{Data, Storage};
 use crate::fixtures::*;
 use crate::graph::object::{DigestStrategy, EncodingFormat};
 use crate::graph::{AnnotationValue, Layer, Platform};

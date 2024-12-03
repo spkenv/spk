@@ -40,7 +40,7 @@ impl<'db> DatabaseWalker<'db> {
     }
 }
 
-impl<'db> Stream for DatabaseWalker<'db> {
+impl Stream for DatabaseWalker<'_> {
     type Item = Result<(encoding::Digest, Object)>;
 
     fn poll_next(
@@ -100,7 +100,7 @@ impl<'db> DatabaseIterator<'db> {
     }
 }
 
-impl<'db> Stream for DatabaseIterator<'db> {
+impl Stream for DatabaseIterator<'_> {
     type Item = Result<(encoding::Digest, Object)>;
 
     fn poll_next(

@@ -631,7 +631,7 @@ impl<'de> Deserialize<'de> for PkgNameWithComponents {
     {
         struct PkgNameWithComponentsVisitor;
 
-        impl<'de> serde::de::Visitor<'de> for PkgNameWithComponentsVisitor {
+        impl serde::de::Visitor<'_> for PkgNameWithComponentsVisitor {
             type Value = PkgNameWithComponents;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {

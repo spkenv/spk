@@ -12,6 +12,7 @@ use rstest::rstest;
 use tokio_stream::StreamExt;
 
 use crate::fixtures::*;
+#[cfg(unix)]
 use crate::storage::fs::FsRepository;
 use crate::storage::{EntryType, TagStorage};
 use crate::{encoding, tracking, Result};

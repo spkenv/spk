@@ -264,7 +264,7 @@ impl<'de> serde::de::Deserialize<'de> for TimeSpec {
     {
         struct TimeSpecVisitor;
 
-        impl<'de> serde::de::Visitor<'de> for TimeSpecVisitor {
+        impl serde::de::Visitor<'_> for TimeSpecVisitor {
             type Value = TimeSpec;
 
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {

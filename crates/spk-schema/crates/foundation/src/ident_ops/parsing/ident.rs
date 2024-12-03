@@ -39,7 +39,7 @@ pub struct IdentPartsBuf {
     pub build_str: Option<String>,
 }
 
-impl<'a> IdentParts<'a> {
+impl IdentParts<'_> {
     pub fn to_owned(&self) -> IdentPartsBuf {
         IdentPartsBuf {
             repository_name: self.repository_name.map(|o| o.to_owned()),
