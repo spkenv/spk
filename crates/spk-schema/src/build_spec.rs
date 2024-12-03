@@ -507,7 +507,7 @@ impl<'de> serde::de::Visitor<'de> for BuildSpecVisitor {
                 "auto_host_vars" => unchecked.auto_host_vars = map.next_value::<AutoHostVars>()?,
                 unknown_key => {
                     self.lints.push(Lint::Key(UnknownKey::new(
-                        unknown_key,
+                        &format!("build.{unknown_key}"),
                         BuildSpec::FIELD_NAMES_AS_ARRAY.to_vec(),
                     )));
                     map.next_value::<serde::de::IgnoredAny>()?;

@@ -3,8 +3,8 @@
 // https://github.com/spkenv/spk
 
 use serde::{Deserialize, Serialize};
-use spk_schema_ident::{RequestedBy, VersionIdent};
 use spk_schema_foundation::option_map::Stringified;
+use spk_schema_ident::{RequestedBy, VersionIdent};
 use struct_field_names_as_array::FieldNamesAsArray;
 
 use crate::ident::Request;
@@ -124,7 +124,7 @@ impl<'de> serde::de::Visitor<'de> for TestSpecVisitor {
                 "requirements" => self.requirements = map.next_value::<Vec<Request>>()?,
                 unknown_key => {
                     self.lints.push(Lint::Key(UnknownKey::new(
-                        unknown_key,
+                        &format!("sources.{unknown_key}"),
                         TestSpecVisitor::FIELD_NAMES_AS_ARRAY.to_vec(),
                     )));
                     map.next_value::<serde::de::IgnoredAny>()?;

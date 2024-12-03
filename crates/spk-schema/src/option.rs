@@ -328,7 +328,7 @@ impl<'de> serde::de::Visitor<'de> for UncheckedOptVisitor {
                 }
                 unknown_key => {
                     self.lints.push(Lint::Key(UnknownKey::new(
-                        unknown_key,
+                        &format!("options.{unknown_key}"),
                         UncheckedOptVisitor::FIELD_NAMES_AS_ARRAY.to_vec(),
                     )));
                     map.next_value::<serde::de::IgnoredAny>()?;

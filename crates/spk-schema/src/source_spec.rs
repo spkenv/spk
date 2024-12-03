@@ -175,7 +175,7 @@ impl<'de> serde::de::Visitor<'de> for SourceSpecVisitor {
                 "subdir" => self.subdir = Some(map.next_value::<Stringified>()?.0),
                 unknown_key => {
                     self.lints.push(Lint::Key(UnknownKey::new(
-                        unknown_key,
+                        &format!("sources.{unknown_key}"),
                         SourceSpecVisitor::FIELD_NAMES_AS_ARRAY.to_vec(),
                     )));
                     map.next_value::<serde::de::IgnoredAny>()?;

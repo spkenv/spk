@@ -7,8 +7,8 @@ use std::process::{Command, Stdio};
 
 use serde::{Deserialize, Serialize};
 use spk_config::Metadata;
-use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::option_map::Stringified;
+use spk_schema_foundation::IsDefault;
 use struct_field_names_as_array::FieldNamesAsArray;
 
 use crate::{Error, Lint, LintedItem, Lints, Result, UnknownKey};
@@ -153,7 +153,7 @@ impl<'de> serde::de::Visitor<'de> for MetaVisitor {
                 "labels" => self.labels = Some(map.next_value::<BTreeMap<String, String>>()?),
                 unknown_key => {
                     self.lints.push(Lint::Key(UnknownKey::new(
-                        unknown_key,
+                        &format!("meta.{unknown_key}"),
                         MetaVisitor::FIELD_NAMES_AS_ARRAY.to_vec(),
                     )));
                     map.next_value::<serde::de::IgnoredAny>()?;

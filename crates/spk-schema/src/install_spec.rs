@@ -6,10 +6,10 @@ use std::marker::PhantomData;
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_component::Component;
+use spk_schema_foundation::option_map::Stringified;
 use spk_schema_foundation::spec_ops::Named;
 use spk_schema_foundation::IsDefault;
 use spk_schema_ident::{BuildIdent, OptVersionIdent};
-use spk_schema_foundation::option_map::Stringified;
 use struct_field_names_as_array::FieldNamesAsArray;
 
 use crate::component_embedded_packages::ComponentEmbeddedPackage;
@@ -19,8 +19,8 @@ use crate::{
     EmbeddedPackagesList,
     EnvOp,
     EnvOpList,
-    LintedItem,
     Lint,
+    LintedItem,
     Lints,
     OpKind,
     Package,
@@ -271,7 +271,6 @@ where
     deserializer.deserialize_seq(EnvConfVisitor)
 }
 
-
 impl<'de, D> serde::de::Visitor<'de> for InstallSpecVisitor<D>
 where
     D: Default + From<InstallSpecVisitor<D>>,
@@ -279,7 +278,7 @@ where
     type Value = D;
 
     fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_str("a package specification")
+        f.write_str("an install spec")
     }
 
     fn visit_map<A>(mut self, mut map: A) -> std::result::Result<Self::Value, A::Error>
@@ -294,7 +293,7 @@ where
                 "environment" => self.environment = map.next_value::<EnvOpList>()?,
                 unknown_key => {
                     self.lints.push(Lint::Key(UnknownKey::new(
-                        unknown_key,
+                        &format!("install.{unknown_key}"),
                         InstallSpecVisitor::<D>::FIELD_NAMES_AS_ARRAY.to_vec(),
                     )));
                     map.next_value::<serde::de::IgnoredAny>()?;
