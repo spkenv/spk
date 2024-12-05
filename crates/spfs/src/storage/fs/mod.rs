@@ -26,8 +26,10 @@ pub use render_reporter::{
 };
 pub use render_summary::{RenderSummary, RenderSummaryReporter};
 pub use renderer::{
+    CliRenderType,
     DEFAULT_MAX_CONCURRENT_BLOBS,
     DEFAULT_MAX_CONCURRENT_BRANCHES,
+    HardLinkRenderType,
     RenderType,
     Renderer,
 };

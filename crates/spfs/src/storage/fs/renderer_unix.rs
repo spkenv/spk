@@ -15,7 +15,7 @@ use nix::unistd::geteuid;
 use rand::prelude::*;
 use tokio::io::AsyncReadExt;
 
-use super::{BlobSemaphorePermit, RenderType, Renderer};
+use super::{BlobSemaphorePermit, HardLinkRenderType, RenderType, Renderer};
 use crate::prelude::*;
 use crate::storage::LocalRepository;
 use crate::storage::fs::RenderReporter;
@@ -194,6 +194,359 @@ where
             .await
     }
 
+    /// Perform a blob render using the hard link strategy.
+    ///
+    /// This may fallback to using the copy strategy if the hard link limit is
+    /// reached.
+    // Allow: exception for non-pub function.
+    #[allow(clippy::too_many_arguments)]
+    #[async_recursion::async_recursion]
+    async fn render_blob_as_hard_link_with_permit<'a, Fd>(
+        &self,
+        dir_fd: Fd,
+        target_dir_fd: i32,
+        entry: graph::Entry<'async_recursion>,
+        render_type: HardLinkRenderType,
+        mut committed_path: PathBuf,
+        permit: BlobSemaphorePermit<'a>,
+    ) -> Result<RenderBlobResult>
+    where
+        'a: 'async_recursion,
+        Fd: std::os::fd::AsRawFd + Send,
+    {
+        let mut retry_count = 0;
+        loop {
+            let payload_path = committed_path.clone();
+            // All hard links to a file have shared metadata (owner, perms).
+            // Whereas the same blob may be rendered into multiple files
+            // across different users and/or will different expected perms.
+            // Therefore, a copy of the blob is needed for every unique
+            // combination of user and perms. Since each user has their own
+            // "proxy" directory, there needs only be a unique copy per
+            // perms.
+            let render_blob_result = if matches!(render_type, HardLinkRenderType::WithoutProxy) {
+                // explicitly skip proxy generation
+                RenderBlobResult::PayloadCopiedByRequest
+            } else if let Ok(render_store) = self.repo.render_store() {
+                let proxy_path = render_store
+                    .proxy
+                    .build_digest_path(entry.object())
+                    .join(entry.mode().to_string());
+                tracing::trace!(?proxy_path, "proxy");
+                let render_blob_result = if !proxy_path.exists() {
+                    let path_to_create = proxy_path.parent().unwrap();
+                    tokio::fs::create_dir_all(&path_to_create)
+                        .await
+                        .map_err(|err| {
+                            Error::StorageWriteError(
+                                "create_dir_all on blob proxy base",
+                                path_to_create.to_owned(),
+                                err,
+                            )
+                        })?;
+
+                    // To save on disk space, if the payload already
+                    // has the expected owner and perms, then the
+                    // proxy can be a hard link instead of a copy.
+                    // This assumes that the payload's owner and
+                    // permissions are never changed.
+                    let metadata = match tokio::fs::symlink_metadata(&payload_path).await {
+                        Err(err) => {
+                            return Err(Error::StorageReadError(
+                                "symlink_metadata on payload path",
+                                payload_path.clone(),
+                                err,
+                            ));
+                        }
+                        Ok(metadata) => metadata,
+                    };
+
+                    let has_correct_mode = metadata.permissions().mode() == entry.mode();
+                    let mut has_correct_owner = metadata.uid() == geteuid().as_raw();
+
+                    // Can we still share this payload if it doesn't
+                    // have the correct owner?
+                    if has_correct_mode && !has_correct_owner && {
+                        // require that a file has the "other" read bit
+                        // enabled before sharing it with other users.
+                        (entry.mode() & 0o004) != 0
+                    } {
+                        if let Ok(config) = get_config() {
+                            if config.storage.allow_payload_sharing_between_users {
+                                has_correct_owner = true;
+                            }
+                        }
+                    }
+
+                    if has_correct_mode && has_correct_owner {
+                        // This still creates the proxy "hop" to the
+                        // real payload file. It helps keep the code
+                        // simple and could be a debugging aid if
+                        // a proxy file is discovered to have the
+                        // wrong owner/permissions then we know there
+                        // is a bug somewhere.
+                        if let Err(err) = tokio::fs::hard_link(&payload_path, &proxy_path).await {
+                            match err.kind() {
+                                std::io::ErrorKind::NotFound if retry_count < 3 => {
+                                    // At least on xfs filesystems, it
+                                    // is observed that this hard_link
+                                    // can fail if another process has
+                                    // renamed a different file on top
+                                    // of the source file. Confusingly,
+                                    // `payload_path_exists` is true in
+                                    // this situation, despite the "not
+                                    // found" error.
+                                    retry_count += 1;
+                                    continue;
+                                }
+                                std::io::ErrorKind::AlreadyExists => {
+                                    RenderBlobResult::PayloadAlreadyExists
+                                }
+                                _ if err.os_error() == Some(nix::errno::Errno::EMLINK as i32) => {
+                                    // hard-linking can fail if we have reached the maximum number of links
+                                    // for the underlying file system. Often this number is arbitrarily large,
+                                    // but on some systems and filers, or at certain scales the possibility is
+                                    // very real. In these cases, our only real course of action other than failing
+                                    // is to fall back to a real copy of the file.
+                                    self.render_blob_with_permit(
+                                        target_dir_fd,
+                                        entry,
+                                        RenderType::Copy,
+                                        permit,
+                                    )
+                                    .await?;
+                                    return Ok(RenderBlobResult::PayloadCopiedLinkLimit);
+                                }
+                                _ => {
+                                    return Err(Error::StorageWriteError(
+                                        "hard_link of payload to proxy path",
+                                        proxy_path,
+                                        err,
+                                    ));
+                                }
+                            }
+                        } else {
+                            // Reset the retry counter after this phase
+                            // so the next retryable section gets a
+                            // fair number of retries too.
+                            retry_count = 0;
+                            RenderBlobResult::PayloadHardLinked
+                        }
+                    } else {
+                        if !has_correct_mode {
+                            tracing::debug!(actual_mode = ?metadata.permissions().mode(), expected_mode = ?entry.mode(), ?payload_path, "couldn't skip proxy copy; payload had wrong mode");
+                        } else if !has_correct_owner {
+                            tracing::debug!(actual_uid = ?metadata.uid(), expected_uid = ?geteuid().as_raw(), ?payload_path, "couldn't skip proxy copy; payload had wrong uid");
+                        }
+
+                        // Write to a temporary file so that some other render
+                        // process doesn't think a partially-written file is
+                        // good.
+                        let temp_proxy_file = tempfile::NamedTempFile::new_in(path_to_create)
+                            .map_err(|err| {
+                                Error::StorageWriteError(
+                                    "create proxy temp file",
+                                    path_to_create.to_owned(),
+                                    err,
+                                )
+                            })?;
+                        let mut payload_file =
+                            tokio::fs::File::open(&payload_path).await.map_err(|err| {
+                                if err.kind() == std::io::ErrorKind::NotFound {
+                                    // in the case of a corrupt repository, this is a more appropriate error
+                                    Error::UnknownObject(*entry.object())
+                                } else {
+                                    Error::StorageReadError(
+                                        "open payload for proxying",
+                                        payload_path.clone(),
+                                        err,
+                                    )
+                                }
+                            })?;
+                        let proxy_file_fd =
+                            nix::unistd::dup(temp_proxy_file.as_file().as_raw_fd())?;
+                        // Safety: from_raw_fd takes ownership of this fd which is what we want
+                        let mut proxy_file = unsafe { tokio::fs::File::from_raw_fd(proxy_file_fd) };
+                        tokio::io::copy(&mut payload_file, &mut proxy_file)
+                            .await
+                            .map_err(|err| {
+                                Error::StorageWriteError(
+                                    "copy of blob to proxy file",
+                                    temp_proxy_file.path().to_owned(),
+                                    err,
+                                )
+                            })?;
+                        nix::sys::stat::fchmod(
+                            proxy_file_fd,
+                            Mode::from_bits_truncate(entry.mode()),
+                        )
+                        .map_err(|err| {
+                            Error::StorageWriteError(
+                                "set permissions on proxy payload",
+                                PathBuf::from(entry.name()),
+                                err.into(),
+                            )
+                        })?;
+                        // Move temporary file into place.
+                        if let Err(err) = temp_proxy_file.persist_noclobber(&proxy_path) {
+                            match err.error.kind() {
+                                std::io::ErrorKind::AlreadyExists => {
+                                    RenderBlobResult::PayloadAlreadyExists
+                                }
+                                _ => {
+                                    return Err(Error::StorageWriteError(
+                                        "persist of blob proxy file",
+                                        proxy_path.to_owned(),
+                                        err.error,
+                                    ));
+                                }
+                            }
+                        } else if !has_correct_mode {
+                            RenderBlobResult::PayloadCopiedWrongMode
+                        } else {
+                            RenderBlobResult::PayloadCopiedWrongOwner
+                        }
+                    }
+                } else {
+                    RenderBlobResult::PayloadAlreadyExists
+                };
+                // Renders should hard link to this proxy file; it will
+                // be owned by the current user and (eventually) have the
+                // expected mode.
+                committed_path = proxy_path;
+
+                render_blob_result
+            } else {
+                return Err(
+                    "Cannot render blob as hard link to repository with no render store".into(),
+                );
+            };
+
+            break if let Err(err) = nix::unistd::linkat(
+                None,
+                committed_path.as_path(),
+                Some(target_dir_fd),
+                std::path::Path::new(entry.name()),
+                nix::fcntl::AtFlags::AT_SYMLINK_FOLLOW,
+            ) {
+                match err {
+                    nix::errno::Errno::ENOENT if retry_count < 3 => {
+                        // There is a chance to lose a race with
+                        // `spfs clean` if it sees `committed_path` as
+                        // only having one link. If we get a `NotFound`
+                        // error, assume our newly copied file has
+                        // been deleted and try again.
+                        //
+                        // It's _very_ unlikely we'd lose this race
+                        // multiple times. Don't loop forever.
+                        retry_count += 1;
+                        continue;
+                    }
+                    nix::errno::Errno::ENOENT if !committed_path.exists() => {
+                        return Err(if committed_path == payload_path {
+                            // in the case of a corrupt repository, this is a more appropriate error
+                            Error::UnknownObject(*entry.object())
+                        } else {
+                            Error::StorageWriteError(
+                                "hard_link from committed path",
+                                committed_path,
+                                err.into(),
+                            )
+                        });
+                    }
+                    nix::errno::Errno::EEXIST => Ok(RenderBlobResult::PayloadAlreadyExists),
+                    nix::errno::Errno::EMLINK => {
+                        // hard-linking can fail if we have reached the maximum number of links
+                        // for the underlying file system. Often this number is arbitrarily large,
+                        // but on some systems and filers, or at certain scales the possibility is
+                        // very real. In these cases, our only real course of action other than failing
+                        // is to fall back to a real copy of the file.
+                        self.render_blob_with_permit(dir_fd, entry, RenderType::Copy, permit)
+                            .await?;
+                        Ok(RenderBlobResult::PayloadCopiedLinkLimit)
+                    }
+                    _ if matches!(render_type, HardLinkRenderType::WithProxy) => {
+                        return Err(Error::StorageWriteError(
+                            "hard_link of blob proxy to rendered path",
+                            PathBuf::from(entry.name()),
+                            err.into(),
+                        ));
+                    }
+                    _ => {
+                        return Err(Error::StorageWriteError(
+                            "hard_link of blob to rendered path",
+                            PathBuf::from(entry.name()),
+                            err.into(),
+                        ));
+                    }
+                }
+            } else {
+                Ok(render_blob_result)
+            };
+        }
+    }
+
+    /// Perform a blob render using the copy strategy.
+    #[async_recursion::async_recursion]
+    async fn render_blob_as_copy_with_permit<'a>(
+        &self,
+        target_dir_fd: i32,
+        entry: graph::Entry<'async_recursion>,
+        committed_path: PathBuf,
+        _permit: BlobSemaphorePermit<'a>,
+    ) -> Result<RenderBlobResult> {
+        let name = entry.name().to_owned();
+        let mut payload_file = tokio::fs::File::open(&committed_path)
+            .await
+            .map_err(|err| {
+                Error::StorageReadError("open of payload source file", committed_path, err)
+            })?;
+        let mut rendered_file =
+            tokio::task::spawn_blocking(move || -> std::io::Result<tokio::fs::File> {
+                // create with open permissions, as they will be set to the proper mode in the future
+                let fd = nix::fcntl::openat(
+                    Some(target_dir_fd),
+                    name.as_str(),
+                    OFlag::O_RDWR | OFlag::O_CREAT | OFlag::O_TRUNC,
+                    Mode::all(),
+                )?;
+                // Safety: from_raw_fd takes ownership of this fd which is what we want
+                Ok(unsafe { tokio::fs::File::from_raw_fd(fd) })
+            })
+            .await
+            .expect("syscall should not panic")
+            .map_err(|err| {
+                Error::StorageWriteError(
+                    "creation of rendered blob file",
+                    PathBuf::from(entry.name()),
+                    err,
+                )
+            })?;
+        tokio::io::copy(&mut payload_file, &mut rendered_file)
+            .await
+            .map_err(|err| {
+                Error::StorageWriteError(
+                    "copy of blob to rendered file",
+                    PathBuf::from(entry.name()),
+                    err,
+                )
+            })?;
+        let mode = entry.mode();
+        tokio::task::spawn_blocking(move || {
+            nix::sys::stat::fchmod(rendered_file.as_raw_fd(), Mode::from_bits_truncate(mode))
+        })
+        .await
+        .expect("syscall should not panic")
+        .map(|_| RenderBlobResult::PayloadCopiedByRequest)
+        .map_err(|err| {
+            Error::StorageWriteError(
+                "set permissions on copied payload",
+                PathBuf::from(entry.name()),
+                err.into(),
+            )
+        })
+    }
+
     /// Render a single blob onto disk
     #[async_recursion::async_recursion]
     #[allow(clippy::only_used_in_recursion)]
@@ -246,352 +599,22 @@ where
         // Free up file resources as early as possible.
         drop(reader);
 
-        let mut committed_path = self.repo.payloads().build_digest_path(entry.object());
+        let committed_path = self.repo.payloads().build_digest_path(entry.object());
         Ok(match render_type {
-            RenderType::HardLink | RenderType::HardLinkNoProxy => {
-                let mut retry_count = 0;
-                loop {
-                    let payload_path = committed_path.clone();
-                    // All hard links to a file have shared metadata (owner, perms).
-                    // Whereas the same blob may be rendered into multiple files
-                    // across different users and/or will different expected perms.
-                    // Therefore, a copy of the blob is needed for every unique
-                    // combination of user and perms. Since each user has their own
-                    // "proxy" directory, there needs only be a unique copy per
-                    // perms.
-                    let render_blob_result = if matches!(render_type, RenderType::HardLinkNoProxy) {
-                        // explicitly skip proxy generation
-                        RenderBlobResult::PayloadCopiedByRequest
-                    } else if let Ok(render_store) = self.repo.render_store() {
-                        let proxy_path = render_store
-                            .proxy
-                            .build_digest_path(entry.object())
-                            .join(entry.mode().to_string());
-                        tracing::trace!(?proxy_path, "proxy");
-                        let render_blob_result = if !proxy_path.exists() {
-                            let path_to_create = proxy_path.parent().unwrap();
-                            tokio::fs::create_dir_all(&path_to_create)
-                                .await
-                                .map_err(|err| {
-                                    Error::StorageWriteError(
-                                        "create_dir_all on blob proxy base",
-                                        path_to_create.to_owned(),
-                                        err,
-                                    )
-                                })?;
-
-                            // To save on disk space, if the payload already
-                            // has the expected owner and perms, then the
-                            // proxy can be a hard link instead of a copy.
-                            // This assumes that the payload's owner and
-                            // permissions are never changed.
-                            let metadata = match tokio::fs::symlink_metadata(&payload_path).await {
-                                Err(err) => {
-                                    return Err(Error::StorageReadError(
-                                        "symlink_metadata on payload path",
-                                        payload_path.clone(),
-                                        err,
-                                    ));
-                                }
-                                Ok(metadata) => metadata,
-                            };
-
-                            let has_correct_mode = metadata.permissions().mode() == entry.mode();
-                            let mut has_correct_owner = metadata.uid() == geteuid().as_raw();
-
-                            // Can we still share this payload if it doesn't
-                            // have the correct owner?
-                            if has_correct_mode && !has_correct_owner && {
-                                // require that a file has the "other" read bit
-                                // enabled before sharing it with other users.
-                                (entry.mode() & 0o004) != 0
-                            } {
-                                if let Ok(config) = get_config() {
-                                    if config.storage.allow_payload_sharing_between_users {
-                                        has_correct_owner = true;
-                                    }
-                                }
-                            }
-
-                            if has_correct_mode && has_correct_owner {
-                                // This still creates the proxy "hop" to the
-                                // real payload file. It helps keep the code
-                                // simple and could be a debugging aid if
-                                // a proxy file is discovered to have the
-                                // wrong owner/permissions then we know there
-                                // is a bug somewhere.
-                                if let Err(err) =
-                                    tokio::fs::hard_link(&payload_path, &proxy_path).await
-                                {
-                                    match err.kind() {
-                                        std::io::ErrorKind::NotFound if retry_count < 3 => {
-                                            // At least on xfs filesystems, it
-                                            // is observed that this hard_link
-                                            // can fail if another process has
-                                            // renamed a different file on top
-                                            // of the source file. Confusingly,
-                                            // `payload_path_exists` is true in
-                                            // this situation, despite the "not
-                                            // found" error.
-                                            retry_count += 1;
-                                            continue;
-                                        }
-                                        std::io::ErrorKind::AlreadyExists => {
-                                            RenderBlobResult::PayloadAlreadyExists
-                                        }
-                                        _ if err.os_error()
-                                            == Some(nix::errno::Errno::EMLINK as i32) =>
-                                        {
-                                            // hard-linking can fail if we have reached the maximum number of links
-                                            // for the underlying file system. Often this number is arbitrarily large,
-                                            // but on some systems and filers, or at certain scales the possibility is
-                                            // very real. In these cases, our only real course of action other than failing
-                                            // is to fall back to a real copy of the file.
-                                            self.render_blob_with_permit(
-                                                target_dir_fd,
-                                                entry,
-                                                RenderType::Copy,
-                                                permit,
-                                            )
-                                            .await?;
-                                            return Ok(RenderBlobResult::PayloadCopiedLinkLimit);
-                                        }
-                                        _ => {
-                                            return Err(Error::StorageWriteError(
-                                                "hard_link of payload to proxy path",
-                                                proxy_path,
-                                                err,
-                                            ));
-                                        }
-                                    }
-                                } else {
-                                    // Reset the retry counter after this phase
-                                    // so the next retryable section gets a
-                                    // fair number of retries too.
-                                    retry_count = 0;
-                                    RenderBlobResult::PayloadHardLinked
-                                }
-                            } else {
-                                if !has_correct_mode {
-                                    tracing::debug!(actual_mode = ?metadata.permissions().mode(), expected_mode = ?entry.mode(), ?payload_path, "couldn't skip proxy copy; payload had wrong mode");
-                                } else if !has_correct_owner {
-                                    tracing::debug!(actual_uid = ?metadata.uid(), expected_uid = ?geteuid().as_raw(), ?payload_path, "couldn't skip proxy copy; payload had wrong uid");
-                                }
-
-                                // Write to a temporary file so that some other render
-                                // process doesn't think a partially-written file is
-                                // good.
-                                let temp_proxy_file = tempfile::NamedTempFile::new_in(
-                                    path_to_create,
-                                )
-                                .map_err(|err| {
-                                    Error::StorageWriteError(
-                                        "create proxy temp file",
-                                        path_to_create.to_owned(),
-                                        err,
-                                    )
-                                })?;
-                                let mut payload_file =
-                                    tokio::fs::File::open(&payload_path).await.map_err(|err| {
-                                        if err.kind() == std::io::ErrorKind::NotFound {
-                                            // in the case of a corrupt repository, this is a more appropriate error
-                                            Error::UnknownObject(*entry.object())
-                                        } else {
-                                            Error::StorageReadError(
-                                                "open payload for proxying",
-                                                payload_path.clone(),
-                                                err,
-                                            )
-                                        }
-                                    })?;
-                                let proxy_file_fd =
-                                    nix::unistd::dup(temp_proxy_file.as_file().as_raw_fd())?;
-                                // Safety: from_raw_fd takes ownership of this fd which is what we want
-                                let mut proxy_file =
-                                    unsafe { tokio::fs::File::from_raw_fd(proxy_file_fd) };
-                                tokio::io::copy(&mut payload_file, &mut proxy_file)
-                                    .await
-                                    .map_err(|err| {
-                                        Error::StorageWriteError(
-                                            "copy of blob to proxy file",
-                                            temp_proxy_file.path().to_owned(),
-                                            err,
-                                        )
-                                    })?;
-                                nix::sys::stat::fchmod(
-                                    proxy_file_fd,
-                                    Mode::from_bits_truncate(entry.mode()),
-                                )
-                                .map_err(|err| {
-                                    Error::StorageWriteError(
-                                        "set permissions on proxy payload",
-                                        PathBuf::from(entry.name()),
-                                        err.into(),
-                                    )
-                                })?;
-                                // Move temporary file into place.
-                                if let Err(err) = temp_proxy_file.persist_noclobber(&proxy_path) {
-                                    match err.error.kind() {
-                                        std::io::ErrorKind::AlreadyExists => {
-                                            RenderBlobResult::PayloadAlreadyExists
-                                        }
-                                        _ => {
-                                            return Err(Error::StorageWriteError(
-                                                "persist of blob proxy file",
-                                                proxy_path.to_owned(),
-                                                err.error,
-                                            ));
-                                        }
-                                    }
-                                } else if !has_correct_mode {
-                                    RenderBlobResult::PayloadCopiedWrongMode
-                                } else {
-                                    RenderBlobResult::PayloadCopiedWrongOwner
-                                }
-                            }
-                        } else {
-                            RenderBlobResult::PayloadAlreadyExists
-                        };
-                        // Renders should hard link to this proxy file; it will
-                        // be owned by the current user and (eventually) have the
-                        // expected mode.
-                        committed_path = proxy_path;
-
-                        render_blob_result
-                    } else {
-                        return Err(
-                            "Cannot render blob as hard link to repository with no render store"
-                                .into(),
-                        );
-                    };
-
-                    break if let Err(err) = nix::unistd::linkat(
-                        None,
-                        committed_path.as_path(),
-                        Some(target_dir_fd),
-                        std::path::Path::new(entry.name()),
-                        nix::fcntl::AtFlags::AT_SYMLINK_FOLLOW,
-                    ) {
-                        match err {
-                            nix::errno::Errno::ENOENT if retry_count < 3 => {
-                                // There is a chance to lose a race with
-                                // `spfs clean` if it sees `committed_path` as
-                                // only having one link. If we get a `NotFound`
-                                // error, assume our newly copied file has
-                                // been deleted and try again.
-                                //
-                                // It's _very_ unlikely we'd lose this race
-                                // multiple times. Don't loop forever.
-                                retry_count += 1;
-                                continue;
-                            }
-                            nix::errno::Errno::ENOENT if !committed_path.exists() => {
-                                return Err(if committed_path == payload_path {
-                                    // in the case of a corrupt repository, this is a more appropriate error
-                                    Error::UnknownObject(*entry.object())
-                                } else {
-                                    Error::StorageWriteError(
-                                        "hard_link from committed path",
-                                        committed_path,
-                                        err.into(),
-                                    )
-                                });
-                            }
-                            nix::errno::Errno::EEXIST => RenderBlobResult::PayloadAlreadyExists,
-                            nix::errno::Errno::EMLINK => {
-                                // hard-linking can fail if we have reached the maximum number of links
-                                // for the underlying file system. Often this number is arbitrarily large,
-                                // but on some systems and filers, or at certain scales the possibility is
-                                // very real. In these cases, our only real course of action other than failing
-                                // is to fall back to a real copy of the file.
-                                self.render_blob_with_permit(
-                                    dir_fd,
-                                    entry,
-                                    RenderType::Copy,
-                                    permit,
-                                )
-                                .await?;
-                                RenderBlobResult::PayloadCopiedLinkLimit
-                            }
-                            _ if matches!(render_type, RenderType::HardLink) => {
-                                return Err(Error::StorageWriteError(
-                                    "hard_link of blob proxy to rendered path",
-                                    PathBuf::from(entry.name()),
-                                    err.into(),
-                                ));
-                            }
-                            _ => {
-                                return Err(Error::StorageWriteError(
-                                    "hard_link of blob to rendered path",
-                                    PathBuf::from(entry.name()),
-                                    err.into(),
-                                ));
-                            }
-                        }
-                    } else {
-                        render_blob_result
-                    };
-                }
+            RenderType::HardLink(hard_link_type) => {
+                self.render_blob_as_hard_link_with_permit(
+                    dir_fd,
+                    target_dir_fd,
+                    entry,
+                    hard_link_type,
+                    committed_path,
+                    permit,
+                )
+                .await?
             }
             RenderType::Copy => {
-                let name = entry.name().to_owned();
-                let mut payload_file =
-                    tokio::fs::File::open(&committed_path)
-                        .await
-                        .map_err(|err| {
-                            Error::StorageReadError(
-                                "open of payload source file",
-                                committed_path,
-                                err,
-                            )
-                        })?;
-                let mut rendered_file =
-                    tokio::task::spawn_blocking(move || -> std::io::Result<tokio::fs::File> {
-                        // create with open permissions, as they will be set to the proper mode in the future
-                        let fd = nix::fcntl::openat(
-                            Some(target_dir_fd),
-                            name.as_str(),
-                            OFlag::O_RDWR | OFlag::O_CREAT | OFlag::O_TRUNC,
-                            Mode::all(),
-                        )?;
-                        // Safety: from_raw_fd takes ownership of this fd which is what we want
-                        Ok(unsafe { tokio::fs::File::from_raw_fd(fd) })
-                    })
-                    .await
-                    .expect("syscall should not panic")
-                    .map_err(|err| {
-                        Error::StorageWriteError(
-                            "creation of rendered blob file",
-                            PathBuf::from(entry.name()),
-                            err,
-                        )
-                    })?;
-                tokio::io::copy(&mut payload_file, &mut rendered_file)
-                    .await
-                    .map_err(|err| {
-                        Error::StorageWriteError(
-                            "copy of blob to rendered file",
-                            PathBuf::from(entry.name()),
-                            err,
-                        )
-                    })?;
-                let mode = entry.mode();
-                return tokio::task::spawn_blocking(move || {
-                    nix::sys::stat::fchmod(
-                        rendered_file.as_raw_fd(),
-                        Mode::from_bits_truncate(mode),
-                    )
-                })
-                .await
-                .expect("syscall should not panic")
-                .map(|_| RenderBlobResult::PayloadCopiedByRequest)
-                .map_err(|err| {
-                    Error::StorageWriteError(
-                        "set permissions on copied payload",
-                        PathBuf::from(entry.name()),
-                        err.into(),
-                    )
-                });
+                self.render_blob_as_copy_with_permit(target_dir_fd, entry, committed_path, permit)
+                    .await?
             }
         })
     }
