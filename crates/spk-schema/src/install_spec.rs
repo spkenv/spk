@@ -17,12 +17,10 @@ use crate::foundation::option_map::OptionMap;
 use crate::{
     ComponentSpecList,
     EmbeddedPackagesList,
-    EnvOp,
     EnvOpList,
     Lint,
     LintedItem,
     Lints,
-    OpKind,
     Package,
     RequirementsList,
     Result,
@@ -38,6 +36,7 @@ mod install_spec_test;
     Clone,
     Debug,
     Default,
+    Deserialize,
     Eq,
     Hash,
     is_default_derive_macro::IsDefault,
@@ -63,7 +62,7 @@ where
     D: Default,
 {
     fn lints(&mut self) -> Vec<Lint> {
-        // self.lints.extend(std::mem::take(&mut self.environment.lints));
+        self.lints.extend(std::mem::take(&mut self.embedded.lints));
         std::mem::take(&mut self.lints)
     }
 }
@@ -74,21 +73,21 @@ where
     D: Default,
 {
     requirements: RequirementsList,
-    embedded: EmbeddedPackagesList,
+    embedded: LintedItem<EmbeddedPackagesList>,
     components: ComponentSpecList,
     environment: EnvOpList,
     lints: Vec<Lint>,
     _phantom: PhantomData<D>,
 }
 
-impl<D> From<InstallSpecVisitor<D>> for InstallSpec
+impl<D> From<InstallSpecVisitor<D>> for RawInstallSpec
 where
     D: Default,
 {
     fn from(value: InstallSpecVisitor<D>) -> Self {
         Self {
             requirements: value.requirements,
-            embedded: value.embedded,
+            embedded: value.embedded.item,
             components: value.components,
             environment: value.environment,
         }
@@ -206,69 +205,35 @@ impl From<RawInstallSpec> for InstallSpec {
     }
 }
 
-#[derive(Deserialize)]
-struct RawInstallSpec {
+/// A raw, unvalidated install spec.
+#[derive(Serialize, Default)]
+pub struct RawInstallSpec {
     #[serde(default)]
     requirements: RequirementsList,
     #[serde(default)]
     embedded: EmbeddedPackagesList,
     #[serde(default)]
     components: ComponentSpecList,
-    #[serde(default, deserialize_with = "deserialize_env_conf")]
+    #[serde(default)]
     environment: EnvOpList,
 }
 
-impl<'de> Deserialize<'de> for InstallSpec {
+impl<'de> Deserialize<'de> for RawInstallSpec {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::de::Deserializer<'de>,
     {
-        deserializer.deserialize_map(InstallSpecVisitor::<InstallSpec>::default())
+        deserializer.deserialize_map(InstallSpecVisitor::<RawInstallSpec>::default())
     }
 }
 
-impl<'de> Deserialize<'de> for LintedItem<InstallSpec> {
+impl<'de> Deserialize<'de> for LintedItem<RawInstallSpec> {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::de::Deserializer<'de>,
     {
-        deserializer.deserialize_map(InstallSpecVisitor::<LintedItem<InstallSpec>>::default())
+        deserializer.deserialize_map(InstallSpecVisitor::<LintedItem<RawInstallSpec>>::default())
     }
-}
-
-fn deserialize_env_conf<'de, D>(deserializer: D) -> std::result::Result<EnvOpList, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    struct EnvConfVisitor;
-
-    impl<'de> serde::de::Visitor<'de> for EnvConfVisitor {
-        type Value = EnvOpList;
-
-        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-            f.write_str("an environment configuration")
-        }
-
-        fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
-        where
-            A: serde::de::SeqAccess<'de>,
-        {
-            let mut vec = EnvOpList::default();
-
-            while let Some(elem) = seq.next_element::<EnvOp>()? {
-                if vec.iter().any(|x: &EnvOp| x.kind() == OpKind::Priority)
-                    && elem.kind() == OpKind::Priority
-                {
-                    return Err(serde::de::Error::custom(
-                        "Multiple priority config cannot be set.",
-                    ));
-                };
-                vec.push(elem);
-            }
-            Ok(vec)
-        }
-    }
-    deserializer.deserialize_seq(EnvConfVisitor)
 }
 
 impl<'de, D> serde::de::Visitor<'de> for InstallSpecVisitor<D>
@@ -288,7 +253,9 @@ where
         while let Some(key) = map.next_key::<Stringified>()? {
             match key.as_str() {
                 "requirements" => self.requirements = map.next_value::<RequirementsList>()?,
-                "embedded" => self.embedded = map.next_value::<EmbeddedPackagesList>()?,
+                "embedded" => {
+                    self.embedded = map.next_value::<LintedItem<EmbeddedPackagesList>>()?
+                }
                 "components" => self.components = map.next_value::<ComponentSpecList>()?,
                 "environment" => self.environment = map.next_value::<EnvOpList>()?,
                 unknown_key => {

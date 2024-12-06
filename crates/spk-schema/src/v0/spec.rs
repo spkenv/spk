@@ -66,6 +66,7 @@ use crate::{
     Opt,
     Package,
     PackageMut,
+    RawInstallSpec,
     Recipe,
     RequirementsList,
     Result,
@@ -990,7 +991,7 @@ struct SpecVisitor<B, T> {
     sources: Option<Vec<LintedItem<SourceSpec>>>,
     build: Option<LintedItem<BuildSpec>>,
     tests: Option<Vec<LintedItem<TestSpec>>>,
-    install: Option<LintedItem<InstallSpec>>,
+    install: Option<LintedItem<RawInstallSpec>>,
     #[field_names_as_array(skip)]
     check_build_spec: bool,
     #[field_names_as_array(skip)]
@@ -1047,7 +1048,7 @@ where
                 .iter()
                 .map(|l| l.item.clone())
                 .collect_vec(),
-            install: value.install.take().unwrap_or_default().item,
+            install: value.install.take().unwrap_or_default().item.into(),
         }
     }
 }
@@ -1143,7 +1144,7 @@ where
                     }
                 }
                 "tests" => self.tests = Some(map.next_value::<Vec<LintedItem<TestSpec>>>()?),
-                "install" => self.install = Some(map.next_value::<LintedItem<InstallSpec>>()?),
+                "install" => self.install = Some(map.next_value::<LintedItem<RawInstallSpec>>()?),
                 "api" => {
                     map.next_value::<serde::de::IgnoredAny>()?;
                 }
