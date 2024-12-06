@@ -582,7 +582,7 @@ dependencies = [
  "anstream",
  "anstyle",
  "clap_lex",
- "strsim 0.11.0",
+ "strsim 0.11.1",
 ]
 
 [[package]]
@@ -1860,9 +1860,9 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.12.0"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25db6b064527c5d482d0423354fcd07a89a2dfe07b67892e62411946db7f07b0"
+checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
 dependencies = [
  "either",
 ]
@@ -2088,6 +2088,12 @@ dependencies = [
  "security-framework-sys",
  "tempfile",
 ]
+
+[[package]]
+name = "ngrammatic"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c6f2f987e82da7fb8a290e959bba528638bc0e2629e38647591e845ecb5f6fe"
 
 [[package]]
 name = "nix"
@@ -3940,7 +3946,7 @@ dependencies = [
  "async-trait",
  "dunce",
  "futures",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "miette",
  "relative-path",
  "rstest 0.18.2",
@@ -4005,7 +4011,7 @@ dependencies = [
  "clap_complete",
  "colored",
  "futures",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "miette",
  "rstest 0.18.2",
  "serde",
@@ -4031,7 +4037,7 @@ dependencies = [
  "clap 4.5.0",
  "colored",
  "futures",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "miette",
  "nom",
  "nom-supreme",
@@ -4079,7 +4085,7 @@ dependencies = [
  "colored",
  "dunce",
  "futures",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "miette",
  "serde",
  "serde_json",
@@ -4152,7 +4158,7 @@ dependencies = [
  "clap 4.5.0",
  "colored",
  "futures",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "miette",
  "spfs",
  "spk-build",
@@ -4217,7 +4223,7 @@ dependencies = [
  "async-trait",
  "clap 4.5.0",
  "futures",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "miette",
  "rstest 0.18.2",
  "spfs",
@@ -4372,8 +4378,9 @@ dependencies = [
  "ignore",
  "indexmap 2.2.3",
  "is_default_derive_macro",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "miette",
+ "ngrammatic",
  "nom",
  "nom-supreme",
  "proptest",
@@ -4390,6 +4397,7 @@ dependencies = [
  "spk-schema-foundation",
  "spk-schema-ident",
  "spk-schema-tera",
+ "struct-field-names-as-array",
  "strum",
  "sys-info",
  "tempfile",
@@ -4409,7 +4417,7 @@ dependencies = [
  "format_serde_error",
  "ignore",
  "indexmap 2.2.3",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "miette",
  "nom",
  "nom-supreme",
@@ -4440,7 +4448,7 @@ dependencies = [
  "colored",
  "data-encoding",
  "format_serde_error",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "miette",
  "nom",
  "nom-supreme",
@@ -4484,7 +4492,7 @@ dependencies = [
  "ctrlc",
  "dyn-clone",
  "futures",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "miette",
  "num-bigint",
  "num-format",
@@ -4521,7 +4529,7 @@ dependencies = [
  "ctrlc",
  "dyn-clone",
  "futures",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "miette",
  "once_cell",
  "priority-queue",
@@ -4556,7 +4564,7 @@ dependencies = [
  "dyn-clone",
  "futures",
  "glob",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "miette",
  "once_cell",
  "rstest 0.18.2",
@@ -4576,7 +4584,7 @@ version = "0.42.0"
 dependencies = [
  "colored",
  "console",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "miette",
  "serde",
  "spfs",
@@ -4594,7 +4602,7 @@ dependencies = [
  "dashmap",
  "enum_dispatch",
  "futures",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "miette",
  "once_cell",
  "rstest 0.18.2",
@@ -4625,7 +4633,7 @@ dependencies = [
  "glob",
  "ignore",
  "indexmap 2.2.3",
- "itertools 0.12.0",
+ "itertools 0.12.1",
  "miette",
  "nom",
  "once_cell",
@@ -4701,9 +4709,29 @@ checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
 
 [[package]]
 name = "strsim"
-version = "0.11.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ee073c9e4cd00e28217186dbe12796d692868f432bf2e97ee73bed0c56dfa01"
+checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
+
+[[package]]
+name = "struct-field-names-as-array"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22ba4bae771f9cc992c4f403636c54d2ef13acde6367583e99d06bb336674dd9"
+dependencies = [
+ "struct-field-names-as-array-derive",
+]
+
+[[package]]
+name = "struct-field-names-as-array-derive"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2dbf8b57f3ce20e4bb171a11822b283bdfab6c4bb0fe64fa729f045f23a0938"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.48",
+]
 
 [[package]]
 name = "strum"

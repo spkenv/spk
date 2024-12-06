@@ -172,6 +172,12 @@ impl Template for SpecTemplate {
         let file_data = SpecFileData::from_yaml(rendered)?;
         Ok(file_data)
     }
+
+    fn render_to_string(&self, options: &OptionMap) -> Result<String> {
+        let data = super::TemplateData::new(options);
+        spk_schema_tera::render_template(self.file_path.to_string_lossy(), &self.template, &data)
+            .map_err(Error::InvalidTemplate)
+    }
 }
 
 impl TemplateExt for SpecTemplate {
@@ -459,7 +465,6 @@ impl FromYaml for SpecRecipe {
             }
             Ok(m) => m,
         };
-
         match with_version.api {
             ApiVersion::V0Package => {
                 let inner = serde_yaml::from_str(&yaml)

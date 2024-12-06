@@ -33,6 +33,11 @@ impl IsDefault for RequirementsList {
         self.is_empty()
     }
 }
+#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct LintedRequirementsList {
+    pub requirements: Vec<Request>,
+    pub lints: Vec<String>,
+}
 
 impl std::ops::Deref for RequirementsList {
     type Target = Vec<Request>;
