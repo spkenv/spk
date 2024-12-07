@@ -29,7 +29,7 @@ use fuser::{
     Request,
 };
 use spfs::prelude::*;
-use spfs::storage::LocalRepository;
+use spfs::storage::LocalPayloads;
 #[cfg(feature = "fuse-backend-abi-7-31")]
 use spfs::tracking::BlobRead;
 use spfs::tracking::{Entry, EntryKind, EnvSpec, Manifest};
@@ -377,7 +377,7 @@ impl Filesystem {
         let mut flags = FOPEN_KEEP_CACHE;
         for repo in self.repos.iter() {
             match &**repo {
-                spfs::storage::RepositoryHandle::FS(fs_repo) => {
+                spfs::storage::RepositoryHandle::FSWithRenders(fs_repo) => {
                     let Ok(fs_repo) = fs_repo.opened().await else {
                         reply.error(libc::ENOENT);
                         return;
