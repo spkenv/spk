@@ -6,6 +6,7 @@ use rstest::rstest;
 
 use super::Committer;
 use crate::fixtures::*;
+use crate::storage::fs::RenderStore;
 use crate::Error;
 
 #[rstest]
@@ -13,13 +14,13 @@ use crate::Error;
 async fn test_commit_empty(tmpdir: tempfile::TempDir) {
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::MaybeOpenFsRepository::create(&root)
+        crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(&root)
             .await
             .unwrap(),
     );
     let storage = crate::runtime::Storage::new(repo).unwrap();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::MaybeOpenFsRepository::create(root)
+        crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(root)
             .await
             .unwrap(),
     );
