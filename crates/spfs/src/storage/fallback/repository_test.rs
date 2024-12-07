@@ -8,6 +8,7 @@ use rstest::rstest;
 
 use crate::fixtures::*;
 use crate::prelude::*;
+use crate::storage::fs::RenderStore;
 
 #[rstest]
 #[tokio::test]
@@ -15,14 +16,16 @@ async fn test_proxy_payload_repair(tmpdir: tempfile::TempDir) {
     init_logging();
 
     let primary = Arc::new(
-        crate::storage::fs::OpenFsRepository::create(tmpdir.path().join("primary"))
+        crate::storage::fs::OpenFsRepository::<RenderStore>::create(tmpdir.path().join("primary"))
             .await
             .unwrap(),
     );
     let secondary = Arc::new(
-        crate::storage::fs::OpenFsRepository::create(tmpdir.path().join("secondary"))
-            .await
-            .unwrap(),
+        crate::storage::fs::OpenFsRepository::<RenderStore>::create(
+            tmpdir.path().join("secondary"),
+        )
+        .await
+        .unwrap(),
     );
 
     let digest = primary
@@ -44,7 +47,7 @@ async fn test_proxy_payload_repair(tmpdir: tempfile::TempDir) {
     assert!(err.is_err());
 
     // Loading the payload through the fallback should succeed.
-    let proxy = super::FallbackProxy::new(primary, vec![secondary.into()]);
+    let proxy = super::FallbackProxy::<RenderStore>::new(primary, vec![secondary.into()]);
     proxy
         .open_payload(digest)
         .await

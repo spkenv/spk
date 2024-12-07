@@ -17,14 +17,14 @@ use tokio::io::AsyncReadExt;
 
 use super::{BlobSemaphorePermit, HardLinkRenderType, RenderType, Renderer};
 use crate::prelude::*;
-use crate::storage::LocalRepository;
 use crate::storage::fs::RenderReporter;
 use crate::storage::fs::render_reporter::RenderBlobResult;
+use crate::storage::{LocalPayloads, TryRenderStore};
 use crate::{Error, OsError, Result, get_config, graph, tracking};
 
 impl<Repo, Reporter> Renderer<'_, Repo, Reporter>
 where
-    Repo: Repository + LocalRepository,
+    Repo: Repository + LocalPayloads + TryRenderStore,
     Reporter: RenderReporter,
 {
     /// Recreate the full structure of a stored manifest on disk.
@@ -227,7 +227,7 @@ where
             let render_blob_result = if matches!(render_type, HardLinkRenderType::WithoutProxy) {
                 // explicitly skip proxy generation
                 RenderBlobResult::PayloadCopiedByRequest
-            } else if let Ok(render_store) = self.repo.render_store() {
+            } else if let Ok(render_store) = self.repo.try_render_store() {
                 let proxy_path = render_store
                     .proxy
                     .build_digest_path(entry.object())
