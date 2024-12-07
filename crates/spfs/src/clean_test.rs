@@ -13,6 +13,7 @@ use tokio::time::sleep;
 use super::{Cleaner, TracingCleanReporter};
 use crate::encoding::prelude::*;
 use crate::fixtures::*;
+use crate::storage::fs::RenderStore;
 use crate::{Error, storage, tracking};
 
 #[rstest]
@@ -453,7 +454,7 @@ async fn test_clean_untagged_objects_layers_platforms(#[future] tmprepo: TempRep
 async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
     init_logging();
     let tmprepo = Arc::new(
-        storage::fs::MaybeOpenFsRepository::create(tmpdir.path())
+        storage::fs::MaybeOpenFsRepository::<RenderStore>::create(tmpdir.path())
             .await
             .unwrap()
             .into(),
@@ -477,7 +478,7 @@ async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
         .unwrap();
 
     let fs_repo = match &*tmprepo {
-        RepositoryHandle::FS(fs) => fs,
+        RepositoryHandle::FSWithRenders(fs) => fs,
         _ => panic!("Unexpected tmprepo type!"),
     };
     let fs_repo = fs_repo.opened().await.unwrap();
@@ -497,7 +498,7 @@ async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
         .expect("failed to clean repo");
     println!("{result:#?}");
 
-    let files = list_files(fs_repo.renders.as_ref().unwrap().renders.root());
+    let files = list_files(fs_repo.rs_impl.renders.root());
     assert_eq!(
         files,
         Vec::<String>::new(),

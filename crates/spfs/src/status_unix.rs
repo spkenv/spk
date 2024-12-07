@@ -4,7 +4,7 @@
 
 use crate::config::OverlayFsOptions;
 use crate::resolve::{RenderResult, resolve_and_render_overlay_dirs};
-use crate::storage::fs::RenderSummary;
+use crate::storage::fs::{RenderStore, RenderSummary};
 use crate::{Error, Result, bootstrap, env, runtime};
 
 /// Remount the given runtime as configured.
@@ -112,7 +112,7 @@ pub async unsafe fn change_to_durable_runtime(
     // remount the overlayfs only, using its new durable path settings
     let render_result = match rt.config.mount_backend {
         runtime::MountBackend::OverlayFsWithRenders => {
-            resolve_and_render_overlay_dirs(rt, false).await?
+            resolve_and_render_overlay_dirs::<RenderStore>(rt, false).await?
         }
         runtime::MountBackend::OverlayFsWithFuse
         | runtime::MountBackend::FuseOnly
@@ -146,7 +146,7 @@ pub async unsafe fn reinitialize_runtime(
 ) -> Result<RenderSummary> {
     let render_result = match rt.config.mount_backend {
         runtime::MountBackend::OverlayFsWithRenders => {
-            resolve_and_render_overlay_dirs(rt, false).await?
+            resolve_and_render_overlay_dirs::<RenderStore>(rt, false).await?
         }
         runtime::MountBackend::OverlayFsWithFuse
         | runtime::MountBackend::FuseOnly
@@ -219,7 +219,7 @@ pub async fn initialize_runtime(
 
     let render_result = match rt.config.mount_backend {
         runtime::MountBackend::OverlayFsWithRenders => {
-            resolve_and_render_overlay_dirs(
+            resolve_and_render_overlay_dirs::<RenderStore>(
                 rt,
                 // skip saving the runtime in this step because we will save it after
                 // learning the mount namespace below

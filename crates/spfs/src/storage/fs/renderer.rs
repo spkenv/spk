@@ -19,13 +19,13 @@ use tokio::sync::Semaphore;
 
 use crate::prelude::*;
 use crate::runtime::makedirs_with_perms;
-use crate::storage::LocalRepository;
 use crate::storage::fs::{
     ManifestRenderPath,
     OpenFsRepository,
     RenderReporter,
     SilentRenderReporter,
 };
+use crate::storage::{LocalPayloads, LocalRenderStore, TryRenderStore};
 use crate::{Error, OsError, Result, encoding, graph, tracking};
 
 #[cfg(test)]
@@ -73,19 +73,16 @@ impl From<CliRenderType> for RenderType {
     }
 }
 
-impl OpenFsRepository {
+impl<RS> OpenFsRepository<RS>
+where
+    RS: LocalRenderStore + Send + Sync,
+{
     fn get_render_storage(&self) -> Result<&crate::storage::fs::FsHashStore> {
-        match &self.renders {
-            Some(render_store) => Ok(&render_store.renders),
-            None => Err(Error::NoRenderStorage(self.address().into_owned())),
-        }
+        Ok(&self.rs_impl.render_store().renders)
     }
 
     pub async fn has_rendered_manifest(&self, digest: encoding::Digest) -> bool {
-        let renders = match &self.renders {
-            Some(render_store) => &render_store.renders,
-            None => return false,
-        };
+        let renders = &self.rs_impl.render_store().renders;
         let rendered_dir = renders.build_digest_path(&digest);
         was_render_completed(rendered_dir).await
     }
@@ -102,18 +99,12 @@ impl OpenFsRepository {
     }
 
     pub fn proxy_path(&self) -> Option<&std::path::Path> {
-        self.fs_impl
-            .renders
-            .as_ref()
-            .map(|render_store| render_store.proxy.root())
+        Some(self.fs_impl.rs_impl.render_store().proxy.root())
     }
 
     /// Remove the identified render from this storage.
     pub async fn remove_rendered_manifest(&self, digest: crate::encoding::Digest) -> Result<()> {
-        let renders = match &self.renders {
-            Some(render_store) => &render_store.renders,
-            None => return Ok(()),
-        };
+        let renders = &self.rs_impl.render_store().renders;
         let rendered_dirpath = renders.build_digest_path(&digest);
         let workdir = renders.workdir();
         if let Err(err) = makedirs_with_perms(&workdir, renders.directory_permissions) {
@@ -126,33 +117,13 @@ impl OpenFsRepository {
         Self::remove_dir_atomically(&rendered_dirpath, &workdir).await
     }
 
-    pub(crate) async fn remove_dir_atomically(dirpath: &Path, workdir: &Path) -> Result<()> {
-        let uuid = uuid::Uuid::new_v4().to_string();
-        let working_dirpath = workdir.join(uuid);
-        if let Err(err) = tokio::fs::rename(&dirpath, &working_dirpath).await {
-            return match err.kind() {
-                std::io::ErrorKind::NotFound => Ok(()),
-                _ => Err(crate::Error::StorageWriteError(
-                    "rename on render before removal",
-                    working_dirpath,
-                    err,
-                )),
-            };
-        }
-
-        open_perms_and_remove_all(&working_dirpath).await
-    }
-
     /// Returns true if the render was actually removed
     pub async fn remove_rendered_manifest_if_older_than(
         &self,
         older_than: DateTime<Utc>,
         digest: encoding::Digest,
     ) -> Result<bool> {
-        let renders = match &self.renders {
-            Some(render_store) => &render_store.renders,
-            None => return Ok(false),
-        };
+        let renders = &self.rs_impl.render_store().renders;
         let rendered_dirpath = renders.build_digest_path(&digest);
 
         let metadata = match tokio::fs::symlink_metadata(&rendered_dirpath).await {
@@ -184,7 +155,29 @@ impl OpenFsRepository {
     }
 }
 
-impl ManifestRenderPath for OpenFsRepository {
+impl<FS> OpenFsRepository<FS> {
+    pub(crate) async fn remove_dir_atomically(dirpath: &Path, workdir: &Path) -> Result<()> {
+        let uuid = uuid::Uuid::new_v4().to_string();
+        let working_dirpath = workdir.join(uuid);
+        if let Err(err) = tokio::fs::rename(&dirpath, &working_dirpath).await {
+            return match err.kind() {
+                std::io::ErrorKind::NotFound => Ok(()),
+                _ => Err(crate::Error::StorageWriteError(
+                    "rename on render before removal",
+                    working_dirpath,
+                    err,
+                )),
+            };
+        }
+
+        open_perms_and_remove_all(&working_dirpath).await
+    }
+}
+
+impl<RS> ManifestRenderPath for OpenFsRepository<RS>
+where
+    RS: LocalRenderStore + Send + Sync,
+{
     fn manifest_render_path(&self, manifest: &graph::Manifest) -> Result<PathBuf> {
         Ok(self
             .get_render_storage()?
@@ -240,7 +233,7 @@ impl<'repo, Repo> Renderer<'repo, Repo, SilentRenderReporter> {
 
 impl<'repo, Repo, Reporter> Renderer<'repo, Repo, Reporter>
 where
-    Repo: Repository + LocalRepository,
+    Repo: Repository + LocalPayloads,
     Reporter: RenderReporter,
 {
     /// Report progress to the given instance, replacing any existing one
@@ -276,36 +269,13 @@ where
         self.max_concurrent_branches = max_concurrent_branches;
         self
     }
+}
 
-    /// Render all layers in the given env to the render storage of the underlying
-    /// repository, returning the paths to all relevant layers in the appropriate order.
-    pub async fn render(
-        &self,
-        stack: &graph::Stack,
-        render_type: Option<RenderType>,
-    ) -> Result<Vec<PathBuf>> {
-        let layers = crate::resolve::resolve_stack_to_layers_with_repo(stack, self.repo)
-            .await
-            .map_err(|err| err.wrap("resolve stack to layers"))?;
-        let mut futures = futures::stream::FuturesOrdered::new();
-        for layer in layers {
-            if let Some(manifest_digest) = layer.manifest() {
-                let digest = *manifest_digest;
-                let fut = self
-                    .repo
-                    .read_manifest(digest)
-                    .map_err(move |err| err.wrap(format!("read manifest {digest}")))
-                    .and_then(move |manifest| async move {
-                        self.render_manifest(&manifest, render_type)
-                            .await
-                            .map_err(move |err| err.wrap(format!("render manifest {digest}")))
-                    });
-                futures.push_back(fut);
-            }
-        }
-        futures.try_collect().await
-    }
-
+impl<Repo, Reporter> Renderer<'_, Repo, Reporter>
+where
+    Repo: Repository + LocalPayloads + TryRenderStore,
+    Reporter: RenderReporter,
+{
     /// Recreate the full structure of a stored environment on disk
     pub async fn render_into_directory<E: Into<tracking::EnvSpec>, P: AsRef<Path>>(
         &self,
@@ -335,6 +305,41 @@ where
         self.render_manifest_into_dir(&manifest, target_dir, render_type)
             .await
     }
+}
+
+impl<Repo, Reporter> Renderer<'_, Repo, Reporter>
+where
+    Repo: Repository + LocalPayloads + LocalRenderStore + TryRenderStore,
+    Reporter: RenderReporter,
+{
+    /// Render all layers in the given env to the render storage of the underlying
+    /// repository, returning the paths to all relevant layers in the appropriate order.
+    pub async fn render(
+        &self,
+        stack: &graph::Stack,
+        render_type: Option<RenderType>,
+    ) -> Result<Vec<PathBuf>> {
+        let layers = crate::resolve::resolve_stack_to_layers_with_repo(stack, self.repo)
+            .await
+            .map_err(|err| err.wrap("resolve stack to layers"))?;
+        let mut futures = futures::stream::FuturesOrdered::new();
+        for layer in layers {
+            if let Some(manifest_digest) = layer.manifest() {
+                let digest = *manifest_digest;
+                let fut = self
+                    .repo
+                    .read_manifest(digest)
+                    .map_err(move |err| err.wrap(format!("read manifest {digest}")))
+                    .and_then(move |manifest| async move {
+                        self.render_manifest(&manifest, render_type)
+                            .await
+                            .map_err(move |err| err.wrap(format!("render manifest {digest}")))
+                    });
+                futures.push_back(fut);
+            }
+        }
+        futures.try_collect().await
+    }
 
     /// Render a manifest into the renders area of the underlying repository,
     /// returning the absolute local path of the directory.
@@ -343,7 +348,7 @@ where
         manifest: &graph::Manifest,
         render_type: Option<RenderType>,
     ) -> Result<PathBuf> {
-        let render_store = self.repo.render_store()?;
+        let render_store = self.repo.render_store();
         let rendered_dirpath = render_store.renders.build_digest_path(&manifest.digest()?);
         if was_render_completed(&rendered_dirpath).await {
             tracing::trace!(path = ?rendered_dirpath, "render already completed");

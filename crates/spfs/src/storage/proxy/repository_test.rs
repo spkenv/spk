@@ -10,6 +10,7 @@ use rstest::rstest;
 use crate::config::default_proxy_repo_include_secondary_tags;
 use crate::fixtures::*;
 use crate::prelude::*;
+use crate::storage::fs::RenderStore;
 use crate::storage::proxy::repository::RelativePath;
 
 #[rstest]
@@ -17,13 +18,16 @@ use crate::storage::proxy::repository::RelativePath;
 async fn test_proxy_payload_read_through(tmpdir: tempfile::TempDir) {
     init_logging();
 
-    let primary = crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("primary"))
-        .await
-        .unwrap();
-    let secondary =
-        crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("secondary"))
-            .await
-            .unwrap();
+    let primary = crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+        tmpdir.path().join("primary"),
+    )
+    .await
+    .unwrap();
+    let secondary = crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+        tmpdir.path().join("secondary"),
+    )
+    .await
+    .unwrap();
 
     let digest = secondary
         .commit_blob(Box::pin(b"some data".as_slice()))
@@ -47,13 +51,16 @@ async fn test_proxy_payload_read_through(tmpdir: tempfile::TempDir) {
 async fn test_proxy_object_read_through(tmpdir: tempfile::TempDir) {
     init_logging();
 
-    let primary = crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("primary"))
-        .await
-        .unwrap();
-    let secondary =
-        crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("secondary"))
-            .await
-            .unwrap();
+    let primary = crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+        tmpdir.path().join("primary"),
+    )
+    .await
+    .unwrap();
+    let secondary = crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+        tmpdir.path().join("secondary"),
+    )
+    .await
+    .unwrap();
 
     let payload = secondary
         .commit_blob(Box::pin(b"some data".as_slice()))
@@ -77,13 +84,16 @@ async fn test_proxy_object_read_through(tmpdir: tempfile::TempDir) {
 async fn test_proxy_tag_read_through(tmpdir: tempfile::TempDir) {
     init_logging();
 
-    let primary = crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("primary"))
-        .await
-        .unwrap();
-    let secondary =
-        crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("secondary"))
-            .await
-            .unwrap();
+    let primary = crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+        tmpdir.path().join("primary"),
+    )
+    .await
+    .unwrap();
+    let secondary = crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+        tmpdir.path().join("secondary"),
+    )
+    .await
+    .unwrap();
 
     let payload = secondary
         .commit_blob(Box::pin(b"some data".as_slice()))
@@ -109,9 +119,11 @@ async fn test_proxy_tag_read_through(tmpdir: tempfile::TempDir) {
 async fn test_proxy_tag_ls(tmpdir: tempfile::TempDir) {
     init_logging();
 
-    let primary = crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("primary"))
-        .await
-        .unwrap();
+    let primary = crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+        tmpdir.path().join("primary"),
+    )
+    .await
+    .unwrap();
 
     let payload1 = primary
         .commit_blob(Box::pin(b"some data".as_slice()))
@@ -120,10 +132,11 @@ async fn test_proxy_tag_ls(tmpdir: tempfile::TempDir) {
     let tag_spec = crate::tracking::TagSpec::parse("spfs-test/proxy-read-through").unwrap();
     primary.push_tag(&tag_spec, &payload1).await.unwrap();
 
-    let secondary =
-        crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("secondary"))
-            .await
-            .unwrap();
+    let secondary = crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+        tmpdir.path().join("secondary"),
+    )
+    .await
+    .unwrap();
 
     let payload2 = secondary
         .commit_blob(Box::pin(b"some data".as_slice()))
@@ -158,9 +171,11 @@ async fn test_proxy_tag_ls(tmpdir: tempfile::TempDir) {
 async fn test_proxy_tag_ls_config_for_primary_only(tmpdir: tempfile::TempDir) {
     init_logging();
 
-    let primary = crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("primary"))
-        .await
-        .unwrap();
+    let primary = crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+        tmpdir.path().join("primary"),
+    )
+    .await
+    .unwrap();
 
     let payload1 = primary
         .commit_blob(Box::pin(b"some data".as_slice()))
@@ -169,10 +184,11 @@ async fn test_proxy_tag_ls_config_for_primary_only(tmpdir: tempfile::TempDir) {
     let tag_spec = crate::tracking::TagSpec::parse("spfs-test/proxy-read-through").unwrap();
     primary.push_tag(&tag_spec, &payload1).await.unwrap();
 
-    let secondary =
-        crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("secondary"))
-            .await
-            .unwrap();
+    let secondary = crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+        tmpdir.path().join("secondary"),
+    )
+    .await
+    .unwrap();
 
     let payload2 = secondary
         .commit_blob(Box::pin(b"some data".as_slice()))
@@ -218,9 +234,11 @@ async fn test_proxy_tag_ls_config_for_primary_only(tmpdir: tempfile::TempDir) {
 async fn test_proxy_tag_find(tmpdir: tempfile::TempDir) {
     init_logging();
 
-    let primary = crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("primary"))
-        .await
-        .unwrap();
+    let primary = crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+        tmpdir.path().join("primary"),
+    )
+    .await
+    .unwrap();
 
     let payload1 = primary
         .commit_blob(Box::pin(b"some data".as_slice()))
@@ -229,10 +247,11 @@ async fn test_proxy_tag_find(tmpdir: tempfile::TempDir) {
     let tag_spec = crate::tracking::TagSpec::parse("spfs-test/proxy-read-through").unwrap();
     primary.push_tag(&tag_spec, &payload1).await.unwrap();
 
-    let secondary =
-        crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("secondary"))
-            .await
-            .unwrap();
+    let secondary = crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+        tmpdir.path().join("secondary"),
+    )
+    .await
+    .unwrap();
 
     let payload2 = secondary
         .commit_blob(Box::pin(b"some data".as_slice()))
@@ -266,9 +285,11 @@ async fn test_proxy_tag_find(tmpdir: tempfile::TempDir) {
 async fn test_proxy_tag_find_for_primary_only(tmpdir: tempfile::TempDir) {
     init_logging();
 
-    let primary = crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("primary"))
-        .await
-        .unwrap();
+    let primary = crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+        tmpdir.path().join("primary"),
+    )
+    .await
+    .unwrap();
 
     let payload1 = primary
         .commit_blob(Box::pin(b"some data".as_slice()))
@@ -277,10 +298,11 @@ async fn test_proxy_tag_find_for_primary_only(tmpdir: tempfile::TempDir) {
     let tag_spec = crate::tracking::TagSpec::parse("spfs-test/proxy-read-through").unwrap();
     primary.push_tag(&tag_spec, &payload1).await.unwrap();
 
-    let secondary =
-        crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("secondary"))
-            .await
-            .unwrap();
+    let secondary = crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+        tmpdir.path().join("secondary"),
+    )
+    .await
+    .unwrap();
 
     let payload2 = secondary
         .commit_blob(Box::pin(b"some data".as_slice()))
@@ -317,9 +339,11 @@ async fn test_proxy_tag_find_for_primary_only(tmpdir: tempfile::TempDir) {
 async fn test_proxy_tag_iter_streams(tmpdir: tempfile::TempDir) {
     init_logging();
 
-    let primary = crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("primary"))
-        .await
-        .unwrap();
+    let primary = crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+        tmpdir.path().join("primary"),
+    )
+    .await
+    .unwrap();
 
     let payload1 = primary
         .commit_blob(Box::pin(b"some data".as_slice()))
@@ -328,10 +352,11 @@ async fn test_proxy_tag_iter_streams(tmpdir: tempfile::TempDir) {
     let tag_spec = crate::tracking::TagSpec::parse("spfs-test/proxy-read-through").unwrap();
     primary.push_tag(&tag_spec, &payload1).await.unwrap();
 
-    let secondary =
-        crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("secondary"))
-            .await
-            .unwrap();
+    let secondary = crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+        tmpdir.path().join("secondary"),
+    )
+    .await
+    .unwrap();
 
     let payload2 = secondary
         .commit_blob(Box::pin(b"some data".as_slice()))
@@ -365,9 +390,11 @@ async fn test_proxy_tag_iter_streams(tmpdir: tempfile::TempDir) {
 async fn test_proxy_tag_iter_streams_for_primary_only(tmpdir: tempfile::TempDir) {
     init_logging();
 
-    let primary = crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("primary"))
-        .await
-        .unwrap();
+    let primary = crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+        tmpdir.path().join("primary"),
+    )
+    .await
+    .unwrap();
 
     let payload1 = primary
         .commit_blob(Box::pin(b"some data".as_slice()))
@@ -376,10 +403,11 @@ async fn test_proxy_tag_iter_streams_for_primary_only(tmpdir: tempfile::TempDir)
     let tag_spec = crate::tracking::TagSpec::parse("spfs-test/proxy-read-through").unwrap();
     primary.push_tag(&tag_spec, &payload1).await.unwrap();
 
-    let secondary =
-        crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("secondary"))
-            .await
-            .unwrap();
+    let secondary = crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+        tmpdir.path().join("secondary"),
+    )
+    .await
+    .unwrap();
 
     let payload2 = secondary
         .commit_blob(Box::pin(b"some data".as_slice()))

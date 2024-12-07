@@ -10,11 +10,10 @@ use rstest::rstest;
 use super::resolve_stack_to_layers;
 use crate::fixtures::*;
 #[cfg(unix)]
-use crate::io;
-#[cfg(unix)]
 use crate::io::DigestFormat;
 use crate::prelude::*;
-use crate::{encoding, graph};
+use crate::storage::fs::RenderStore;
+use crate::{encoding, graph, io};
 
 #[rstest]
 #[tokio::test]
@@ -42,7 +41,7 @@ async fn test_auto_merge_layers(tmpdir: tempfile::TempDir) {
     // This test must use the "local" repository for spfs-render to succeed.
     let config = crate::get_config().expect("get config");
     let fs_repo = config
-        .get_opened_local_repository()
+        .get_opened_local_repository::<RenderStore>()
         .await
         .expect("open local repository");
     let repo = Arc::new(fs_repo.clone().into());
@@ -100,7 +99,7 @@ async fn test_auto_merge_layers_with_edit(tmpdir: tempfile::TempDir) {
     // This test must use the "local" repository for spfs-render to succeed.
     let config = crate::get_config().expect("get config");
     let fs_repo = config
-        .get_opened_local_repository()
+        .get_opened_local_repository::<RenderStore>()
         .await
         .expect("open local repository");
     let repo = Arc::new(fs_repo.clone().into());
