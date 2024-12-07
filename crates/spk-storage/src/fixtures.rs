@@ -9,6 +9,7 @@ use once_cell::sync::Lazy;
 use rstest::fixture;
 use spfs::config::Remote;
 use spfs::prelude::*;
+use spfs::storage::fs::RenderStore;
 use spfs::Result;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::ident_ops::{
@@ -120,9 +121,10 @@ where
     let repo = match kind {
         RepoKind::Spfs => {
             let storage_root = tmpdir.path().join("repo");
-            let spfs_repo = spfs::storage::fs::MaybeOpenFsRepository::create(&storage_root)
-                .await
-                .expect("failed to establish temporary local repo for test");
+            let spfs_repo =
+                spfs::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(&storage_root)
+                    .await
+                    .expect("failed to establish temporary local repo for test");
             let written = spfs_repo
                 .commit_blob(Box::pin(std::io::Cursor::new(b"")))
                 .await
