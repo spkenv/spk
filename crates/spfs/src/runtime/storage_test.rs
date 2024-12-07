@@ -16,6 +16,7 @@ use crate::fixtures::*;
 use crate::graph::object::{DigestStrategy, EncodingFormat};
 use crate::graph::{AnnotationValue, Layer, Platform};
 use crate::runtime::{BindMount, KeyValuePair, LiveLayer, LiveLayerContents, SpecApiVersion};
+use crate::storage::fs::RenderStore;
 use crate::storage::prelude::DatabaseExt;
 use crate::{Config, encoding};
 
@@ -35,7 +36,7 @@ fn test_config_serialization() {
 async fn test_storage_create_runtime(tmpdir: tempfile::TempDir) {
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::MaybeOpenFsRepository::create(root)
+        crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(root)
             .await
             .unwrap(),
     );
@@ -75,7 +76,7 @@ async fn test_storage_runtime_with_annotation(
 
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::MaybeOpenFsRepository::create(root)
+        crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(root)
             .await
             .unwrap(),
     );
@@ -141,7 +142,7 @@ async fn test_storage_runtime_add_annotations_list(
 
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::MaybeOpenFsRepository::create(root)
+        crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(root)
             .await
             .unwrap(),
     );
@@ -214,7 +215,7 @@ async fn test_storage_runtime_with_nested_annotation(
     // Setup the objects needed for the runtime used in the test
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::MaybeOpenFsRepository::create(root)
+        crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(root)
             .await
             .unwrap(),
     );
@@ -283,7 +284,7 @@ async fn test_storage_runtime_with_annotation_all(
 
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::MaybeOpenFsRepository::create(root)
+        crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(root)
             .await
             .unwrap(),
     );
@@ -357,7 +358,7 @@ async fn test_storage_runtime_with_nested_annotation_all(
     // setup the objects needed for the runtime used in the test
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::MaybeOpenFsRepository::create(root)
+        crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(root)
             .await
             .unwrap(),
     );
@@ -433,7 +434,7 @@ async fn test_storage_runtime_with_nested_annotation_all(
 async fn test_storage_remove_runtime(tmpdir: tempfile::TempDir) {
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::MaybeOpenFsRepository::create(root)
+        crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(root)
             .await
             .unwrap(),
     );
@@ -454,7 +455,7 @@ async fn test_storage_remove_runtime(tmpdir: tempfile::TempDir) {
 async fn test_storage_iter_runtimes(tmpdir: tempfile::TempDir) {
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::MaybeOpenFsRepository::create(root)
+        crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(root)
             .await
             .unwrap(),
     );
@@ -506,7 +507,7 @@ async fn test_storage_iter_runtimes(tmpdir: tempfile::TempDir) {
 async fn test_runtime_reset(tmpdir: tempfile::TempDir) {
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::MaybeOpenFsRepository::create(root)
+        crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(root)
             .await
             .unwrap(),
     );
@@ -553,7 +554,7 @@ async fn test_runtime_reset(tmpdir: tempfile::TempDir) {
 async fn test_runtime_ensure_extra_bind_mount_locations_exist(tmpdir: tempfile::TempDir) {
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::MaybeOpenFsRepository::create(root)
+        crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(root)
             .await
             .unwrap(),
     );

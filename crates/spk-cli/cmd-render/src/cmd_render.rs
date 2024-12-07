@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use clap::Args;
 use miette::{Context, IntoDiagnostic, Result, bail};
 use spfs::storage::fallback::FallbackProxy;
+use spfs::storage::fs::NoRenderStore;
 use spk_cli_common::{CommandArgs, Run, build_required_packages, flags};
 use spk_exec::resolve_runtime_layers;
 
@@ -72,7 +73,7 @@ impl Run for Render {
         tracing::info!("Rendering into dir: {path:?}");
         let config = spfs::get_config().wrap_err("Failed to load spfs config")?;
         let local = config
-            .get_opened_local_repository()
+            .get_opened_local_repository::<NoRenderStore>()
             .await
             .wrap_err("Failed to open local spfs repo")?;
 

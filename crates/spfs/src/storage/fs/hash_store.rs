@@ -36,6 +36,7 @@ pub(crate) enum PersistableObject {
     },
 }
 
+#[derive(Debug)]
 pub struct FsHashStore {
     root: PathBuf,
     /// permissions used when creating new directories

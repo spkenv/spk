@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use rstest::rstest;
 use spfs::encoding::EMPTY_DIGEST;
 use spfs::prelude::*;
+use spfs::storage::fs::RenderStore;
 use spk_schema::foundation::env::data_path;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::ident_component::Component;
@@ -595,7 +596,7 @@ async fn test_build_package_source_cleanup() {
         .get(&Component::Run)
         .unwrap();
     let config = spfs::get_config().unwrap();
-    let repo = config.get_local_repository().await.unwrap();
+    let repo = config.get_local_repository::<RenderStore>().await.unwrap();
     let layer = repo.read_layer(digest).await.unwrap();
 
     let manifest_digest = match layer.manifest() {
@@ -691,7 +692,7 @@ async fn test_build_filters_reset_files() {
             .get(&Component::Run)
             .unwrap();
         let config = spfs::get_config().unwrap();
-        let repo = config.get_local_repository().await.unwrap();
+        let repo = config.get_local_repository::<RenderStore>().await.unwrap();
         let layer = repo.read_layer(digest).await.unwrap();
 
         let manifest_digest = match layer.manifest() {

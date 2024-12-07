@@ -311,9 +311,13 @@ impl RemoteConfig {
             inner,
         } = self;
         let mut handle: storage::RepositoryHandle = match inner.clone() {
-            RepositoryConfig::Fs(config) => storage::fs::MaybeOpenFsRepository::from_config(config)
-                .await?
-                .into(),
+            // Remote repositories never have a render store (from our
+            // perspective).
+            RepositoryConfig::Fs(config) => <storage::fs::MaybeOpenFsRepository<
+                storage::fs::NoRenderStore,
+            > as Into<storage::RepositoryHandle>>::into(
+                storage::fs::MaybeOpenFsRepository::from_config(config).await?,
+            ),
             RepositoryConfig::Tar(config) => storage::tar::TarRepository::from_config(config)
                 .await?
                 .into(),
@@ -551,7 +555,12 @@ impl Config {
     }
 
     /// Get the local repository instance as configured, creating it if needed.
-    pub async fn get_opened_local_repository(&self) -> Result<storage::fs::OpenFsRepository> {
+    pub async fn get_opened_local_repository<RS>(&self) -> Result<storage::fs::OpenFsRepository<RS>>
+    where
+        RS: storage::DefaultRenderStoreCreationPolicy
+            + storage::RenderStoreForUser<RenderStore = RS>
+            + Clone,
+    {
         // Possibly use a different path for the local repository, depending
         // on enabled features.
         #[allow(unused_mut)]
@@ -563,7 +572,7 @@ impl Config {
                 Some(self.storage.root.join("ci").join(format!("pipeline_{id}")));
         }
 
-        let mut local_repo = storage::fs::OpenFsRepository::create(
+        let mut local_repo = storage::fs::OpenFsRepository::<RS>::create(
             use_ci_isolated_storage_path
                 .as_ref()
                 .unwrap_or(&self.storage.root),
@@ -584,16 +593,24 @@ impl Config {
     ///
     /// The returned repo is guaranteed to be created, valid and open already. Ie
     /// the local repository is not allowed to be lazily opened.
-    pub async fn get_local_repository(&self) -> Result<storage::fs::OpenFsRepository> {
+    pub async fn get_local_repository<RS>(&self) -> Result<storage::fs::OpenFsRepository<RS>>
+    where
+        RS: storage::DefaultRenderStoreCreationPolicy
+            + storage::RenderStoreForUser<RenderStore = RS>
+            + Clone,
+    {
         self.get_opened_local_repository().await
     }
 
-    /// Get the local repository handle as configured,  creating it if needed.
+    /// Get the local repository handle as configured, creating it if needed.
     ///
     /// The returned repo is guaranteed to be created, valid and open already. Ie
     /// the local repository is not allowed to be lazily opened.
     pub async fn get_local_repository_handle(&self) -> Result<storage::RepositoryHandle> {
-        Ok(self.get_local_repository().await?.into())
+        Ok(self
+            .get_local_repository::<storage::fs::MaybeRenderStore>()
+            .await?
+            .into())
     }
 
     /// Get a remote repository by name, or the local repository.
@@ -609,14 +626,18 @@ impl Config {
     {
         match name {
             Some(name) => self.get_remote(name).await,
-            None => Ok(self.get_local_repository().await?.into()),
+            None => Ok(self
+                .get_local_repository::<storage::fs::MaybeRenderStore>()
+                .await?
+                .into()),
         }
     }
 
     /// Get the local runtime storage, as configured.
     pub async fn get_runtime_storage(&self) -> Result<runtime::Storage> {
         runtime::Storage::new(storage::RepositoryHandle::from(
-            self.get_local_repository().await?,
+            self.get_local_repository::<storage::fs::MaybeRenderStore>()
+                .await?,
         ))
     }
 

@@ -10,7 +10,7 @@ use super::was_render_completed;
 use crate::encoding::prelude::*;
 use crate::fixtures::*;
 use crate::graph::object::{DigestStrategy, EncodingFormat};
-use crate::storage::fs::{MaybeOpenFsRepository, OpenFsRepository};
+use crate::storage::fs::{MaybeOpenFsRepository, OpenFsRepository, RenderStore};
 use crate::storage::{RepositoryExt, RepositoryHandle};
 use crate::{Config, tracking};
 
@@ -30,7 +30,7 @@ async fn test_render_manifest(
     config.storage.digest_strategy = write_digest_strategy;
     config.make_current().unwrap();
 
-    let storage = OpenFsRepository::create(tmpdir.path().join("storage"))
+    let storage = OpenFsRepository::<RenderStore>::create(tmpdir.path().join("storage"))
         .await
         .unwrap();
 
@@ -83,7 +83,7 @@ async fn test_render_manifest_with_repo(
     config.make_current().unwrap();
 
     let tmprepo = Arc::new(
-        MaybeOpenFsRepository::create(tmpdir.path().join("repo"))
+        MaybeOpenFsRepository::<RenderStore>::create(tmpdir.path().join("repo"))
             .await
             .unwrap()
             .into(),
@@ -102,15 +102,13 @@ async fn test_render_manifest_with_repo(
 
     // Safety: tmprepo was created as an FsRepository
     let tmprepo = match &*tmprepo {
-        RepositoryHandle::FS(fs) => fs.opened().await.unwrap(),
+        RepositoryHandle::FSWithRenders(fs) => fs.opened().await.unwrap(),
         _ => panic!("Unexpected tmprepo type!"),
     };
 
     let render = tmprepo
         .fs_impl
-        .renders
-        .as_ref()
-        .unwrap()
+        .rs_impl
         .renders
         .build_digest_path(&manifest.digest().unwrap());
     assert!(!render.exists(), "render should NOT be seen as existing");

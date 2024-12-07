@@ -17,6 +17,7 @@ use relative_path::RelativePathBuf;
 use serde::{Deserialize, Serialize};
 use spfs::prelude::{RepositoryExt as SpfsRepositoryExt, *};
 use spfs::storage::EntryType;
+use spfs::storage::fs::MaybeRenderStore;
 use spfs::tracking::{self, Tag, TagSpec};
 use spk_schema::foundation::ident_build::{Build, parse_build};
 use spk_schema::foundation::ident_component::Component;
@@ -1311,7 +1312,7 @@ impl StoredPackage {
 /// Return the local packages repository used for development.
 pub async fn local_repository() -> Result<SpfsRepository> {
     let config = spfs::get_config()?;
-    let repo = config.get_local_repository().await?;
+    let repo = config.get_local_repository::<MaybeRenderStore>().await?;
     let inner: spfs::prelude::RepositoryHandle = repo.into();
     let address = inner.address().into_owned();
     Ok(SpfsRepository {

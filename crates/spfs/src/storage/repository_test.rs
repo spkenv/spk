@@ -65,10 +65,12 @@ async fn test_find_aliases(
 #[rstest]
 #[tokio::test]
 async fn test_commit_mode_fs(tmpdir: tempfile::TempDir) {
+    use crate::storage::fs::RenderStore;
+
     init_logging();
     let dir = tmpdir.path();
     let tmprepo = Arc::new(
-        fs::MaybeOpenFsRepository::create(dir.join("repo"))
+        fs::MaybeOpenFsRepository::<RenderStore>::create(dir.join("repo"))
             .await
             .unwrap()
             .into(),
@@ -90,7 +92,7 @@ async fn test_commit_mode_fs(tmpdir: tempfile::TempDir) {
 
     // Safety: tmprepo was created as an FsRepository
     let tmprepo = match &*tmprepo {
-        RepositoryHandle::FS(fs) => fs.opened().await.unwrap(),
+        RepositoryHandle::FSWithRenders(fs) => fs.opened().await.unwrap(),
         _ => panic!("Unexpected tmprepo type!"),
     };
 

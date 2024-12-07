@@ -2,14 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::borrow::Cow;
 use std::collections::HashSet;
+use std::path::Path;
 use std::pin::Pin;
 
 use async_trait::async_trait;
 use encoding::prelude::*;
 use tokio_stream::StreamExt;
 
-use super::fs::{FsHashStore, RenderStore};
+use super::OpenRepositoryResult;
+use super::fs::{FsHashStore, RenderStore, RenderStoreCreationPolicy};
 use crate::tracking::{self, BlobRead};
 use crate::{Error, Result, encoding, graph};
 
@@ -135,14 +138,45 @@ pub trait RepositoryExt: super::PayloadStorage + graph::DatabaseExt {
 impl<T> RepositoryExt for T where T: super::PayloadStorage + graph::DatabaseExt {}
 
 /// Accessor methods for types only applicable to repositories that have
-/// payloads and renders, e.g., local repositories.
-pub trait LocalRepository {
+/// payloads, e.g., local repositories.
+pub trait LocalPayloads {
     /// Return the payload storage type
     fn payloads(&self) -> &FsHashStore;
+}
 
-    /// If supported, returns the type responsible for locally rendered manifests
+/// A trait for types that can support render stores, this provides a way to
+/// instantiate those types.
+pub trait RenderStoreForUser {
+    type RenderStore;
+
+    /// Create an instance of the render store for the given user.
     ///
-    /// # Errors:
-    /// - [`Error::NoRenderStorage`] - if this repository does not support manifest rendering
-    fn render_store(&self) -> Result<&RenderStore>;
+    /// This doesn't necessarily create the render store on disk; it depends on
+    /// the implementation.
+    ///
+    /// The `url` parameter is the URL of the repository the render store
+    /// belongs to.
+    fn render_store_for_user(
+        creation_policy: RenderStoreCreationPolicy,
+        url: url::Url,
+        root: &Path,
+        username: &Path,
+    ) -> OpenRepositoryResult<Self::RenderStore>;
+}
+
+/// A trait for types that might have render store, but no guarantees are made
+/// that it exists or is accessible.
+pub trait TryRenderStore {
+    /// Return the render store for repositories that support it.
+    ///
+    /// For some types this may create the render store for the user on demand
+    /// and may fail.
+    fn try_render_store(&self) -> OpenRepositoryResult<Cow<'_, RenderStore>>;
+}
+
+/// Accessor methods for types only applicable to repositories that have
+/// renders, e.g., local repositories.
+pub trait LocalRenderStore: RenderStoreForUser {
+    /// Returns the type responsible for locally rendered manifests
+    fn render_store(&self) -> &RenderStore;
 }

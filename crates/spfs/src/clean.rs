@@ -666,7 +666,7 @@ where
     /// remove data that is still being used
     async unsafe fn remove_unvisited_renders_and_proxies(&self) -> Result<CleanResult> {
         let mut result = CleanResult::default();
-        let storage::RepositoryHandle::FS(repo) = self.repo else {
+        let storage::RepositoryHandle::FSWithRenders(repo) = self.repo else {
             return Ok(result);
         };
         let repo = repo.opened().await?;
@@ -811,8 +811,10 @@ where
                 let future = async move {
                     if !self.dry_run {
                         tracing::trace!(?path, "removing proxy render");
-                        storage::fs::OpenFsRepository::remove_dir_atomically(&path, &workdir)
-                            .await?;
+                        storage::fs::OpenFsRepository::<storage::fs::RenderStore>::remove_dir_atomically(
+                            &path, &workdir,
+                        )
+                        .await?;
                     }
                     Ok(digest)
                 };

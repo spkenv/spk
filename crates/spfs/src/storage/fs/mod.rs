@@ -38,10 +38,14 @@ pub use repository::MaybeOpenFsRepositoryImpl;
 pub use repository::{
     Config,
     DURABLE_EDITS_DIR,
+    DefaultRenderStoreCreationPolicy,
     FsRepositoryOps,
     MaybeOpenFsRepository,
+    MaybeRenderStore,
+    NoRenderStore,
     OpenFsRepository,
     Params,
     RenderStore,
+    RenderStoreCreationPolicy,
     read_last_migration_version,
 };

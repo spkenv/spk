@@ -11,6 +11,7 @@ use futures::Stream;
 use relative_path::RelativePath;
 use spfs_encoding as encoding;
 
+use super::fs::{MaybeRenderStore, NoRenderStore, RenderStore};
 use super::prelude::*;
 use super::tag::TagSpecAndTagStream;
 use super::{TagNamespace, TagNamespaceBuf, TagStorageMut};
@@ -21,10 +22,12 @@ use crate::{Error, Result, graph};
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum RepositoryHandle {
-    FS(super::fs::MaybeOpenFsRepository),
+    FSWithMaybeRenders(super::fs::MaybeOpenFsRepository<MaybeRenderStore>),
+    FSWithRenders(super::fs::MaybeOpenFsRepository<RenderStore>),
+    FSWithoutRenders(super::fs::MaybeOpenFsRepository<NoRenderStore>),
     Tar(super::tar::TarRepository),
     Rpc(super::rpc::RpcRepository),
-    FallbackProxy(Box<super::fallback::FallbackProxy>),
+    FallbackProxyWithRenders(Box<super::fallback::FallbackProxy<RenderStore>>),
     Proxy(Box<super::proxy::ProxyRepository>),
     Pinned(Box<super::pinned::PinnedRepository<RepositoryHandle>>),
 }
@@ -70,31 +73,69 @@ impl RepositoryHandle {
 
     pub fn try_as_tag_mut(&mut self) -> Result<&mut dyn TagStorageMut> {
         match self {
-            RepositoryHandle::FS(repo) => Ok(repo),
+            RepositoryHandle::FSWithMaybeRenders(repo) => Ok(repo),
+            RepositoryHandle::FSWithRenders(repo) => Ok(repo),
+            RepositoryHandle::FSWithoutRenders(repo) => Ok(repo),
             RepositoryHandle::Tar(repo) => Ok(repo),
             RepositoryHandle::Rpc(repo) => Ok(repo),
-            RepositoryHandle::FallbackProxy(repo) => Ok(&mut **repo),
+            RepositoryHandle::FallbackProxyWithRenders(repo) => Ok(&mut **repo),
             RepositoryHandle::Proxy(repo) => Ok(&mut **repo),
             RepositoryHandle::Pinned(_) => Err(Error::RepositoryIsPinned),
         }
     }
 }
 
-impl From<super::fs::MaybeOpenFsRepository> for RepositoryHandle {
-    fn from(repo: super::fs::MaybeOpenFsRepository) -> Self {
-        RepositoryHandle::FS(repo)
+impl From<super::fs::MaybeOpenFsRepository<RenderStore>> for RepositoryHandle {
+    fn from(repo: super::fs::MaybeOpenFsRepository<RenderStore>) -> Self {
+        RepositoryHandle::FSWithRenders(repo)
     }
 }
 
-impl From<super::fs::OpenFsRepository> for RepositoryHandle {
-    fn from(repo: super::fs::OpenFsRepository) -> Self {
-        RepositoryHandle::FS(repo.into())
+impl From<super::fs::OpenFsRepository<RenderStore>> for RepositoryHandle {
+    fn from(repo: super::fs::OpenFsRepository<RenderStore>) -> Self {
+        RepositoryHandle::FSWithRenders(repo.into())
     }
 }
 
-impl From<Arc<super::fs::OpenFsRepository>> for RepositoryHandle {
-    fn from(repo: Arc<super::fs::OpenFsRepository>) -> Self {
-        RepositoryHandle::FS(repo.into())
+impl From<Arc<super::fs::OpenFsRepository<RenderStore>>> for RepositoryHandle {
+    fn from(repo: Arc<super::fs::OpenFsRepository<RenderStore>>) -> Self {
+        RepositoryHandle::FSWithRenders(repo.into())
+    }
+}
+
+impl From<super::fs::MaybeOpenFsRepository<NoRenderStore>> for RepositoryHandle {
+    fn from(repo: super::fs::MaybeOpenFsRepository<NoRenderStore>) -> Self {
+        RepositoryHandle::FSWithoutRenders(repo)
+    }
+}
+
+impl From<super::fs::OpenFsRepository<NoRenderStore>> for RepositoryHandle {
+    fn from(repo: super::fs::OpenFsRepository<NoRenderStore>) -> Self {
+        RepositoryHandle::FSWithoutRenders(repo.into())
+    }
+}
+
+impl From<Arc<super::fs::OpenFsRepository<NoRenderStore>>> for RepositoryHandle {
+    fn from(repo: Arc<super::fs::OpenFsRepository<NoRenderStore>>) -> Self {
+        RepositoryHandle::FSWithoutRenders(repo.into())
+    }
+}
+
+impl From<super::fs::MaybeOpenFsRepository<MaybeRenderStore>> for RepositoryHandle {
+    fn from(repo: super::fs::MaybeOpenFsRepository<MaybeRenderStore>) -> Self {
+        RepositoryHandle::FSWithMaybeRenders(repo)
+    }
+}
+
+impl From<super::fs::OpenFsRepository<MaybeRenderStore>> for RepositoryHandle {
+    fn from(repo: super::fs::OpenFsRepository<MaybeRenderStore>) -> Self {
+        RepositoryHandle::FSWithMaybeRenders(repo.into())
+    }
+}
+
+impl From<Arc<super::fs::OpenFsRepository<MaybeRenderStore>>> for RepositoryHandle {
+    fn from(repo: Arc<super::fs::OpenFsRepository<MaybeRenderStore>>) -> Self {
+        RepositoryHandle::FSWithMaybeRenders(repo.into())
     }
 }
 
@@ -110,9 +151,9 @@ impl From<super::rpc::RpcRepository> for RepositoryHandle {
     }
 }
 
-impl From<super::fallback::FallbackProxy> for RepositoryHandle {
-    fn from(repo: super::fallback::FallbackProxy) -> Self {
-        RepositoryHandle::FallbackProxy(Box::new(repo))
+impl From<super::fallback::FallbackProxy<RenderStore>> for RepositoryHandle {
+    fn from(repo: super::fallback::FallbackProxy<RenderStore>) -> Self {
+        RepositoryHandle::FallbackProxyWithRenders(Box::new(repo))
     }
 }
 
@@ -134,10 +175,12 @@ impl From<Box<super::pinned::PinnedRepository<RepositoryHandle>>> for Repository
 macro_rules! each_variant {
     ($repo:expr, $inner:ident, $ops:tt) => {
         match $repo {
-            RepositoryHandle::FS($inner) => $ops,
+            RepositoryHandle::FSWithMaybeRenders($inner) => $ops,
+            RepositoryHandle::FSWithRenders($inner) => $ops,
+            RepositoryHandle::FSWithoutRenders($inner) => $ops,
             RepositoryHandle::Tar($inner) => $ops,
             RepositoryHandle::Rpc($inner) => $ops,
-            RepositoryHandle::FallbackProxy($inner) => $ops,
+            RepositoryHandle::FallbackProxyWithRenders($inner) => $ops,
             RepositoryHandle::Proxy($inner) => $ops,
             RepositoryHandle::Pinned($inner) => $ops,
         }
@@ -241,10 +284,14 @@ impl TagStorageMut for RepositoryHandle {
         tag_namespace: Option<TagNamespaceBuf>,
     ) -> Result<Option<TagNamespaceBuf>> {
         match self {
-            RepositoryHandle::FS(repo) => repo.try_set_tag_namespace(tag_namespace),
+            RepositoryHandle::FSWithMaybeRenders(repo) => repo.try_set_tag_namespace(tag_namespace),
+            RepositoryHandle::FSWithRenders(repo) => repo.try_set_tag_namespace(tag_namespace),
+            RepositoryHandle::FSWithoutRenders(repo) => repo.try_set_tag_namespace(tag_namespace),
             RepositoryHandle::Tar(repo) => repo.try_set_tag_namespace(tag_namespace),
             RepositoryHandle::Rpc(repo) => repo.try_set_tag_namespace(tag_namespace),
-            RepositoryHandle::FallbackProxy(repo) => repo.try_set_tag_namespace(tag_namespace),
+            RepositoryHandle::FallbackProxyWithRenders(repo) => {
+                repo.try_set_tag_namespace(tag_namespace)
+            }
             RepositoryHandle::Proxy(repo) => repo.try_set_tag_namespace(tag_namespace),
             RepositoryHandle::Pinned(_) => Err(Error::RepositoryIsPinned),
         }

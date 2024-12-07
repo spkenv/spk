@@ -17,6 +17,10 @@ pub enum OpenRepositoryError {
         source: std::io::Error,
     },
 
+    #[error("Render store not available")]
+    #[diagnostic(code("spfs::storage::fs::no_render_store"))]
+    RenderStorageUnavailable,
+
     #[error("Could not validate repository version")]
     FsMigration(#[from] super::fs::migrations::MigrationError),
 
