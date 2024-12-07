@@ -3,7 +3,7 @@
 // https://github.com/spkenv/spk
 
 use crate::resolve::{resolve_and_render_overlay_dirs, RenderResult};
-use crate::storage::fs::RenderSummary;
+use crate::storage::fs::{RenderStore, RenderSummary};
 use crate::{bootstrap, env, runtime, Error, Result};
 
 /// Remount the given runtime as configured.
@@ -102,7 +102,7 @@ pub async fn change_to_durable_runtime(rt: &mut runtime::Runtime) -> Result<Rend
     // remount the overlayfs only, using its new durable path settings
     let render_result = match rt.config.mount_backend {
         runtime::MountBackend::OverlayFsWithRenders => {
-            resolve_and_render_overlay_dirs(rt, false).await?
+            resolve_and_render_overlay_dirs::<RenderStore>(rt, false).await?
         }
         runtime::MountBackend::OverlayFsWithFuse
         | runtime::MountBackend::FuseOnly
@@ -128,7 +128,7 @@ pub async fn change_to_durable_runtime(rt: &mut runtime::Runtime) -> Result<Rend
 pub async fn reinitialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSummary> {
     let render_result = match rt.config.mount_backend {
         runtime::MountBackend::OverlayFsWithRenders => {
-            resolve_and_render_overlay_dirs(rt, false).await?
+            resolve_and_render_overlay_dirs::<RenderStore>(rt, false).await?
         }
         runtime::MountBackend::OverlayFsWithFuse
         | runtime::MountBackend::FuseOnly
@@ -197,7 +197,7 @@ pub async fn initialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSumma
 
     let render_result = match rt.config.mount_backend {
         runtime::MountBackend::OverlayFsWithRenders => {
-            resolve_and_render_overlay_dirs(
+            resolve_and_render_overlay_dirs::<RenderStore>(
                 rt,
                 // skip saving the runtime in this step because we will save it after
                 // learning the mount namespace below

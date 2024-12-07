@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 use clap::{Args, Subcommand};
 use miette::Result;
+use spfs::storage::fs::NoRenderStore;
 
 /// Create an empty filesystem repository
 #[derive(Debug, Args)]
@@ -36,7 +37,7 @@ impl InitSubcommand {
     pub async fn run(&self, _config: &spfs::Config) -> Result<i32> {
         match self {
             Self::Repo { path } => {
-                spfs::storage::fs::MaybeOpenFsRepository::create(&path).await?;
+                spfs::storage::fs::MaybeOpenFsRepository::<NoRenderStore>::create(&path).await?;
                 Ok(0)
             }
         }
