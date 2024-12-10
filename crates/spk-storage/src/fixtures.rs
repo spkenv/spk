@@ -120,7 +120,7 @@ where
     let repo = match kind {
         RepoKind::Spfs => {
             let storage_root = tmpdir.path().join("repo");
-            let spfs_repo = spfs::storage::fs::FsRepository::create(&storage_root)
+            let spfs_repo = spfs::storage::fs::MaybeOpenFsRepository::create(&storage_root)
                 .await
                 .expect("failed to establish temporary local repo for test");
             let written = spfs_repo

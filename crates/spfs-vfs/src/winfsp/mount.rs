@@ -9,6 +9,7 @@ use std::sync::Arc;
 use dashmap::DashMap;
 use libc::c_void;
 use spfs::prelude::*;
+use spfs::storage::LocalRepository;
 use spfs::tracking::{Entry, EntryKind};
 use spfs::OsError;
 use tokio::io::AsyncReadExt;
@@ -287,7 +288,7 @@ impl winfsp::filesystem::FileSystemContext for Mount {
                                 send.send(Err(winfsp::FspError::IO(std::io::ErrorKind::NotFound)));
                             return;
                         };
-                        let payload_path = fs_repo.payloads.build_digest_path(&digest);
+                        let payload_path = fs_repo.payloads().build_digest_path(&digest);
                         match std::fs::OpenOptions::new().read(true).open(payload_path) {
                             Ok(file) => {
                                 let _ = send.send(Ok(Some(Handle::BlobFile { entry, file })));

@@ -311,9 +311,9 @@ impl RemoteConfig {
             inner,
         } = self;
         let mut handle: storage::RepositoryHandle = match inner.clone() {
-            RepositoryConfig::Fs(config) => {
-                storage::fs::FsRepository::from_config(config).await?.into()
-            }
+            RepositoryConfig::Fs(config) => storage::fs::MaybeOpenFsRepository::from_config(config)
+                .await?
+                .into(),
             RepositoryConfig::Tar(config) => storage::tar::TarRepository::from_config(config)
                 .await?
                 .into(),
@@ -555,7 +555,8 @@ impl Config {
             source,
         })?;
 
-        local_repo.set_tag_namespace(self.storage.tag_namespace.clone());
+        Arc::make_mut(&mut local_repo.fs_impl)
+            .set_tag_namespace(self.storage.tag_namespace.clone());
 
         Ok(local_repo)
     }
@@ -564,7 +565,7 @@ impl Config {
     ///
     /// The returned repo is guaranteed to be created, valid and open already. Ie
     /// the local repository is not allowed to be lazily opened.
-    pub async fn get_local_repository(&self) -> Result<storage::fs::FsRepository> {
+    pub async fn get_local_repository(&self) -> Result<storage::fs::OpenFsRepository> {
         self.get_opened_local_repository().await.map(Into::into)
     }
 
