@@ -22,7 +22,7 @@ impl UnknownKey {
 
     pub fn generate_message(&self) -> String {
         let key: &str = self.unknown_key.split('.').last().unwrap_or_default();
-        let mut message = format!("Unrecognized key: {}. ", self.unknown_key);
+        let mut message = format!("Unrecognized key: {} ", self.unknown_key);
         let mut corpus = CorpusBuilder::new().finish();
 
         for field in self.struct_fields.iter() {
@@ -31,7 +31,7 @@ impl UnknownKey {
 
         match corpus.search(key, 0.6).first() {
             Some(s) => message.push_str(format!("(Did you mean: '{}'?)", s.text).as_str()),
-            None => message.push_str(format!("(No similar keys found for: {}.)", key).as_str()),
+            None => message.push_str(format!("(No similar keys found for: {})", key).as_str()),
         };
 
         message.to_string()
@@ -41,6 +41,20 @@ impl UnknownKey {
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd)]
 pub enum Lint {
     Key(UnknownKey),
+}
+
+impl Lint {
+    pub fn get_key(&self) -> &str {
+        match self {
+            Lint::Key(k) => &k.unknown_key,
+        }
+    }
+
+    pub fn update_key(&mut self, key: &str) {
+        match self {
+            Lint::Key(k) => k.unknown_key = format!("{key}.{}", k.unknown_key),
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Ord, PartialOrd)]

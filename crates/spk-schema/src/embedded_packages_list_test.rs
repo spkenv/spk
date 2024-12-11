@@ -5,6 +5,7 @@
 use rstest::rstest;
 
 use super::EmbeddedPackagesList;
+use crate::LintedItem;
 
 #[rstest]
 fn test_install_embedded_build_options() {
@@ -44,4 +45,57 @@ fn test_embedded_nested_embedded() {
         "#,
     )
     .unwrap();
+}
+
+#[rstest]
+fn test_embedded_install_lint() {
+    let _spec: LintedItem<EmbeddedPackagesList> = serde_yaml::from_str(
+        r#"
+          - pkg: "embedded/1.0.0"
+            install:
+              environments:
+                - priority: 99
+        "#,
+    )
+    .unwrap();
+
+    assert_eq!(_spec.lints.len(), 1);
+    for lint in _spec.lints.iter() {
+        assert_eq!(lint.get_key(), "embedded.install.environments")
+    }
+}
+
+#[rstest]
+fn test_embedded_components_lint() {
+    let _spec: LintedItem<EmbeddedPackagesList> = serde_yaml::from_str(
+        r#"
+        - pkg: "embedded/1.0.0"
+          component:
+            - name: run
+              embedded:
+                - pkg: "nested-embedded/2.0.0"
+      "#,
+    )
+    .unwrap();
+
+    assert_eq!(_spec.lints.len(), 1);
+    for lint in _spec.lints.iter() {
+        assert_eq!(lint.get_key(), "embedded.component")
+    }
+}
+
+#[rstest]
+fn test_embedded_build_lint() {
+    let _spec: LintedItem<EmbeddedPackagesList> = serde_yaml::from_str(
+        r#"
+        - pkg: "embedded/1.0.0"
+          build: {"option": [{"var": "python.abi", "static": "cp37"}]}
+      "#,
+    )
+    .unwrap();
+
+    assert_eq!(_spec.lints.len(), 1);
+    for lint in _spec.lints.iter() {
+        assert_eq!(lint.get_key(), "embedded.build.option")
+    }
 }

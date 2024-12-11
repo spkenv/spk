@@ -68,6 +68,10 @@ struct TestSpecVisitor {
 
 impl Lints for TestSpecVisitor {
     fn lints(&mut self) -> Vec<Lint> {
+        for lint in self.lints.iter_mut() {
+            lint.update_key("test");
+        }
+
         std::mem::take(&mut self.lints)
     }
 }
@@ -124,7 +128,7 @@ impl<'de> serde::de::Visitor<'de> for TestSpecVisitor {
                 "requirements" => self.requirements = map.next_value::<Vec<Request>>()?,
                 unknown_key => {
                     self.lints.push(Lint::Key(UnknownKey::new(
-                        &format!("sources.{unknown_key}"),
+                        unknown_key,
                         TestSpecVisitor::FIELD_NAMES_AS_ARRAY.to_vec(),
                     )));
                     map.next_value::<serde::de::IgnoredAny>()?;

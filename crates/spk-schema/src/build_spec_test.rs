@@ -7,6 +7,7 @@ use spk_schema_foundation::{option_map, pkg_name, FromYaml, IsDefault};
 
 use super::{AutoHostVars, BuildSpec};
 use crate::build_spec::UncheckedBuildSpec;
+use crate::LintedItem;
 
 #[rstest]
 fn test_auto_host_vars_default() {
@@ -222,4 +223,128 @@ options:
         .build_digest(pkg_name!("dummy"), &option_map! {})
         .unwrap();
     assert_ne!(build_id1, build_id2);
+}
+
+#[rstest]
+fn test_build_script_lint() {
+    let build_spec: LintedItem<UncheckedBuildSpec> = serde_yaml::from_str(
+        r#"
+options:
+    - var: arch
+    - var: os
+    - var: centos
+    - pkg: python/3
+variants:
+    - {python: 2.7}
+    - {python: 3.7, gcc: 9.3}
+scripts:
+    - echo "Hello World!"
+    "#,
+    )
+    .unwrap();
+
+    assert_eq!(build_spec.lints.len(), 1);
+    for lint in build_spec.lints.iter() {
+        assert_eq!(lint.get_key(), "build.scripts");
+    }
+}
+
+#[rstest]
+fn test_build_variant_lint() {
+    let build_spec: LintedItem<UncheckedBuildSpec> = serde_yaml::from_str(
+        r#"
+options:
+    - var: arch
+    - var: os
+    - var: centos
+    - pkg: python/3
+variant:
+    - {python: 2.7}
+    - {python: 3.7, gcc: 9.3}
+script:
+    - echo "Hello World!"
+    "#,
+    )
+    .unwrap();
+
+    assert_eq!(build_spec.lints.len(), 1);
+    for lint in build_spec.lints.iter() {
+        assert_eq!(lint.get_key(), "build.variant");
+    }
+}
+
+#[rstest]
+fn test_build_options_lint() {
+    let build_spec: LintedItem<UncheckedBuildSpec> = serde_yaml::from_str(
+        r#"
+option:
+    - var: arch
+    - var: os
+    - var: centos
+    - pkg: python/3
+variants:
+    - {python: 2.7}
+    - {python: 3.7, gcc: 9.3}
+script:
+    - echo "Hello World!"
+    "#,
+    )
+    .unwrap();
+
+    assert_eq!(build_spec.lints.len(), 1);
+    for lint in build_spec.lints.iter() {
+        assert_eq!(lint.get_key(), "build.option");
+    }
+}
+
+#[rstest]
+fn test_build_auto_host_vars_lint() {
+    let build_spec: LintedItem<UncheckedBuildSpec> = serde_yaml::from_str(
+        r#"
+options:
+    - var: arch
+    - var: os
+    - var: centos
+    - pkg: python/3
+variants:
+    - {python: 2.7}
+    - {python: 3.7, gcc: 9.3}
+script:
+    - echo "Hello World!"
+auto_host_var: "None"
+    "#,
+    )
+    .unwrap();
+
+    assert_eq!(build_spec.lints.len(), 1);
+    for lint in build_spec.lints.iter() {
+        assert_eq!(lint.get_key(), "build.auto_host_var");
+    }
+}
+
+#[rstest]
+fn test_build_validation_lint() {
+    let build_spec: LintedItem<UncheckedBuildSpec> = serde_yaml::from_str(
+        r#"
+options:
+    - var: arch
+    - var: os
+    - var: centos
+    - pkg: python/3
+variants:
+    - {python: 2.7}
+    - {python: 3.7, gcc: 9.3}
+script:
+    - echo "Hello World!"
+validations: {
+    "rules": [{"allow": "EmptyPackage"}]
+}
+    "#,
+    )
+    .unwrap();
+
+    assert_eq!(build_spec.lints.len(), 1);
+    for lint in build_spec.lints.iter() {
+        assert_eq!(lint.get_key(), "build.validations");
+    }
 }

@@ -101,6 +101,10 @@ struct MetaVisitor {
 
 impl Lints for MetaVisitor {
     fn lints(&mut self) -> Vec<Lint> {
+        for lint in self.lints.iter_mut() {
+            lint.update_key("meta");
+        }
+
         std::mem::take(&mut self.lints)
     }
 }
@@ -153,7 +157,7 @@ impl<'de> serde::de::Visitor<'de> for MetaVisitor {
                 "labels" => self.labels = Some(map.next_value::<BTreeMap<String, String>>()?),
                 unknown_key => {
                     self.lints.push(Lint::Key(UnknownKey::new(
-                        &format!("meta.{unknown_key}"),
+                        unknown_key,
                         MetaVisitor::FIELD_NAMES_AS_ARRAY.to_vec(),
                     )));
                     map.next_value::<serde::de::IgnoredAny>()?;

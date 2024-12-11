@@ -18,7 +18,7 @@ use crate::foundation::option_map::OptionMap;
 use crate::foundation::FromYaml;
 use crate::option::PkgOpt;
 use crate::spec::SpecTemplate;
-use crate::{BuildEnv, Opt, Recipe, Template, TemplateExt, Variant, VariantExt};
+use crate::{BuildEnv, LintedItem, Opt, Recipe, Template, TemplateExt, Variant, VariantExt};
 
 #[rstest]
 fn test_spec_is_valid_with_only_name() {
@@ -506,4 +506,95 @@ fn test_variants_can_append_components_and_modify_version() {
         found,
         "dep-pkg adds package dependency with comp1 and comp2 enabled and expected version"
     )
+}
+
+#[rstest]
+fn test_v0_spec_meta_lints() {
+    let spec: LintedItem<Spec<VersionIdent>> = serde_yaml::from_str(
+        r#"
+        pkg: test-pkg
+        metas:
+            description: testing meta spec
+    "#,
+    )
+    .unwrap();
+
+    assert_eq!(spec.lints.len(), 1);
+    for lint in spec.lints.iter() {
+        assert_eq!(lint.get_key(), "metas")
+    }
+}
+
+#[rstest]
+fn test_v0_spec_sources_lints() {
+    let spec: LintedItem<Spec<VersionIdent>> = serde_yaml::from_str(
+        r#"
+        pkg: test-pkg
+        source:
+            - path: ./
+    "#,
+    )
+    .unwrap();
+
+    assert_eq!(spec.lints.len(), 1);
+    for lint in spec.lints.iter() {
+        assert_eq!(lint.get_key(), "source")
+    }
+}
+
+#[rstest]
+fn test_v0_spec_build_lints() {
+    let spec: LintedItem<Spec<VersionIdent>> = serde_yaml::from_str(
+        r#"
+        pkg: test-pkg
+        builds:
+            options:
+                - var: os
+    "#,
+    )
+    .unwrap();
+
+    assert_eq!(spec.lints.len(), 1);
+    for lint in spec.lints.iter() {
+        assert_eq!(lint.get_key(), "builds")
+    }
+}
+
+#[rstest]
+fn test_v0_spec_install_lints() {
+    let spec: LintedItem<Spec<VersionIdent>> = serde_yaml::from_str(
+        r#"
+        pkg: test-pkg
+        installs:
+            environment:
+                - priority: 99
+    "#,
+    )
+    .unwrap();
+
+    assert_eq!(spec.lints.len(), 1);
+    for lint in spec.lints.iter() {
+        assert_eq!(lint.get_key(), "installs")
+    }
+}
+
+#[rstest]
+fn test_v0_spec_test_lints() {
+    let spec: LintedItem<Spec<VersionIdent>> = serde_yaml::from_str(
+        r#"
+        pkg: test-pkg
+        test:
+            - stage: build
+              selectors:
+                - { gcc: 6.3 }
+              script:
+                - echo "Hello World!"
+    "#,
+    )
+    .unwrap();
+
+    assert_eq!(spec.lints.len(), 1);
+    for lint in spec.lints.iter() {
+        assert_eq!(lint.get_key(), "test");
+    }
 }

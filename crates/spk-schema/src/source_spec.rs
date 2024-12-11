@@ -79,6 +79,10 @@ struct SourceSpecVisitor {
 
 impl Lints for SourceSpecVisitor {
     fn lints(&mut self) -> Vec<Lint> {
+        for lint in self.lints.iter_mut() {
+            lint.update_key("sources");
+        }
+
         std::mem::take(&mut self.lints)
     }
 }
@@ -175,7 +179,7 @@ impl<'de> serde::de::Visitor<'de> for SourceSpecVisitor {
                 "subdir" => self.subdir = Some(map.next_value::<Stringified>()?.0),
                 unknown_key => {
                     self.lints.push(Lint::Key(UnknownKey::new(
-                        &format!("sources.{unknown_key}"),
+                        unknown_key,
                         SourceSpecVisitor::FIELD_NAMES_AS_ARRAY.to_vec(),
                     )));
                     map.next_value::<serde::de::IgnoredAny>()?;

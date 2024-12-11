@@ -63,6 +63,10 @@ where
 {
     fn lints(&mut self) -> Vec<Lint> {
         self.lints.extend(std::mem::take(&mut self.embedded.lints));
+        for lint in self.lints.iter_mut() {
+            lint.update_key("install");
+        }
+
         std::mem::take(&mut self.lints)
     }
 }
@@ -260,7 +264,7 @@ where
                 "environment" => self.environment = map.next_value::<EnvOpList>()?,
                 unknown_key => {
                     self.lints.push(Lint::Key(UnknownKey::new(
-                        &format!("install.{unknown_key}"),
+                        unknown_key,
                         InstallSpecVisitor::<D>::FIELD_NAMES_AS_ARRAY.to_vec(),
                     )));
                     map.next_value::<serde::de::IgnoredAny>()?;

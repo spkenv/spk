@@ -69,6 +69,10 @@ struct EmbeddedPackagesListVisitor {
 
 impl Lints for EmbeddedPackagesListVisitor {
     fn lints(&mut self) -> Vec<Lint> {
+        for lint in self.lints.iter_mut() {
+            lint.update_key("embedded");
+        }
+
         std::mem::take(&mut self.lints)
     }
 }

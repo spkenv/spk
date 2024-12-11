@@ -437,6 +437,10 @@ struct BuildSpecVisitor {
 
 impl Lints for BuildSpecVisitor {
     fn lints(&mut self) -> Vec<Lint> {
+        for lint in self.lints.iter_mut() {
+            lint.update_key("build");
+        }
+
         std::mem::take(&mut self.lints)
     }
 }
@@ -503,11 +507,15 @@ impl<'de> serde::de::Visitor<'de> for BuildSpecVisitor {
                 "variants" => {
                     unchecked.raw_variants = map.next_value()?;
                 }
-                "validation" => unchecked.validation = map.next_value::<ValidationSpec>()?,
+                "validation" => {
+                    let linted_validations = map.next_value::<LintedItem<ValidationSpec>>()?;
+                    self.lints.extend(linted_validations.lints);
+                    unchecked.validation = linted_validations.item;
+                }
                 "auto_host_vars" => unchecked.auto_host_vars = map.next_value::<AutoHostVars>()?,
                 unknown_key => {
                     self.lints.push(Lint::Key(UnknownKey::new(
-                        &format!("build.{unknown_key}"),
+                        unknown_key,
                         BuildSpec::FIELD_NAMES_AS_ARRAY.to_vec(),
                     )));
                     map.next_value::<serde::de::IgnoredAny>()?;
