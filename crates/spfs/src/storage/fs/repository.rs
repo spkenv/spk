@@ -16,6 +16,7 @@ use arc_swap::ArcSwap;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
 use futures::Stream;
+use variantly::Variantly;
 
 use super::FsHashStore;
 use super::hash_store::PROXY_DIRNAME;
@@ -70,6 +71,15 @@ pub struct Params {
     #[serde(default)]
     pub lazy: bool,
     pub tag_namespace: Option<TagNamespaceBuf>,
+    #[serde(default = "Params::default_create_renders")]
+    pub create_renders: bool,
+}
+
+impl Params {
+    /// Whether to create the render store if it doesn't already exist. Defaults to true.
+    fn default_create_renders() -> bool {
+        true
+    }
 }
 
 #[async_trait::async_trait]
@@ -202,7 +212,7 @@ pub trait DefaultRenderStoreCreationPolicy {
     fn default_creation_policy() -> RenderStoreCreationPolicy;
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Variantly)]
 pub enum RenderStoreCreationPolicy {
     CreateIfMissing,
     DoNotCreate,
@@ -215,6 +225,17 @@ pub struct MaybeRenderStore {
     /// If the store should be created if necessary.
     creation_policy: RenderStoreCreationPolicy,
     inner: Arc<ArcSwap<InnerMaybeRenderStore>>,
+}
+
+impl MaybeRenderStore {
+    /// Return a new instance of this render store with creation disabled. The render
+    /// store will only be accessible if it already exists, but will not be created on demand.
+    fn without_render_creation(self) -> Self {
+        Self {
+            creation_policy: RenderStoreCreationPolicy::DoNotCreate,
+            inner: self.inner,
+        }
+    }
 }
 
 impl TryFrom<MaybeRenderStore> for RenderStore {
@@ -434,6 +455,18 @@ impl TryFrom<FsRepository<OpenFsRepositoryImpl<MaybeRenderStore>>>
         Ok(Self {
             fs_impl: Arc::new(Arc::unwrap_or_clone(value.fs_impl).try_into()?),
         })
+    }
+}
+
+impl FsRepository<MaybeOpenFsRepositoryImpl<MaybeRenderStore>> {
+    /// Return a new instance of this repository with render store creation
+    /// disabled. The render store will only be accessible if it already exists,
+    /// but will not be created on demand.
+    pub fn without_render_creation(self) -> Self {
+        let new_impl = Arc::unwrap_or_clone(self.fs_impl);
+        Self {
+            fs_impl: Arc::new(new_impl.without_render_creation()),
+        }
     }
 }
 
@@ -837,6 +870,25 @@ where
     }
 }
 
+impl MaybeOpenFsRepositoryImpl<MaybeRenderStore> {
+    /// Return a new version of this repository with render store creation
+    /// disabled. The render store will only be accessible if it already exists,
+    /// but will not be created on demand.
+    pub fn without_render_creation(self) -> Self {
+        self.0.rcu(|inner| match &**inner {
+            InnerFsRepository::Open(repo) => {
+                InnerFsRepository::Open(Arc::new((**repo).clone().without_render_creation()))
+            }
+            InnerFsRepository::Closed(config) => InnerFsRepository::Closed({
+                let mut config = config.clone();
+                config.params.create_renders = false;
+                config
+            }),
+        });
+        self
+    }
+}
+
 impl<RS> Address for MaybeOpenFsRepositoryImpl<RS> {
     fn address(&self) -> Cow<'_, url::Url> {
         Cow::Owned(url::Url::from_directory_path(self.root()).unwrap())
@@ -909,6 +961,10 @@ where
     type Config = Config;
 
     async fn from_config(config: Self::Config) -> crate::storage::OpenRepositoryResult<Self> {
+        if config.params.create_renders ^ RS::default_creation_policy().is_create_if_missing() {
+            return Err(OpenRepositoryError::InvalidRenderStoreCreationPolicy("create_renders parameter does not match the default creation policy for the render store type".to_string()));
+        }
+
         let repo = if config.params.create {
             Self::create(&config.path).await
         } else {
@@ -979,7 +1035,10 @@ where
     }
 }
 
-impl<RS> OpenFsRepositoryImpl<RS> {
+impl<RS> OpenFsRepositoryImpl<RS>
+where
+    RS: DefaultRenderStoreCreationPolicy,
+{
     /// The address of this repository that can be used to re-open it
     pub fn address(&self) -> url::Url {
         Config {
@@ -988,12 +1047,15 @@ impl<RS> OpenFsRepositoryImpl<RS> {
                 create: false,
                 lazy: false,
                 tag_namespace: self.tag_namespace.clone(),
+                create_renders: RS::default_creation_policy().is_create_if_missing(),
             },
         }
         .to_address()
         .expect("repository address is valid")
     }
+}
 
+impl<RS> OpenFsRepositoryImpl<RS> {
     /// The latest repository version that this was migrated to.
     pub async fn last_migration(&self) -> MigrationResult<semver::Version> {
         Ok(read_last_migration_version(self.root())
@@ -1143,6 +1205,21 @@ impl<RS> OpenFsRepositoryImpl<RS> {
     }
 }
 
+impl OpenFsRepositoryImpl<MaybeRenderStore> {
+    /// Return a new version of this repository with render store creation
+    /// disabled. The render store will only be accessible if it already exists,
+    /// but will not be created on demand.
+    pub fn without_render_creation(self) -> Self {
+        Self {
+            root: self.root,
+            tag_namespace: self.tag_namespace,
+            payloads: self.payloads,
+            objects: self.objects,
+            rs_impl: self.rs_impl.without_render_creation(),
+        }
+    }
+}
+
 #[async_trait::async_trait]
 impl<RS> FsRepositoryOps for OpenFsRepositoryImpl<RS>
 where
@@ -1224,9 +1301,26 @@ where
         let mut render_dirs = Vec::new();
 
         let renders_dir = self.root.join("renders");
-        for entry in std::fs::read_dir(&renders_dir).map_err(|err| {
-            Error::StorageReadError("read_dir on renders dir", renders_dir.clone(), err)
-        })? {
+        for entry in {
+            match std::fs::read_dir(&renders_dir) {
+                Ok(entries) => entries,
+                Err(err) => {
+                    match err.kind() {
+                        std::io::ErrorKind::NotFound => {
+                            // no renders dir means no renders, so just return empty
+                            return Ok(Vec::new());
+                        }
+                        _ => {
+                            return Err(Error::StorageReadError(
+                                "read_dir on renders dir",
+                                renders_dir.clone(),
+                                err,
+                            ));
+                        }
+                    }
+                }
+            }
+        } {
             let entry = entry.map_err(|err| {
                 Error::StorageReadError("entry in renders dir", renders_dir.clone(), err)
             })?;
@@ -1253,7 +1347,7 @@ where
                     payloads: FsHashStore::open_unchecked(self.root.join("payloads")),
                     rs_impl: RS::render_store_for_user(
                         RenderStoreCreationPolicy::DoNotCreate,
-                        self.address(),
+                        (*self.address()).clone(),
                         &self.root,
                         &dir,
                     )

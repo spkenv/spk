@@ -330,11 +330,14 @@ impl RemoteConfig {
         let mut handle: storage::RepositoryHandle = match inner.clone() {
             // Remote repositories never have a render store (from our
             // perspective).
-            RepositoryConfig::Fs(config) => <storage::fs::MaybeOpenFsRepository<
-                storage::fs::NoRenderStore,
-            > as Into<storage::RepositoryHandle>>::into(
-                storage::fs::MaybeOpenFsRepository::from_config(config).await?,
-            ),
+            RepositoryConfig::Fs(mut config) => {
+                config.params.create_renders = false;
+                <storage::fs::MaybeOpenFsRepository<storage::fs::NoRenderStore> as Into<
+                    storage::RepositoryHandle,
+                >>::into(
+                    storage::fs::MaybeOpenFsRepository::from_config(config).await?
+                )
+            }
             RepositoryConfig::Tar(config) => storage::tar::TarRepository::from_config(config)
                 .await?
                 .into(),

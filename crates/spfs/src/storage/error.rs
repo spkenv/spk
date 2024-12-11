@@ -109,6 +109,9 @@ pub enum OpenRepositoryError {
 
     #[error("Unsupported repository type: {0}")]
     UnsupportedRepositoryType(String),
+
+    #[error("Invalid render store creation policy: {0}")]
+    InvalidRenderStoreCreationPolicy(String),
 }
 
 impl OpenRepositoryError {
