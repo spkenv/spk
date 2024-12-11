@@ -167,6 +167,10 @@ impl TryRenderStore for RenderStore {
     fn try_render_store(&self) -> OpenRepositoryResult<Cow<'_, RenderStore>> {
         Ok(Cow::Borrowed(self))
     }
+
+    fn proxy_path(&self) -> Option<Cow<'_, std::path::Path>> {
+        Some(Cow::Borrowed(self.proxy.root()))
+    }
 }
 
 impl Clone for RenderStore {
@@ -266,6 +270,12 @@ impl TryRenderStore for MaybeRenderStore {
             }
         }
     }
+
+    fn proxy_path(&self) -> Option<Cow<'_, std::path::Path>> {
+        self.try_render_store()
+            .ok()
+            .map(|store| Cow::Owned(store.proxy.root().to_owned()))
+    }
 }
 
 impl RenderStoreForUser for MaybeRenderStore {
@@ -319,19 +329,23 @@ impl TryRenderStore for NoRenderStore {
     fn try_render_store(&self) -> OpenRepositoryResult<Cow<'_, RenderStore>> {
         Err(OpenRepositoryError::RenderStorageUnavailable)
     }
+
+    fn proxy_path(&self) -> Option<Cow<'_, std::path::Path>> {
+        None
+    }
 }
 
 /// Operations on a FsRepository.
 #[async_trait::async_trait]
 pub trait FsRepositoryOps: Send + Sync {
-    /// True if this repo is setup to generate local manifest renders.
-    fn has_renders(&self) -> bool;
-
     fn iter_rendered_manifests(
         &self,
     ) -> Pin<Box<dyn Stream<Item = Result<crate::encoding::Digest>> + Send + Sync + '_>>;
 
-    fn proxy_path(&self) -> Option<&std::path::Path>;
+    /// Return the path to the proxy directory for this repository, if it
+    /// exists. Some render store types may create this directory on demand,
+    /// if it didn't already exist.
+    fn proxy_path(&self) -> Option<Cow<'_, std::path::Path>>;
 
     /// Remove the identified render from this storage.
     async fn remove_rendered_manifest(&self, digest: crate::encoding::Digest) -> Result<()>;
@@ -355,17 +369,13 @@ impl<T> FsRepositoryOps for &T
 where
     T: FsRepositoryOps,
 {
-    fn has_renders(&self) -> bool {
-        T::has_renders(*self)
-    }
-
     fn iter_rendered_manifests(
         &self,
     ) -> Pin<Box<dyn Stream<Item = Result<crate::encoding::Digest>> + Send + Sync + '_>> {
         T::iter_rendered_manifests(*self)
     }
 
-    fn proxy_path(&self) -> Option<&std::path::Path> {
+    fn proxy_path(&self) -> Option<Cow<'_, std::path::Path>> {
         T::proxy_path(*self)
     }
 
@@ -401,6 +411,20 @@ impl<FS> std::ops::Deref for FsRepository<FS> {
     }
 }
 
+impl TryFrom<FsRepository<MaybeOpenFsRepositoryImpl<MaybeRenderStore>>>
+    for FsRepository<MaybeOpenFsRepositoryImpl<RenderStore>>
+{
+    type Error = OpenRepositoryError;
+
+    fn try_from(
+        value: FsRepository<MaybeOpenFsRepositoryImpl<MaybeRenderStore>>,
+    ) -> OpenRepositoryResult<Self> {
+        Ok(Self {
+            fs_impl: Arc::new(Arc::unwrap_or_clone(value.fs_impl).try_into()?),
+        })
+    }
+}
+
 impl TryFrom<FsRepository<OpenFsRepositoryImpl<MaybeRenderStore>>>
     for FsRepository<OpenFsRepositoryImpl<RenderStore>>
 {
@@ -420,17 +444,13 @@ impl<FS> FsRepositoryOps for FsRepository<FS>
 where
     FS: FsRepositoryOps,
 {
-    fn has_renders(&self) -> bool {
-        self.fs_impl.has_renders()
-    }
-
     fn iter_rendered_manifests(
         &self,
     ) -> Pin<Box<dyn Stream<Item = Result<crate::encoding::Digest>> + Send + Sync + '_>> {
         self.fs_impl.iter_rendered_manifests()
     }
 
-    fn proxy_path(&self) -> Option<&std::path::Path> {
+    fn proxy_path(&self) -> Option<Cow<'_, std::path::Path>> {
         self.fs_impl.proxy_path()
     }
 
@@ -502,6 +522,10 @@ where
 {
     fn try_render_store(&self) -> OpenRepositoryResult<Cow<'_, RenderStore>> {
         self.fs_impl.try_render_store()
+    }
+
+    fn proxy_path(&self) -> Option<Cow<'_, std::path::Path>> {
+        self.fs_impl.proxy_path()
     }
 }
 
@@ -611,6 +635,23 @@ impl<RS> From<Arc<OpenFsRepositoryImpl<RS>>> for MaybeOpenFsRepositoryImpl<RS> {
         Self(Arc::new(ArcSwap::new(Arc::new(InnerFsRepository::Open(
             value,
         )))))
+    }
+}
+
+impl TryFrom<MaybeOpenFsRepositoryImpl<MaybeRenderStore>>
+    for MaybeOpenFsRepositoryImpl<RenderStore>
+{
+    type Error = OpenRepositoryError;
+
+    fn try_from(value: MaybeOpenFsRepositoryImpl<MaybeRenderStore>) -> OpenRepositoryResult<Self> {
+        Ok(Self(Arc::new(ArcSwap::new(Arc::new({
+            match &**value.0.load() {
+                InnerFsRepository::Closed(config) => InnerFsRepository::Closed(config.clone()),
+                InnerFsRepository::Open(o) => {
+                    InnerFsRepository::Open(Arc::new((**o).clone().try_into()?))
+                }
+            }
+        })))))
     }
 }
 
@@ -866,6 +907,10 @@ where
     fn try_render_store(&self) -> OpenRepositoryResult<Cow<'_, RenderStore>> {
         self.rs_impl.try_render_store()
     }
+
+    fn proxy_path(&self) -> Option<Cow<'_, std::path::Path>> {
+        self.rs_impl.proxy_path()
+    }
 }
 
 impl<RS> OpenFsRepositoryImpl<RS> {
@@ -1027,29 +1072,29 @@ impl<RS> OpenFsRepositoryImpl<RS> {
 #[async_trait::async_trait]
 impl<RS> FsRepositoryOps for OpenFsRepositoryImpl<RS>
 where
-    RS: LocalRenderStore<RenderStore = RS> + Send + Sync,
+    RS: TryRenderStore + RenderStoreForUser<RenderStore = RS> + Send + Sync,
 {
-    /// True if this repo is setup to generate local manifest renders.
-    fn has_renders(&self) -> bool {
-        true
-    }
-
     fn iter_rendered_manifests(
         &self,
     ) -> Pin<Box<dyn Stream<Item = Result<crate::encoding::Digest>> + Send + Sync + '_>> {
         Box::pin(try_stream! {
-            for await digest in self.rs_impl.render_store().renders.iter() {
-                yield digest?;
+            if let Ok(store) = self.rs_impl.try_render_store() {
+                for await digest in store.renders.iter() {
+                    yield digest?;
+                }
             }
         })
     }
 
-    fn proxy_path(&self) -> Option<&std::path::Path> {
-        Some(self.rs_impl.render_store().proxy.root())
+    fn proxy_path(&self) -> Option<Cow<'_, std::path::Path>> {
+        self.rs_impl.proxy_path()
     }
 
     async fn remove_rendered_manifest(&self, digest: crate::encoding::Digest) -> Result<()> {
-        let renders = &self.rs_impl.render_store().renders;
+        let renders = &self
+            .try_render_store()
+            .map_err(|source| Error::failed_to_open_repository(self, source))?
+            .renders;
         let rendered_dirpath = renders.build_digest_path(&digest);
         let workdir = renders.workdir();
         makedirs_with_perms(&workdir, renders.directory_permissions).map_err(|source| {
@@ -1063,7 +1108,10 @@ where
         older_than: DateTime<Utc>,
         digest: crate::encoding::Digest,
     ) -> Result<bool> {
-        let renders = &self.rs_impl.render_store().renders;
+        let renders = &self
+            .try_render_store()
+            .map_err(|source| Error::failed_to_open_repository(self, source))?
+            .renders;
         let rendered_dirpath = renders.build_digest_path(&digest);
 
         let metadata = match tokio::fs::symlink_metadata(&rendered_dirpath).await {

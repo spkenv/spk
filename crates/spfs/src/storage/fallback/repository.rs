@@ -470,6 +470,10 @@ where
     fn try_render_store(&self) -> OpenRepositoryResult<Cow<'_, RenderStore>> {
         self.primary.fs_impl.rs_impl.try_render_store()
     }
+
+    fn proxy_path(&self) -> Option<Cow<'_, std::path::Path>> {
+        self.primary.fs_impl.rs_impl.proxy_path()
+    }
 }
 
 impl TryFrom<FallbackProxy<MaybeRenderStore>> for FallbackProxy<RenderStore> {
