@@ -11,6 +11,7 @@ use super::build_shell_initialized_command;
 use crate::fixtures::*;
 use crate::resolve::which;
 use crate::runtime;
+use crate::storage::fs::RenderStore;
 
 #[rstest(
     shell,
@@ -37,7 +38,7 @@ async fn test_shell_initialization_startup_scripts(
     };
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::MaybeOpenFsRepository::create(&root)
+        crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(&root)
             .await
             .unwrap(),
     );
@@ -113,7 +114,7 @@ async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempf
     };
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::MaybeOpenFsRepository::create(&root)
+        crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(&root)
             .await
             .unwrap(),
     );

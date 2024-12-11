@@ -21,7 +21,7 @@ use nix::unistd::execv;
 use spfs::encoding::Digest;
 use spfs::prelude::*;
 use spfs::storage::fallback::FallbackProxy;
-use spfs::storage::fs::OpenFsRepository;
+use spfs::storage::fs::{NoRenderStore, OpenFsRepository};
 use spfs::storage::RepositoryHandle;
 use spfs::tracking::EnvSpec;
 use spfs::OsError;
@@ -108,7 +108,7 @@ impl<'a> Dynamic<'a> {
         &self,
         tag: &str,
         platform_digest: &Digest,
-        local: Arc<OpenFsRepository>,
+        local: Arc<OpenFsRepository<NoRenderStore>>,
         remote: RepositoryHandle,
     ) -> Result<OsString> {
         let digest_string = platform_digest.to_string();
