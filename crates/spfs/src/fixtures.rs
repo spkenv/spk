@@ -10,7 +10,7 @@ use rstest::fixture;
 use tempfile::TempDir;
 
 use crate as spfs;
-use crate::storage::fs::RenderStore;
+use crate::storage::fs::{MaybeRenderStore, NoRenderStore, RenderStore};
 
 pub enum TempRepo {
     FS(Arc<spfs::storage::RepositoryHandle>, Arc<TempDir>),
@@ -134,13 +134,32 @@ pub fn tmpdir() -> TempDir {
         .expect("failed to create dir for test")
 }
 
-#[fixture(kind = "fs")]
+#[fixture(kind = "fs-with-renders")]
 pub async fn tmprepo(kind: &str) -> TempRepo {
     init_logging();
     let tmpdir = tmpdir();
     match kind {
-        "fs" => {
+        // "fs" was the old name for this kind
+        "fs" | "fs-with-renders" => {
             let repo = spfs::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+                tmpdir.path().join("repo"),
+            )
+            .await
+            .unwrap()
+            .into();
+            TempRepo::FS(Arc::new(repo), Arc::new(tmpdir))
+        }
+        "fs-with-maybe-renders" => {
+            let repo = spfs::storage::fs::MaybeOpenFsRepository::<MaybeRenderStore>::create(
+                tmpdir.path().join("repo"),
+            )
+            .await
+            .unwrap()
+            .into();
+            TempRepo::FS(Arc::new(repo), Arc::new(tmpdir))
+        }
+        "fs-without-renders" => {
+            let repo = spfs::storage::fs::MaybeOpenFsRepository::<NoRenderStore>::create(
                 tmpdir.path().join("repo"),
             )
             .await

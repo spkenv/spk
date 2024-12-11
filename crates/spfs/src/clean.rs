@@ -8,6 +8,7 @@ use std::future::ready;
 use std::num::NonZero;
 #[cfg(unix)]
 use std::os::linux::fs::MetadataExt;
+use std::path::Path;
 
 use chrono::{DateTime, Duration, Local, Utc};
 use colored::Colorize;
@@ -20,7 +21,7 @@ use super::prune::PruneParameters;
 use crate::io::Pluralize;
 use crate::prelude::*;
 use crate::runtime::makedirs_with_perms;
-use crate::storage::fs::FsRepositoryOps;
+use crate::storage::fs::{FsRepositoryOps, MaybeOpenFsRepository};
 use crate::storage::{TagNamespace, TagNamespaceBuf};
 use crate::{Digest, Error, Result, encoding, graph, storage, tracking};
 
@@ -664,11 +665,19 @@ where
     /// This function should only be called once the discovery of all attached
     /// objects has completed successfully and with no errors. Otherwise, it may
     /// remove data that is still being used
-    async unsafe fn remove_unvisited_renders_and_proxies(&self) -> Result<CleanResult> {
+    async unsafe fn remove_unvisited_renders_and_proxies_on_repo<RS>(
+        &self,
+        repo: &MaybeOpenFsRepository<RS>,
+    ) -> Result<CleanResult>
+    where
+        RS: storage::DefaultRenderStoreCreationPolicy
+            + storage::RenderStoreForUser<RenderStore = RS>
+            + storage::TryRenderStore
+            + Send
+            + Sync
+            + 'static,
+    {
         let mut result = CleanResult::default();
-        let storage::RepositoryHandle::FSWithRenders(repo) = self.repo else {
-            return Ok(result);
-        };
         let repo = repo.opened().await?;
 
         result += match self
@@ -689,17 +698,43 @@ where
             // therefore failing the whole clean attempt before any work is
             // performed. The missing proxy directory is likely a symptom of
             // some other problem elsewhere.
-            if !sub_repo.has_renders() {
-                #[cfg(feature = "sentry")]
-                tracing::error!(target: "sentry", %username, "Skipping clean of user's renders (NoRenderStorage)");
-                continue;
-            }
+            //
+            // TODO: simulate this scenario in a test and make it not error if
+            // the proxy directory is missing; still want to clean any renders
+            // belonging to the user.
+            //
+            //if !sub_repo.has_renders() {
+            //    #[cfg(feature = "sentry")]
+            //    tracing::error!(target: "sentry", %username, "Skipping clean of user's renders (NoRenderStorage)");
+            //    continue;
+            //}
 
             result += self
                 .remove_unvisited_renders_and_proxies_for_storage(Some(username.clone()), sub_repo)
                 .await?;
         }
         Ok(result)
+    }
+
+    /// # Safety
+    /// This function should only be called once the discovery of all attached
+    /// objects has completed successfully and with no errors. Otherwise, it may
+    /// remove data that is still being used
+    async unsafe fn remove_unvisited_renders_and_proxies(&self) -> Result<CleanResult> {
+        match self.repo {
+            storage::RepositoryHandle::FSWithMaybeRenders(repo) => unsafe {
+                // TODO: Convert this repo into one that will not create renders
+                // on demand. We only want to clean existing renders.
+
+                self.remove_unvisited_renders_and_proxies_on_repo(repo)
+                    .await
+            },
+            storage::RepositoryHandle::FSWithRenders(repo) => unsafe {
+                self.remove_unvisited_renders_and_proxies_on_repo(repo)
+                    .await
+            },
+            _ => Ok(CleanResult::default()),
+        }
     }
 
     async fn remove_unvisited_renders_and_proxies_for_storage(
@@ -744,7 +779,7 @@ where
         drop(stream);
 
         if let Some(proxy_path) = repo.proxy_path() {
-            result += self.clean_proxies(username, proxy_path.to_owned()).await?;
+            result += self.clean_proxies(username, &proxy_path).await?;
         }
         Ok(result)
     }
@@ -754,7 +789,7 @@ where
     async fn clean_proxies(
         &self,
         username: Option<String>,
-        proxy_path: std::path::PathBuf,
+        proxy_path: &Path,
     ) -> Result<CleanResult> {
         let mut result = CleanResult::default();
         let removed = result.removed_proxies.entry(username).or_default();

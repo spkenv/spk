@@ -172,6 +172,12 @@ pub trait TryRenderStore {
     /// For some types this may create the render store for the user on demand
     /// and may fail.
     fn try_render_store(&self) -> OpenRepositoryResult<Cow<'_, RenderStore>>;
+
+    /// Return the proxy path for the render store, creating it if the render
+    /// store is configured to.
+    ///
+    /// This only returns `Some` when the path exists.
+    fn proxy_path(&self) -> Option<Cow<'_, std::path::Path>>;
 }
 
 /// Accessor methods for types only applicable to repositories that have
