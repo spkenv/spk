@@ -7,12 +7,12 @@ use std::path::Path;
 use super::{RenderType, Renderer};
 use crate::prelude::*;
 use crate::storage::fs::RenderReporter;
-use crate::storage::LocalRepository;
+use crate::storage::{LocalPayloads, TryRenderStore};
 use crate::{graph, Result};
 
 impl<'repo, Repo, Reporter> Renderer<'repo, Repo, Reporter>
 where
-    Repo: Repository + LocalRepository,
+    Repo: Repository + LocalPayloads + TryRenderStore,
     Reporter: RenderReporter,
 {
     /// Recreate the full structure of a stored manifest on disk.
