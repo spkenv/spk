@@ -439,6 +439,15 @@ impl TryFrom<FsRepository<OpenFsRepositoryImpl<MaybeRenderStore>>>
     }
 }
 
+impl FsRepository<MaybeOpenFsRepositoryImpl<MaybeRenderStore>> {
+    /// Return a new instance of this repository with render store creation
+    /// disabled. The render store will only be accessible if it already exists,
+    /// but will not be created on demand.
+    pub fn without_render_creation(self) -> Self {
+        todo!()
+    }
+}
+
 #[async_trait::async_trait]
 impl<FS> FsRepositoryOps for FsRepository<FS>
 where
