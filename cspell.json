@@ -406,6 +406,7 @@
     "mkrecipe",
     "mksource",
     "mksrc",
+    "mktemp",
     "modversions",
     "mountpoint",
     "mpfr",
