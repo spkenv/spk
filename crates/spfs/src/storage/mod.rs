@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+mod address;
 mod blob;
 mod error;
 mod layer;
@@ -24,6 +25,7 @@ pub mod tar;
 
 use std::sync::Arc;
 
+pub use address::Address;
 pub use blob::BlobStorage;
 use chrono::{DateTime, Utc};
 pub use error::OpenRepositoryError;

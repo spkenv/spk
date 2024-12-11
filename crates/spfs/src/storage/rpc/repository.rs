@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::borrow::Cow;
+
 use storage::FromUrl;
 
 use crate::config::ToAddress;
@@ -168,8 +170,10 @@ impl RpcRepository {
     }
 }
 
-impl storage::Repository for RpcRepository {
-    fn address(&self) -> url::Url {
-        self.address.clone()
+impl storage::Address for RpcRepository {
+    fn address(&self) -> Cow<'_, url::Url> {
+        Cow::Borrowed(&self.address)
     }
 }
+
+impl storage::Repository for RpcRepository {}

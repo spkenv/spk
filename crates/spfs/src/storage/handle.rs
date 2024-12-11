@@ -36,12 +36,14 @@ macro_rules! each_variant {
     };
 }
 
-#[async_trait::async_trait]
-impl Repository for RepositoryHandle {
-    fn address(&self) -> url::Url {
+impl Address for RepositoryHandle {
+    fn address(&self) -> Cow<'_, url::Url> {
         each_variant!(self, repo, { repo.address() })
     }
+}
 
+#[async_trait::async_trait]
+impl Repository for RepositoryHandle {
     async fn has_ref(&self, reference: &str) -> bool {
         each_variant!(self, repo, { repo.has_ref(reference).await })
     }
@@ -247,13 +249,15 @@ impl Database for RepositoryHandle {
     }
 }
 
-#[async_trait::async_trait]
-impl Repository for Arc<RepositoryHandle> {
+impl Address for Arc<RepositoryHandle> {
     /// Return the address of this repository.
-    fn address(&self) -> url::Url {
+    fn address(&self) -> Cow<'_, url::Url> {
         each_variant!(&**self, repo, { repo.address() })
     }
+}
 
+#[async_trait::async_trait]
+impl Repository for Arc<RepositoryHandle> {
     /// Return true if this repository contains the given reference.
     async fn has_ref(&self, reference: &str) -> bool {
         each_variant!(&**self, repo, { repo.has_ref(reference).await })
