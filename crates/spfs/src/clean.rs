@@ -723,10 +723,11 @@ where
     async unsafe fn remove_unvisited_renders_and_proxies(&self) -> Result<CleanResult> {
         match self.repo {
             storage::RepositoryHandle::FSWithMaybeRenders(repo) => unsafe {
-                // TODO: Convert this repo into one that will not create renders
+                // Convert this repo into one that will not create renders
                 // on demand. We only want to clean existing renders.
+                let repo = repo.clone().without_render_creation();
 
-                self.remove_unvisited_renders_and_proxies_on_repo(repo)
+                self.remove_unvisited_renders_and_proxies_on_repo(&repo)
                     .await
             },
             storage::RepositoryHandle::FSWithRenders(repo) => unsafe {
