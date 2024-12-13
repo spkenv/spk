@@ -19,7 +19,13 @@ sentry = ["spk-solve/sentry"]
 serde = { workspace = true, features = ["derive"] }
 glob = { workspace = true }
 spk-solve = { workspace = true }
+thiserror = { workspace = true }
+miette = { workspace = true }
+serde_yaml = { workspace = true }
+spk-schema-foundation = { workspace = true }
+format_serde_error = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
 serde_json = { workspace = true }
+tempfile = { workspace = true }

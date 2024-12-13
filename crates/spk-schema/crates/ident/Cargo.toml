@@ -17,7 +17,7 @@ migration-to-components = ["spk-schema-foundation/migration-to-components"]
 
 [dependencies]
 colored = { workspace = true }
-format_serde_error = { version = "0.3", default-features = false, features = [
+format_serde_error = { workspace = true, default-features = false, features = [
     "serde_yaml",
     "colored",
 ] }
