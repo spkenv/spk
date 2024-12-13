@@ -20,18 +20,22 @@ recipes: []
 "#;
 
 #[rstest]
-fn test_workspace_roundtrip() {
-    let workspace = WorkspaceFile {
-        recipes: vec![
-            glob::Pattern::new("packages/*/*.spk.yml").unwrap(),
-            glob::Pattern::new("platforms/*/*.spk.yml").unwrap(),
-        ],
-    };
-
-    let serialized = serde_json::to_string(&workspace).unwrap();
-    let deserialized: WorkspaceFile = serde_json::from_str(&serialized).unwrap();
-
-    assert_eq!(workspace, deserialized);
+#[case(
+    r#"
+api: v0/workspace
+recipes:
+  - packages/**/*.spk.yaml
+  - path: packages/python/python2.spk.yaml
+    versions: [2.7.18]
+  - path: packages/python/python3.spk.yaml
+    versions:
+      - '3.7.{0..17}'
+      - '3.8.{0..20}'
+      - '3.9.{0..21}'
+"#
+)]
+fn test_workspace_from_yaml(#[case] yaml: &str) {
+    let _deserialized: WorkspaceFile = serde_yaml::from_str(yaml).unwrap();
 }
 
 #[rstest]
