@@ -5,7 +5,7 @@
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::FromYaml;
+use spk_schema::foundation::FromYaml;
 
 use crate::error::LoadWorkspaceFileError;
 
