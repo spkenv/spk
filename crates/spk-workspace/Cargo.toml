@@ -16,15 +16,16 @@ workspace = true
 sentry = ["spk-solve/sentry"]
 
 [dependencies]
-serde = { workspace = true, features = ["derive"] }
+bracoxide = { workspace = true }
+format_serde_error = { workspace = true }
 glob = { workspace = true }
 itertools = { workspace = true }
-spk-solve = { workspace = true }
-thiserror = { workspace = true }
 miette = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 serde_yaml = { workspace = true }
 spk-schema = { workspace = true }
-format_serde_error = { workspace = true }
+spk-solve = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
