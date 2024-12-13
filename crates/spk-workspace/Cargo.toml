@@ -1,0 +1,25 @@
+[package]
+name = "spk-workspace"
+authors = { workspace = true }
+edition = { workspace = true }
+version = { workspace = true }
+license-file = { workspace = true }
+homepage = { workspace = true }
+repository = { workspace = true }
+readme = { workspace = true }
+description = { workspace = true }
+
+[lints]
+workspace = true
+
+[features]
+sentry = ["spk-solve/sentry"]
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+glob = { workspace = true }
+spk-solve = { workspace = true }
+
+[dev-dependencies]
+rstest = { workspace = true }
+serde_json = { workspace = true }
