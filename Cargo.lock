@@ -4655,11 +4655,17 @@ dependencies = [
 name = "spk-workspace"
 version = "0.42.0"
 dependencies = [
+ "format_serde_error",
  "glob",
+ "miette",
  "rstest 0.18.2",
  "serde",
  "serde_json",
+ "serde_yaml 0.9.27",
+ "spk-schema-foundation",
  "spk-solve",
+ "tempfile",
+ "thiserror",
 ]
 
 [[package]]
