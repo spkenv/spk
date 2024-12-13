@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use spk_schema::foundation::FromYaml;
 
 use crate::error::LoadWorkspaceFileError;
@@ -19,10 +19,10 @@ mod file_test;
 /// and where to find data, usually loaded from a file on disk.
 /// It must still be fully validated and loaded into a
 /// [`super::Workspace`] to be operated on.
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Deserialize, Serialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Deserialize)]
 pub struct WorkspaceFile {
-    #[serde(default, skip_serializing_if = "Vec::is_empty", with = "glob_from_str")]
-    pub recipes: Vec<glob::Pattern>,
+    #[serde(default)]
+    pub recipes: Vec<RecipesItem>,
 }
 
 impl WorkspaceFile {
@@ -72,43 +72,48 @@ impl WorkspaceFile {
     }
 }
 
-mod glob_from_str {
-    use serde::{Deserializer, Serialize, Serializer};
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd)]
+pub struct RecipesItem {
+    pub path: glob::Pattern,
+}
 
-    pub fn serialize<S>(patterns: &Vec<glob::Pattern>, serializer: S) -> Result<S::Ok, S::Error>
+impl<'de> serde::de::Deserialize<'de> for RecipesItem {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        S: Serializer,
+        D: serde::de::Deserializer<'de>,
     {
-        let patterns: Vec<_> = patterns.iter().map(|p| p.as_str()).collect();
-        patterns.serialize(serializer)
-    }
+        struct RecipeCollectorVisitor;
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<glob::Pattern>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        /// Visits a serialized string, decoding it as a digest
-        struct PatternVisitor;
-
-        impl<'de> serde::de::Visitor<'de> for PatternVisitor {
-            type Value = Vec<glob::Pattern>;
+        impl<'de> serde::de::Visitor<'de> for RecipeCollectorVisitor {
+            type Value = RecipesItem;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
                 formatter.write_str("a glob pattern")
             }
 
-            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            fn visit_str<E>(self, v: &str) -> Result<RecipesItem, E>
             where
-                A: serde::de::SeqAccess<'de>,
+                E: serde::de::Error,
             {
-                let mut patterns = Vec::with_capacity(seq.size_hint().unwrap_or(0));
-                while let Some(pattern) = seq.next_element()? {
-                    let pattern = glob::Pattern::new(pattern).map_err(serde::de::Error::custom)?;
-                    patterns.push(pattern);
+                let path = glob::Pattern::new(v).map_err(serde::de::Error::custom)?;
+                Ok(RecipesItem { path })
+            }
+
+            fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                #[derive(Deserialize)]
+                struct RawRecipeItem {
+                    path: String,
                 }
-                Ok(patterns)
+
+                let raw_recipe =
+                    RawRecipeItem::deserialize(serde::de::value::MapAccessDeserializer::new(map))?;
+                self.visit_str(&raw_recipe.path)
             }
         }
-        deserializer.deserialize_seq(PatternVisitor)
+
+        deserializer.deserialize_any(RecipeCollectorVisitor)
     }
 }

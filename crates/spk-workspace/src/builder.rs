@@ -67,7 +67,7 @@ impl WorkspaceBuilder {
         let mut glob_results = file
             .recipes
             .iter()
-            .map(|pattern| glob::glob(pattern.as_str()))
+            .map(|pattern| glob::glob(pattern.path.as_str()))
             .flatten_ok()
             .flatten_ok();
         while let Some(path) = glob_results.next().transpose()? {
