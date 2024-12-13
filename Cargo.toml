@@ -44,6 +44,7 @@ description = "SPK is a Package Manager for high-velocity software environments,
 [workspace.dependencies]
 arc-swap = "1.6.0"
 async-trait = "0.1"
+bracoxide = "0.1.4"
 bytes = "1.5"
 cached = "0.48.1"
 chrono = { version = "0.4.34", features = ["serde"] }

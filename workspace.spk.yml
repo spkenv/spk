@@ -1,4 +1,28 @@
 api: v0/workspace
 
 recipes:
-  - packages/**.spk.yml
+  # collect all of the recipes in the workspace
+  - packages/**/*.spk.yaml
+
+  # some recipes require additional information
+  # which can be augmented even if they were already
+  # collected above
+
+  - path: packages/python/python2.spk.yaml
+    # here, we define the specific versions that can
+    # be build from a recipe
+    versions: [2.7.18]
+
+  - path: packages/python/python3.spk.yaml
+    # we can use bash-style brace expansion to define
+    # ranges of versions that are supported
+    versions:
+      - '3.7.{0..17}'
+      - '3.8.{0..20}'
+      - '3.9.{0..21}'
+      - '3.10.{0..16}'
+      - '3.11.{0..11}'
+      - '3.12.{0..8}'
+      - '3.13.{0..1}'
+
+

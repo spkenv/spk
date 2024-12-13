@@ -3,9 +3,13 @@
 // https://github.com/spkenv/spk
 
 use std::path::Path;
+use std::str::FromStr;
 
+use bracoxide::tokenizer::TokenizationError;
+use bracoxide::OxidizationError;
 use serde::Deserialize;
 use spk_schema::foundation::FromYaml;
+use spk_schema::version::Version;
 
 use crate::error::LoadWorkspaceFileError;
 
@@ -72,6 +76,7 @@ impl WorkspaceFile {
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd)]
 pub struct RecipesItem {
     pub path: glob::Pattern,
+    pub versions: Vec<Version>,
 }
 
 impl<'de> serde::de::Deserialize<'de> for RecipesItem {
@@ -93,7 +98,10 @@ impl<'de> serde::de::Deserialize<'de> for RecipesItem {
                 E: serde::de::Error,
             {
                 let path = glob::Pattern::new(v).map_err(serde::de::Error::custom)?;
-                Ok(RecipesItem { path })
+                Ok(RecipesItem {
+                    path,
+                    versions: Vec::new(),
+                })
             }
 
             fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
@@ -103,11 +111,42 @@ impl<'de> serde::de::Deserialize<'de> for RecipesItem {
                 #[derive(Deserialize)]
                 struct RawRecipeItem {
                     path: String,
+                    #[serde(default)]
+                    versions: Vec<String>,
                 }
 
                 let raw_recipe =
                     RawRecipeItem::deserialize(serde::de::value::MapAccessDeserializer::new(map))?;
-                self.visit_str(&raw_recipe.path)
+                let mut base = self.visit_str(&raw_recipe.path)?;
+                for (i, version_expr) in raw_recipe.versions.into_iter().enumerate() {
+                    let expand_result = bracoxide::bracoxidize(&version_expr);
+                    let expanded = match expand_result {
+                        Ok(expanded) => expanded,
+                        Err(OxidizationError::TokenizationError(TokenizationError::NoBraces))
+                        | Err(OxidizationError::TokenizationError(
+                            TokenizationError::EmptyContent,
+                        ))
+                        | Err(OxidizationError::TokenizationError(
+                            TokenizationError::FormatNotSupported,
+                        )) => {
+                            vec![version_expr]
+                        }
+                        Err(err) => {
+                            return Err(serde::de::Error::custom(format!(
+                                "invalid brace expansion in position {i}: {err:?}"
+                            )))
+                        }
+                    };
+                    for version in expanded {
+                        let parsed = Version::from_str(&version).map_err(|err| {
+                            serde::de::Error::custom(format!(
+                                "brace expansion in position {i} produced invalid version '{version}': {err}"
+                            ))
+                        })?;
+                        base.versions.push(parsed);
+                    }
+                }
+                Ok(base)
             }
         }
 
