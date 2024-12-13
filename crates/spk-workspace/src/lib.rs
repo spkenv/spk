@@ -1,4 +1,4 @@
 pub mod error;
-mod spec;
+mod file;
 
-pub use spec::Workspace;
+pub use file::WorkspaceFile;

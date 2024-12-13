@@ -1,6 +1,6 @@
 use rstest::{fixture, rstest};
 
-use super::Workspace;
+use super::WorkspaceFile;
 
 #[fixture]
 pub fn tmpdir() -> tempfile::TempDir {
@@ -17,7 +17,7 @@ recipes: []
 
 #[rstest]
 fn test_workspace_roundtrip() {
-    let workspace = Workspace {
+    let workspace = WorkspaceFile {
         recipes: vec![
             glob::Pattern::new("packages/*/*.spk.yml").unwrap(),
             glob::Pattern::new("platforms/*/*.spk.yml").unwrap(),
@@ -25,7 +25,7 @@ fn test_workspace_roundtrip() {
     };
 
     let serialized = serde_json::to_string(&workspace).unwrap();
-    let deserialized: Workspace = serde_json::from_str(&serialized).unwrap();
+    let deserialized: WorkspaceFile = serde_json::from_str(&serialized).unwrap();
 
     assert_eq!(workspace, deserialized);
 }
@@ -33,14 +33,14 @@ fn test_workspace_roundtrip() {
 #[rstest]
 fn test_empty_workspace_loading(tmpdir: tempfile::TempDir) {
     let root = tmpdir.path();
-    std::fs::write(root.join(Workspace::FILE_NAME), EMPTY_WORKSPACE).unwrap();
-    let _workspace = Workspace::load(root).expect("failed to load empty workspace");
+    std::fs::write(root.join(WorkspaceFile::FILE_NAME), EMPTY_WORKSPACE).unwrap();
+    let _workspace = WorkspaceFile::load(root).expect("failed to load empty workspace");
 }
 
 #[rstest]
 fn test_must_have_file(tmpdir: tempfile::TempDir) {
     let root = tmpdir.path();
-    Workspace::load(root).expect_err("workspace should fail to load for empty dir");
+    WorkspaceFile::load(root).expect_err("workspace should fail to load for empty dir");
 }
 
 #[rstest]
@@ -63,7 +63,7 @@ fn test_workspace_discovery(
 
     std::fs::create_dir_all(&cwd).unwrap();
     std::fs::create_dir_all(&root).unwrap();
-    std::fs::write(root.join(Workspace::FILE_NAME), EMPTY_WORKSPACE).unwrap();
+    std::fs::write(root.join(WorkspaceFile::FILE_NAME), EMPTY_WORKSPACE).unwrap();
 
-    Workspace::discover(&cwd).expect("failed to load workspace");
+    WorkspaceFile::discover(&cwd).expect("failed to load workspace");
 }

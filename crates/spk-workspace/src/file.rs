@@ -3,36 +3,42 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::FromYaml;
 
-use crate::error::LoadWorkspaceError;
+use crate::error::LoadWorkspaceFileError;
 
 #[cfg(test)]
-#[path = "spec_test.rs"]
-mod spec_test;
+#[path = "file_test.rs"]
+mod file_test;
 
+/// Describes a workspace configuration.
+///
+/// Contains information about the layout of the workspace,
+/// and where to find data, usually loaded from a file on disk.
+/// It must still be fully validated and loaded into a
+/// [`super::Workspace`] to be operated on.
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Deserialize, Serialize)]
-pub struct Workspace {
+pub struct WorkspaceFile {
     #[serde(default, skip_serializing_if = "Vec::is_empty", with = "glob_from_str")]
     pub recipes: Vec<glob::Pattern>,
 }
 
-impl Workspace {
+impl WorkspaceFile {
     pub const FILE_NAME: &str = "workspace.spk.yaml";
 
     /// Load a workspace from its root directory on disk
-    pub fn load<P: AsRef<Path>>(root: P) -> Result<Self, LoadWorkspaceError> {
+    pub fn load<P: AsRef<Path>>(root: P) -> Result<Self, LoadWorkspaceFileError> {
         let root = root
             .as_ref()
             .canonicalize()
-            .map_err(|_| LoadWorkspaceError::NoWorkspaceFile(root.as_ref().into()))?;
+            .map_err(|_| LoadWorkspaceFileError::NoWorkspaceFile(root.as_ref().into()))?;
 
-        let workspace_file = std::fs::read_to_string(root.join(Workspace::FILE_NAME))
-            .map_err(LoadWorkspaceError::ReadFailed)?;
-        Workspace::from_yaml(workspace_file).map_err(LoadWorkspaceError::InvalidYaml)
+        let workspace_file = std::fs::read_to_string(root.join(WorkspaceFile::FILE_NAME))
+            .map_err(LoadWorkspaceFileError::ReadFailed)?;
+        WorkspaceFile::from_yaml(workspace_file).map_err(LoadWorkspaceFileError::InvalidYaml)
     }
 
     /// Load the workspace for a given dir, looking at parent directories
     /// as necessary to find the workspace root
-    pub fn discover<P: AsRef<Path>>(cwd: P) -> Result<Self, LoadWorkspaceError> {
+    pub fn discover<P: AsRef<Path>>(cwd: P) -> Result<Self, LoadWorkspaceFileError> {
         let cwd = if cwd.as_ref().is_absolute() {
             cwd.as_ref().to_owned()
         } else {
@@ -48,7 +54,7 @@ impl Workspace {
         let mut last_found = None;
 
         loop {
-            if candidate.join(Workspace::FILE_NAME).is_file() {
+            if candidate.join(WorkspaceFile::FILE_NAME).is_file() {
                 last_found = Some(candidate.clone());
             }
             if !candidate.pop() {
@@ -57,7 +63,7 @@ impl Workspace {
         }
         match last_found {
             Some(path) => Self::load(path),
-            None => Err(LoadWorkspaceError::WorkspaceNotFound(cwd)),
+            None => Err(LoadWorkspaceFileError::WorkspaceNotFound(cwd)),
         }
     }
 }
