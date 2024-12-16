@@ -27,6 +27,7 @@ use spk_schema::ident::{
     AnyIdent,
     AsVersionIdent,
     PkgRequest,
+    RangeIdent,
     Request,
     RequestedBy,
     VarRequest,
@@ -48,7 +49,7 @@ pub use variant::{Variant, VariantBuildStatus, VariantLocation};
 use {spk_solve as solve, spk_storage as storage};
 
 use crate::parsing::{stage_specifier, VariantIndex};
-use crate::Error;
+use crate::{CommandArgs, Error};
 
 #[cfg(test)]
 #[path = "./flags_test.rs"]
@@ -660,6 +661,99 @@ pub async fn parse_stage_specifier(
     })?;
 
     Ok((recipe, filename, stage, build_variant))
+}
+
+/// Specifies a package, allowing for more details when being invoked
+/// programmatically instead of by a user on the command line.
+#[derive(Clone, Debug)]
+pub enum PackageSpecifier {
+    Plain(String),
+    WithSourceIdent((String, RangeIdent)),
+}
+
+impl PackageSpecifier {
+    // Return the package spec or filename string.
+    pub fn get_specifier(&self) -> &String {
+        match self {
+            PackageSpecifier::Plain(s) => s,
+            PackageSpecifier::WithSourceIdent((s, _)) => s,
+        }
+    }
+
+    // Extract the package spec or filename string.
+    pub fn into_specifier(self) -> String {
+        match self {
+            PackageSpecifier::Plain(s) => s,
+            PackageSpecifier::WithSourceIdent((s, _)) => s,
+        }
+    }
+}
+
+impl std::str::FromStr for PackageSpecifier {
+    type Err = clap::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // On the command line, only `Plain` is possible.
+        Ok(PackageSpecifier::Plain(s.to_owned()))
+    }
+}
+
+#[derive(Args, Default, Clone)]
+pub struct Packages {
+    /// The package names or yaml spec files to operate on
+    #[clap(name = "PKG|SPEC_FILE")]
+    pub packages: Vec<PackageSpecifier>,
+}
+
+impl CommandArgs for Packages {
+    fn get_positional_args(&self) -> Vec<String> {
+        self.packages
+            .iter()
+            .map(|ps| ps.get_specifier())
+            .cloned()
+            .collect()
+    }
+}
+
+impl Packages {
+    /// Create clones of these arguments where each instance
+    /// has only one package specified.
+    ///
+    /// Useful for running multiple package operations for each
+    /// entry in order.
+    pub fn split(&self) -> Vec<Self> {
+        self.packages
+            .iter()
+            .cloned()
+            .map(|p| Self {
+                packages: vec![p],
+                ..self.clone()
+            })
+            .collect()
+    }
+
+    pub async fn find_all_recipes(
+        &self,
+        options: &OptionMap,
+        repos: &[Arc<storage::RepositoryHandle>],
+    ) -> Result<Vec<(Option<PackageSpecifier>, SpecFileData, std::path::PathBuf)>> {
+        let mut packages: Vec<_> = self.packages.iter().cloned().map(Some).collect();
+        if packages.is_empty() {
+            packages.push(None)
+        }
+
+        let mut results = Vec::with_capacity(packages.len());
+        for package in packages {
+            let (file_data, path) = find_package_recipe_from_template_or_repo(
+                package.as_ref().map(|p| p.get_specifier()),
+                options,
+                repos,
+            )
+            .await?;
+            results.push((package, file_data, path));
+        }
+        Ok(results)
+    }
 }
 
 /// The result of the [`find_package_template`] function.
