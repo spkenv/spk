@@ -4,8 +4,8 @@
 
 use clap::Args;
 use miette::Result;
-use spk_cli_common::{flags, CommandArgs, Run};
-use spk_cmd_make_binary::cmd_make_binary::PackageSpecifier;
+use spk_cli_common::flags::{self, PackageSpecifier};
+use spk_cli_common::{CommandArgs, Run};
 
 #[cfg(test)]
 #[path = "./cmd_build_test/mod.rs"]
@@ -37,9 +37,8 @@ pub struct Build {
     #[clap(long, short)]
     env: bool,
 
-    /// The package names or yaml spec files to build
-    #[clap(name = "NAME|SPEC_FILE")]
-    packages: Vec<String>,
+    #[clap(flatten)]
+    packages: flags::Packages,
 
     /// Build only the specified variants
     #[clap(flatten)]
@@ -77,13 +76,13 @@ impl Run for Build {
             .await?;
 
         // divide our packages into one for each iteration of mks/mkb
-        let mut runs: Vec<_> = self.packages.iter().map(|f| vec![f.to_owned()]).collect();
+        let mut runs: Vec<_> = self.packages.split();
         if runs.is_empty() {
-            runs.push(Vec::new());
+            runs.push(Default::default());
         }
 
         let mut builds_for_summary = spk_cli_common::BuildResult::default();
-        for packages in runs {
+        for mut packages in runs {
             let mut make_source = spk_cmd_make_source::cmd_make_source::MakeSource {
                 options: self.options.clone(),
                 verbose: self.verbose,
@@ -94,6 +93,17 @@ impl Run for Build {
             let idents = make_source.make_source().await?;
             builds_for_summary.extend(make_source.created_src);
 
+            // add the source ident specifier from the source build to ensure that
+            // the binary build operates over this exact source package
+            packages.packages = packages
+                .packages
+                .into_iter()
+                .zip(idents.into_iter())
+                .map(|(package, ident)| {
+                    PackageSpecifier::WithSourceIdent((package.into_specifier(), ident.into()))
+                })
+                .collect();
+
             let mut make_binary = spk_cmd_make_binary::cmd_make_binary::MakeBinary {
                 verbose: self.verbose,
                 runtime: self.runtime.clone(),
@@ -102,13 +112,7 @@ impl Run for Build {
                 here: self.here,
                 interactive: self.interactive,
                 env: self.env,
-                packages: packages
-                    .into_iter()
-                    .zip(idents.into_iter())
-                    .map(|(package, ident)| {
-                        PackageSpecifier::WithSourceIdent((package, ident.into()))
-                    })
-                    .collect(),
+                packages,
                 variant: self.variant.clone(),
                 formatter_settings: self.formatter_settings.clone(),
                 allow_circular_dependencies: self.allow_circular_dependencies,
@@ -139,6 +143,6 @@ impl Run for Build {
 impl CommandArgs for Build {
     // The important positional args for a build are the packages
     fn get_positional_args(&self) -> Vec<String> {
-        self.packages.clone()
+        self.packages.get_positional_args()
     }
 }
