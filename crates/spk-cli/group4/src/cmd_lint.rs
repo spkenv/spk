@@ -8,9 +8,8 @@ use clap::Args;
 use colored::Colorize;
 use miette::Result;
 use spk_cli_common::{flags, CommandArgs, Run};
-use spk_schema::v0::Spec;
 use spk_schema::Lint::Key;
-use spk_schema::{AnyIdent, LintedItem, SpecTemplate, Template, TemplateExt};
+use spk_schema::{FromYaml, LintedSpec, SpecTemplate, Template, TemplateExt};
 
 /// Validate spk yaml files
 #[derive(Args)]
@@ -31,31 +30,35 @@ impl Run for Lint {
         let options = self.options.get_options()?;
         for spec in self.packages.iter() {
             let yaml = SpecTemplate::from_file(spec).and_then(|t| t.render_to_string(&options))?;
-            let lints: std::result::Result<LintedItem<Spec<AnyIdent>>, serde_yaml::Error> =
-                serde_yaml::from_str(&yaml);
-
-            match lints {
-                Ok(s) => match s.lints.is_empty() {
-                    true => println!("{} {}", "OK".green(), spec.display()),
-                    false => {
-                        println!("{} {}:", "Failed".red(), spec.display());
-                        for lint in s.lints {
-                            match lint {
-                                Key(k) => println!("{} {}", "----->".red(), k.generate_message()),
+            let s = LintedSpec::from_yaml(&yaml);
+            if s.is_ok() {
+                let valid_spec = s.unwrap();
+                match valid_spec {
+                    LintedSpec::V0Package(v) => {
+                        if v.lints.is_empty() {
+                            println!("{} {}", "OK".green(), spec.display())
+                        } else {
+                            println!("{} {}:", "Failed".red(), spec.display());
+                            for lint in v.lints {
+                                match lint {
+                                    Key(k) => {
+                                        println!("{} {}", "----->".red(), k.generate_message())
+                                    }
+                                }
                             }
+                            out = 1;
                         }
-                        out = 1;
                     }
-                },
-                Err(err) => {
-                    println!(
-                        "{} {}:\n{} {err}",
-                        "Failed".red(),
-                        spec.display(),
-                        "----->".red()
-                    );
-                    out = 1;
                 }
+            } else {
+                let err = s.err().unwrap();
+                println!(
+                    "{} {}:\n{} {err}",
+                    "Failed".red(),
+                    spec.display(),
+                    "----->".red()
+                );
+                out = 1;
             }
         }
         Ok(out)

@@ -1128,8 +1128,7 @@ where
                 "sources" => self.sources = Some(map.next_value::<Vec<LintedItem<SourceSpec>>>()?),
                 "build" => {
                     self.build = {
-                        let build = map.next_value::<LintedItem<UncheckedBuildSpec>>()?;
-                        let lints = build.lints.clone();
+                        let mut build = map.next_value::<LintedItem<UncheckedBuildSpec>>()?;
                         let build_spec = if !self.check_build_spec {
                             // Safety: see the SpecVisitor::package constructor
                             unsafe { build.item.into_inner() }
@@ -1139,7 +1138,7 @@ where
 
                         Some(LintedItem {
                             item: build_spec,
-                            lints,
+                            lints: std::mem::take(&mut build.lints),
                         })
                     }
                 }

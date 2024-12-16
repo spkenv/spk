@@ -101,7 +101,7 @@ fn test_path_sources_lints(tmpdir: tempfile::TempDir) {
     let dest_dir = tmpdir.path().join("dest");
     {
         std::fs::create_dir_all(&source_dir).unwrap();
-        std::fs::create_dir_all(&dest_dir).unwrap();
+        std::fs::create_dir_all(dest_dir).unwrap();
         std::fs::File::create(source_dir.join("file.txt")).unwrap();
     }
     let spec = format!("{{paths: {source_dir:?}}}");
@@ -120,7 +120,7 @@ fn test_git_sources_lints(tmpdir: tempfile::TempDir) {
     let dest_dir = tmpdir.path().join("dest");
     {
         std::fs::create_dir_all(&source_dir).unwrap();
-        std::fs::create_dir_all(&dest_dir).unwrap();
+        std::fs::create_dir_all(dest_dir).unwrap();
         std::fs::File::create(source_dir.join("file.txt")).unwrap();
     }
     let spec = format!(

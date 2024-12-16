@@ -15,7 +15,7 @@ use spk_schema_foundation::ident_build::{Build, BuildId};
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::option_map::OptFilter;
 use spk_schema_foundation::SerdeYamlError;
-use spk_schema_ident::{BuildIdent, VersionIdent};
+use spk_schema_ident::{AnyIdent, BuildIdent, VersionIdent};
 
 use crate::foundation::name::{PkgName, PkgNameBuf};
 use crate::foundation::option_map::OptionMap;
@@ -31,6 +31,7 @@ use crate::{
     Error,
     FromYaml,
     InputVariant,
+    LintedItem,
     Opt,
     Package,
     PackageMut,
@@ -218,7 +219,7 @@ impl TemplateExt for SpecTemplate {
 
         let name_field = match api {
             Some(serde_yaml::Value::String(api)) => {
-                let field = api.split("/").nth(1).unwrap_or("pkg");
+                let field = api.split('/').nth(1).unwrap_or("pkg");
                 if field == "package" {
                     "pkg"
                 } else {
@@ -852,6 +853,60 @@ impl FromYaml for Spec {
 impl AsRef<Spec> for Spec {
     fn as_ref(&self) -> &Spec {
         self
+    }
+}
+
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub enum LintedSpec {
+    V0Package(LintedItem<super::v0::Spec<AnyIdent>>),
+}
+
+impl FromYaml for LintedSpec {
+    fn from_yaml<S: Into<String>>(yaml: S) -> std::result::Result<Self, SerdeError> {
+        let yaml = yaml.into();
+
+        // unfortunately, serde does not have a derive mechanism which
+        // would allow us to specify a default enum variant for when
+        // the 'api' field does not exist in a spec. To do this properly
+        // and still be able to maintain source location data for
+        // yaml errors, we need to deserialize twice: once to get the
+        // api version, and a second time to deserialize that version.
+        // deserializing into a value and then using from_value
+        // instead of using from_str twice will lose useful context
+        // info if the parsing errors.
+
+        // the name of this struct appears in error messages when the
+        // root of the yaml doc is not a mapping, so we use something
+        // fairly generic, eg: 'expected struct DataApiVersionMapping'
+        let with_version = match serde_yaml::from_str::<DataApiVersionMapping>(&yaml) {
+            // we cannot simply use map_err because we need the compiler
+            // to understand that we only pass ownership of 'yaml' if
+            // the function is returning
+            Err(err) => {
+                return Err(SerdeError::new(yaml, SerdeYamlError(err)));
+            }
+            Ok(m) => m,
+        };
+
+        match with_version.api {
+            ApiVersion::V0Package => {
+                let inner = serde_yaml::from_str(&yaml)
+                    .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
+
+                Ok(Self::V0Package(inner))
+            }
+            ApiVersion::V0Platform => {
+                let inner = serde_yaml::from_str(&yaml)
+                    .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
+
+                Ok(Self::V0Package(inner))
+            }
+            ApiVersion::V0Requirements => {
+                // Reading a list of requests/requirement file is not
+                // supported here. But it might be in future.
+                unimplemented!()
+            }
+        }
     }
 }
 
