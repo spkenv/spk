@@ -8,20 +8,33 @@ use std::path::{Path, PathBuf};
 
 use relative_path::RelativePathBuf;
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::option_map::Stringified;
+use struct_field_names_as_array::FieldNamesAsArray;
 
-use crate::{Error, Result, Script};
+use crate::{Error, Lint, LintedItem, Lints, Result, Script, UnknownKey};
 
 #[cfg(test)]
 #[path = "./source_spec_test.rs"]
 mod source_spec_test;
 
-#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(untagged)]
 pub enum SourceSpec {
     Local(LocalSource),
     Git(GitSource),
     Tar(TarSource),
     Script(ScriptSource),
+}
+
+impl Default for SourceSpec {
+    fn default() -> Self {
+        Self::Local(LocalSource {
+            path: PathBuf::from("."),
+            exclude: LocalSource::default_exclude(),
+            filter: LocalSource::default_filter(),
+            subdir: None,
+        })
+    }
 }
 
 impl SourceSpec {
@@ -46,6 +59,134 @@ impl SourceSpec {
             SourceSpec::Tar(source) => source.collect(dirname),
             SourceSpec::Script(source) => source.collect(dirname, env),
         }
+    }
+}
+
+#[derive(Default, Debug, FieldNamesAsArray)]
+struct SourceSpecVisitor {
+    path: Option<PathBuf>,
+    git: Option<String>,
+    script: Option<Script>,
+    tar: Option<String>,
+    exclude: Option<Vec<String>>,
+    filter: Option<Vec<String>>,
+    reference: Option<String>,
+    depth: Option<u32>,
+    subdir: Option<String>,
+    #[field_names_as_array(skip)]
+    lints: Vec<Lint>,
+}
+
+impl Lints for SourceSpecVisitor {
+    fn lints(&mut self) -> Vec<Lint> {
+        for lint in self.lints.iter_mut() {
+            lint.update_key("sources");
+        }
+
+        std::mem::take(&mut self.lints)
+    }
+}
+
+impl From<SourceSpecVisitor> for SourceSpec {
+    fn from(value: SourceSpecVisitor) -> Self {
+        if value.path.is_some() {
+            SourceSpec::Local(LocalSource {
+                path: value.path.expect("a path source"),
+                exclude: value.exclude.unwrap_or(LocalSource::default_exclude()),
+                filter: value.filter.unwrap_or(LocalSource::default_filter()),
+                subdir: value.subdir,
+            })
+        } else if value.git.is_some() {
+            SourceSpec::Git(GitSource {
+                git: value.git.expect("a git source"),
+                reference: value.reference.unwrap_or(String::from("")),
+                depth: value.depth.unwrap_or(default_git_clone_depth()),
+                subdir: value.subdir,
+            })
+        } else if value.script.is_some() {
+            SourceSpec::Script(ScriptSource {
+                script: value.script.expect("a script source"),
+                subdir: value.subdir,
+            })
+        } else if value.tar.is_some() {
+            SourceSpec::Tar(TarSource {
+                tar: value.tar.expect("a tar source"),
+                subdir: value.subdir,
+            })
+        } else {
+            SourceSpec::default()
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for SourceSpec {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        Ok(deserializer
+            .deserialize_map(SourceSpecVisitor::default())?
+            .into())
+    }
+}
+
+impl<'de> Deserialize<'de> for LintedItem<SourceSpec> {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        Ok(deserializer
+            .deserialize_map(SourceSpecVisitor::default())?
+            .into())
+    }
+}
+
+impl<'de> serde::de::Visitor<'de> for SourceSpecVisitor {
+    type Value = SourceSpecVisitor;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("a source spec")
+    }
+
+    fn visit_map<A>(mut self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        while let Some(key) = map.next_key::<String>()? {
+            match key.as_str() {
+                "path" => self.path = Some(map.next_value::<PathBuf>()?),
+                "git" => self.git = Some(map.next_value::<Stringified>()?.0),
+                "script" => self.script = Some(map.next_value::<Script>()?),
+                "tar" => self.tar = Some(map.next_value::<Stringified>()?.0),
+                "exclude" => {
+                    self.exclude = Some(
+                        map.next_value::<Vec<Stringified>>()?
+                            .into_iter()
+                            .map(|s| s.0)
+                            .collect(),
+                    )
+                }
+                "filter" => {
+                    self.filter = Some(
+                        map.next_value::<Vec<Stringified>>()?
+                            .into_iter()
+                            .map(|s| s.0)
+                            .collect(),
+                    )
+                }
+                "ref" => self.reference = Some(map.next_value::<Stringified>()?.0),
+                "depth" => self.depth = Some(map.next_value::<u32>()?),
+                "subdir" => self.subdir = Some(map.next_value::<Stringified>()?.0),
+                unknown_key => {
+                    self.lints.push(Lint::Key(UnknownKey::new(
+                        unknown_key,
+                        SourceSpecVisitor::FIELD_NAMES_AS_ARRAY.to_vec(),
+                    )));
+                    map.next_value::<serde::de::IgnoredAny>()?;
+                }
+            }
+        }
+        Ok(self)
     }
 }
 

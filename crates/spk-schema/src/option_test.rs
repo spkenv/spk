@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use itertools::Itertools;
 use rstest::rstest;
 
 use super::Opt;
 use crate::foundation::FromYaml;
+use crate::LintedItem;
 
 #[rstest]
 #[case("{pkg: my-pkg}", "1", false)]
@@ -89,4 +91,55 @@ fn test_yaml_error_undetermined() {
 "#;
     let message = err.to_string();
     assert_eq!(message, expected);
+}
+
+#[rstest]
+fn test_var_opt_lint() {
+    format_serde_error::never_color();
+    static YAML: &str = r#"
+    - var: color/blue
+      choice: [red, blue, green]
+      inheritances: Strong
+      descriptions: |
+        Controls what color the lights will be when lit.
+    "#;
+    let vars = Vec::<LintedItem<Opt>>::from_yaml(YAML).unwrap();
+
+    for var in vars.iter() {
+        assert_eq!(var.lints.len(), 3);
+        let keys: Vec<String> = var
+            .lints
+            .iter()
+            .map(|key| key.get_key().to_string())
+            .collect_vec();
+
+        assert!(keys.contains(&"options.choice".to_string()));
+        assert!(keys.contains(&"options.inheritances".to_string()));
+        assert!(keys.contains(&"options.descriptions".to_string()));
+    }
+}
+
+#[rstest]
+fn test_pkg_opt_lint() {
+    format_serde_error::never_color();
+    static YAML: &str = r#"
+    - pkg: color
+      defaults: off
+      prerelease_policys: None
+      required_compats: None
+    "#;
+    let vars = Vec::<LintedItem<Opt>>::from_yaml(YAML).unwrap();
+
+    for var in vars.iter() {
+        assert_eq!(var.lints.len(), 3);
+        let keys: Vec<String> = var
+            .lints
+            .iter()
+            .map(|key| key.get_key().to_string())
+            .collect_vec();
+
+        assert!(keys.contains(&"options.defaults".to_string()));
+        assert!(keys.contains(&"options.prerelease_policys".to_string()));
+        assert!(keys.contains(&"options.required_compats".to_string()));
+    }
 }

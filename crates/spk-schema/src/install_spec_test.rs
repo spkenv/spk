@@ -11,7 +11,7 @@ use spk_schema_foundation::option_map::OptionMap;
 use spk_schema_foundation::version::{Version, BINARY_STR};
 use spk_schema_ident::{parse_ident_range, PkgRequest, Request, RequestedBy};
 
-use crate::{InstallSpec, Package, RequirementsList};
+use crate::{InstallSpec, LintedItem, Package, RawInstallSpec, RequirementsList};
 
 #[rstest]
 fn test_render_all_pins_renders_requirements_in_components() {
@@ -279,4 +279,75 @@ embedded:
             .collect::<HashSet<_>>(),
         "expecting embedded to be expanded correctly"
     );
+}
+
+#[rstest]
+fn test_install_spec_lint_component_field() {
+    let install = serde_yaml::from_str::<LintedItem<RawInstallSpec>>(
+        r#"
+comzponents:
+  - name: comp1
+        "#,
+    )
+    .unwrap();
+
+    assert_eq!(install.lints.len(), 1);
+    for lint in install.lints.iter() {
+        assert_eq!(lint.get_key(), "install.comzponents");
+    }
+}
+
+#[rstest]
+fn test_install_spec_lint_embedded_field() {
+    let install = serde_yaml::from_str::<LintedItem<RawInstallSpec>>(
+        r#"
+components:
+  - name: comp1
+embeddsed:
+  - pkg: "embedded/1.0.0"
+    install:
+      components:
+        - name: comp1
+        "#,
+    )
+    .unwrap();
+
+    assert_eq!(install.lints.len(), 1);
+    for lint in install.lints.iter() {
+        assert_eq!(lint.get_key(), "install.embeddsed");
+    }
+}
+
+#[rstest]
+fn test_install_spec_lint_requirements_field() {
+    let install = serde_yaml::from_str::<LintedItem<RawInstallSpec>>(
+        r#"
+requirement:
+    - pkg: stdfs
+        "#,
+    )
+    .unwrap();
+
+    assert_eq!(install.lints.len(), 1);
+    for lint in install.lints.iter() {
+        assert_eq!(lint.get_key(), "install.requirement");
+    }
+}
+
+#[rstest]
+fn test_install_spec_lint_environments_field() {
+    let install = serde_yaml::from_str::<LintedItem<RawInstallSpec>>(
+        r#"
+environments:
+    - priority: 99
+    - set: PYVER1
+      value: $SPK_PKG_python_VERSION_BASE
+        "#,
+    )
+    .unwrap();
+
+    assert_eq!(install.lints.len(), 1);
+    for lint in install.lints.iter() {
+        assert_eq!(lint.get_key(), "install.environments");
+    }
 }

@@ -16,6 +16,9 @@ pub trait Template: Sized {
 
     /// Render this template with the provided values.
     fn render(&self, options: &OptionMap) -> Result<SpecFileData>;
+
+    /// Render this template but return the rendered string instead.
+    fn render_to_string(&self, options: &OptionMap) -> Result<String>;
 }
 
 pub trait TemplateExt: Template {

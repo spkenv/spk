@@ -6,7 +6,7 @@ use rstest::rstest;
 use spk_config::{Metadata, MetadataCommand};
 use spk_schema_ident::{AnyIdent, VersionIdent};
 
-use crate::v0;
+use crate::{v0, LintedItem};
 
 #[rstest]
 fn test_package_meta_missing() {
@@ -52,5 +52,65 @@ fn test_custom_metadata() {
     assert_eq!(spec.meta.labels.len(), 4);
     for key in keys.iter() {
         assert!(spec.meta.labels.contains_key(*key));
+    }
+}
+
+#[rstest]
+fn test_meta_description_lints() {
+    let meta: LintedItem<super::Meta> = serde_yaml::from_str(
+        r#"
+            descriptions: package description
+        "#,
+    )
+    .unwrap();
+
+    assert_eq!(meta.lints.len(), 1);
+    for lint in meta.lints.iter() {
+        assert_eq!(lint.get_key(), "meta.descriptions")
+    }
+}
+
+#[rstest]
+fn test_meta_homepage_lints() {
+    let meta: LintedItem<super::Meta> = serde_yaml::from_str(
+        r#"
+            homepages: www.somerandomhomepage.com
+        "#,
+    )
+    .unwrap();
+
+    assert_eq!(meta.lints.len(), 1);
+    for lint in meta.lints.iter() {
+        assert_eq!(lint.get_key(), "meta.homepages")
+    }
+}
+
+#[rstest]
+fn test_meta_license_lints() {
+    let meta: LintedItem<super::Meta> = serde_yaml::from_str(
+        r#"
+            licenses: "Hello World!"
+        "#,
+    )
+    .unwrap();
+
+    assert_eq!(meta.lints.len(), 1);
+    for lint in meta.lints.iter() {
+        assert_eq!(lint.get_key(), "meta.licenses")
+    }
+}
+
+#[rstest]
+fn test_meta_labels_lints() {
+    let meta: LintedItem<super::Meta> = serde_yaml::from_str(
+        r#"
+            label: {}
+        "#,
+    )
+    .unwrap();
+
+    assert_eq!(meta.lints.len(), 1);
+    for lint in meta.lints.iter() {
+        assert_eq!(lint.get_key(), "meta.label")
     }
 }

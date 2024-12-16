@@ -6,6 +6,9 @@ use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::name::{PkgName, PkgNameBuf};
 use spk_schema_foundation::IsDefault;
+use struct_field_names_as_array::FieldNamesAsArray;
+
+use crate::{Lint, LintedItem, Lints, UnknownKey};
 
 #[cfg(test)]
 #[path = "./validation_test.rs"]
@@ -27,12 +30,89 @@ pub enum LegacyValidator {
 /// ValidationSpec configures how builds of this package
 /// should be validated. The default spec contains all
 /// recommended validators
-#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct ValidationSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     rules: Vec<ValidationRule>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub disabled: Vec<LegacyValidator>,
+}
+
+impl Lints for ValidationSpecVisitor {
+    fn lints(&mut self) -> Vec<Lint> {
+        for lint in self.lints.iter_mut() {
+            lint.update_key("validation");
+        }
+
+        std::mem::take(&mut self.lints)
+    }
+}
+
+impl From<ValidationSpecVisitor> for ValidationSpec {
+    fn from(value: ValidationSpecVisitor) -> Self {
+        Self {
+            rules: value.rules,
+            disabled: value.disabled,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for ValidationSpec {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        Ok(deserializer
+            .deserialize_map(ValidationSpecVisitor::default())?
+            .into())
+    }
+}
+
+impl<'de> Deserialize<'de> for LintedItem<ValidationSpec> {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        Ok(deserializer
+            .deserialize_map(ValidationSpecVisitor::default())?
+            .into())
+    }
+}
+
+#[derive(Default, FieldNamesAsArray)]
+struct ValidationSpecVisitor {
+    rules: Vec<ValidationRule>,
+    disabled: Vec<LegacyValidator>,
+    #[field_names_as_array(skip)]
+    lints: Vec<Lint>,
+}
+
+impl<'de> serde::de::Visitor<'de> for ValidationSpecVisitor {
+    type Value = ValidationSpecVisitor;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("a validation spec")
+    }
+
+    fn visit_map<A>(mut self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        while let Some(key) = map.next_key::<String>()? {
+            match key.as_str() {
+                "rules" => self.rules = map.next_value::<Vec<ValidationRule>>()?,
+                "disabled" => self.disabled = map.next_value::<Vec<LegacyValidator>>()?,
+                unknown_key => {
+                    self.lints.push(Lint::Key(UnknownKey::new(
+                        unknown_key,
+                        ValidationSpecVisitor::FIELD_NAMES_AS_ARRAY.to_vec(),
+                    )));
+                    map.next_value::<serde::de::IgnoredAny>()?;
+                }
+            }
+        }
+        Ok(self)
+    }
 }
 
 impl ValidationSpec {

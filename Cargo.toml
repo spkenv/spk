@@ -70,6 +70,7 @@ is_default_derive_macro = { path = "crates/is_default_derive_macro" }
 libc = "0.2.80"
 miette = "7.0"
 nix = { version = "0.27.1", features = ["mount", "sched", "user"] }
+ngrammatic = "0.4.0"
 nom = "7.1"
 nom-supreme = "0.8"
 once_cell = "1.8"
@@ -137,6 +138,7 @@ spk-solve-validation = { path = "crates/spk-solve/crates/validation" }
 spk-storage = { path = "crates/spk-storage" }
 static_assertions = "1.1"
 strip-ansi-escapes = "0.2.0"
+struct-field-names-as-array = "0.3.0"
 strum = { version = "0.26.3", features = ["derive"] }
 tap = "1.0"
 tempfile = "3.3"

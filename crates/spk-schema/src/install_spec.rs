@@ -2,23 +2,29 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::marker::PhantomData;
+
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident_component::Component;
+use spk_schema_foundation::option_map::Stringified;
 use spk_schema_foundation::spec_ops::Named;
 use spk_schema_foundation::IsDefault;
 use spk_schema_ident::{BuildIdent, OptVersionIdent};
+use struct_field_names_as_array::FieldNamesAsArray;
 
 use crate::component_embedded_packages::ComponentEmbeddedPackage;
 use crate::foundation::option_map::OptionMap;
 use crate::{
     ComponentSpecList,
     EmbeddedPackagesList,
-    EnvOp,
     EnvOpList,
-    OpKind,
+    Lint,
+    LintedItem,
+    Lints,
     Package,
     RequirementsList,
     Result,
+    UnknownKey,
 };
 
 #[cfg(test)]
@@ -49,6 +55,47 @@ pub struct InstallSpec {
     pub components: ComponentSpecList,
     #[serde(default, skip_serializing_if = "IsDefault::is_default")]
     pub environment: EnvOpList,
+}
+
+impl<D> Lints for InstallSpecVisitor<D>
+where
+    D: Default,
+{
+    fn lints(&mut self) -> Vec<Lint> {
+        self.lints.extend(std::mem::take(&mut self.embedded.lints));
+        for lint in self.lints.iter_mut() {
+            lint.update_key("install");
+        }
+
+        std::mem::take(&mut self.lints)
+    }
+}
+
+#[derive(Default, FieldNamesAsArray)]
+struct InstallSpecVisitor<D>
+where
+    D: Default,
+{
+    requirements: RequirementsList,
+    embedded: LintedItem<EmbeddedPackagesList>,
+    components: ComponentSpecList,
+    environment: EnvOpList,
+    lints: Vec<Lint>,
+    _phantom: PhantomData<D>,
+}
+
+impl<D> From<InstallSpecVisitor<D>> for RawInstallSpec
+where
+    D: Default,
+{
+    fn from(value: InstallSpecVisitor<D>) -> Self {
+        Self {
+            requirements: value.requirements,
+            embedded: value.embedded.item,
+            components: value.components,
+            environment: value.environment,
+        }
+    }
 }
 
 impl InstallSpec {
@@ -163,49 +210,68 @@ impl From<RawInstallSpec> for InstallSpec {
 }
 
 /// A raw, unvalidated install spec.
-#[derive(Deserialize)]
-struct RawInstallSpec {
+#[derive(Serialize, Default)]
+pub struct RawInstallSpec {
     #[serde(default)]
     requirements: RequirementsList,
     #[serde(default)]
     embedded: EmbeddedPackagesList,
     #[serde(default)]
     components: ComponentSpecList,
-    #[serde(default, deserialize_with = "deserialize_env_conf")]
+    #[serde(default)]
     environment: EnvOpList,
 }
 
-fn deserialize_env_conf<'de, D>(deserializer: D) -> std::result::Result<EnvOpList, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    struct EnvConfVisitor;
-
-    impl<'de> serde::de::Visitor<'de> for EnvConfVisitor {
-        type Value = EnvOpList;
-
-        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-            f.write_str("an environment configuration")
-        }
-
-        fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
-        where
-            A: serde::de::SeqAccess<'de>,
-        {
-            let mut vec = EnvOpList::default();
-
-            while let Some(elem) = seq.next_element::<EnvOp>()? {
-                if vec.iter().any(|x: &EnvOp| x.kind() == OpKind::Priority)
-                    && elem.kind() == OpKind::Priority
-                {
-                    return Err(serde::de::Error::custom(
-                        "Multiple priority config cannot be set.",
-                    ));
-                };
-                vec.push(elem);
-            }
-            Ok(vec)
-        }
+impl<'de> Deserialize<'de> for RawInstallSpec {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        deserializer.deserialize_map(InstallSpecVisitor::<RawInstallSpec>::default())
     }
-    deserializer.deserialize_seq(EnvConfVisitor)
+}
+
+impl<'de> Deserialize<'de> for LintedItem<RawInstallSpec> {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        deserializer.deserialize_map(InstallSpecVisitor::<LintedItem<RawInstallSpec>>::default())
+    }
+}
+
+impl<'de, D> serde::de::Visitor<'de> for InstallSpecVisitor<D>
+where
+    D: Default + From<InstallSpecVisitor<D>>,
+{
+    type Value = D;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("an install spec")
+    }
+
+    fn visit_map<A>(mut self, mut map: A) -> std::result::Result<Self::Value, A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        while let Some(key) = map.next_key::<Stringified>()? {
+            match key.as_str() {
+                "requirements" => self.requirements = map.next_value::<RequirementsList>()?,
+                "embedded" => {
+                    self.embedded = map.next_value::<LintedItem<EmbeddedPackagesList>>()?
+                }
+                "components" => self.components = map.next_value::<ComponentSpecList>()?,
+                "environment" => self.environment = map.next_value::<EnvOpList>()?,
+                unknown_key => {
+                    self.lints.push(Lint::Key(UnknownKey::new(
+                        unknown_key,
+                        InstallSpecVisitor::<D>::FIELD_NAMES_AS_ARRAY.to_vec(),
+                    )));
+                    map.next_value::<serde::de::IgnoredAny>()?;
+                }
+            }
+        }
+
+        Ok(self.into())
+    }
 }
