@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::collections::HashSet;
+
 use crate::error;
 
 #[derive(Default)]
 pub struct WorkspaceBuilder {
-    spec_files: Vec<std::path::PathBuf>,
+    spec_files: HashSet<std::path::PathBuf>,
 }
 
 impl WorkspaceBuilder {
@@ -53,7 +55,7 @@ impl WorkspaceBuilder {
 
     /// Add a recipe file to the workspace.
     pub fn with_recipe_file(mut self, path: impl Into<std::path::PathBuf>) -> Self {
-        self.spec_files.push(path.into());
+        self.spec_files.insert(path.into());
         self
     }
 
