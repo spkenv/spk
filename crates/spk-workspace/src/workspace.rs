@@ -116,7 +116,7 @@ impl Workspace {
         );
         let by_name = self.templates.entry(template.name().cloned()).or_default();
         by_name.push(template);
-        Ok(&by_name.last().expect("just pushed something"))
+        Ok(by_name.last().expect("just pushed something"))
     }
 }
 
