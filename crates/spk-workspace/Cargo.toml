@@ -26,6 +26,7 @@ serde_yaml = { workspace = true }
 spk-schema = { workspace = true }
 spk-solve = { workspace = true }
 thiserror = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }

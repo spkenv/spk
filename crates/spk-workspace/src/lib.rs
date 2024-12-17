@@ -8,4 +8,4 @@ mod file;
 mod workspace;
 
 pub use file::WorkspaceFile;
-pub use workspace::Workspace;
+pub use workspace::{FindPackageTemplateResult, Workspace};

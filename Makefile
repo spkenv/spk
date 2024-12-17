@@ -86,7 +86,7 @@ test:
 
 .PHONY: converters
 converters:
-	$(MAKE) -C packages spk-convert-pip/spk-convert-pip.spk
+	spk build spk-convert-pip
 
 .PHONY: rpms
 rpms: spk-rpm spfs-rpm

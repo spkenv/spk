@@ -3993,6 +3993,7 @@ dependencies = [
  "spk-schema",
  "spk-solve",
  "spk-storage",
+ "spk-workspace",
  "statsd 0.15.0",
  "strip-ansi-escapes 0.1.1",
  "thiserror",
@@ -4095,6 +4096,7 @@ dependencies = [
  "spk-schema",
  "spk-solve",
  "spk-storage",
+ "spk-workspace",
  "strum",
  "tokio",
  "tracing",
@@ -4247,6 +4249,7 @@ dependencies = [
  "spk-cli-common",
  "spk-schema",
  "spk-schema-tera",
+ "spk-workspace",
  "tracing",
 ]
 
@@ -4674,6 +4677,7 @@ dependencies = [
  "spk-solve",
  "tempfile",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]

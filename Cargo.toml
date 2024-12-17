@@ -138,6 +138,7 @@ spk-solve-package-iterator = { path = "crates/spk-solve/crates/package-iterator"
 spk-solve-solution = { path = "crates/spk-solve/crates/solution" }
 spk-solve-validation = { path = "crates/spk-solve/crates/validation" }
 spk-storage = { path = "crates/spk-storage" }
+spk-workspace = { path = "crates/spk-workspace" }
 static_assertions = "1.1"
 strip-ansi-escapes = "0.2.0"
 strum = { version = "0.26.3", features = ["derive"] }

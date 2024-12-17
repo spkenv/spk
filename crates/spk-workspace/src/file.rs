@@ -58,21 +58,17 @@ impl WorkspaceFile {
                 None => std::env::current_dir().unwrap_or_default().join(cwd),
             }
         };
-        let mut candidate = cwd.clone();
-        let mut last_found = None;
 
+        let mut candidate: std::path::PathBuf = cwd.clone();
         loop {
             if candidate.join(WorkspaceFile::FILE_NAME).is_file() {
-                last_found = Some(candidate.clone());
+                return Self::load(candidate);
             }
             if !candidate.pop() {
                 break;
             }
         }
-        match last_found {
-            Some(path) => Self::load(path),
-            None => Err(LoadWorkspaceFileError::WorkspaceNotFound(cwd)),
-        }
+        Err(LoadWorkspaceFileError::WorkspaceNotFound(cwd))
     }
 }
 

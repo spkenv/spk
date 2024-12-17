@@ -2,41 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use std::collections::HashMap;
-
-use itertools::Itertools;
-use spk_schema::TemplateExt;
-
-mod error {
-    pub use crate::error::LoadWorkspaceFileError;
-
-    #[derive(thiserror::Error, miette::Diagnostic, Debug)]
-    pub enum FromPathError {
-        #[error(transparent)]
-        #[diagnostic(forward(0))]
-        LoadWorkspaceFileError(#[from] LoadWorkspaceFileError),
-        #[error(transparent)]
-        #[diagnostic(forward(0))]
-        FromFileError(#[from] FromFileError),
-    }
-
-    #[derive(thiserror::Error, miette::Diagnostic, Debug)]
-    pub enum FromFileError {
-        #[error("Invalid glob pattern")]
-        PatternError(#[from] glob::PatternError),
-        #[error("Failed to process glob pattern")]
-        GlobError(#[from] glob::GlobError),
-    }
-
-    #[derive(thiserror::Error, miette::Diagnostic, Debug)]
-    pub enum BuildError {
-        #[error("Failed to load spec from workspace: {file:?}")]
-        TemplateLoadError {
-            file: std::path::PathBuf,
-            source: spk_schema::Error,
-        },
-    }
-}
+use crate::error;
 
 #[derive(Default)]
 pub struct WorkspaceBuilder {
@@ -61,15 +27,23 @@ impl WorkspaceBuilder {
 
     /// Load all data from a workspace specification.
     pub fn load_from_file(
-        mut self,
+        self,
         file: crate::file::WorkspaceFile,
     ) -> Result<Self, error::FromFileError> {
-        let mut glob_results = file
-            .recipes
-            .iter()
-            .map(|pattern| glob::glob(pattern.path.as_str()))
-            .flatten_ok()
-            .flatten_ok();
+        file.recipes.iter().try_fold(self, |builder, pattern| {
+            builder.with_glob_pattern(pattern.path.as_str())
+        })
+    }
+
+    /// Add all recipe files matching a glob pattern to the workspace.
+    ///
+    /// If the provided pattern is relative, it will be relative to the
+    /// current working directory.
+    pub fn with_glob_pattern<S: AsRef<str>>(
+        mut self,
+        pattern: S,
+    ) -> Result<Self, error::FromFileError> {
+        let mut glob_results = glob::glob(pattern.as_ref())?;
         while let Some(path) = glob_results.next().transpose()? {
             self = self.with_recipe_file(path);
         }
@@ -84,15 +58,10 @@ impl WorkspaceBuilder {
     }
 
     pub fn build(self) -> Result<super::Workspace, error::BuildError> {
-        let mut templates = HashMap::<_, Vec<_>>::new();
+        let mut workspace = super::Workspace::default();
         for file in self.spec_files {
-            let template = spk_schema::SpecTemplate::from_file(&file)
-                .map_err(|source| error::BuildError::TemplateLoadError { file, source })?;
-            templates
-                .entry(template.name().cloned())
-                .or_default()
-                .push(template);
+            workspace.load_template_file(file)?;
         }
-        Ok(crate::Workspace { templates })
+        Ok(workspace)
     }
 }
