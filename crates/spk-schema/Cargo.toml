@@ -20,7 +20,7 @@ config = { workspace = true }
 data-encoding = "2.3"
 dunce = { workspace = true }
 enum_dispatch = { workspace = true }
-format_serde_error = { version = "0.3", default-features = false, features = [
+format_serde_error = { workspace = true, default-features = false, features = [
     "serde_yaml",
     "colored",
 ] }

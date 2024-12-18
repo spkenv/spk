@@ -38,6 +38,8 @@ SPK/SPFS are distributed using the [Apache-2.0 license](LICENSE).
 
 `spk` is the software packaging system built on top of SPFS.
 
+The `packages` directory contains a collection of recipes that can be used as examples or to build out common open source software packages.
+
 ## Contributing
 
 Please read [Contributing to SPK](CONTRIBUTING.md).

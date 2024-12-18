@@ -2,13 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use std::sync::Arc;
-
 use clap::Args;
 use miette::{Context, IntoDiagnostic, Result};
 use spk_cli_common::{flags, CommandArgs, Run};
 use spk_schema::foundation::format::FormatOptionMap;
-use spk_schema::{SpecFileData, SpecTemplate, Template, TemplateExt};
+use spk_schema::{SpecFileData, Template};
 
 /// Render a package spec template into a recipe
 ///
@@ -19,6 +17,9 @@ use spk_schema::{SpecFileData, SpecTemplate, Template, TemplateExt};
 pub struct MakeRecipe {
     #[clap(flatten)]
     pub options: flags::Options,
+
+    #[clap(flatten)]
+    pub workspace: flags::Workspace,
 
     #[clap(short, long, global = true, action = clap::ArgAction::Count)]
     pub verbose: u8,
@@ -44,16 +45,13 @@ impl Run for MakeRecipe {
 
     async fn run(&mut self) -> Result<Self::Output> {
         let options = self.options.get_options()?;
+        let workspace = self.workspace.load_or_default()?;
 
-        let template = match flags::find_package_template(self.package.as_ref())? {
-            flags::FindPackageTemplateResult::NotFound(name) => {
-                Arc::new(SpecTemplate::from_file(name.as_ref())?)
-            }
-            res => {
-                let (_, template) = res.must_be_found();
-                template
-            }
-        };
+        let template = match self.package.as_ref() {
+            None => workspace.default_package_template(),
+            Some(p) => workspace.find_package_template(p),
+        }
+        .must_be_found();
 
         if let Some(name) = template.name() {
             tracing::info!("rendering template for {name}");

@@ -1,7 +1,7 @@
 [package]
+name = "spk-workspace"
 authors = { workspace = true }
 edition = { workspace = true }
-name = "spk-schema-ident"
 version = { workspace = true }
 license-file = { workspace = true }
 homepage = { workspace = true }
@@ -13,26 +13,22 @@ description = { workspace = true }
 workspace = true
 
 [features]
-migration-to-components = ["spk-schema-foundation/migration-to-components"]
+sentry = ["spk-solve/sentry"]
 
 [dependencies]
-colored = { workspace = true }
-format_serde_error = { workspace = true, default-features = false, features = [
-    "serde_yaml",
-    "colored",
-] }
+bracoxide = { workspace = true }
+format_serde_error = { workspace = true }
+glob = { workspace = true }
 itertools = { workspace = true }
-nom = { workspace = true }
-nom-supreme = { workspace = true }
-relative-path = { workspace = true }
+miette = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_yaml = { workspace = true }
-spk-schema-foundation = { workspace = true }
-tap = { workspace = true }
+spk-schema = { workspace = true }
+spk-solve = { workspace = true }
 thiserror = { workspace = true }
-miette = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
-data-encoding = "2.3"
-proptest = "1.0.0"
 rstest = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
