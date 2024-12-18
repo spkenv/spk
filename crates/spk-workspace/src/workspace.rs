@@ -3,7 +3,6 @@
 // https://github.com/spkenv/spk
 
 use std::collections::{BTreeSet, HashMap};
-use std::sync::Arc;
 
 use spk_schema::name::{PkgName, PkgNameBuf};
 use spk_schema::{SpecTemplate, Template, TemplateExt};
@@ -28,7 +27,7 @@ pub struct Workspace {
 }
 
 pub struct ConfiguredTemplate {
-    pub template: Arc<SpecTemplate>,
+    pub template: SpecTemplate,
     pub config: crate::file::TemplateConfig,
 }
 
@@ -128,12 +127,12 @@ impl Workspace {
         path: P,
         config: crate::file::TemplateConfig,
     ) -> Result<&mut ConfiguredTemplate, error::BuildError> {
-        let template = spk_schema::SpecTemplate::from_file(path.as_ref())
-            .map(Arc::new)
-            .map_err(|source| error::BuildError::TemplateLoadError {
+        let template = spk_schema::SpecTemplate::from_file(path.as_ref()).map_err(|source| {
+            error::BuildError::TemplateLoadError {
                 file: path.as_ref().to_owned(),
                 source,
-            })?;
+            }
+        })?;
         tracing::trace!(
             "Load template into workspace: {:?} [{}]",
             path.as_ref(),
