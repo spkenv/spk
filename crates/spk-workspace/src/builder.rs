@@ -12,6 +12,7 @@ use crate::error;
 /// yaml files on disk or programmatically.
 #[derive(Default)]
 pub struct WorkspaceBuilder {
+    root: Option<std::path::PathBuf>,
     spec_files: HashMap<std::path::PathBuf, crate::file::TemplateConfig>,
 }
 
@@ -26,8 +27,9 @@ impl WorkspaceBuilder {
         self,
         dir: impl AsRef<std::path::Path>,
     ) -> Result<Self, error::FromPathError> {
-        let file = crate::file::WorkspaceFile::discover(dir)?;
-        self.load_from_file(file)
+        let (file, root) = crate::file::WorkspaceFile::discover(dir)?;
+        self.with_root(root)
+            .load_from_file(file)
             .map_err(error::FromPathError::from)
     }
 
@@ -36,9 +38,19 @@ impl WorkspaceBuilder {
         self,
         file: crate::file::WorkspaceFile,
     ) -> Result<Self, error::FromFileError> {
-        file.recipes.iter().try_fold(self, |builder, pattern| {
-            builder.with_glob_pattern(pattern.path.as_str())
-        })
+        file.recipes
+            .iter()
+            .try_fold(self, |builder, item| builder.with_recipes_item(item))
+    }
+
+    /// Specify the root directory for the workspace.
+    ///
+    /// This is the path that will be used to resolve all
+    /// relative paths and relative glob patterns. If not
+    /// specified, the current working directory will be used.
+    pub fn with_root(mut self, root: impl Into<std::path::PathBuf>) -> Self {
+        self.root = Some(root.into());
+        self
     }
 
     /// Add all recipe files matching a glob pattern to the workspace.
@@ -49,12 +61,17 @@ impl WorkspaceBuilder {
         mut self,
         item: &crate::file::RecipesItem,
     ) -> Result<Self, error::FromFileError> {
-        let mut glob_results = glob::glob(item.path.as_str())?;
+        let with_root = self.root.as_deref().map(|p| p.join(item.path.as_str()));
+        let pattern = with_root
+            .as_deref()
+            .and_then(|p| p.to_str())
+            .unwrap_or(item.path.as_str());
+        let mut glob_results = glob::glob(pattern)?;
         while let Some(path) = glob_results.next().transpose()? {
             self.spec_files
                 .entry(path)
                 .or_default()
-                .update(&item.config);
+                .update(item.config.clone());
         }
 
         Ok(self)
@@ -67,15 +84,13 @@ impl WorkspaceBuilder {
     /// All configuration for this path will be left as the defaults
     /// unless already set.
     pub fn with_glob_pattern<S: AsRef<str>>(
-        mut self,
+        self,
         pattern: S,
     ) -> Result<Self, error::FromFileError> {
-        let mut glob_results = glob::glob(pattern.as_ref())?;
-        while let Some(path) = glob_results.next().transpose()? {
-            self.spec_files.entry(path).or_default();
-        }
-
-        Ok(self)
+        self.with_recipes_item(&crate::file::RecipesItem {
+            path: glob::Pattern::new(pattern.as_ref())?,
+            config: Default::default(),
+        })
     }
 
     /// Build the workspace as configured.

@@ -2,12 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
+use std::str::FromStr;
 
 use spk_schema::name::{PkgName, PkgNameBuf};
+use spk_schema::version::Version;
 use spk_schema::{SpecTemplate, Template, TemplateExt};
 
 use crate::error;
+
+#[cfg(test)]
+#[path = "workspace_test.rs"]
+mod workspace_test;
 
 /// A collection of recipes and build targets.
 ///
@@ -26,6 +32,7 @@ pub struct Workspace {
     pub(crate) templates: HashMap<PkgNameBuf, Vec<ConfiguredTemplate>>,
 }
 
+#[derive(Debug)]
 pub struct ConfiguredTemplate {
     pub template: SpecTemplate,
     pub config: crate::file::TemplateConfig,
@@ -44,10 +51,10 @@ impl Workspace {
             .flat_map(|(name, templates)| templates.iter().map(|t| (name.as_ref(), t)))
     }
 
-    /// Get the default package template file for the workspace.
+    /// Returns the default package template file for the current workspace.
     ///
-    /// This only works if the workspace has a single template file
-    /// that matches the workspace glob patterns.
+    /// The default template in a workspace is a lone template file, and
+    /// this function will return an error if there is more than one template.
     pub fn default_package_template(&self) -> FindPackageTemplateResult<'_> {
         let mut iter = self.iter();
         // This must catch and convert all the errors into the appropriate
@@ -59,12 +66,8 @@ impl Workspace {
         };
 
         if iter.next().is_some() {
-            let files = self
-                .templates
-                .values()
-                .flat_map(|templates| templates.iter().map(|t| t.template.file_path().to_owned()))
-                .collect();
-            return FindPackageTemplateResult::MultipleTemplateFiles(files);
+            let all = self.templates.values().flatten().collect();
+            return FindPackageTemplateResult::MultipleTemplateFiles(all);
         };
 
         FindPackageTemplateResult::Found(template)
@@ -72,39 +75,65 @@ impl Workspace {
 
     /// Find a package template file for the requested package, if any.
     ///
-    /// This function will use the current directory and the provided
-    /// package name or filename to try and discover the matching
-    /// yaml template file.
-    pub fn find_package_template<S>(&self, package: &S) -> FindPackageTemplateResult
+    /// A package name, name with version, or filename can be provided.
+    pub fn find_package_template<S>(&self, package: S) -> FindPackageTemplateResult
     where
         S: AsRef<str>,
     {
         let package = package.as_ref();
+        let found = if let Ok(name) = spk_schema::name::PkgName::new(package) {
+            tracing::debug!("Find package template by name: {name}");
+            self.find_package_templates(name)
+        } else if let Ok(ident) = spk_schema::VersionIdent::from_str(package) {
+            tracing::debug!("Find package template for version: {ident}");
+            self.find_package_template_for_version(ident.name(), ident.version())
+        } else {
+            tracing::debug!("Find package template by path: {package}");
+            self.find_package_template_by_file(std::path::Path::new(package))
+        };
 
-        if let Ok(name) = spk_schema::name::PkgName::new(package) {
-            match self.templates.get(name) {
-                Some(templates) if templates.len() == 1 => {
-                    return FindPackageTemplateResult::Found(&templates[0]);
-                }
-                Some(templates) => {
-                    return FindPackageTemplateResult::MultipleTemplateFiles(
-                        templates
-                            .iter()
-                            .map(|t| t.template.file_path().to_owned())
-                            .collect(),
-                    );
-                }
-                None => {}
-            }
+        if found.is_empty() {
+            return FindPackageTemplateResult::NotFound(package.to_owned());
         }
-
-        for entry in self.templates.values().flatten() {
-            if entry.template.file_path() == std::path::Path::new(package) {
-                return FindPackageTemplateResult::Found(entry);
-            }
+        if found.len() > 1 {
+            return FindPackageTemplateResult::MultipleTemplateFiles(found);
         }
+        FindPackageTemplateResult::Found(found[0])
+    }
 
-        FindPackageTemplateResult::NotFound(package.to_owned())
+    /// Like [`Self::find_package_template`], but further filters by package version.
+    pub fn find_package_template_for_version(
+        &self,
+        package: &PkgName,
+        version: &Version,
+    ) -> Vec<&ConfiguredTemplate> {
+        self.find_package_templates(package)
+            .into_iter()
+            .filter(|t| t.config.versions.is_empty() || t.config.versions.contains(version))
+            .collect::<Vec<_>>()
+    }
+
+    /// Find a package templates for the requested package, if any.
+    ///
+    /// Either a package name or filename can be provided.
+    pub fn find_package_templates(&self, name: &PkgName) -> Vec<&ConfiguredTemplate> {
+        if let Some(templates) = self.templates.get(name) {
+            templates.iter().collect()
+        } else {
+            Default::default()
+        }
+    }
+
+    /// Find package templates by their file path, if any.
+    pub fn find_package_template_by_file(
+        &self,
+        file: &std::path::Path,
+    ) -> Vec<&ConfiguredTemplate> {
+        self.templates
+            .values()
+            .flat_map(|templates| templates.iter())
+            .filter(|t| t.template.file_path() == file)
+            .collect()
     }
 
     /// Load an additional template into this workspace from an arbitrary path on disk.
@@ -120,8 +149,8 @@ impl Workspace {
 
     /// Load an additional template into this workspace from an arbitrary path on disk.
     ///
-    /// No checks are done to ensure that this template has not already been loaded
-    /// or that it actually appears in/logically belongs in this workspace.
+    /// No checks are done to ensure that this template actually appears in or
+    /// logically belongs in this workspace.
     pub fn load_template_file_with_config<P: AsRef<std::path::Path>>(
         &mut self,
         path: P,
@@ -143,9 +172,18 @@ impl Workspace {
                 file: path.as_ref().to_owned(),
             });
         };
+        let loaded_path = template.file_path();
         let by_name = self.templates.entry(name.clone()).or_default();
-        by_name.push(ConfiguredTemplate { template, config });
-        Ok(by_name.last_mut().expect("just pushed something"))
+        let existing = by_name
+            .iter()
+            .position(|t| t.template.file_path() == loaded_path);
+        if let Some(existing) = existing {
+            by_name[existing].config.update(config);
+            Ok(&mut by_name[existing])
+        } else {
+            by_name.push(ConfiguredTemplate { template, config });
+            Ok(by_name.last_mut().expect("just pushed something"))
+        }
     }
 }
 
@@ -156,7 +194,7 @@ pub enum FindPackageTemplateResult<'a> {
     Found(&'a ConfiguredTemplate),
     /// No package was specifically requested, and there are multiple
     /// files in the current repository.
-    MultipleTemplateFiles(BTreeSet<std::path::PathBuf>),
+    MultipleTemplateFiles(Vec<&'a ConfiguredTemplate>),
     /// No package was specifically requested, and there no template
     /// files in the current repository.
     NoTemplateFiles,
@@ -174,12 +212,29 @@ impl<'a> FindPackageTemplateResult<'a> {
     pub fn must_be_found(self) -> &'a ConfiguredTemplate {
         match self {
             Self::Found(template) => return template,
-            Self::MultipleTemplateFiles(files) => {
+            Self::MultipleTemplateFiles(templates) => {
+                let mut here = std::env::current_dir().unwrap_or_default();
+                here = here.canonicalize().unwrap_or(here);
                 tracing::error!("Multiple package specs in current workspace:");
-                for file in files {
-                    tracing::error!("- {}", file.into_os_string().to_string_lossy());
+                for configured in templates {
+                    // attempt to strip the current working directory from each path
+                    // because in most cases it was loaded from the active workspace
+                    // and the additional path prefix is just noise
+                    let path = configured.template.file_path();
+                    let path = path.strip_prefix(&here).unwrap_or(path).to_string_lossy();
+                    let mut versions = configured
+                        .config
+                        .versions
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    if versions.is_empty() {
+                        versions.push('?');
+                    }
+                    tracing::error!(" - {path} versions=[{versions}]",);
                 }
-                tracing::error!(" > please specify a package name or filepath");
+                tracing::error!(" > ensure that you specify a package name, file path or version");
             }
             Self::NoTemplateFiles => {
                 tracing::error!("No package specs found in current workspace");

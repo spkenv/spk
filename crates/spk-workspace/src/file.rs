@@ -3,7 +3,7 @@
 // https://github.com/spkenv/spk
 
 use std::collections::BTreeSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use bracoxide::tokenizer::TokenizationError;
@@ -48,8 +48,9 @@ impl WorkspaceFile {
     }
 
     /// Load the workspace for a given dir, looking at parent directories
-    /// as necessary to find the workspace root
-    pub fn discover<P: AsRef<Path>>(cwd: P) -> Result<Self, LoadWorkspaceFileError> {
+    /// as necessary to find the workspace root. Returns the workspace root directory
+    /// that was found, if any.
+    pub fn discover<P: AsRef<Path>>(cwd: P) -> Result<(Self, PathBuf), LoadWorkspaceFileError> {
         let cwd = if cwd.as_ref().is_absolute() {
             cwd.as_ref().to_owned()
         } else {
@@ -65,7 +66,7 @@ impl WorkspaceFile {
         let mut candidate: std::path::PathBuf = cwd.clone();
         loop {
             if candidate.join(WorkspaceFile::FILE_NAME).is_file() {
-                return Self::load(candidate);
+                return Self::load(&candidate).map(|l| (l, candidate));
             }
             if !candidate.pop() {
                 break;
@@ -141,9 +142,14 @@ pub struct TemplateConfig {
 }
 
 impl TemplateConfig {
-    pub fn update(&mut self, other: &Self) {
-        if !other.versions.is_empty() {
-            self.versions = other.versions.clone();
+    /// Update this config with newly specified data.
+    ///
+    /// Default values in the provided `other` value do not
+    /// overwrite existing data in this instance.
+    pub fn update(&mut self, other: Self) {
+        let Self { versions } = other;
+        if !versions.is_empty() {
+            self.versions = versions;
         }
     }
 }
