@@ -27,10 +27,11 @@ spfs = { workspace = true }
 spk-cli-common = { workspace = true }
 spk-cmd-make-binary = { workspace = true }
 spk-cmd-make-source = { workspace = true }
+spk-schema = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
-spk-schema = { workspace = true }
 spk-storage = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }

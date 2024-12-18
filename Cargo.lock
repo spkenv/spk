@@ -4116,6 +4116,7 @@ dependencies = [
  "spk-storage",
  "tempfile",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -4257,6 +4258,7 @@ dependencies = [
  "async-trait",
  "clap 4.5.0",
  "miette",
+ "serde_yaml 0.9.27",
  "spfs",
  "spk-build",
  "spk-cli-common",
