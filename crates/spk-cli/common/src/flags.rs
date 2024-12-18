@@ -738,6 +738,10 @@ impl std::str::FromStr for PackageSpecifier {
 #[derive(Args, Default, Clone)]
 pub struct Packages {
     /// The package names or yaml spec files to operate on
+    ///
+    /// Package requests may also come with a version when multiple
+    /// versions might be found in the local workspace or configured
+    /// repositories.
     #[clap(name = "PKG|SPEC_FILE")]
     pub packages: Vec<PackageSpecifier>,
 
@@ -828,7 +832,7 @@ where
             res.must_be_found();
             unreachable!()
         }
-        FindPackageTemplateResult::NoTemplateFiles | FindPackageTemplateResult::NotFound(_) => {
+        FindPackageTemplateResult::NoTemplateFiles | FindPackageTemplateResult::NotFound(..) => {
             // If couldn't find a template file, maybe there's an
             // existing package/version that's been published
             match package_name.map(AsRef::as_ref) {
