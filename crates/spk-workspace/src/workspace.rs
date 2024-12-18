@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use spk_schema::name::{PkgName, PkgNameBuf};
-use spk_schema::version::Version;
+use spk_schema::version_range::{LowestSpecifiedRange, Ranged};
 use spk_schema::{SpecTemplate, Template, TemplateExt};
 
 use crate::error;
@@ -85,8 +85,15 @@ impl Workspace {
             tracing::debug!("Find package template by name: {name}");
             self.find_package_templates(name)
         } else if let Ok(ident) = spk_schema::VersionIdent::from_str(package) {
-            tracing::debug!("Find package template for version: {ident}");
-            self.find_package_template_for_version(ident.name(), ident.version())
+            // The lowest specified range is preferred when valid, because it
+            // allows for the user to specify something like `python/3` to disambiguate
+            // between major versions without needing to select an exact/complete version.
+            let range = LowestSpecifiedRange::new(ident.version().clone());
+            tracing::debug!(
+                "Find package template for version: {}/{range}",
+                ident.name()
+            );
+            self.find_package_template_for_version(ident.name(), range)
         } else {
             tracing::debug!("Find package template by path: {package}");
             self.find_package_template_by_file(std::path::Path::new(package))
@@ -102,14 +109,20 @@ impl Workspace {
     }
 
     /// Like [`Self::find_package_template`], but further filters by package version.
-    pub fn find_package_template_for_version(
+    pub fn find_package_template_for_version<R: Ranged>(
         &self,
         package: &PkgName,
-        version: &Version,
+        range: R,
     ) -> Vec<&ConfiguredTemplate> {
         self.find_package_templates(package)
             .into_iter()
-            .filter(|t| t.config.versions.is_empty() || t.config.versions.contains(version))
+            .filter(|t| {
+                t.config.versions.is_empty()
+                    || t.config
+                        .versions
+                        .iter()
+                        .any(|v| range.is_applicable(v).is_ok())
+            })
             .collect::<Vec<_>>()
     }
 
@@ -230,7 +243,7 @@ impl<'a> FindPackageTemplateResult<'a> {
                         .collect::<Vec<_>>()
                         .join(", ");
                     if versions.is_empty() {
-                        versions.push('?');
+                        versions.push_str("<any>");
                     }
                     tracing::error!(" - {path} versions=[{versions}]",);
                 }
