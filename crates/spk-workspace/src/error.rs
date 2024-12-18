@@ -34,12 +34,18 @@ pub enum FromFileError {
 #[derive(thiserror::Error, miette::Diagnostic, Debug)]
 pub enum BuildError {
     /// Error loading a package recipe for the workspace
-    #[error("Failed to load spec from workspace: {file:?}")]
+    #[error("Failed to load template in workspace: {file:?}")]
     TemplateLoadError {
         /// The file that failed to load
         file: std::path::PathBuf,
         /// The underlying error that occurred
         source: spk_schema::Error,
+    },
+    /// A template was found but has no discernible name
+    #[error("Template cannot be loaded into workspace since it has no name defined: {file:?}")]
+    UnnamedTemplate {
+        /// The file that could not be loaded
+        file: std::path::PathBuf,
     },
 }
 

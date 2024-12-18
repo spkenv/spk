@@ -323,7 +323,8 @@ sources:
     let tpl = SpecTemplate {
         name: Some(PkgName::new("my-package").unwrap().to_owned()),
         file_path: "my-package.spk.yaml".into(),
-        template: SPEC.to_string(),
+        versions: Default::default(),
+        template: SPEC.into(),
     };
     let options = option_map! {"version" => "1.0.0"};
     let err = tpl
@@ -347,7 +348,8 @@ fn test_template_namespace_options() {
     let tpl = SpecTemplate {
         name: Some(PkgName::new("my-package").unwrap().to_owned()),
         file_path: "my-package.spk.yaml".into(),
-        template: SPEC.to_string(),
+        versions: Default::default(),
+        template: SPEC.into(),
     };
     let options = option_map! {"namespace.version" => "1.0.0"};
     let rendered_data = tpl

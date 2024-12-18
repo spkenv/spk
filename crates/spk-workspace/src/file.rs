@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::collections::BTreeSet;
 use std::path::Path;
 use std::str::FromStr;
 
@@ -77,7 +78,7 @@ impl WorkspaceFile {
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd)]
 pub struct RecipesItem {
     pub path: glob::Pattern,
-    pub versions: Vec<Version>,
+    pub config: TemplateConfig,
 }
 
 impl<'de> serde::de::Deserialize<'de> for RecipesItem {
@@ -101,7 +102,7 @@ impl<'de> serde::de::Deserialize<'de> for RecipesItem {
                 let path = glob::Pattern::new(v).map_err(serde::de::Error::custom)?;
                 Ok(RecipesItem {
                     path,
-                    versions: Vec::new(),
+                    config: Default::default(),
                 })
             }
 
@@ -112,14 +113,68 @@ impl<'de> serde::de::Deserialize<'de> for RecipesItem {
                 #[derive(Deserialize)]
                 struct RawRecipeItem {
                     path: String,
-                    #[serde(default)]
+                    #[serde(flatten)]
+                    config: TemplateConfig,
+                }
+
+                let RawRecipeItem { path, config } =
+                    RawRecipeItem::deserialize(serde::de::value::MapAccessDeserializer::new(map))?;
+                let mut base = self.visit_str(&path)?;
+                base.config = config;
+                Ok(base)
+            }
+        }
+
+        deserializer.deserialize_any(RecipeCollectorVisitor)
+    }
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Default)]
+pub struct TemplateConfig {
+    /// Ordered set of versions that this template can produce.
+    ///
+    /// An empty set of versions does not mean that no versions can
+    /// be produces, but rather that any can be attempted. It's also
+    /// typical for a template to have a single hard-coded version inside
+    /// and so not need to specify values for this field.
+    pub versions: BTreeSet<Version>,
+}
+
+impl TemplateConfig {
+    pub fn update(&mut self, other: &Self) {
+        if !other.versions.is_empty() {
+            self.versions = other.versions.clone();
+        }
+    }
+}
+
+impl<'de> serde::de::Deserialize<'de> for TemplateConfig {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        struct TemplateConfigVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for TemplateConfigVisitor {
+            type Value = TemplateConfig;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("additional recipe collection configuration")
+            }
+
+            fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                #[derive(Deserialize)]
+                struct RawConfig {
                     versions: Vec<String>,
                 }
 
-                let raw_recipe =
-                    RawRecipeItem::deserialize(serde::de::value::MapAccessDeserializer::new(map))?;
-                let mut base = self.visit_str(&raw_recipe.path)?;
-                for (i, version_expr) in raw_recipe.versions.into_iter().enumerate() {
+                let raw_config =
+                    RawConfig::deserialize(serde::de::value::MapAccessDeserializer::new(map))?;
+                let mut base = TemplateConfig::default();
+                for (i, version_expr) in raw_config.versions.into_iter().enumerate() {
                     let expand_result = bracoxide::bracoxidize(&version_expr);
                     let expanded = match expand_result {
                         Ok(expanded) => expanded,
@@ -144,13 +199,13 @@ impl<'de> serde::de::Deserialize<'de> for RecipesItem {
                                 "brace expansion in position {i} produced invalid version '{version}': {err}"
                             ))
                         })?;
-                        base.versions.push(parsed);
+                        base.versions.insert(parsed);
                     }
                 }
                 Ok(base)
             }
         }
 
-        deserializer.deserialize_any(RecipeCollectorVisitor)
+        deserializer.deserialize_map(TemplateConfigVisitor)
     }
 }

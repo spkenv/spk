@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
-use spk_schema::name::PkgNameBuf;
+use spk_schema::name::{PkgName, PkgNameBuf};
 use spk_schema::{SpecTemplate, Template, TemplateExt};
 
 use crate::error;
@@ -23,9 +23,13 @@ pub struct Workspace {
     /// Spec templates available in this workspace.
     ///
     /// A workspace may contain multiple recipes for a single
-    /// package, and templates may also not have a package name
-    /// defined inside.
-    pub(crate) templates: HashMap<Option<PkgNameBuf>, Vec<Arc<SpecTemplate>>>,
+    /// package.
+    pub(crate) templates: HashMap<PkgNameBuf, Vec<ConfiguredTemplate>>,
+}
+
+pub struct ConfiguredTemplate {
+    pub template: Arc<SpecTemplate>,
+    pub config: crate::file::TemplateConfig,
 }
 
 impl Workspace {
@@ -35,17 +39,17 @@ impl Workspace {
     }
 
     /// Iterate over all templates in the workspace.
-    pub fn iter(&self) -> impl Iterator<Item = (&Option<PkgNameBuf>, &Arc<SpecTemplate>)> {
+    pub fn iter(&self) -> impl Iterator<Item = (&PkgName, &ConfiguredTemplate)> {
         self.templates
             .iter()
-            .flat_map(|(key, entries)| entries.iter().map(move |e| (key, e)))
+            .flat_map(|(name, templates)| templates.iter().map(|t| (name.as_ref(), t)))
     }
 
     /// Get the default package template file for the workspace.
     ///
     /// This only works if the workspace has a single template file
     /// that matches the workspace glob patterns.
-    pub fn default_package_template(&self) -> FindPackageTemplateResult {
+    pub fn default_package_template(&self) -> FindPackageTemplateResult<'_> {
         let mut iter = self.iter();
         // This must catch and convert all the errors into the appropriate
         // FindPackageTemplateResult, e.g. NotFound(error_message), so
@@ -59,12 +63,12 @@ impl Workspace {
             let files = self
                 .templates
                 .values()
-                .flat_map(|templates| templates.iter().map(|t| t.file_path().to_owned()))
+                .flat_map(|templates| templates.iter().map(|t| t.template.file_path().to_owned()))
                 .collect();
             return FindPackageTemplateResult::MultipleTemplateFiles(files);
         };
 
-        FindPackageTemplateResult::Found(Arc::clone(template))
+        FindPackageTemplateResult::Found(template)
     }
 
     /// Find a package template file for the requested package, if any.
@@ -78,23 +82,26 @@ impl Workspace {
     {
         let package = package.as_ref();
 
-        if let Ok(name) = spk_schema::name::PkgNameBuf::try_from(package) {
-            match self.templates.get(&Some(name)) {
+        if let Ok(name) = spk_schema::name::PkgName::new(package) {
+            match self.templates.get(name) {
                 Some(templates) if templates.len() == 1 => {
-                    return FindPackageTemplateResult::Found(Arc::clone(&templates[0]));
+                    return FindPackageTemplateResult::Found(&templates[0]);
                 }
                 Some(templates) => {
                     return FindPackageTemplateResult::MultipleTemplateFiles(
-                        templates.iter().map(|t| t.file_path().to_owned()).collect(),
+                        templates
+                            .iter()
+                            .map(|t| t.template.file_path().to_owned())
+                            .collect(),
                     );
                 }
                 None => {}
             }
         }
 
-        for template in self.templates.values().flatten() {
-            if template.file_path() == std::path::Path::new(package) {
-                return FindPackageTemplateResult::Found(Arc::clone(template));
+        for entry in self.templates.values().flatten() {
+            if entry.template.file_path() == std::path::Path::new(package) {
+                return FindPackageTemplateResult::Found(entry);
             }
         }
 
@@ -108,7 +115,19 @@ impl Workspace {
     pub fn load_template_file<P: AsRef<std::path::Path>>(
         &mut self,
         path: P,
-    ) -> Result<&Arc<SpecTemplate>, error::BuildError> {
+    ) -> Result<&mut ConfiguredTemplate, error::BuildError> {
+        self.load_template_file_with_config(path, Default::default())
+    }
+
+    /// Load an additional template into this workspace from an arbitrary path on disk.
+    ///
+    /// No checks are done to ensure that this template has not already been loaded
+    /// or that it actually appears in/logically belongs in this workspace.
+    pub fn load_template_file_with_config<P: AsRef<std::path::Path>>(
+        &mut self,
+        path: P,
+        config: crate::file::TemplateConfig,
+    ) -> Result<&mut ConfiguredTemplate, error::BuildError> {
         let template = spk_schema::SpecTemplate::from_file(path.as_ref())
             .map(Arc::new)
             .map_err(|source| error::BuildError::TemplateLoadError {
@@ -120,23 +139,25 @@ impl Workspace {
             path.as_ref(),
             template.name().map(|n| n.as_str()).unwrap_or("<no name>")
         );
-        let by_name = self.templates.entry(template.name().cloned()).or_default();
-        by_name.push(template);
-        Ok(by_name.last().expect("just pushed something"))
+        let Some(name) = template.name() else {
+            return Err(error::BuildError::UnnamedTemplate {
+                file: path.as_ref().to_owned(),
+            });
+        };
+        let by_name = self.templates.entry(name.clone()).or_default();
+        by_name.push(ConfiguredTemplate { template, config });
+        Ok(by_name.last_mut().expect("just pushed something"))
     }
 }
 
 /// The result of the [`Workspace::find_package_template`] function.
-// We are okay with the large variant here because it's specifically
-// used as the positive result of the function, with the others simply
-// denoting unique error cases.
-#[allow(clippy::large_enum_variant)]
-pub enum FindPackageTemplateResult {
+#[derive(Debug)]
+pub enum FindPackageTemplateResult<'a> {
     /// A non-ambiguous package template file was found
-    Found(Arc<SpecTemplate>),
+    Found(&'a ConfiguredTemplate),
     /// No package was specifically requested, and there are multiple
     /// files in the current repository.
-    MultipleTemplateFiles(Vec<std::path::PathBuf>),
+    MultipleTemplateFiles(BTreeSet<std::path::PathBuf>),
     /// No package was specifically requested, and there no template
     /// files in the current repository.
     NoTemplateFiles,
@@ -144,14 +165,14 @@ pub enum FindPackageTemplateResult {
     NotFound(String),
 }
 
-impl FindPackageTemplateResult {
+impl<'a> FindPackageTemplateResult<'a> {
     ///True if a template file was found
     pub fn is_found(&self) -> bool {
         matches!(self, Self::Found { .. })
     }
 
     /// Prints error messages and exits if no template file was found
-    pub fn must_be_found(self) -> Arc<SpecTemplate> {
+    pub fn must_be_found(self) -> &'a ConfiguredTemplate {
         match self {
             Self::Found(template) => return template,
             Self::MultipleTemplateFiles(files) => {

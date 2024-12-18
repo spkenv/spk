@@ -4,7 +4,7 @@
 
 //! Find and/or build workspaces.
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 use crate::error;
 
@@ -12,7 +12,7 @@ use crate::error;
 /// yaml files on disk or programmatically.
 #[derive(Default)]
 pub struct WorkspaceBuilder {
-    spec_files: HashSet<std::path::PathBuf>,
+    spec_files: HashMap<std::path::PathBuf, crate::file::TemplateConfig>,
 }
 
 impl WorkspaceBuilder {
@@ -45,29 +45,44 @@ impl WorkspaceBuilder {
     ///
     /// If the provided pattern is relative, it will be relative to the
     /// current working directory.
+    pub fn with_recipes_item(
+        mut self,
+        item: &crate::file::RecipesItem,
+    ) -> Result<Self, error::FromFileError> {
+        let mut glob_results = glob::glob(item.path.as_str())?;
+        while let Some(path) = glob_results.next().transpose()? {
+            self.spec_files
+                .entry(path)
+                .or_default()
+                .update(&item.config);
+        }
+
+        Ok(self)
+    }
+
+    /// Add all recipe files matching a glob pattern to the workspace.
+    ///
+    /// If the provided pattern is relative, it will be relative to the
+    /// workspace root (if it has one) or current working directory.
+    /// All configuration for this path will be left as the defaults
+    /// unless already set.
     pub fn with_glob_pattern<S: AsRef<str>>(
         mut self,
         pattern: S,
     ) -> Result<Self, error::FromFileError> {
         let mut glob_results = glob::glob(pattern.as_ref())?;
         while let Some(path) = glob_results.next().transpose()? {
-            self = self.with_recipe_file(path);
+            self.spec_files.entry(path).or_default();
         }
 
         Ok(self)
     }
 
-    /// Add a recipe file to the workspace.
-    pub fn with_recipe_file(mut self, path: impl Into<std::path::PathBuf>) -> Self {
-        self.spec_files.insert(path.into());
-        self
-    }
-
     /// Build the workspace as configured.
     pub fn build(self) -> Result<super::Workspace, error::BuildError> {
         let mut workspace = super::Workspace::default();
-        for file in self.spec_files {
-            workspace.load_template_file(file)?;
+        for (file, config) in self.spec_files {
+            workspace.load_template_file_with_config(file, config)?;
         }
         Ok(workspace)
     }
