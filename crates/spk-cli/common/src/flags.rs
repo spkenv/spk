@@ -379,7 +379,7 @@ impl Requests {
             let path = std::path::Path::new(package);
             if path.is_file() {
                 let workspace = self.workspace.load_or_default()?;
-                let configured = workspace.find_package_template(&package).must_be_found();
+                let configured = workspace.find_package_template(package).must_be_found();
                 let rendered_data = configured.template.render(options)?;
                 let recipe = rendered_data.into_recipe().wrap_err_with(|| {
                     format!(

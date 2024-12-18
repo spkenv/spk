@@ -133,7 +133,7 @@ fn test_workspace_find_template(
     let result = if request.is_empty() {
         workspace.default_package_template()
     } else {
-        workspace.find_package_template(&request)
+        workspace.find_package_template(request)
     };
 
     let super::FindPackageTemplateResult::Found(result) = result else {
@@ -200,7 +200,7 @@ fn test_workspace_find_by_version(tmpdir: tempfile::TempDir) {
         panic!("should fail to find template when there was no version given and multiple exist in the workspace, got {res:#?}");
     };
 
-    let res = workspace.find_package_template("my-package/1.0.0");
+    let res = workspace.find_package_template("my-package/1");
     let super::FindPackageTemplateResult::Found(found) = res else {
         panic!("should find template when multiple exist but an unambiguous version is given, got {res:#?}");
     };
