@@ -47,13 +47,13 @@ impl Run for MakeRecipe {
         let options = self.options.get_options()?;
         let workspace = self.workspace.load_or_default()?;
 
-        let template = match self.package.as_ref() {
+        let configured = match self.package.as_ref() {
             None => workspace.default_package_template(),
             Some(p) => workspace.find_package_template(p),
         }
         .must_be_found();
 
-        if let Some(name) = template.name() {
+        if let Some(name) = configured.template.name() {
             tracing::info!("rendering template for {name}");
         } else {
             tracing::info!("rendering template without a name");
@@ -62,15 +62,15 @@ impl Run for MakeRecipe {
         let data = spk_schema::TemplateData::new(&options);
         tracing::debug!("full template data: {data:#?}");
         let rendered = spk_schema_tera::render_template(
-            template.file_path().to_string_lossy(),
-            template.source(),
+            configured.template.file_path().to_string_lossy(),
+            configured.template.source(),
             &data,
         )
         .into_diagnostic()
         .wrap_err("Failed to render template")?;
         print!("{rendered}");
 
-        match template.render(&options) {
+        match configured.template.render(&options) {
             Err(err) => {
                 tracing::error!("This template did not render into a valid spec {err}");
                 Ok(1)
