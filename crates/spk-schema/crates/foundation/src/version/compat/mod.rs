@@ -496,6 +496,13 @@ impl Compatibility {
         ))
     }
 
+    pub fn into_result(self) -> std::result::Result<(), IncompatibleReason> {
+        match self {
+            Compatibility::Compatible => Ok(()),
+            Compatibility::Incompatible(reason) => Err(reason),
+        }
+    }
+
     #[inline]
     pub fn is_ok(&self) -> bool {
         matches!(self, &Compatibility::Compatible)

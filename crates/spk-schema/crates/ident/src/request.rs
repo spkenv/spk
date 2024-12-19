@@ -1248,6 +1248,18 @@ where
     }
 }
 
+impl<Name> Serialize for NameAndValue<Name>
+where
+    Name: std::fmt::Display,
+{
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&format!("{self}"))
+    }
+}
+
 /// An ambiguous pin value that could be for either a var or
 /// pkg request. It represents all the possible values of both,
 /// and so may not be valid depending on the final context

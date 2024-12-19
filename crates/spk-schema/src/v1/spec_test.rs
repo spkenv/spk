@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::io::Write;
 use std::str::FromStr;
 
@@ -18,13 +18,7 @@ use crate::foundation::option_map::OptionMap;
 use crate::foundation::FromYaml;
 use crate::option::PkgOpt;
 use crate::spec::SpecTemplate;
-use crate::{Opt, Recipe, Template, TemplateExt, Variant, VariantExt};
-
-type TestBuildEnv = (
-    VersionIdent,
-    option_map::OptionMap,
-    Vec<(Spec<BuildIdent>, BTreeSet<Component>)>,
-);
+use crate::{BuildEnv, Opt, Recipe, Template, TemplateExt, Variant, VariantExt};
 
 #[rstest]
 fn test_spec_is_valid_with_only_name() {
@@ -168,21 +162,13 @@ fn test_build_options_respect_components() {
 
 #[rstest]
 fn test_strong_inheritance_injection() {
-    let spec: Spec<VersionIdent> = serde_yaml::from_str(
-        r#"
-        api: recipe/v0
-        pkg: test-pkg/1.0.0
-        build:
-          options:
-            - pkg: base
-    "#,
-    )
-    .unwrap();
-    let build_env: TestBuildEnv = (
-        spec.ident().clone(),
-        Default::default(),
-        vec![(
-            serde_yaml::from_str(
+    struct TestBuildEnv();
+
+    impl BuildEnv for TestBuildEnv {
+        type Package = Spec<BuildIdent>;
+
+        fn build_env(&self) -> Vec<Self::Package> {
+            vec![serde_yaml::from_str(
                 r#"
                 api: package/v0
                 pkg: base/1.0.0/3TCOOP2W
@@ -193,10 +179,26 @@ fn test_strong_inheritance_injection() {
                       inheritance: Strong
             "#,
             )
-            .unwrap(),
-            Default::default(),
-        )],
-    );
+            .unwrap()]
+        }
+
+        fn env_vars(&self) -> HashMap<String, String> {
+            HashMap::default()
+        }
+    }
+
+    let build_env = TestBuildEnv();
+
+    let spec: Spec<VersionIdent> = serde_yaml::from_str(
+        r#"
+        api: recipe/v0
+        pkg: test-pkg/1.0.0
+        build:
+          options:
+            - pkg: base
+    "#,
+    )
+    .unwrap();
 
     let built_package = spec
         .generate_binary_build(&option_map! {}, &build_env)
@@ -228,34 +230,42 @@ fn test_strong_inheritance_injection() {
 
 #[rstest]
 fn test_strong_inheritance_injection_transitivity() {
+    struct TestBuildEnv();
+
+    impl BuildEnv for TestBuildEnv {
+        type Package = Spec<BuildIdent>;
+
+        fn build_env(&self) -> Vec<Self::Package> {
+            vec![serde_yaml::from_str(
+                r#"
+                api: v0/package
+                pkg: base/1.0.0/3TCOOP2W
+                build:
+                  options:
+                    - var: inherit-me/1.2.3
+                      static: 1.2.3
+                      inheritance: Strong
+            "#,
+            )
+            .unwrap()]
+        }
+
+        fn env_vars(&self) -> HashMap<String, String> {
+            HashMap::default()
+        }
+    }
+
+    let build_env = TestBuildEnv();
+
     // Unlike `test_strong_inheritance_injection`, this spec does not have a
     // build dependency on "base".
     let spec: Spec<VersionIdent> = serde_yaml::from_str(
         r#"
         api: v0/package
         pkg: test-pkg/1.0.0
-        "#,
+    "#,
     )
     .unwrap();
-    let build_env: TestBuildEnv = (
-        spec.ident().clone(),
-        Default::default(),
-        vec![(
-            serde_yaml::from_str(
-                r#"
-            api: v0/package
-            pkg: base/1.0.0/3TCOOP2W
-            build:
-              options:
-                - var: inherit-me/1.2.3
-                  static: 1.2.3
-                  inheritance: Strong
-        "#,
-            )
-            .unwrap(),
-            Default::default(),
-        )],
-    );
 
     let built_package = spec
         .generate_binary_build(&option_map! {}, &build_env)
@@ -341,6 +351,28 @@ fn test_variants_can_introduce_components() {
 
 #[rstest]
 fn test_variants_can_append_components() {
+    struct TestBuildEnv();
+
+    impl BuildEnv for TestBuildEnv {
+        type Package = Spec<BuildIdent>;
+
+        fn build_env(&self) -> Vec<Self::Package> {
+            vec![serde_yaml::from_str(
+                r#"
+                api: v0/package
+                pkg: dep-pkg/1.2.3/3TCOOP2W
+            "#,
+            )
+            .unwrap()]
+        }
+
+        fn env_vars(&self) -> HashMap<String, String> {
+            HashMap::default()
+        }
+    }
+
+    let build_env = TestBuildEnv();
+
     let spec: Spec<VersionIdent> = serde_yaml::from_str(
         r#"
         pkg: test-pkg
@@ -352,20 +384,6 @@ fn test_variants_can_append_components() {
     "#,
     )
     .unwrap();
-    let build_env: TestBuildEnv = (
-        spec.ident().clone(),
-        Default::default(),
-        vec![(
-            serde_yaml::from_str(
-                r#"
-                api: v0/package
-                pkg: dep-pkg/1.2.3/3TCOOP2W
-            "#,
-            )
-            .unwrap(),
-            Default::default(),
-        )],
-    );
 
     let variants = spec.default_variants(&OptionMap::default());
 
@@ -407,6 +425,37 @@ fn test_variants_can_append_components() {
 
 #[rstest]
 fn test_variants_can_append_components_and_modify_version() {
+    struct TestBuildEnv();
+
+    impl BuildEnv for TestBuildEnv {
+        type Package = Spec<BuildIdent>;
+
+        fn build_env(&self) -> Vec<Self::Package> {
+            vec![
+                serde_yaml::from_str(
+                    r#"
+                api: v0/package
+                pkg: dep-pkg/1.2.3/3TCOOP2W
+            "#,
+                )
+                .unwrap(),
+                serde_yaml::from_str(
+                    r#"
+                api: v0/package
+                pkg: dep-pkg/1.2.4/3TCOOP2W
+            "#,
+                )
+                .unwrap(),
+            ]
+        }
+
+        fn env_vars(&self) -> HashMap<String, String> {
+            HashMap::default()
+        }
+    }
+
+    let build_env = TestBuildEnv();
+
     let spec: Spec<VersionIdent> = serde_yaml::from_str(
         r#"
         pkg: test-pkg
@@ -420,32 +469,6 @@ fn test_variants_can_append_components_and_modify_version() {
     "#,
     )
     .unwrap();
-    let build_env: TestBuildEnv = (
-        spec.ident().clone(),
-        Default::default(),
-        vec![
-            (
-                serde_yaml::from_str(
-                    r#"
-                api: v0/package
-                pkg: dep-pkg/1.2.3/3TCOOP2W
-            "#,
-                )
-                .unwrap(),
-                Default::default(),
-            ),
-            (
-                serde_yaml::from_str(
-                    r#"
-                api: v0/package
-                pkg: dep-pkg/1.2.4/3TCOOP2W
-            "#,
-                )
-                .unwrap(),
-                Default::default(),
-            ),
-        ],
-    );
 
     let variants = spec.default_variants(&OptionMap::default());
 

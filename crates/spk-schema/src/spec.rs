@@ -106,6 +106,30 @@ macro_rules! recipe {
     }};
 }
 
+/// Create a package spec from a json structure.
+///
+/// This will panic if the given struct
+/// cannot be deserialized into a spec.
+///
+/// ```
+/// # #[macro_use] extern crate spk_schema;
+/// # fn main() {
+/// spec!({
+///   "api": "v0/package",
+///   "pkg": "my-pkg/1.0.0/src"
+/// });
+/// # }
+/// ```
+#[macro_export]
+macro_rules! package {
+    ($($spec:tt)+) => {{
+        use $crate::FromYaml;
+        let value = $crate::serde_json::json!($($spec)+);
+        let spec = $crate::v0::Spec<BuildIdent>::from_yaml(value.to_string()).expect("invalid spec");
+        spec
+    }};
+}
+
 /// Create a spec from a json structure.
 ///
 /// This will panic if the given struct
@@ -287,6 +311,8 @@ pub enum SpecRecipe {
     V0Package(super::v0::Spec<VersionIdent>),
     #[serde(rename = "v0/platform")]
     V0Platform(super::v0::Platform),
+    #[serde(rename = "v1/platform")]
+    V1Platform(super::v1::Platform),
 }
 
 impl SpecRecipe {
@@ -295,6 +321,7 @@ impl SpecRecipe {
         match self {
             SpecRecipe::V0Package(r) => r.build_options(),
             SpecRecipe::V0Platform(r) => r.build_options(),
+            SpecRecipe::V1Platform(r) => r.build_options(),
         }
     }
 }
@@ -308,6 +335,7 @@ impl Recipe for SpecRecipe {
         match self {
             SpecRecipe::V0Package(r) => Recipe::ident(r),
             SpecRecipe::V0Platform(r) => Recipe::ident(r),
+            SpecRecipe::V1Platform(r) => Recipe::ident(r),
         }
     }
 
@@ -318,6 +346,7 @@ impl Recipe for SpecRecipe {
         match self {
             SpecRecipe::V0Package(r) => Recipe::build_digest(r, variant),
             SpecRecipe::V0Platform(r) => Recipe::build_digest(r, variant),
+            SpecRecipe::V1Platform(r) => Recipe::build_digest(r, variant),
         }
     }
 
@@ -343,6 +372,16 @@ impl Recipe for SpecRecipe {
                     .map(SpecVariant::V0)
                     .collect(),
             ),
+            SpecRecipe::V1Platform(r) => Cow::Owned(
+                // use into_owned instead of iter().cloned() in case it's
+                // already an owned instance
+                #[allow(clippy::unnecessary_to_owned)]
+                r.default_variants(options)
+                    .into_owned()
+                    .into_iter()
+                    .map(SpecVariant::V0)
+                    .collect(),
+            ),
         }
     }
 
@@ -353,6 +392,7 @@ impl Recipe for SpecRecipe {
         match self {
             SpecRecipe::V0Package(r) => r.resolve_options(variant),
             SpecRecipe::V0Platform(r) => r.resolve_options(variant),
+            SpecRecipe::V1Platform(r) => r.resolve_options(variant),
         }
     }
 
@@ -363,6 +403,7 @@ impl Recipe for SpecRecipe {
         match self {
             SpecRecipe::V0Package(r) => r.get_build_requirements(variant),
             SpecRecipe::V0Platform(r) => r.get_build_requirements(variant),
+            SpecRecipe::V1Platform(r) => r.get_build_requirements(variant),
         }
     }
 
@@ -381,6 +422,11 @@ impl Recipe for SpecRecipe {
                 .into_iter()
                 .map(SpecTest::V0)
                 .collect()),
+            SpecRecipe::V1Platform(r) => Ok(r
+                .get_tests(stage, variant)?
+                .into_iter()
+                .map(SpecTest::V0)
+                .collect()),
         }
     }
 
@@ -388,6 +434,7 @@ impl Recipe for SpecRecipe {
         match self {
             SpecRecipe::V0Package(r) => r.generate_source_build(root).map(Spec::V0Package),
             SpecRecipe::V0Platform(r) => r.generate_source_build(root).map(Spec::V0Package),
+            SpecRecipe::V1Platform(r) => r.generate_source_build(root).map(Spec::V0Package),
         }
     }
 
@@ -404,6 +451,9 @@ impl Recipe for SpecRecipe {
             SpecRecipe::V0Platform(r) => r
                 .generate_binary_build(variant, build_env)
                 .map(Spec::V0Package),
+            SpecRecipe::V1Platform(r) => r
+                .generate_binary_build(variant, build_env)
+                .map(Spec::V0Package),
         }
     }
 
@@ -411,6 +461,7 @@ impl Recipe for SpecRecipe {
         match self {
             SpecRecipe::V0Package(r) => r.metadata(),
             SpecRecipe::V0Platform(r) => r.metadata(),
+            SpecRecipe::V1Platform(r) => r.metadata(),
         }
     }
 }
@@ -420,6 +471,7 @@ impl HasVersion for SpecRecipe {
         match self {
             SpecRecipe::V0Package(r) => r.version(),
             SpecRecipe::V0Platform(r) => r.version(),
+            SpecRecipe::V1Platform(r) => r.version(),
         }
     }
 }
@@ -429,6 +481,7 @@ impl Named for SpecRecipe {
         match self {
             SpecRecipe::V0Package(r) => r.name(),
             SpecRecipe::V0Platform(r) => r.name(),
+            SpecRecipe::V1Platform(r) => r.name(),
         }
     }
 }
@@ -438,6 +491,7 @@ impl RuntimeEnvironment for SpecRecipe {
         match self {
             SpecRecipe::V0Package(r) => r.runtime_environment(),
             SpecRecipe::V0Platform(r) => r.runtime_environment(),
+            SpecRecipe::V1Platform(r) => r.runtime_environment(),
         }
     }
 }
@@ -447,6 +501,7 @@ impl Versioned for SpecRecipe {
         match self {
             SpecRecipe::V0Package(spec) => spec.compat(),
             SpecRecipe::V0Platform(spec) => spec.compat(),
+            SpecRecipe::V1Platform(spec) => spec.compat(),
         }
     }
 }
@@ -489,11 +544,17 @@ impl FromYaml for SpecRecipe {
                     .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
                 Ok(Self::V0Platform(inner))
             }
-            ApiVersion::V0Requirements => {
-                // Reading a list of requests/requirements file is not
-                // supported here. But it might be in future.
-                unimplemented!()
+            ApiVersion::V1Platform => {
+                let inner = serde_yaml::from_str(&yaml)
+                    .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
+                Ok(Self::V1Platform(inner))
             }
+            ApiVersion::V0Requirements => Err(SerdeError::new(
+                yaml,
+                SerdeYamlError(serde::de::Error::custom(
+                    "Reading a list of requests/requirements file is not supported here.",
+                )),
+            )),
         }
     }
 }
@@ -574,6 +635,11 @@ impl SpecFileData {
                 let inner = serde_yaml::from_value(value)
                     .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
                 SpecFileData::Recipe(Arc::new(SpecRecipe::V0Platform(inner)))
+            }
+            ApiVersion::V1Platform => {
+                let inner = serde_yaml::from_value(value)
+                    .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
+                SpecFileData::Recipe(Arc::new(SpecRecipe::V1Platform(inner)))
             }
             ApiVersion::V0Requirements => {
                 let requests: v0::Requirements = serde_yaml::from_value(value)
@@ -853,11 +919,17 @@ impl FromYaml for Spec {
                     .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
                 Ok(Self::V0Package(inner))
             }
-            ApiVersion::V0Requirements => {
-                // Reading a list of requests/requirement file is not
-                // supported here. But it might be in future.
-                unimplemented!()
+            ApiVersion::V1Platform => {
+                let inner = serde_yaml::from_str(&yaml)
+                    .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
+                Ok(Self::V0Package(inner))
             }
+            ApiVersion::V0Requirements => Err(SerdeError::new(
+                yaml,
+                SerdeYamlError(serde::de::Error::custom(
+                    "Reading a list of requests/requirements file is not supported here.",
+                )),
+            )),
         }
     }
 }
@@ -874,6 +946,8 @@ pub enum ApiVersion {
     V0Package,
     #[serde(rename = "v0/platform")]
     V0Platform,
+    #[serde(rename = "v1/platform")]
+    V1Platform,
     #[serde(rename = "v0/requirements")]
     V0Requirements,
 }

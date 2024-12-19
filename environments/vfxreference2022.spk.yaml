@@ -1,0 +1,7 @@
+api: v1/platform
+
+platform: vfxreference/2022
+
+requirements:
+  - pkg: python/3
+
