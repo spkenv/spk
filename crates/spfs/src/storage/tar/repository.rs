@@ -410,8 +410,11 @@ impl BlobStorage for TarRepository {}
 impl ManifestStorage for TarRepository {}
 impl LayerStorage for TarRepository {}
 impl PlatformStorage for TarRepository {}
-impl Repository for TarRepository {
-    fn address(&self) -> url::Url {
-        url::Url::from_file_path(&self.repo_dir).expect("unexpected failure creating url")
+impl Address for TarRepository {
+    fn address(&self) -> Cow<'_, url::Url> {
+        Cow::Owned(
+            url::Url::from_file_path(&self.repo_dir).expect("unexpected failure creating url"),
+        )
     }
 }
+impl Repository for TarRepository {}

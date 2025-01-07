@@ -254,7 +254,7 @@ where
 
 pub(crate) fn build_spfs_remove_durable_command(
     runtime_name: String,
-    repo_address: Url,
+    repo_address: &Url,
 ) -> Result<Command> {
     let exe = match which_spfs("clean") {
         None => return Err(Error::MissingBinary("spfs-clean")),
