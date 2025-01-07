@@ -175,5 +175,3 @@ impl storage::Address for RpcRepository {
         Cow::Borrowed(&self.address)
     }
 }
-
-impl storage::Repository for RpcRepository {}

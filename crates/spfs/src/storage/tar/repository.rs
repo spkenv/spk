@@ -406,10 +406,6 @@ impl TagStorageMut for TarRepository {
     }
 }
 
-impl BlobStorage for TarRepository {}
-impl ManifestStorage for TarRepository {}
-impl LayerStorage for TarRepository {}
-impl PlatformStorage for TarRepository {}
 impl Address for TarRepository {
     fn address(&self) -> Cow<'_, url::Url> {
         Cow::Owned(
@@ -417,4 +413,3 @@ impl Address for TarRepository {
         )
     }
 }
-impl Repository for TarRepository {}

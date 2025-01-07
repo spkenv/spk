@@ -3,7 +3,6 @@
 // https://github.com/spkenv/spk
 
 use std::borrow::Cow;
-use std::collections::HashSet;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -13,7 +12,6 @@ use relative_path::RelativePath;
 use spfs_encoding as encoding;
 
 use super::prelude::*;
-use super::repository::Ref;
 use super::tag::TagSpecAndTagStream;
 use super::{RepositoryHandle, TagNamespace, TagNamespaceBuf, TagStorageMut};
 use crate::graph::ObjectProto;
@@ -39,29 +37,6 @@ macro_rules! each_variant {
 impl Address for RepositoryHandle {
     fn address(&self) -> Cow<'_, url::Url> {
         each_variant!(self, repo, { repo.address() })
-    }
-}
-
-#[async_trait::async_trait]
-impl Repository for RepositoryHandle {
-    async fn has_ref(&self, reference: &str) -> bool {
-        each_variant!(self, repo, { repo.has_ref(reference).await })
-    }
-
-    async fn resolve_ref(&self, reference: &str) -> Result<encoding::Digest> {
-        each_variant!(self, repo, { repo.resolve_ref(reference).await })
-    }
-
-    async fn read_ref(&self, reference: &str) -> Result<graph::Object> {
-        each_variant!(self, repo, { repo.read_ref(reference).await })
-    }
-
-    async fn find_aliases(&self, reference: &str) -> Result<HashSet<Ref>> {
-        each_variant!(self, repo, { repo.find_aliases(reference).await })
-    }
-
-    async fn commit_blob(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
-        each_variant!(self, repo, { repo.commit_blob(reader).await })
     }
 }
 
@@ -197,11 +172,6 @@ impl PayloadStorage for RepositoryHandle {
     }
 }
 
-impl BlobStorage for RepositoryHandle {}
-impl ManifestStorage for RepositoryHandle {}
-impl LayerStorage for RepositoryHandle {}
-impl PlatformStorage for RepositoryHandle {}
-
 #[async_trait::async_trait]
 impl DatabaseView for RepositoryHandle {
     async fn has_object(&self, digest: encoding::Digest) -> bool {
@@ -253,34 +223,6 @@ impl Address for Arc<RepositoryHandle> {
     /// Return the address of this repository.
     fn address(&self) -> Cow<'_, url::Url> {
         each_variant!(&**self, repo, { repo.address() })
-    }
-}
-
-#[async_trait::async_trait]
-impl Repository for Arc<RepositoryHandle> {
-    /// Return true if this repository contains the given reference.
-    async fn has_ref(&self, reference: &str) -> bool {
-        each_variant!(&**self, repo, { repo.has_ref(reference).await })
-    }
-
-    /// Resolve a tag or digest string into its absolute digest.
-    async fn resolve_ref(&self, reference: &str) -> Result<encoding::Digest> {
-        each_variant!(&**self, repo, { repo.resolve_ref(reference).await })
-    }
-
-    /// Read an object of unknown type by tag or digest.
-    async fn read_ref(&self, reference: &str) -> Result<graph::Object> {
-        each_variant!(&**self, repo, { repo.read_ref(reference).await })
-    }
-
-    /// Return the other identifiers that can be used for 'reference'.
-    async fn find_aliases(&self, reference: &str) -> Result<HashSet<Ref>> {
-        each_variant!(&**self, repo, { repo.find_aliases(reference).await })
-    }
-
-    /// Commit the data from 'reader' as a blob in this repository
-    async fn commit_blob(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
-        each_variant!(&**self, repo, { repo.commit_blob(reader).await })
     }
 }
 
@@ -401,11 +343,6 @@ impl PayloadStorage for Arc<RepositoryHandle> {
         each_variant!(&**self, repo, { repo.remove_payload(digest).await })
     }
 }
-
-impl BlobStorage for Arc<RepositoryHandle> {}
-impl ManifestStorage for Arc<RepositoryHandle> {}
-impl LayerStorage for Arc<RepositoryHandle> {}
-impl PlatformStorage for Arc<RepositoryHandle> {}
 
 #[async_trait::async_trait]
 impl DatabaseView for Arc<RepositoryHandle> {

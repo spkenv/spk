@@ -9,7 +9,7 @@ use futures::{Stream, TryStreamExt};
 use proto::RpcResult;
 
 use crate::graph::{self, ObjectProto};
-use crate::{encoding, proto, storage, Result};
+use crate::{encoding, proto, Result};
 
 #[async_trait::async_trait]
 impl graph::DatabaseView for super::RpcRepository {
@@ -112,8 +112,3 @@ impl graph::Database for super::RpcRepository {
             .to_result()?)
     }
 }
-
-impl storage::PlatformStorage for super::RpcRepository {}
-impl storage::LayerStorage for super::RpcRepository {}
-impl storage::ManifestStorage for super::RpcRepository {}
-impl storage::BlobStorage for super::RpcRepository {}

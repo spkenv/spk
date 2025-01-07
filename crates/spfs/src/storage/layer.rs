@@ -57,4 +57,5 @@ pub trait LayerStorage: graph::Database + Sync + Send {
     }
 }
 
-impl<T: LayerStorage> LayerStorage for &T {}
+/// Blanket implementation.
+impl<T> LayerStorage for T where T: graph::Database + Sync + Send {}

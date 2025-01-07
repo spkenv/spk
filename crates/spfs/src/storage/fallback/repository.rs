@@ -362,10 +362,6 @@ impl TagStorageMut for FallbackProxy {
     }
 }
 
-impl BlobStorage for FallbackProxy {}
-impl ManifestStorage for FallbackProxy {}
-impl LayerStorage for FallbackProxy {}
-impl PlatformStorage for FallbackProxy {}
 impl Address for FallbackProxy {
     fn address(&self) -> Cow<'_, url::Url> {
         let config = Config {
@@ -383,7 +379,6 @@ impl Address for FallbackProxy {
         )
     }
 }
-impl Repository for FallbackProxy {}
 
 impl LocalRepository for FallbackProxy {
     #[inline]
