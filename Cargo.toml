@@ -20,6 +20,7 @@ members = [
     "crates/spk-solve",
     "crates/spk-solve/crates/*",
     "crates/spk-storage",
+    "crates/spk-workspace",
     "crates/spk",
 ]
 resolver = "2"
@@ -43,6 +44,7 @@ description = "SPK is a Package Manager for high-velocity software environments,
 [workspace.dependencies]
 arc-swap = "1.6.0"
 async-trait = "0.1"
+bracoxide = "0.1.4"
 bytes = "1.5"
 cached = "0.48.1"
 chrono = { version = "0.4.34", features = ["serde"] }
@@ -59,6 +61,7 @@ dunce = "1.0.4"
 dyn-clone = "1.0"
 enum_dispatch = "0.3.13"
 flatbuffers = "23.5.26"
+format_serde_error = { version = "0.3", default-features = false }
 fuser = "0.14.0"
 futures = "0.3.28"
 futures-core = "0.3.28"
@@ -135,6 +138,7 @@ spk-solve-package-iterator = { path = "crates/spk-solve/crates/package-iterator"
 spk-solve-solution = { path = "crates/spk-solve/crates/solution" }
 spk-solve-validation = { path = "crates/spk-solve/crates/validation" }
 spk-storage = { path = "crates/spk-storage" }
+spk-workspace = { path = "crates/spk-workspace" }
 static_assertions = "1.1"
 strip-ansi-escapes = "0.2.0"
 strum = { version = "0.26.3", features = ["derive"] }

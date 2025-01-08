@@ -33,6 +33,8 @@ pub struct CmdTest {
     pub runtime: flags::Runtime,
     #[clap(flatten)]
     pub repos: flags::Repositories,
+    #[clap(flatten)]
+    pub workspace: flags::Workspace,
 
     #[clap(short, long, global = true, action = clap::ArgAction::Count)]
     pub verbose: u8,
@@ -73,6 +75,7 @@ impl Run for CmdTest {
             .into_iter()
             .map(|(_, r)| Arc::new(r))
             .collect::<Vec<_>>();
+        let mut workspace = self.workspace.load_or_default()?;
 
         let source = if self.here { Some(".".into()) } else { None };
 
@@ -100,9 +103,13 @@ impl Run for CmdTest {
                 }
             };
 
-            let (spec_data, filename) =
-                flags::find_package_recipe_from_template_or_repo(Some(&name), &options, &repos)
-                    .await?;
+            let (spec_data, filename) = flags::find_package_recipe_from_workspace_or_repo(
+                Some(&name),
+                &options,
+                &mut workspace,
+                &repos,
+            )
+            .await?;
             let recipe = spec_data.into_recipe().wrap_err_with(|| {
                 format!(
                     "{filename} was expected to contain a recipe",

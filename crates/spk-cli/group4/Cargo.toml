@@ -28,6 +28,7 @@ spk-cli-common = { workspace = true }
 spk-schema = { workspace = true }
 spk-solve = { workspace = true }
 spk-storage = { workspace = true }
+spk-workspace = { workspace = true }
 strum = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }

@@ -368,6 +368,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "bracoxide"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fbc0bcb5424e8e1f29c21a00f2d222df5e8e9779732ff03f840315d8fbac708e"
+
+[[package]]
 name = "brownstone"
 version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3987,6 +3993,7 @@ dependencies = [
  "spk-schema",
  "spk-solve",
  "spk-storage",
+ "spk-workspace",
  "statsd 0.15.0",
  "strip-ansi-escapes 0.1.1",
  "thiserror",
@@ -4089,6 +4096,7 @@ dependencies = [
  "spk-schema",
  "spk-solve",
  "spk-storage",
+ "spk-workspace",
  "strum",
  "tokio",
  "tracing",
@@ -4241,6 +4249,7 @@ dependencies = [
  "spk-cli-common",
  "spk-schema",
  "spk-schema-tera",
+ "spk-workspace",
  "tracing",
 ]
 
@@ -4649,6 +4658,26 @@ dependencies = [
  "ulid",
  "url",
  "variantly",
+]
+
+[[package]]
+name = "spk-workspace"
+version = "0.42.0"
+dependencies = [
+ "bracoxide",
+ "format_serde_error",
+ "glob",
+ "itertools 0.12.0",
+ "miette",
+ "rstest 0.18.2",
+ "serde",
+ "serde_json",
+ "serde_yaml 0.9.27",
+ "spk-schema",
+ "spk-solve",
+ "tempfile",
+ "thiserror",
+ "tracing",
 ]
 
 [[package]]
