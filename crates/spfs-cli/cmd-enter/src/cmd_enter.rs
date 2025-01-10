@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::borrow::Cow;
 use std::ffi::OsString;
 #[cfg(feature = "sentry")]
 use std::sync::atomic::Ordering;
@@ -12,6 +13,7 @@ use clap::{Args, Parser};
 use cli::configure_sentry;
 use miette::{Context, Result};
 use spfs::monitor::SPFS_MONITOR_FOREGROUND_LOGGING_VAR;
+use spfs::runtime::EnvKeyValue;
 use spfs::storage::fs::RenderSummary;
 use spfs_cli_common as cli;
 use spfs_cli_common::CommandName;
@@ -80,12 +82,33 @@ pub struct RemountArgs {
     enabled: bool,
 }
 
+fn parse_env_key_value(s: &str) -> Result<EnvKeyValue> {
+    let parts: Vec<&str> = s.splitn(2, '=').collect();
+    if parts.len() != 2 {
+        miette::bail!("Invalid environment key-value pair (missing '='): {s}");
+    }
+    if parts[0].is_empty() {
+        miette::bail!("Invalid environment key-value pair (empty key): {s}");
+    }
+    if parts[0].contains(|c: char| c.is_whitespace()) {
+        miette::bail!("Invalid environment key-value pair (key contains whitespace): {s}");
+    }
+    Ok(EnvKeyValue(parts[0].to_string(), parts[1].to_string()))
+}
+
 #[derive(Debug, Args)]
 #[group(id = "enter_grp")]
 pub struct EnterArgs {
     /// The value to set $TMPDIR to in new environment
+    ///
+    /// Deprecated: use --environment-override instead
     #[clap(long)]
     tmpdir: Option<String>,
+
+    /// Optional keys and values to set in the new environment, in the form
+    /// KEY=VALUE. This option can be repeated.
+    #[clap(long, value_parser = parse_env_key_value)]
+    environment_override: Vec<EnvKeyValue>,
 
     /// Put the rendering and syncing times into environment variables
     #[clap(long)]
@@ -138,6 +161,7 @@ impl CmdEnter {
         // this function will eventually be required to discover the overlayfs
         // attributes. It can take many milliseconds to run so we prime the cache as
         // soon as possible in a separate thread
+
         std::thread::spawn(spfs::runtime::overlayfs::overlayfs_available_options_prime_cache);
 
         let mut runtime = self.load_runtime(config).await?;
@@ -231,7 +255,14 @@ impl CmdEnter {
                 }
             };
 
-            owned.ensure_startup_scripts(self.enter.tmpdir.as_ref())?;
+            let mut environment_overrides = Cow::Borrowed(&self.enter.environment_override);
+            if let Some(tmpdir) = &self.enter.tmpdir {
+                environment_overrides
+                    .to_mut()
+                    .push(EnvKeyValue("TMPDIR".to_string(), tmpdir.to_string()));
+            }
+
+            owned.ensure_startup_scripts(environment_overrides.as_slice())?;
             std::env::set_var("SPFS_RUNTIME", owned.name());
 
             Ok(Some(owned))
@@ -254,7 +285,15 @@ impl CmdEnter {
             let start_time = Instant::now();
             let render_summary = spfs::initialize_runtime(&mut owned).await?;
             self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64());
-            owned.ensure_startup_scripts(self.enter.tmpdir.as_ref())?;
+
+            let mut environment_overrides = Cow::Borrowed(&self.enter.environment_override);
+            if let Some(tmpdir) = &self.enter.tmpdir {
+                environment_overrides
+                    .to_mut()
+                    .push(EnvKeyValue("TMPDIR".to_string(), tmpdir.to_string()));
+            }
+
+            owned.ensure_startup_scripts(environment_overrides.as_slice())?;
             std::env::set_var("SPFS_RUNTIME", owned.name());
 
             Ok(Some(owned))

@@ -464,6 +464,24 @@ pub struct Sentry {
     pub email_domain: Option<String>,
 }
 
+#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct Environment {
+    /// Environment variables names to preserve when creating an spfs
+    /// environment.
+    ///
+    /// Most environment variables are preserved by default but a few are
+    /// cleared for security purposes. Known values include `TMPDIR` and
+    /// `LD_LIBRARY_PATH`. Any variable listed here will be propagated into a
+    /// new spfs runtime by capturing their values before running spfs-enter and
+    /// then setting them back to the captured values from inside the spfs
+    /// runtime startup script.
+    ///
+    /// Any variables listed here that are not present in the environment will
+    /// remain unset in the new spfs environment.
+    pub variable_names_to_preserve: Vec<String>,
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Config {
@@ -474,6 +492,7 @@ pub struct Config {
     pub fuse: Fuse,
     pub monitor: Monitor,
     pub sentry: Sentry,
+    pub environment: Environment,
 }
 
 impl Config {
