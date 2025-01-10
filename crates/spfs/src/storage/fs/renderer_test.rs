@@ -11,7 +11,7 @@ use crate::encoding::prelude::*;
 use crate::fixtures::*;
 use crate::graph::object::{DigestStrategy, EncodingFormat};
 use crate::storage::fs::{FsRepository, OpenFsRepository};
-use crate::storage::{Repository, RepositoryHandle};
+use crate::storage::{RepositoryExt, RepositoryHandle};
 use crate::{tracking, Config};
 
 #[rstest(

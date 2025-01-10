@@ -13,7 +13,7 @@ use crate::fixtures::*;
 use crate::graph::object::{DigestStrategy, EncodingFormat};
 use crate::graph::{AnnotationValue, Layer, Platform};
 use crate::runtime::{BindMount, KeyValuePair, LiveLayer, LiveLayerContents, SpecApiVersion};
-use crate::storage::prelude::Database;
+use crate::storage::prelude::DatabaseExt;
 use crate::{encoding, Config};
 
 #[rstest]

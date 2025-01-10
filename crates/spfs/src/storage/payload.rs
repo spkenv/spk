@@ -28,7 +28,7 @@ pub trait PayloadStorage: Sync + Send {
     ///
     /// It is unsafe to write payload data without also creating a blob
     /// to track that payload in the database. Usually, its better to
-    /// call [`super::Repository::commit_blob`] instead.
+    /// call [`super::RepositoryExt::commit_blob`] instead.
     async unsafe fn write_data(
         &self,
         reader: Pin<Box<dyn BlobRead>>,
