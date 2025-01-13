@@ -38,7 +38,13 @@ pub trait LayerStorage: graph::Database + Sync + Send {
             }),
         }
     }
+}
 
+/// Blanket implementation.
+impl<T> LayerStorage for T where T: graph::Database + Sync + Send {}
+
+#[async_trait::async_trait]
+pub trait LayerStorageExt: graph::DatabaseExt {
     /// Create and storage a new layer for the given layer.
     async fn create_layer(&self, manifest: &graph::Manifest) -> Result<graph::Layer> {
         let layer = graph::Layer::new(manifest.digest()?);
@@ -58,4 +64,4 @@ pub trait LayerStorage: graph::Database + Sync + Send {
 }
 
 /// Blanket implementation.
-impl<T> LayerStorage for T where T: graph::Database + Sync + Send {}
+impl<T> LayerStorageExt for T where T: graph::DatabaseExt + Sync + Send {}

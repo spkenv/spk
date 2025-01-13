@@ -27,6 +27,7 @@ pub use annotation::{
 pub use blob::Blob;
 pub use database::{
     Database,
+    DatabaseExt,
     DatabaseIterator,
     DatabaseView,
     DatabaseWalker,

@@ -91,14 +91,6 @@ impl<T> graph::Database for super::PinnedRepository<T>
 where
     T: graph::Database + 'static,
 {
-    async fn write_object<O: ObjectProto>(&self, obj: &graph::FlatObject<O>) -> Result<()> {
-        // objects are stored by digest, not time, and so can still
-        // be safely written to a past repository view. In practice,
-        // this allows some recovery and sync operations to still function
-        // on pinned repositories
-        self.inner.write_object(obj).await
-    }
-
     async fn remove_object(&self, _digest: encoding::Digest) -> crate::Result<()> {
         Err(Error::RepositoryIsPinned)
     }
@@ -109,6 +101,20 @@ where
         _digest: encoding::Digest,
     ) -> crate::Result<bool> {
         Err(Error::RepositoryIsPinned)
+    }
+}
+
+#[async_trait::async_trait]
+impl<T> graph::DatabaseExt for super::PinnedRepository<T>
+where
+    T: graph::DatabaseExt + 'static,
+{
+    async fn write_object<O: ObjectProto>(&self, obj: &graph::FlatObject<O>) -> Result<()> {
+        // objects are stored by digest, not time, and so can still
+        // be safely written to a past repository view. In practice,
+        // this allows some recovery and sync operations to still function
+        // on pinned repositories
+        self.inner.write_object(obj).await
     }
 }
 
