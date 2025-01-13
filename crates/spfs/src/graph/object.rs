@@ -37,10 +37,13 @@ where
 
 impl std::fmt::Display for Object {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("Object")
-            .field(&self.kind())
-            .field(&self.digest().unwrap())
-            .finish()
+        use std::fmt::Write;
+
+        f.write_fmt(format_args!("{:?}", self.kind()))?;
+        f.write_char('[')?;
+        f.write_fmt(format_args!("{}", self.digest().unwrap()))?;
+        f.write_char(']')?;
+        Ok(())
     }
 }
 
