@@ -75,9 +75,21 @@ pub struct Ls<Output: Default = Console> {
 
     /// Enable filtering to only show items that have a build that
     /// matches the current host's host options. This option can be
-    /// configured as the default in spk's config file.
+    /// configured as the default in spk's config file. Enables
+    /// --no-src by default.
     #[clap(long)]
     host: bool,
+
+    /// Disable showing items that have any matching build and only
+    /// show items with a non-src build that matches the current
+    /// host's host options. Using --host will enable this by default.
+    #[clap(long, conflicts_with = "src")]
+    no_src: bool,
+
+    /// Enable filtering to show items that have any build, including
+    /// src ones, that match the current host's host options.
+    #[clap(long)]
+    src: bool,
 
     /// Given a name, list versions. Given a name/version list builds.
     ///
@@ -106,6 +118,11 @@ impl<T: Output> Run for Ls<T> {
         // Set the default filter to the all current host's host
         // options (--host). --no-host will disable this.
         let filter_by = if !self.no_host && self.host {
+            // Using --host enables --no-src by default. But using
+            // --src overrides that.
+            if !self.src {
+                self.no_src = true;
+            }
             get_host_options_filters()
         } else {
             None
@@ -183,6 +200,10 @@ impl<T: Output> Run for Ls<T> {
                     let mut any_deprecated = false;
                     let mut any_not_deprecated = false;
                     while let Some(build) = builds.pop() {
+                        if self.no_src && build.is_source() {
+                            // Filter out source builds
+                            continue;
+                        }
                         match repo.read_package(&build).await {
                             Ok(spec) => {
                                 if !spec.matches_all_filters(&filter_by) {
@@ -244,6 +265,11 @@ impl<T: Output> Run for Ls<T> {
                 let pkg = parse_ident(package)?;
                 for (_, repo) in repos {
                     for build in repo.list_package_builds(pkg.as_version_ident()).await? {
+                        if self.no_src && build.is_source() {
+                            // Filter out source builds
+                            continue;
+                        }
+
                         // Doing this here slows the listing down, but
                         // the spec file is the only place that holds
                         // the deprecation status.
@@ -364,6 +390,11 @@ impl<T: Output> Ls<T> {
                         }
                     }
 
+                    if self.no_src && build.is_source() {
+                        // Filter out source builds
+                        continue;
+                    }
+
                     // Doing this here slows the listing down, but
                     // the spec file is the only place that holds
                     // the deprecation status.
@@ -432,6 +463,11 @@ impl<T: Output> Ls<T> {
             for pkg in versions {
                 let mut found_a_match = false;
                 for build in repo.list_package_builds(pkg.as_version_ident()).await? {
+                    if self.no_src && build.is_source() {
+                        // Filter out source builds
+                        continue;
+                    }
+
                     let spec = match repo.read_package(&build).await {
                         Ok(spec) => spec,
                         Err(err) => {
