@@ -1,5 +1,7 @@
 # 1.10.0 is the last version that supports python 3.7
-pkginfo==1.10.0
+pkginfo==1.10.0 ; python_version <= "3.7"
+# 1.12.0 is required for newer python module package formats
+pkginfo==1.12.0 ; python_version >= "3.9"
 packaging==20.9
 # 0.40.0 latest at time of writing but no implied requirement for exactly this
 # version.
