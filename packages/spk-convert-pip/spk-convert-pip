@@ -315,7 +315,7 @@ class PipImporter:
             },
         }
 
-        # TODO: if info.license exists, add it into meta.licence but
+        # TODO: if info.license exists, add it into meta.license but
         # need a way to disable the SpdxLicense validation.
         if hasattr(info, "license"):
             package_license = str(info.license)
