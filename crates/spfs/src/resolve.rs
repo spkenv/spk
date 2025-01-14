@@ -33,8 +33,7 @@ pub struct RenderResult {
 ///
 /// The return value is defined only if the spfs-render output could be parsed
 /// successfully into a [`RenderResult`].
-// Allow: not used on Windows.
-#[allow(dead_code)]
+#[cfg(unix)]
 async fn render_via_subcommand(
     spec: tracking::EnvSpec,
     kept_runtime: bool,
@@ -207,8 +206,7 @@ pub async fn compute_object_manifest(
 /// If `skip_runtime_save` is true, the runtime will not be saved, even if
 /// the `flattened_layers` property is modified. Only pass true here if the
 /// runtime is unconditionally saved shortly after calling this function.
-// Allow: not used on Windows.
-#[allow(dead_code)]
+#[cfg(unix)]
 pub(crate) async fn resolve_overlay_dirs<R>(
     runtime: &mut runtime::Runtime,
     repo: R,
@@ -228,8 +226,7 @@ where
     impl ResolvedManifest {
         /// Iterate over all the "existing" manifests contained within this
         /// manifest.
-        // Allow: not used on Windows.
-        #[allow(dead_code)]
+        #[cfg(unix)]
         fn existing(self) -> impl Iterator<Item = graph::Manifest> {
             // Find all the `Existing` manifests in this recursive structure,
             // returning them in an order based on their original order, to
@@ -249,8 +246,7 @@ where
             result.into_iter().map(|(_, m)| m)
         }
 
-        // Allow: not used on Windows.
-        #[allow(dead_code)]
+        #[cfg(unix)]
         fn manifest(&self) -> &graph::Manifest {
             match self {
                 ResolvedManifest::Existing { manifest, .. } => manifest,
@@ -362,8 +358,7 @@ where
 /// If `skip_runtime_save` is true, the runtime will not be saved, even if
 /// the `flattened_layers` property is modified. Only pass true here if the
 /// runtime is unconditionally saved shortly after calling this function.
-// Allow: not used on Windows.
-#[allow(dead_code)]
+#[cfg(unix)]
 pub(crate) async fn resolve_and_render_overlay_dirs(
     runtime: &mut runtime::Runtime,
     skip_runtime_save: bool,
