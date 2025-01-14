@@ -31,9 +31,21 @@ pub struct Search {
 
     /// Enable filtering to only show items that have a build that
     /// matches the current host's host options. This option can be
-    /// configured as the default in spk's config file.
+    /// configured as the default in spk's config file. Enables
+    /// --no-src by default.
     #[clap(long)]
     host: bool,
+
+    /// Disable showing items that have any matching build and only
+    /// show items with a non-src build that matches the current
+    /// host's host options. Using --host will enable this by default.
+    #[clap(long, conflicts_with = "src")]
+    no_src: bool,
+
+    /// Enable filtering to show items that have any build, including
+    /// src ones, that match the current host's host options.
+    #[clap(long)]
+    src: bool,
 
     /// The text/substring to search for in package names
     term: String,
@@ -56,6 +68,11 @@ impl Run for Search {
         // Set the default filter to the all current host's host
         // options (--host). --no-host will disable this.
         let filter_by = if !self.no_host && self.host {
+            // Using --host enables --no-src by default. But using
+            // --src overrides that.
+            if !self.src {
+                self.no_src = true;
+            }
             get_host_options_filters()
         } else {
             None
@@ -98,6 +115,11 @@ impl Run for Search {
                             // there's one that matches the filters
                             let mut has_a_build_that_matches_the_filter = false;
                             for build in builds {
+                                if self.no_src && build.is_source() {
+                                    // Filter out source builds
+                                    continue;
+                                }
+
                                 if let Ok(spec) = repo.read_package(&build).await {
                                     if spec.matches_all_filters(&filter_by) {
                                         has_a_build_that_matches_the_filter = true;
@@ -119,6 +141,11 @@ impl Run for Search {
                             // that only exists as embedded builds.
                             let mut all_builds_deprecated = true;
                             for build in builds {
+                                if self.no_src && build.is_source() {
+                                    // Filter out source builds
+                                    continue;
+                                }
+
                                 if let Ok(spec) = repo.read_package(&build).await {
                                     if !spec.is_deprecated() {
                                         if !spec.matches_all_filters(&filter_by) {
