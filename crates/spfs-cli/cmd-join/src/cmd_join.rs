@@ -100,6 +100,8 @@ impl CmdJoin {
         const ATTEMPTS_PER_SECOND: u128 = 1000u128 / TIME_TO_WAIT_BETWEEN_ATTEMPTS.as_millis();
         loop {
             try_counter += 1;
+            // Allow: this is only a unit struct on Windows.
+            #[allow(clippy::default_constructed_unit_structs)]
             match spfs::env::RuntimeConfigurator::default().join_runtime(&spfs_runtime) {
                 Err(spfs::Error::String(err)) if err.contains("single-threaded") => {
                     // Anecdotally it takes one retry to succeed; don't start

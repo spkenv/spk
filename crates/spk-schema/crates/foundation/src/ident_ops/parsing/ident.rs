@@ -39,7 +39,7 @@ pub struct IdentPartsBuf {
     pub build_str: Option<String>,
 }
 
-impl<'a> IdentParts<'a> {
+impl IdentParts<'_> {
     pub fn to_owned(&self) -> IdentPartsBuf {
         IdentPartsBuf {
             repository_name: self.repository_name.map(|o| o.to_owned()),
@@ -109,7 +109,7 @@ where
 /// - `"pkg-name:comp/1.0/CU7ZWOIF"`
 pub fn ident_parts_with_components<'b, E>(
     input: &'b str,
-) -> IResult<&'b str, (IdentParts, BTreeSet<Component>), E>
+) -> IResult<&'b str, (IdentParts<'b>, BTreeSet<Component>), E>
 where
     E: ParseError<&'b str>
         + ContextError<&'b str>

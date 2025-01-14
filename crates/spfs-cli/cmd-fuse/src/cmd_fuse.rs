@@ -2,17 +2,28 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+#[cfg(unix)]
 use std::sync::Arc;
+#[cfg(unix)]
 use std::time::Duration;
 
 use clap::Parser;
+#[cfg(unix)]
 use fuser::MountOption;
-use miette::{bail, miette, Context, IntoDiagnostic, Result};
+use miette::Result;
+#[cfg(unix)]
+use miette::{bail, miette, Context, IntoDiagnostic};
 use spfs::tracking::EnvSpec;
+#[cfg(unix)]
 use spfs::Error;
-use spfs_cli_common::{self as cli, warn_and_sentry_event};
+#[cfg(unix)]
+use spfs_cli_common::warn_and_sentry_event;
+use spfs_cli_common::{self as cli};
+#[cfg(unix)]
 use spfs_vfs::{Config, Session};
+#[cfg(unix)]
 use tokio::signal::unix::{signal, SignalKind};
+#[cfg(unix)]
 use tokio::time::timeout;
 
 // The runtime setup process manages the current namespace
@@ -107,6 +118,7 @@ impl cli::CommandName for CmdFuse {
 }
 
 impl CmdFuse {
+    #[cfg(unix)]
     pub fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let calling_uid = nix::unistd::geteuid();
         let calling_gid = nix::unistd::getegid();
@@ -356,8 +368,15 @@ impl CmdFuse {
         result?.into_diagnostic()?;
         Ok(0)
     }
+
+    #[cfg(windows)]
+    pub fn run(&mut self, _config: &spfs::Config) -> Result<i32> {
+        eprintln!("spfs-fuse is not supported on Windows.");
+        Ok(1)
+    }
 }
 
+#[cfg(unix)]
 /// Copies from the private [`fuser::MountOption::from_str`]
 fn parse_options_from_args(args: &[String]) -> Vec<MountOption> {
     args.iter()
@@ -386,6 +405,7 @@ fn parse_options_from_args(args: &[String]) -> Vec<MountOption> {
         .collect()
 }
 
+#[cfg(unix)]
 /// Checks if fusermount3 is available to be used on this system
 fn fuse3_available() -> bool {
     spfs::which("fusermount3").is_some()

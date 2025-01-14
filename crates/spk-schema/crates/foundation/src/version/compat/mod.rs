@@ -884,7 +884,7 @@ impl<'de> Deserialize<'de> for Compat {
         D: serde::Deserializer<'de>,
     {
         struct CompatVisitor;
-        impl<'de> serde::de::Visitor<'de> for CompatVisitor {
+        impl serde::de::Visitor<'_> for CompatVisitor {
             type Value = Compat;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {

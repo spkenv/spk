@@ -389,8 +389,7 @@ impl Logging {
 
         #[cfg(unix)]
         let syslog_layer = self.syslog.then(|| {
-            let identity = std::ffi::CStr::from_bytes_with_nul(b"spfs\0")
-                .expect("identity value is valid CStr");
+            let identity = c"spfs";
             let (options, facility) = Default::default();
             let layer = fmt_layer().with_writer(
                 syslog_tracing::Syslog::new(identity, options, facility)

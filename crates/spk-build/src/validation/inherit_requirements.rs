@@ -23,10 +23,10 @@ pub struct InheritRequirementsValidator<'a> {
     pub packages: &'a Vec<PkgNameBuf>,
 }
 
-impl<'a> super::validator::sealed::Sealed for InheritRequirementsValidator<'a> {}
+impl super::validator::sealed::Sealed for InheritRequirementsValidator<'_> {}
 
 #[async_trait::async_trait]
-impl<'a> super::Validator for InheritRequirementsValidator<'a> {
+impl super::Validator for InheritRequirementsValidator<'_> {
     async fn validate_setup<P, V>(&self, setup: &BuildSetupReport<P, V>) -> Report
     where
         P: Package,

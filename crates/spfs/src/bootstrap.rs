@@ -18,6 +18,7 @@ mod bootstrap_test;
 
 /// Environment variable used to store the original value of HOME
 /// when launching through certain shells (tcsh).
+#[cfg(unix)]
 const SPFS_ORIGINAL_HOME: &str = "SPFS_ORIGINAL_HOME";
 
 /// The environment variable used to store the message
@@ -275,6 +276,7 @@ pub(crate) fn build_spfs_remove_durable_command(
     })
 }
 
+#[cfg(unix)]
 pub(crate) fn build_spfs_remount_command(rt: &runtime::Runtime) -> Result<Command> {
     let exe = match which_spfs("enter") {
         None => return Err(Error::MissingBinary("spfs-enter")),
@@ -296,6 +298,7 @@ pub(crate) fn build_spfs_remount_command(rt: &runtime::Runtime) -> Result<Comman
     })
 }
 
+#[cfg(unix)]
 pub(crate) fn build_spfs_exit_command(rt: &runtime::Runtime) -> Result<Command> {
     let exe = match which_spfs("enter") {
         None => return Err(Error::MissingBinary("spfs-enter")),
@@ -317,6 +320,7 @@ pub(crate) fn build_spfs_exit_command(rt: &runtime::Runtime) -> Result<Command> 
     })
 }
 
+#[cfg(unix)]
 pub(crate) fn build_spfs_change_to_durable_command(rt: &runtime::Runtime) -> Result<Command> {
     let exe = match which_spfs("enter") {
         None => return Err(Error::MissingBinary("spfs-enter")),

@@ -114,19 +114,31 @@ impl Runtime {
         }
         // Find where to insert a `--no-runtime` flag into the existing
         // command line.
-        let no_runtime_arg_insertion_index = std::env::args()
-            // Skip the first arg because it is the application name and
-            // could be anything, including something that matches one of the
-            // subcommand aliases given.
-            .skip(1)
-            .position(|arg| sub_command_aliases.iter().any(|command| arg == *command))
-            // Add 2 to the index if we found it since the first element was
-            // skipped and we're supposed to give the insertion index which
-            // is after the position of the element we found.
-            .map(|index| index + 2)
-            // Default to 2 because that's the correct position on most cases.
-            .unwrap_or(2);
-        self.relaunch_with_runtime(no_runtime_arg_insertion_index)
+        #[cfg(target_os = "linux")]
+        {
+            let no_runtime_arg_insertion_index = std::env::args()
+                // Skip the first arg because it is the application name and
+                // could be anything, including something that matches one of the
+                // subcommand aliases given.
+                .skip(1)
+                .position(|arg| sub_command_aliases.iter().any(|command| arg == *command))
+                // Add 2 to the index if we found it since the first element was
+                // skipped and we're supposed to give the insertion index which
+                // is after the position of the element we found.
+                .map(|index| index + 2)
+                // Default to 2 because that's the correct position on most cases.
+                .unwrap_or(2);
+
+            self.relaunch_with_runtime(no_runtime_arg_insertion_index)
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            // Prevent unused variable warning.
+            let _ = sub_command_aliases.is_empty();
+
+            unimplemented!()
+        }
     }
 
     /// Relaunch the current process inside a new spfs runtime.

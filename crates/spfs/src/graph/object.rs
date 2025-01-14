@@ -855,11 +855,11 @@ mod private {
     /// and the higher-level [`spfs_proto::AnyObject`].
     pub(super) trait Sealed {}
 
-    impl<'buf> Sealed for spfs_proto::AnyObject<'buf> {}
-    impl<'buf> Sealed for spfs_proto::Platform<'buf> {}
-    impl<'buf> Sealed for spfs_proto::Layer<'buf> {}
-    impl<'buf> Sealed for spfs_proto::Manifest<'buf> {}
-    impl<'buf> Sealed for spfs_proto::Blob<'buf> {}
+    impl Sealed for spfs_proto::AnyObject<'_> {}
+    impl Sealed for spfs_proto::Platform<'_> {}
+    impl Sealed for spfs_proto::Layer<'_> {}
+    impl Sealed for spfs_proto::Manifest<'_> {}
+    impl Sealed for spfs_proto::Blob<'_> {}
 
     impl<T> super::ObjectProto for T where T: Sealed {}
 }

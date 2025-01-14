@@ -742,7 +742,7 @@ pub struct ManifestNode<'a, T = ()> {
     pub entry: &'a Entry<T>,
 }
 
-impl<'a, T> ManifestNode<'a, T>
+impl<T> ManifestNode<'_, T>
 where
     T: Clone,
 {
@@ -755,15 +755,15 @@ where
     }
 }
 
-impl<'a, T> PartialEq for ManifestNode<'a, T> {
+impl<T> PartialEq for ManifestNode<'_, T> {
     fn eq(&self, other: &Self) -> bool {
         self.path == other.path && self.entry == other.entry
     }
 }
 
-impl<'a, T> Eq for ManifestNode<'a, T> {}
+impl<T> Eq for ManifestNode<'_, T> {}
 
-impl<'a, T> Ord for ManifestNode<'a, T> {
+impl<T> Ord for ManifestNode<'_, T> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         use std::cmp::Ordering;
 
@@ -818,7 +818,7 @@ impl<'a, T> Ord for ManifestNode<'a, T> {
     }
 }
 
-impl<'a, T> PartialOrd for ManifestNode<'a, T> {
+impl<T> PartialOrd for ManifestNode<'_, T> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }

@@ -18,7 +18,7 @@ mod entry_test;
 #[derive(Copy, Clone)]
 pub struct Entry<'buf>(pub(super) spfs_proto::Entry<'buf>);
 
-impl<'buf> std::fmt::Debug for Entry<'buf> {
+impl std::fmt::Debug for Entry<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Entry")
             .field("name", &self.name())
@@ -132,7 +132,7 @@ impl<'buf> Entry<'buf> {
     }
 }
 
-impl<'buf> std::fmt::Display for Entry<'buf> {
+impl std::fmt::Display for Entry<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
             "{:06o} {:?} {} {}",
@@ -144,15 +144,15 @@ impl<'buf> std::fmt::Display for Entry<'buf> {
     }
 }
 
-impl<'buf1, 'buf2> PartialEq<Entry<'buf2>> for Entry<'buf1> {
+impl<'buf2> PartialEq<Entry<'buf2>> for Entry<'_> {
     fn eq(&self, other: &Entry<'buf2>) -> bool {
         self.0 == other.0
     }
 }
 
-impl<'buf1> Eq for Entry<'buf1> {}
+impl Eq for Entry<'_> {}
 
-impl<'buf1, 'buf2> PartialOrd<Entry<'buf2>> for Entry<'buf1> {
+impl<'buf2> PartialOrd<Entry<'buf2>> for Entry<'_> {
     fn partial_cmp(&self, other: &Entry<'buf2>) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
@@ -169,7 +169,7 @@ impl<'buf> Ord for Entry<'buf> {
     }
 }
 
-impl<'buf> encoding::Digestible for Entry<'buf> {
+impl encoding::Digestible for Entry<'_> {
     type Error = crate::Error;
 
     fn digest(&self) -> std::result::Result<spfs_proto::Digest, Self::Error> {
@@ -179,7 +179,7 @@ impl<'buf> encoding::Digestible for Entry<'buf> {
     }
 }
 
-impl<'buf> Entry<'buf> {
+impl Entry<'_> {
     pub(super) fn digest_encode(&self, writer: &mut impl std::io::Write) -> Result<()> {
         encoding::write_digest(&mut *writer, self.object())?;
         self.kind().encode(&mut *writer)?;

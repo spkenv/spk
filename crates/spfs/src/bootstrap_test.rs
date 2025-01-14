@@ -75,11 +75,13 @@ async fn test_shell_initialization_startup_scripts(
     std::env::set_var("SHELL", &shell_path);
 
     match crate::Shell::find_best(None).unwrap() {
+        #[cfg(unix)]
         crate::Shell::Bash(_) if shell == "tcsh" => {
             // Test will fail because we weren't able to
             // find the shell we are trying to test
             return;
         }
+        #[cfg(unix)]
         crate::Shell::Tcsh(_) if shell == "bash" => {
             // Test will fail because we weren't able to
             // find the shell we are trying to test

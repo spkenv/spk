@@ -33,6 +33,7 @@ pin_project! {
 #[derive(Debug, PartialEq, Eq)]
 pub struct Elapsed(());
 
+#[cfg(unix)]
 impl<S: Stream> RepeatingTimeout<S> {
     pub(super) fn new(stream: S, duration: Duration) -> Self {
         let next = Instant::now() + duration;

@@ -182,7 +182,7 @@ where
     {
         struct IdentVisitor<I>(PhantomData<I>);
 
-        impl<'de, I> serde::de::Visitor<'de> for IdentVisitor<I>
+        impl<I> serde::de::Visitor<'_> for IdentVisitor<I>
         where
             I: FromStr,
             <I as FromStr>::Err: std::fmt::Display,

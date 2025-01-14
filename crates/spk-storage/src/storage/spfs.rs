@@ -1288,7 +1288,7 @@ pub enum SpfsRepositoryHandle<'a> {
     Verbatim(&'a SpfsRepository<VerbatimTagStrategy>),
 }
 
-impl<'a> SpfsRepositoryHandle<'a> {
+impl SpfsRepositoryHandle<'_> {
     pub fn spfs_repository_handle(&self) -> &spfs::prelude::RepositoryHandle {
         match self {
             Self::Normalized(repo) => &repo.inner,
@@ -1297,7 +1297,7 @@ impl<'a> SpfsRepositoryHandle<'a> {
     }
 }
 
-impl<'a> std::ops::Deref for SpfsRepositoryHandle<'a> {
+impl std::ops::Deref for SpfsRepositoryHandle<'_> {
     type Target = dyn crate::storage::Repository<Recipe = SpecRecipe, Package = Spec>;
 
     fn deref(&self) -> &Self::Target {

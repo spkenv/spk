@@ -137,7 +137,7 @@ impl<'a> PackageSourceTester<'a> {
 }
 
 #[async_trait::async_trait]
-impl<'a> Tester for PackageSourceTester<'a> {
+impl Tester for PackageSourceTester<'_> {
     async fn test(&mut self) -> Result<()> {
         self.test().await
     }

@@ -685,13 +685,21 @@ where
                     let meta = tokio::fs::symlink_metadata(&path).await.map_err(|err| {
                         Error::StorageReadError("metadata on proxy file", path.clone(), err)
                     })?;
+                    // Allow: remove when todo!() is removed.
+                    #[allow(unused_variables)]
                     let mtime = meta.modified().map_err(|err| {
                         Error::StorageReadError("modified time on proxy file", path.clone(), err)
                     })?;
                     #[cfg(unix)]
+                    // Allow: remove when todo!() is removed.
+                    #[allow(unused_variables)]
                     let has_hardlinks = meta.st_nlink() > 1;
                     #[cfg(windows)]
+                    // Allow: remove when todo!() is removed.
+                    #[allow(unused_variables)]
                     let has_hardlinks = todo!();
+                    // Allow: remove when todo!() is removed.
+                    #[allow(unreachable_code)]
                     let is_old_enough = DateTime::<Utc>::from(mtime) < self.must_be_older_than;
                     if has_hardlinks || !is_old_enough {
                         Ok(None)

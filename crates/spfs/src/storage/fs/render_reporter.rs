@@ -130,7 +130,7 @@ impl<'a> MultiReporter<'a> {
     }
 }
 
-impl<'a> RenderReporter for MultiReporter<'a> {
+impl RenderReporter for MultiReporter<'_> {
     fn visit_layer(&self, manifest: &graph::Manifest) {
         for reporter in self.reporters.iter() {
             reporter.visit_layer(manifest)

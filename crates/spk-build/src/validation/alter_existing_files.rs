@@ -24,10 +24,10 @@ pub struct AlterExistingFilesValidator<'a> {
     pub action: Option<&'a FileAlteration>,
 }
 
-impl<'a> super::validator::sealed::Sealed for AlterExistingFilesValidator<'a> {}
+impl super::validator::sealed::Sealed for AlterExistingFilesValidator<'_> {}
 
 #[async_trait::async_trait]
-impl<'a> super::Validator for AlterExistingFilesValidator<'a> {
+impl super::Validator for AlterExistingFilesValidator<'_> {
     async fn validate_setup<P, V>(&self, _setup: &BuildSetupReport<P, V>) -> Report
     where
         P: Package,

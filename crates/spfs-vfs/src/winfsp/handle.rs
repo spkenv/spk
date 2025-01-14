@@ -59,9 +59,9 @@ impl Handle {
     /// An unowned reference to the entry data of this handle
     pub fn entry(&self) -> &Entry<u64> {
         match self {
-            Self::BlobFile { entry, .. } => &*entry,
-            Self::BlobStream { entry, .. } => &*entry,
-            Self::Tree { entry, .. } => &*entry,
+            Self::BlobFile { entry, .. } => entry,
+            Self::BlobStream { entry, .. } => entry,
+            Self::Tree { entry, .. } => entry,
         }
     }
 

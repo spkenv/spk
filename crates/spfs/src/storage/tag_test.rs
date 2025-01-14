@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+#[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 
 use chrono::prelude::*;
@@ -11,6 +12,7 @@ use rstest::rstest;
 use tokio_stream::StreamExt;
 
 use crate::fixtures::*;
+#[cfg(unix)]
 use crate::storage::fs::FsRepository;
 use crate::storage::{EntryType, TagStorage};
 use crate::{encoding, tracking, Result};
@@ -107,6 +109,7 @@ async fn test_tag_no_duplication(
     );
 }
 
+#[cfg(unix)]
 #[rstest]
 #[tokio::test]
 async fn test_tag_permissions(tmpdir: tempfile::TempDir) {
