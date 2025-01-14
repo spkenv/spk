@@ -56,8 +56,6 @@ fn test_must_have_file(tmpdir: tempfile::TempDir) {
 #[case("my-workspace", "my-workspace/src/packages")]
 #[should_panic]
 #[case("my-workspace", "other-dir")]
-#[case("", "")]
-#[case("my-workspace", "my-workspace/src/packages")]
 #[should_panic]
 #[case("my-workspace", "other-dir/src/packages")]
 fn test_workspace_discovery(
