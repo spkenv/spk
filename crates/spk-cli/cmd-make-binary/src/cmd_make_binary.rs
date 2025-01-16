@@ -11,7 +11,7 @@ use miette::{bail, miette, Context, IntoDiagnostic, Report, Result};
 use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_cli_common::{flags, spk_exe, BuildArtifact, BuildResult, CommandArgs, Run};
 use spk_schema::foundation::format::FormatIdent;
-use spk_schema::ident::{PkgRequest, RangeIdent, RequestedBy};
+use spk_schema::ident::{PkgRequest, RequestedBy};
 use spk_schema::option_map::HOST_OPTIONS;
 use spk_schema::prelude::*;
 use spk_schema::OptionMap;
@@ -20,31 +20,6 @@ use spk_storage as storage;
 #[cfg(test)]
 #[path = "./cmd_make_binary_test.rs"]
 mod cmd_make_binary_test;
-
-#[derive(Clone, Debug)]
-pub enum PackageSpecifier {
-    Plain(String),
-    WithSourceIdent((String, RangeIdent)),
-}
-
-impl PackageSpecifier {
-    // Return the package spec or filename string.
-    fn get_specifier(&self) -> &String {
-        match self {
-            PackageSpecifier::Plain(s) => s,
-            PackageSpecifier::WithSourceIdent((s, _)) => s,
-        }
-    }
-}
-
-impl std::str::FromStr for PackageSpecifier {
-    type Err = clap::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // On the command line, only `Plain` is possible.
-        Ok(PackageSpecifier::Plain(s.to_owned()))
-    }
-}
 
 /// Build a binary package from a spec file or source package.
 #[derive(Args)]
@@ -72,9 +47,8 @@ pub struct MakeBinary {
     #[clap(long, short)]
     pub env: bool,
 
-    /// The local yaml spec files or published package/versions to build or rebuild
-    #[clap(name = "SPEC_FILE|PKG/VER")]
-    pub packages: Vec<PackageSpecifier>,
+    #[clap(flatten)]
+    pub packages: flags::Packages,
 
     /// Build only the specified variants
     #[clap(flatten)]
@@ -96,11 +70,7 @@ pub struct MakeBinary {
 impl CommandArgs for MakeBinary {
     // The important positional args for a make-binary are the packages
     fn get_positional_args(&self) -> Vec<String> {
-        self.packages
-            .iter()
-            .map(|ps| ps.get_specifier())
-            .cloned()
-            .collect()
+        self.packages.get_positional_args()
     }
 }
 
@@ -130,21 +100,12 @@ impl Run for MakeBinary {
             .map(|(_, r)| Arc::new(r))
             .collect::<Vec<_>>();
 
-        let mut packages: Vec<_> = self.packages.iter().cloned().map(Some).collect();
-        if packages.is_empty() {
-            packages.push(None)
-        }
-
         let opt_host_options =
             (!self.options.no_host).then(|| HOST_OPTIONS.get().unwrap_or_default());
 
-        for package in packages {
-            let (spec_data, filename) = flags::find_package_recipe_from_template_or_repo(
-                package.as_ref().map(|p| p.get_specifier()),
-                &options,
-                &repos,
-            )
-            .await?;
+        for (package, spec_data, filename) in
+            self.packages.find_all_recipes(&options, &repos).await?
+        {
             let recipe = spec_data.into_recipe().wrap_err_with(|| {
                 format!(
                     "{filename} was expected to contain a recipe",
@@ -220,7 +181,9 @@ impl Run for MakeBinary {
                         .into_diagnostic()
                         .wrap_err("Failed to get current directory")?;
                     builder.with_source(BuildSource::LocalPath(here));
-                } else if let Some(PackageSpecifier::WithSourceIdent((_, ref ident))) = package {
+                } else if let Some(flags::PackageSpecifier::WithSourceIdent((_, ref ident))) =
+                    package
+                {
                     // Use the source package `AnyIdent` if the caller supplied one.
                     builder.with_source(BuildSource::SourcePackage(ident.clone()));
                 }

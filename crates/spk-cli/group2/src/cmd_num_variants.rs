@@ -16,6 +16,8 @@ pub struct NumVariants {
     pub repos: flags::Repositories,
     #[clap(flatten)]
     pub options: flags::Options,
+    #[clap(flatten)]
+    pub workspace: flags::Workspace,
 
     /// The local package yaml spec file or published packages/version to report on
     #[clap(name = "SPEC_FILE|PKG/VER")]
@@ -33,10 +35,12 @@ impl Run for NumVariants {
             .into_iter()
             .map(|(_, r)| Arc::new(r))
             .collect::<Vec<_>>();
+        let mut workspace = self.workspace.load_or_default()?;
 
-        let (spec_data, filename) = flags::find_package_recipe_from_template_or_repo(
+        let (spec_data, filename) = flags::find_package_recipe_from_workspace_or_repo(
             self.package.as_ref(),
             &options,
+            &mut workspace,
             &repos,
         )
         .await?;

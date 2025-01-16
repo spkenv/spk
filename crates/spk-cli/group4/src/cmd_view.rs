@@ -26,7 +26,6 @@ use spk_schema::version::Version;
 use spk_schema::{
     AnyIdent,
     BuildIdent,
-    Recipe,
     RequirementsList,
     Spec,
     Template,
@@ -35,6 +34,7 @@ use spk_schema::{
     VersionIdent,
 };
 use spk_solve::solution::{get_spfs_layers_to_packages, LayerPackageAndComponents};
+use spk_solve::Recipe;
 use spk_storage;
 use strum::{Display, EnumString, IntoEnumIterator, VariantNames};
 
@@ -123,7 +123,8 @@ impl Run for View {
     async fn run(&mut self) -> Result<Self::Output> {
         if self.variants || self.variants_with_tests {
             let options = self.options.get_options()?;
-            return self.print_variants_info(&options, self.variants_with_tests);
+            let workspace = self.requests.workspace.load_or_default()?;
+            return self.print_variants_info(&options, &workspace, self.variants_with_tests);
         }
 
         let package = match (&self.package, &self.filepath, &self.pkg) {
@@ -224,16 +225,19 @@ impl View {
     fn print_variants_info(
         &self,
         options: &OptionMap,
+        workspace: &spk_workspace::Workspace,
         show_variants_with_tests: bool,
     ) -> Result<i32> {
-        let (filename, template) = flags::find_package_template(self.package.as_ref())
-            .wrap_err("find package template")?
-            .must_be_found();
+        let template = match self.package.as_ref() {
+            None => workspace.default_package_template(),
+            Some(name) => workspace.find_package_template(name),
+        }
+        .must_be_found();
         let rendered_data = template.render(options)?;
         let recipe = rendered_data.into_recipe().wrap_err_with(|| {
             format!(
                 "{filename} was expected to contain a recipe",
-                filename = filename.to_string_lossy()
+                filename = template.file_path().to_string_lossy()
             )
         })?;
 

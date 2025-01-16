@@ -20,4 +20,5 @@ clap = { workspace = true, features = ["derive", "env"] }
 spk-cli-common = { workspace = true }
 spk-schema = { workspace = true }
 spk-schema-tera = { workspace = true }
+spk-workspace = { workspace = true }
 tracing = "0.1.35"
