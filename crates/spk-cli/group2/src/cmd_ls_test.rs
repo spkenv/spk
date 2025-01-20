@@ -194,7 +194,7 @@ async fn test_ls_shows_remote_packages_with_host_default_filter_multiple_builds(
     "build": {
         "options":
          [
-             {"var": format!("{}/{}", OptName::distro(), "testdistro") },
+             {"var": format!("{}/{}", OptName::distro(), "test_distro") },
              {"var": format!("{}/{}", OptName::os(), host_options.get(OptName::os()).unwrap()) },
              {"var": format!("{}/{}", OptName::arch(), host_options.get(OptName::arch()).unwrap()) },
              {"var": format!("{}/{}", os_id, host_options.get(os_id).unwrap()) }
