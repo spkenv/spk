@@ -12,18 +12,6 @@ pub struct OptFilter {
     pub value: String,
 }
 
-impl OptFilter {
-    pub fn matches(&self, options: &OptionMap) -> bool {
-        if let Some(v) = options.get(&self.name) {
-            self.value == *v
-        } else {
-            // Not having an option with the filter's name is
-            // considered a match.
-            true
-        }
-    }
-}
-
 /// Constructs a list of filters from the current host's host options,
 /// if any.
 pub fn get_host_options_filters() -> Option<Vec<OptFilter>> {

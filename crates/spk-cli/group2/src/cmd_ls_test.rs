@@ -118,6 +118,8 @@ async fn test_ls_shows_remote_packages_with_host_default_filter() {
     remote_repo.publish_recipe(&recipe).await.unwrap();
     let host_options = HOST_OPTIONS.get().unwrap();
     let os_id = host_options.get(OptName::distro()).unwrap();
+
+    // Build with all matching host options
     let spec = spec!({"pkg": "my-pkg/1.0.0/BGSHW3CN",
     "build": {
         "options":
@@ -140,7 +142,78 @@ async fn test_ls_shows_remote_packages_with_host_default_filter() {
 
     let mut opt = Opt::try_parse_from(["ls", "--host"]).unwrap();
     opt.ls.run().await.unwrap();
-    assert_ne!(opt.ls.output.vec.len(), 0);
+    assert_eq!(opt.ls.output.vec.len(), 1);
+}
+
+/// `spk ls` is expected to list packages in the configured remote
+/// repositories that match the default filter for the current host
+#[tokio::test]
+async fn test_ls_shows_remote_packages_with_host_default_filter_multiple_builds() {
+    let mut rt = spfs_runtime().await;
+    let remote_repo = spfsrepo().await;
+
+    // Populate the "origin" repo with one package.
+    // The "local" repo is empty.
+
+    rt.add_remote_repo(
+        "origin",
+        Remote::Address(RemoteAddress {
+            address: remote_repo.address().clone(),
+        }),
+    )
+    .unwrap();
+
+    let recipe = recipe!({"pkg": "my-pkg/1.0.0"});
+    remote_repo.publish_recipe(&recipe).await.unwrap();
+    let host_options = HOST_OPTIONS.get().unwrap();
+    let os_id = host_options.get(OptName::distro()).unwrap();
+
+    // Build with all matching host options
+    let spec = spec!({"pkg": "my-pkg/1.0.0/BGSHW3CN",
+    "build": {
+        "options":
+         [
+             {"var": format!("{}/{}", OptName::distro(), host_options.get(OptName::distro()).unwrap()) },
+             {"var": format!("{}/{}", OptName::os(), host_options.get(OptName::os()).unwrap()) },
+             {"var": format!("{}/{}", OptName::arch(), host_options.get(OptName::arch()).unwrap()) },
+             {"var": format!("{}/{}", os_id, host_options.get(os_id).unwrap()) }
+         ]
+    }});
+    remote_repo
+        .publish_package(
+            &spec,
+            &vec![(Component::Run, empty_layer_digest())]
+                .into_iter()
+                .collect(),
+        )
+        .await
+        .unwrap();
+
+    // Build with for another distro in its host options
+    let spec = spec!({"pkg": "my-pkg/1.0.0/2RGMWL2B",
+    "build": {
+        "options":
+         [
+             {"var": format!("{}/{}", OptName::distro(), "test_distro") },
+             {"var": format!("{}/{}", OptName::os(), host_options.get(OptName::os()).unwrap()) },
+             {"var": format!("{}/{}", OptName::arch(), host_options.get(OptName::arch()).unwrap()) },
+             {"var": format!("{}/{}", os_id, host_options.get(os_id).unwrap()) }
+         ]
+    }});
+    remote_repo
+        .publish_package(
+            &spec,
+            &vec![(Component::Run, empty_layer_digest())]
+                .into_iter()
+                .collect(),
+        )
+        .await
+        .unwrap();
+
+    let mut opt = Opt::try_parse_from(["ls", "--host"]).unwrap();
+    opt.ls.run().await.unwrap();
+    println!("Output: {:?}", opt.ls.output.vec);
+    assert_eq!(opt.ls.output.vec.len(), 1);
 }
 
 /// `spk ls` is expected to list packages in both the local and the configured

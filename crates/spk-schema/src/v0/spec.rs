@@ -257,8 +257,19 @@ impl Package for Spec<BuildIdent> {
     fn matches_all_filters(&self, filter_by: &Option<Vec<OptFilter>>) -> bool {
         if let Some(filters) = filter_by {
             let settings = self.option_values();
+
             for filter in filters {
-                if !filter.matches(&settings) {
+                if !settings.contains_key(&filter.name) {
+                    // Not having an option with the filter's name is
+                    // considered a match.
+                    continue;
+                }
+
+                let var_request =
+                    VarRequest::new_with_value(filter.name.clone(), filter.value.clone());
+
+                let compat = self.check_satisfies_request(&var_request);
+                if !compat.is_ok() {
                     return false;
                 }
             }
