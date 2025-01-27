@@ -358,6 +358,34 @@ where
     }
 
     async fn prune_tag_stream_and_walk(&self, tag_spec: tracking::TagSpec) -> Result<CleanResult> {
+        let (mut result, to_keep) = self.prune_tag_stream(tag_spec).await?;
+        result += self.walk_attached_objects(&to_keep).await?;
+
+        Ok(result)
+    }
+
+    #[async_recursion::async_recursion]
+    async fn walk_attached_objects(&self, digests: &[encoding::Digest]) -> Result<CleanResult> {
+        let mut result = CleanResult::default();
+
+        let mut walk_stream = futures::stream::iter(digests.iter())
+            .then(|digest| ready(self.visit_attached_objects(*digest).boxed()))
+            .buffer_unordered(self.discover_concurrency)
+            .boxed();
+        while let Some(res) = walk_stream.try_next().await? {
+            result += res;
+        }
+
+        Ok(result)
+    }
+
+    /// Visit the tag and its history, pruning as configured and
+    /// returning a cleaning (pruning) result and list of tags that
+    /// were kept.
+    pub async fn prune_tag_stream(
+        &self,
+        tag_spec: tracking::TagSpec,
+    ) -> Result<(CleanResult, Vec<encoding::Digest>)> {
         let history = self
             .repo
             .read_tag(&tag_spec)
@@ -377,7 +405,7 @@ where
             if self.prune_params.should_prune(&spec, &tag) {
                 to_prune.push(tag);
             } else {
-                to_keep.push(tag);
+                to_keep.push(tag.target);
             }
         }
 
@@ -395,19 +423,11 @@ where
 
         result.pruned_tags.insert(tag_spec, to_prune);
 
-        let mut walk_stream = futures::stream::iter(to_keep.iter())
-            .then(|tag| ready(self.discover_attached_objects(tag.target).boxed()))
-            .buffer_unordered(self.discover_concurrency)
-            .boxed();
-        while let Some(res) = walk_stream.try_next().await? {
-            result += res;
-        }
-
-        Ok(result)
+        Ok((result, to_keep))
     }
 
     #[async_recursion::async_recursion]
-    async fn discover_attached_objects(&self, digest: encoding::Digest) -> Result<CleanResult> {
+    async fn visit_attached_objects(&self, digest: encoding::Digest) -> Result<CleanResult> {
         let mut result = CleanResult::default();
         if !self.attached.insert(digest) {
             return Ok(result);
@@ -432,13 +452,11 @@ where
             result.visited_payloads += 1;
             self.reporter.visit_payload(&b);
         }
-        let mut walk_stream = futures::stream::iter(obj.child_objects())
-            .then(|child| ready(self.discover_attached_objects(child).boxed()))
-            .buffer_unordered(self.discover_concurrency)
-            .boxed();
-        while let Some(res) = walk_stream.try_next().await? {
-            result += res;
-        }
+
+        // This recursively calls visit_attached_objects() (this
+        // method) on any child objects.
+        result += self.walk_attached_objects(&obj.child_objects()).await?;
+
         Ok(result)
     }
 
