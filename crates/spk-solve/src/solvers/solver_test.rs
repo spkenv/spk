@@ -1126,6 +1126,94 @@ async fn test_solver_build_from_source_dependency(#[case] mut solver: SolverImpl
         "should want to build"
     );
 }
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
+#[tokio::test]
+async fn test_solver_build_from_source_dependency_but_hit_loop(#[case] mut solver: SolverImpl) {
+    let log = init_logging();
+
+    // test when no appropriate build exists but the source is available
+    // - the existing build is skipped
+    // - the source package is checked for current options
+    // - a new build is created of the dependent
+    // - in the process solving for the new build to make it from source
+    //   a dependency loop is hit
+    let python36 = make_build!({"pkg": "python/3.6.3", "compat": "x.a.b"});
+    let my_tool = make_build!({"pkg": "my-tool/99.99.99", "compat": "x.a.b"});
+    let build_with_py36 = make_build!(
+        {
+            "pkg": "my-tool/1.2.0",
+            "build": {"options": [{"pkg": "python"}, {"pkg":"my-tool/99.99.99"}]},
+            "install": {"requirements": [{"pkg": "python/3.6.3"}]},
+        },
+        [python36, my_tool]
+    );
+
+    let repo = make_repo!(
+        [
+            // the source package needs to exist for the build to be possible
+            {
+                "pkg": "my-tool/1.2.0/src",
+            },
+            // one existing build exists that used python 3.6.3
+            build_with_py36,
+            // only python 3.7 exists, which is api compatible, but not abi
+            {"pkg": "python/3.7.3", "compat": "x.a.b"},
+        ]
+    );
+
+    // the recipe needs a version of itself that does not exist in the
+    // repo. this creates a short dependency loop that will prevent
+    // building from source by a sub-solver inside the resolve
+    let recipe = recipe!({
+        "pkg": "my-tool/1.2.0",
+        "build": {"options": [{"pkg": "python"}, {"pkg": "my-tool/99.99.99"}]},
+        "install": {
+            "requirements": [{"pkg": "python", "fromBuildEnv": "x.x.x"}]
+        },
+    });
+    repo.force_publish_recipe(&recipe).await.unwrap();
+
+    // the new option value should disqualify the existing build
+    // but a new one should be generated for this set of options
+    solver.update_options(option_map! {"debug" => "on"});
+    solver.add_repository(Arc::new(repo));
+    solver.add_request(request!("my-tool/1.2.0"));
+    solver.set_binary_only(false);
+
+    let res = run_and_log_resolve_for_tests(&mut solver).await;
+
+    assert!(
+        res.is_err(),
+        "should fail to resolve because there is no solution for the request"
+    );
+
+    let log = log.lock();
+    let event = log.all_events().find(|e| {
+        let Some(msg) = e.message() else {
+            return false;
+        };
+        let msg = strip_ansi_escapes::strip(msg);
+        let msg = String::from_utf8_lossy(&msg);
+        // The sub-solver's output is not logged because it is
+        // currently run internally inside the parent solver (the
+        // solver set up, above, in this method). So we have to look
+        // for the log message that comes from the parent solver. This
+        // message doesn't mention the dependency loop, but that is
+        // the root cause in this case. The internal sub-solver would
+        // have to have its decisions logged before this test could
+        // find the dependency loop error note.
+        msg.ends_with(
+            "cannot resolve build env for source build: Failed to resolve: there is no solution for these requests using the available packages"
+        )
+    });
+
+    assert!(
+        event.is_some(),
+        "should fail because it fails an internal make from source build environment resolve"
+    );
+}
 
 #[rstest]
 #[case::step(step_solver())]
