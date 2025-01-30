@@ -86,3 +86,9 @@ impl TagPath for LocatedBuildIdent {
             .join(self.build().verbatim_tag_path())
     }
 }
+
+impl std::fmt::Display for LocatedBuildIdent {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}/{}", self.base(), self.target())
+    }
+}

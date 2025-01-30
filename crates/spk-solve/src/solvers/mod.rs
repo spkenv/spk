@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+pub(crate) mod resolvo;
 pub(crate) mod step;
 
 pub use step::{Solver as StepSolver, SolverRuntime as StepSolverRuntime};
