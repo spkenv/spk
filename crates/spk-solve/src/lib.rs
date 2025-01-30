@@ -34,6 +34,8 @@ pub use metrics::{
     get_metrics_client,
 };
 pub(crate) use search_space::show_search_space_stats;
+// Publicly exported CdclSolver to stop dead code warnings
+pub use solvers::resolvo::Solver as CdclSolver;
 pub use solvers::{StepSolver, StepSolverRuntime};
 pub use spk_schema::foundation::ident_build::Build;
 pub use spk_schema::foundation::ident_component::Component;

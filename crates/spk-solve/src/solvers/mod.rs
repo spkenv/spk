@@ -4,6 +4,7 @@
 
 //! Spk package solver implementations.
 
+pub(crate) mod resolvo;
 pub(crate) mod step;
 
 pub use step::{ErrorFreq, Solver as StepSolver, SolverRuntime as StepSolverRuntime};
