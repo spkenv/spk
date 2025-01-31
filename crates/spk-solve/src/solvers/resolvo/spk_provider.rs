@@ -132,8 +132,13 @@ impl DependencyProvider for SpkProvider {
         Some(candidates)
     }
 
-    async fn sort_candidates(&self, _solver: &SolverCache<Self>, _solvables: &mut [SolvableId]) {
-        // TODO: sort!
+    async fn sort_candidates(&self, _solver: &SolverCache<Self>, solvables: &mut [SolvableId]) {
+        // This implementation just picks the highest version.
+        solvables.sort_by(|a, b| {
+            let a = self.pool.resolve_solvable(*a);
+            let b = self.pool.resolve_solvable(*b);
+            b.record.version().cmp(a.record.version())
+        });
     }
 
     async fn get_dependencies(&self, solvable: SolvableId) -> Dependencies {
