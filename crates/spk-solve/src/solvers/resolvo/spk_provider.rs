@@ -72,16 +72,37 @@ impl DependencyProvider for SpkProvider {
         version_set: VersionSetId,
         inverse: bool,
     ) -> Vec<SolvableId> {
-        let _pkg_request_vs = self.pool.resolve_version_set(version_set);
-        dbg!(_pkg_request_vs);
-        candidates
-            .iter()
-            .filter_map(|candidate| {
-                let _located_build_ident = self.pool.resolve_solvable(*candidate);
-                // TODO: filter!
-                if inverse { None } else { Some(*candidate) }
-            })
-            .collect()
+        let mut selected = Vec::with_capacity(candidates.len());
+        let pkg_request_vs = self.pool.resolve_version_set(version_set);
+        for candidate in candidates {
+            let solvable = self.pool.resolve_solvable(*candidate);
+            let located_build_ident = &solvable.record;
+            let compatible = pkg_request_vs
+                .0
+                .is_version_applicable(located_build_ident.version());
+            if compatible.is_ok() {
+                // XXX: This find runtime will add up.
+                let repo = self
+                    .repos
+                    .iter()
+                    .find(|repo| repo.name() == located_build_ident.repository_name())
+                    .expect(
+                        "Expected solved package's repository to be in the list of repositories",
+                    );
+                if let Ok(package) = repo.read_package(located_build_ident.target()).await {
+                    if pkg_request_vs.0.is_satisfied_by(&package).is_ok() ^ inverse {
+                        selected.push(*candidate);
+                    }
+                } else if inverse {
+                    // If reading the package failed but inverse is true, should
+                    // we include the package as a candidate? Unclear.
+                    selected.push(*candidate);
+                }
+            } else if inverse {
+                selected.push(*candidate);
+            }
+        }
+        selected
     }
 
     async fn get_candidates(&self, name: NameId) -> Option<Candidates> {

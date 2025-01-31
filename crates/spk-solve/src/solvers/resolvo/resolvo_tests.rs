@@ -43,3 +43,22 @@ async fn two_choices() {
         "2.0.0"
     );
 }
+
+#[rstest]
+#[tokio::test]
+async fn two_choices_request_lower() {
+    let repo = make_repo!(
+        [
+            {"pkg": "basic/2.0.0"},
+            {"pkg": "basic/1.0.0"},
+        ]
+    );
+
+    let mut solver = Solver::new(vec![repo.into()], Cow::Borrowed(&[]));
+    let solution = solver.solve(&[request!("basic/1.0.0")]).await.unwrap();
+    assert_eq!(solution.len(), 1);
+    assert_eq!(
+        solution.items().next().unwrap().spec.version().to_string(),
+        "1.0.0"
+    );
+}
