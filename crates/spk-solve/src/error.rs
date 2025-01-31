@@ -8,6 +8,7 @@ use colored::Colorize;
 use miette::Diagnostic;
 use spk_schema::foundation::format::FormatError;
 use spk_schema::ident::PkgRequest;
+use spk_schema::VersionIdent;
 use spk_solve_graph::Note;
 use thiserror::Error;
 
@@ -65,6 +66,10 @@ pub enum Error {
     SolverLogFileIOError(#[source] std::io::Error, PathBuf),
     #[error("Error: Flushing solver log file: {0}")]
     SolverLogFileFlushError(#[source] std::io::Error),
+    #[error(
+        "cannot build package ({0}) from source during a solve when it has a dependency on itself"
+    )]
+    SolverBuildFromSourceDependencyLoopError(VersionIdent),
 }
 
 #[derive(Diagnostic, Debug, Error)]

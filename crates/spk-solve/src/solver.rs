@@ -368,9 +368,9 @@ impl Solver {
         // if it is. The new_build_started set's insert will return
         // true if the set did not contain the value before the insert.
         if !self.new_builds_started.insert(recipe.ident().clone()) {
-            return Err(Error::String(
-                 format!("cannot build this package ({}) from source, during a solve, when it has a dependency on itself", recipe.ident()),
-             ));
+            return Err(Error::SolverBuildFromSourceDependencyLoopError(
+                recipe.ident().clone(),
+            ));
         }
 
         let mut opts = state.get_option_map().clone();
@@ -403,7 +403,7 @@ impl Solver {
         // Prime the new solver with the builds that have already been
         // started so that it can detect long dependency loops in the
         // things it might try to build from source in its solve.
-        solver.add_new_builds_started(&self.new_builds_started);
+        solver.add_new_builds_started(self.new_builds_started.clone());
 
         let solution = solver.solve_build_environment(recipe).await?;
         recipe
@@ -1137,8 +1137,8 @@ impl Solver {
 
     /// Add the given set of package/versions to the solver's new
     /// builds started records
-    pub fn add_new_builds_started(&mut self, new_builds: &HashSet<VersionIdent>) {
-        self.new_builds_started.extend(new_builds.clone());
+    pub fn add_new_builds_started(&mut self, new_builds: HashSet<VersionIdent>) {
+        self.new_builds_started.extend(new_builds);
     }
 
     /// Enable or disable running impossible checks on the initial requests
