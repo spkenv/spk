@@ -20,6 +20,7 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
+use pkg_request_version_set::SpkSolvable;
 use spk_provider::SpkProvider;
 use spk_schema::Request;
 use spk_schema::ident::{InclusionPolicy, PinPolicy, PkgRequest, RangeIdent};
@@ -49,27 +50,64 @@ impl Solver {
     }
 
     pub async fn solve(&mut self, requests: &[Request]) -> Result<Solution> {
-        let provider = SpkProvider::new(self.repos.clone());
-        let pkg_requirements = provider.pkg_requirements(requests);
-        let var_requirements = provider.var_requirements(requests);
-        let mut solver = resolvo::Solver::new(provider);
-        let problem = resolvo::Problem::new()
-            .requirements(pkg_requirements)
-            .constraints(var_requirements);
-        let solved = solver.solve(problem).map_err(|err| match err {
-            resolvo::UnsolvableOrCancelled::Unsolvable(conflict) => {
-                Error::String(format!("{}", conflict.display_user_friendly(&solver)))
-            }
-            resolvo::UnsolvableOrCancelled::Cancelled(any) => {
-                Error::String(format!("Solve cancelled: {any:?}"))
-            }
-        })?;
+        let repos = self.repos.clone();
+        // XXX: Taking a slice reference doesn't make sense anymore.
+        let requests = requests.to_vec();
+        // Use a blocking thread so resolvo can call `block_on` on the runtime.
+        let solvables = tokio::task::spawn_blocking(move || {
+            let mut provider = Some(SpkProvider::new(repos.clone()));
+            let (solver, solved) = loop {
+                let this_iter_provider = provider.take().expect("provider is always Some");
+                let pkg_requirements = this_iter_provider.pkg_requirements(&requests);
+                let var_requirements = this_iter_provider.var_requirements(&requests);
+                let mut solver = resolvo::Solver::new(this_iter_provider)
+                    .with_runtime(tokio::runtime::Handle::current());
+                let problem = resolvo::Problem::new()
+                    .requirements(pkg_requirements)
+                    .constraints(var_requirements);
+                match solver.solve(problem) {
+                    Ok(solved) => break (solver, solved),
+                    Err(resolvo::UnsolvableOrCancelled::Cancelled(_)) => {
+                        provider = Some(solver.provider().reset());
+                        continue;
+                    }
+                    Err(resolvo::UnsolvableOrCancelled::Unsolvable(conflict)) => {
+                        // Edge case: a need to retry was detected but the
+                        // solver arrived at a decision before it noticed it
+                        // needs to cancel (unknown if this ever happens).
+                        if solver.provider().is_canceled() {
+                            provider = Some(solver.provider().reset());
+                            continue;
+                        }
+                        return Err(Error::String(format!(
+                            "{}",
+                            conflict.display_user_friendly(&solver)
+                        )));
+                    }
+                }
+            };
 
-        let pool = &solver.provider().pool;
+            let pool = &solver.provider().pool;
+            Ok(solved
+                .into_iter()
+                .filter_map(|solvable_id| {
+                    let solvable = pool.resolve_solvable(solvable_id);
+                    if let SpkSolvable::LocatedBuildIdentWithComponent(
+                        located_build_ident_with_component,
+                    ) = &solvable.record
+                    {
+                        Some(located_build_ident_with_component.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>())
+        })
+        .await
+        .map_err(|err| Error::String(format!("Tokio panicked? {err}")))??;
+
         let mut solution = Solution::default();
-        for solvable_id in solved {
-            let solvable = pool.resolve_solvable(solvable_id);
-            let located_build_ident_with_component = &solvable.record;
+        for located_build_ident_with_component in solvables {
             let pkg_request = PkgRequest {
                 pkg: RangeIdent {
                     repository_name: None,
