@@ -79,3 +79,24 @@ async fn two_choices_request_missing() {
         .await
         .expect_err("Nothing satisfies 1.0.0");
 }
+
+#[rstest]
+#[tokio::test]
+async fn package_with_dependency() {
+    let repo = make_repo!(
+        [
+            {"pkg": "dep/1.0.0"},
+            {"pkg": "needs-dep/1.0.0",
+             "install": {
+                 "requirements": [
+                     {"pkg": "dep"}
+                 ]
+             }
+            },
+        ]
+    );
+
+    let mut solver = Solver::new(vec![repo.into()], Cow::Borrowed(&[]));
+    let solution = solver.solve(&[request!("needs-dep/1.0.0")]).await.unwrap();
+    assert_eq!(solution.len(), 2);
+}
