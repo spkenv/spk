@@ -245,20 +245,21 @@ impl DependencyProvider for SpkProvider {
 }
 
 impl Interner for SpkProvider {
-    fn display_solvable(&self, _solvable: SolvableId) -> impl std::fmt::Display + '_ {
-        "todo: display_solvable"
+    fn display_solvable(&self, solvable: SolvableId) -> impl std::fmt::Display + '_ {
+        let solvable = self.pool.resolve_solvable(solvable);
+        format!("{}={}", solvable.record.name(), solvable.record)
     }
 
-    fn display_name(&self, _name: NameId) -> impl std::fmt::Display + '_ {
-        "todo: display_name"
+    fn display_name(&self, name: NameId) -> impl std::fmt::Display + '_ {
+        self.pool.resolve_package_name(name)
     }
 
-    fn display_version_set(&self, _version_set: VersionSetId) -> impl std::fmt::Display + '_ {
-        "todo: display_version_set"
+    fn display_version_set(&self, version_set: VersionSetId) -> impl std::fmt::Display + '_ {
+        self.pool.resolve_version_set(version_set).0.clone()
     }
 
-    fn display_string(&self, _string_id: StringId) -> impl std::fmt::Display + '_ {
-        "todo: display_string"
+    fn display_string(&self, string_id: StringId) -> impl std::fmt::Display + '_ {
+        self.pool.resolve_string(string_id)
     }
 
     fn version_set_name(&self, version_set: VersionSetId) -> NameId {
@@ -271,9 +272,8 @@ impl Interner for SpkProvider {
 
     fn version_sets_in_union(
         &self,
-        _version_set_union: VersionSetUnionId,
+        version_set_union: VersionSetUnionId,
     ) -> impl Iterator<Item = VersionSetId> {
-        // TODO
-        Vec::new().into_iter()
+        self.pool.resolve_version_set_union(version_set_union)
     }
 }
