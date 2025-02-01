@@ -41,7 +41,7 @@ once_cell = { workspace = true }
 priority-queue = "1.2"
 num-bigint = "0.4.3"
 num-format = { version = "0.4.4", features = ["with-num-bigint"] }
-resolvo = { workspace = true }
+resolvo = { workspace = true, features = ["tokio"] }
 serde_json = { workspace = true }
 sentry = { workspace = true, optional = true }
 signal-hook = "0.3"

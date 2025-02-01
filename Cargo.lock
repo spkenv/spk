@@ -3046,6 +3046,7 @@ dependencies = [
  "indexmap 2.9.0",
  "itertools 0.14.0",
  "petgraph 0.7.1",
+ "tokio",
  "tracing",
 ]
 
