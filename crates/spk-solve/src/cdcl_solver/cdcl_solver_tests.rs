@@ -100,3 +100,52 @@ async fn package_with_dependency() {
     let solution = solver.solve(&[request!("needs-dep/1.0.0")]).await.unwrap();
     assert_eq!(solution.len(), 2);
 }
+
+#[rstest]
+#[case::expect_blue("dep.color/blue", "blue")]
+#[case::expect_red("dep.color/red", "red")]
+#[should_panic]
+#[case::expect_green("dep.color/green", "green")]
+#[tokio::test]
+async fn package_with_dependency_on_variant(
+    #[case] color_spec: &str,
+    #[case] expected_color: &str,
+) {
+    use spk_schema::{Package, opt_name};
+
+    let repo = make_repo!(
+        [
+            {"pkg": "dep/1.0.0",
+             "build": {
+                 "options": [
+                     {"var": "color/blue"}
+                 ]
+             }
+            },
+            {"pkg": "dep/1.0.0",
+             "build": {
+                 "options": [
+                     {"var": "color/red"}
+                 ]
+             }
+            },
+            {"pkg": "needs-dep/1.0.0",
+             "install": {
+                 "requirements": [
+                     {"pkg": "dep"},
+                     {"var": color_spec},
+                 ]
+             }
+            },
+        ]
+    );
+
+    let mut solver = Solver::new(vec![repo.into()], Cow::Borrowed(&[]));
+    let solution = solver.solve(&[request!("needs-dep/1.0.0")]).await.unwrap();
+    assert_eq!(solution.len(), 2);
+    let dep = solution.get("dep").unwrap();
+    assert_eq!(
+        dep.spec.option_values().get(opt_name!("color")).unwrap(),
+        expected_color
+    );
+}
