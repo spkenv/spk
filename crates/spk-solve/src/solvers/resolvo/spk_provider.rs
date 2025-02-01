@@ -26,10 +26,10 @@ use spk_schema::name::PkgNameBuf;
 use spk_schema::{Package, Request, VersionIdent};
 use spk_storage::RepositoryHandle;
 
-use super::pkg_request_version_set::PkgRequestVS;
+use super::pkg_request_version_set::RequestVS;
 
 pub(crate) struct SpkProvider {
-    pub(crate) pool: Pool<PkgRequestVS, PkgNameBuf>,
+    pub(crate) pool: Pool<RequestVS, PkgNameBuf>,
     repos: Vec<Arc<RepositoryHandle>>,
     interned_solvables: RefCell<HashMap<LocatedBuildIdent, SolvableId>>,
 }
@@ -53,7 +53,7 @@ impl SpkProvider {
             .map(|req| {
                 let dep_name = self.pool.intern_package_name(req.pkg.name().to_owned());
                 self.pool
-                    .intern_version_set(dep_name, PkgRequestVS(req.clone()))
+                    .intern_version_set(dep_name, RequestVS(Request::Pkg(req.clone())))
                     .into()
             })
             .collect()
@@ -73,33 +73,60 @@ impl DependencyProvider for SpkProvider {
         inverse: bool,
     ) -> Vec<SolvableId> {
         let mut selected = Vec::with_capacity(candidates.len());
-        let pkg_request_vs = self.pool.resolve_version_set(version_set);
+        let request_vs = self.pool.resolve_version_set(version_set);
         for candidate in candidates {
             let solvable = self.pool.resolve_solvable(*candidate);
             let located_build_ident = &solvable.record;
-            let compatible = pkg_request_vs
-                .0
-                .is_version_applicable(located_build_ident.version());
-            if compatible.is_ok() {
-                // XXX: This find runtime will add up.
-                let repo = self
-                    .repos
-                    .iter()
-                    .find(|repo| repo.name() == located_build_ident.repository_name())
-                    .expect(
-                        "Expected solved package's repository to be in the list of repositories",
-                    );
-                if let Ok(package) = repo.read_package(located_build_ident.target()).await {
-                    if pkg_request_vs.0.is_satisfied_by(&package).is_ok() ^ inverse {
+            match &request_vs.0 {
+                Request::Pkg(pkg_request) => {
+                    let compatible =
+                        pkg_request.is_version_applicable(located_build_ident.version());
+                    if compatible.is_ok() {
+                        // XXX: This find runtime will add up.
+                        let repo = self
+                        .repos
+                        .iter()
+                        .find(|repo| repo.name() == located_build_ident.repository_name())
+                        .expect(
+                            "Expected solved package's repository to be in the list of repositories",
+                        );
+                        if let Ok(package) = repo.read_package(located_build_ident.target()).await {
+                            if pkg_request.is_satisfied_by(&package).is_ok() ^ inverse {
+                                selected.push(*candidate);
+                            }
+                        } else if inverse {
+                            // If reading the package failed but inverse is true, should
+                            // we include the package as a candidate? Unclear.
+                            selected.push(*candidate);
+                        }
+                    } else if inverse {
                         selected.push(*candidate);
                     }
-                } else if inverse {
-                    // If reading the package failed but inverse is true, should
-                    // we include the package as a candidate? Unclear.
-                    selected.push(*candidate);
                 }
-            } else if inverse {
-                selected.push(*candidate);
+                Request::Var(var_request) => match var_request.var.namespace() {
+                    Some(pkg_name) => {
+                        // Will this ever not match?
+                        debug_assert_eq!(pkg_name, located_build_ident.name());
+                        // XXX: This find runtime will add up.
+                        let repo = self
+                        .repos
+                        .iter()
+                        .find(|repo| repo.name() == located_build_ident.repository_name())
+                        .expect(
+                            "Expected solved package's repository to be in the list of repositories",
+                        );
+                        if let Ok(package) = repo.read_package(located_build_ident.target()).await {
+                            if var_request.is_satisfied_by(&package).is_ok() ^ inverse {
+                                selected.push(*candidate);
+                            }
+                        } else if inverse {
+                            // If reading the package failed but inverse is true, should
+                            // we include the package as a candidate? Unclear.
+                            selected.push(*candidate);
+                        }
+                    }
+                    None => todo!("how do we handle 'global' vars?"),
+                },
             }
         }
         selected
@@ -180,16 +207,32 @@ impl DependencyProvider for SpkProvider {
                     constrains: Vec::new(),
                 };
                 for requirement in package.runtime_requirements().iter() {
-                    // TODO: var requests?
-                    let Request::Pkg(req) = requirement else {
-                        continue;
-                    };
-                    let dep_name = self.pool.intern_package_name(req.pkg.name().to_owned());
-                    known_deps.requirements.push(
-                        self.pool
-                            .intern_version_set(dep_name, PkgRequestVS(req.clone()))
-                            .into(),
-                    );
+                    match requirement {
+                        Request::Pkg(pkg_request) => {
+                            let dep_name = self
+                                .pool
+                                .intern_package_name(pkg_request.pkg.name().to_owned());
+                            known_deps.requirements.push(
+                                self.pool
+                                    .intern_version_set(dep_name, RequestVS(requirement.clone()))
+                                    .into(),
+                            );
+                        }
+                        Request::Var(var_request) => match var_request.var.namespace() {
+                            Some(pkg_name) => {
+                                // If we end up adding pkg_name to the solve,
+                                // it needs to satisfy this var request.
+                                let dep_name = self.pool.intern_package_name(pkg_name.to_owned());
+                                known_deps.constrains.push(
+                                    self.pool.intern_version_set(
+                                        dep_name,
+                                        RequestVS(requirement.clone()),
+                                    ),
+                                );
+                            }
+                            None => todo!("how do we handle 'global' vars?"),
+                        },
+                    }
                 }
                 Dependencies::Known(known_deps)
             }
