@@ -56,9 +56,14 @@ impl Solver {
         let problem = resolvo::Problem::new()
             .requirements(pkg_requirements)
             .constraints(var_requirements);
-        let solved = solver
-            .solve(problem)
-            .map_err(|err| Error::String(format!("{err:?}")))?;
+        let solved = solver.solve(problem).map_err(|err| match err {
+            resolvo::UnsolvableOrCancelled::Unsolvable(conflict) => {
+                Error::String(format!("{}", conflict.display_user_friendly(&solver)))
+            }
+            resolvo::UnsolvableOrCancelled::Cancelled(any) => {
+                Error::String(format!("Solve cancelled: {any:?}"))
+            }
+        })?;
 
         let pool = &solver.provider().pool;
         let mut solution = Solution::default();
