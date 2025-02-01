@@ -62,3 +62,20 @@ async fn two_choices_request_lower() {
         "1.0.0"
     );
 }
+
+#[rstest]
+#[tokio::test]
+async fn two_choices_request_missing() {
+    let repo = make_repo!(
+        [
+            {"pkg": "basic/3.0.0"},
+            {"pkg": "basic/2.0.0"},
+        ]
+    );
+
+    let mut solver = Solver::new(vec![repo.into()], Cow::Borrowed(&[]));
+    let _solution = solver
+        .solve(&[request!("basic/1.0.0")])
+        .await
+        .expect_err("Nothing satisfies 1.0.0");
+}
