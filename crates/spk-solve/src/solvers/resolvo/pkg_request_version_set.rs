@@ -3,12 +3,13 @@
 // https://github.com/spkenv/spk
 
 use resolvo::utils::VersionSet;
-use spk_schema::ident::{LocatedBuildIdent, PkgRequest};
+use spk_schema::Request;
+use spk_schema::ident::LocatedBuildIdent;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 #[repr(transparent)]
-pub(crate) struct PkgRequestVS(pub(crate) PkgRequest);
+pub(crate) struct RequestVS(pub(crate) Request);
 
-impl VersionSet for PkgRequestVS {
+impl VersionSet for RequestVS {
     type V = LocatedBuildIdent;
 }
