@@ -26,12 +26,12 @@ use spk_schema::name::PkgNameBuf;
 use spk_schema::{Package, Request, VersionIdent};
 use spk_storage::RepositoryHandle;
 
-use super::pkg_request_version_set::RequestVS;
+use super::pkg_request_version_set::{LocatedBuildIdentWithComponent, RequestVS};
 
 pub(crate) struct SpkProvider {
     pub(crate) pool: Pool<RequestVS, PkgNameBuf>,
     repos: Vec<Arc<RepositoryHandle>>,
-    interned_solvables: RefCell<HashMap<LocatedBuildIdent, SolvableId>>,
+    interned_solvables: RefCell<HashMap<LocatedBuildIdentWithComponent, SolvableId>>,
 }
 
 impl SpkProvider {
@@ -76,21 +76,24 @@ impl DependencyProvider for SpkProvider {
         let request_vs = self.pool.resolve_version_set(version_set);
         for candidate in candidates {
             let solvable = self.pool.resolve_solvable(*candidate);
-            let located_build_ident = &solvable.record;
+            let located_build_ident_with_component = &solvable.record;
             match &request_vs.0 {
                 Request::Pkg(pkg_request) => {
-                    let compatible =
-                        pkg_request.is_version_applicable(located_build_ident.version());
+                    let compatible = pkg_request
+                        .is_version_applicable(located_build_ident_with_component.ident.version());
                     if compatible.is_ok() {
                         // XXX: This find runtime will add up.
                         let repo = self
                         .repos
                         .iter()
-                        .find(|repo| repo.name() == located_build_ident.repository_name())
+                        .find(|repo| repo.name() == located_build_ident_with_component.ident.repository_name())
                         .expect(
                             "Expected solved package's repository to be in the list of repositories",
                         );
-                        if let Ok(package) = repo.read_package(located_build_ident.target()).await {
+                        if let Ok(package) = repo
+                            .read_package(located_build_ident_with_component.ident.target())
+                            .await
+                        {
                             if pkg_request.is_satisfied_by(&package).is_ok() ^ inverse {
                                 selected.push(*candidate);
                             }
@@ -106,16 +109,19 @@ impl DependencyProvider for SpkProvider {
                 Request::Var(var_request) => match var_request.var.namespace() {
                     Some(pkg_name) => {
                         // Will this ever not match?
-                        debug_assert_eq!(pkg_name, located_build_ident.name());
+                        debug_assert_eq!(pkg_name, located_build_ident_with_component.ident.name());
                         // XXX: This find runtime will add up.
                         let repo = self
                         .repos
                         .iter()
-                        .find(|repo| repo.name() == located_build_ident.repository_name())
+                        .find(|repo| repo.name() == located_build_ident_with_component.ident.repository_name())
                         .expect(
                             "Expected solved package's repository to be in the list of repositories",
                         );
-                        if let Ok(package) = repo.read_package(located_build_ident.target()).await {
+                        if let Ok(package) = repo
+                            .read_package(located_build_ident_with_component.ident.target())
+                            .await
+                        {
                             if var_request.is_satisfied_by(&package).is_ok() ^ inverse {
                                 selected.push(*candidate);
                             }
@@ -151,11 +157,18 @@ impl DependencyProvider for SpkProvider {
                     .await
                     .unwrap_or_default();
 
-                located_builds.extend(
-                    builds
-                        .into_iter()
-                        .map(|build| LocatedBuildIdent::new(repo.name().to_owned(), build)),
-                );
+                for build in builds {
+                    let components = repo.list_build_components(&build).await.unwrap_or_default();
+                    let located_build_ident = LocatedBuildIdent::new(repo.name().to_owned(), build);
+                    for component in components {
+                        located_builds.push(LocatedBuildIdentWithComponent {
+                            ident: located_build_ident.clone(),
+                            component: component
+                                .try_into()
+                                .expect("list_build_components will never return an All component"),
+                        });
+                    }
+                }
             }
         }
 
@@ -185,21 +198,24 @@ impl DependencyProvider for SpkProvider {
         solvables.sort_by(|a, b| {
             let a = self.pool.resolve_solvable(*a);
             let b = self.pool.resolve_solvable(*b);
-            b.record.version().cmp(a.record.version())
+            b.record.ident.version().cmp(a.record.ident.version())
         });
     }
 
     async fn get_dependencies(&self, solvable: SolvableId) -> Dependencies {
         // TODO: get dependencies!
         let solvable = self.pool.resolve_solvable(solvable);
-        let located_build_ident = &solvable.record;
+        let located_build_ident_with_component = &solvable.record;
         // XXX: This find runtime will add up.
         let repo = self
             .repos
             .iter()
-            .find(|repo| repo.name() == located_build_ident.repository_name())
+            .find(|repo| repo.name() == located_build_ident_with_component.ident.repository_name())
             .expect("Expected solved package's repository to be in the list of repositories");
-        match repo.read_package(located_build_ident.target()).await {
+        match repo
+            .read_package(located_build_ident_with_component.ident.target())
+            .await
+        {
             Ok(package) => {
                 let mut known_deps = KnownDependencies {
                     requirements: Vec::with_capacity(package.runtime_requirements().len()),
@@ -247,7 +263,7 @@ impl DependencyProvider for SpkProvider {
 impl Interner for SpkProvider {
     fn display_solvable(&self, solvable: SolvableId) -> impl std::fmt::Display + '_ {
         let solvable = self.pool.resolve_solvable(solvable);
-        format!("{}={}", solvable.record.name(), solvable.record)
+        format!("{}={}", solvable.record.ident.name(), solvable.record)
     }
 
     fn display_name(&self, name: NameId) -> impl std::fmt::Display + '_ {
