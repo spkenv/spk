@@ -69,12 +69,15 @@ impl Solver {
         let mut solution = Solution::default();
         for solvable_id in solved {
             let solvable = pool.resolve_solvable(solvable_id);
-            let located_build_ident = &solvable.record;
+            let located_build_ident_with_component = &solvable.record;
             let pkg_request = PkgRequest {
                 pkg: RangeIdent {
                     repository_name: None,
-                    name: located_build_ident.name().to_owned(),
-                    components: BTreeSet::new(),
+                    name: located_build_ident_with_component.ident.name().to_owned(),
+                    components: BTreeSet::from_iter([located_build_ident_with_component
+                        .component
+                        .clone()
+                        .into()]),
                     version: VersionFilter::default(),
                     build: None,
                 },
@@ -88,15 +91,20 @@ impl Solver {
             let repo = self
                 .repos
                 .iter()
-                .find(|repo| repo.name() == located_build_ident.repository_name())
+                .find(|repo| {
+                    repo.name() == located_build_ident_with_component.ident.repository_name()
+                })
                 .expect("Expected solved package's repository to be in the list of repositories");
             solution.add(
                 pkg_request,
-                repo.read_package(located_build_ident.target()).await?,
+                repo.read_package(located_build_ident_with_component.ident.target())
+                    .await?,
                 PackageSource::Repository {
                     repo: Arc::clone(repo),
                     // XXX: Why is this needed?
-                    components: repo.read_components(located_build_ident.target()).await?,
+                    components: repo
+                        .read_components(located_build_ident_with_component.ident.target())
+                        .await?,
                 },
             );
         }
