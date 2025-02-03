@@ -15,6 +15,7 @@ use solve::{
     DecisionFormatter,
     DecisionFormatterBuilder,
     MultiSolverKind,
+    Solver as SolverTrait,
 };
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::ident_build::Build;

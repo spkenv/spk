@@ -7,6 +7,7 @@ mod io;
 #[cfg(feature = "statsd")]
 mod metrics;
 mod search_space;
+mod solver;
 mod solvers;
 mod status_line;
 
@@ -34,8 +35,9 @@ pub use metrics::{
     get_metrics_client,
 };
 pub(crate) use search_space::show_search_space_stats;
-// Publicly exported CdclSolver to stop dead code warnings
-pub use solvers::resolvo::Solver as CdclSolver;
+pub use solver::Solver;
+// Publicly exported ResolvoSolver to stop dead code warnings
+pub use solvers::resolvo::Solver as ResolvoSolver;
 pub use solvers::{StepSolver, StepSolverRuntime};
 pub use spk_schema::foundation::ident_build::Build;
 pub use spk_schema::foundation::ident_component::Component;

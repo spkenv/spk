@@ -14,6 +14,7 @@ use spk_exec::setup_current_runtime;
 use spk_schema::Package;
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::spec_ops::Named;
+use spk_solve::Solver;
 
 /// Install a package into the current environment
 #[derive(Args)]

@@ -28,8 +28,9 @@ use spk_storage::RepositoryHandle;
 use spk_storage::fixtures::*;
 
 use crate::io::DecisionFormatterBuilder;
+use crate::solver::{Solver, SolverImpl};
 use crate::solvers::step::{ErrorDetails, ErrorFreq};
-use crate::{Error, Result, StepSolver, option_map, spec};
+use crate::{Error, ResolvoSolver, Result, StepSolver, option_map, spec};
 
 #[fixture]
 fn solver() -> StepSolver {
@@ -113,6 +114,25 @@ async fn run_and_print_resolve_for_tests(solver: &StepSolver) -> Result<crate::S
 
     let (solution, _) = formatter.run_and_print_resolve(solver).await?;
     Ok(solution)
+}
+
+/// Runs the given solver, printing the output with reasonable output settings
+/// for unit test debugging and inspection.
+async fn run_and_print_resolve_for_tests_with_abstract_solver(
+    solver: &SolverImpl,
+) -> Result<crate::Solution> {
+    match solver {
+        SolverImpl::Step(solver) => {
+            let formatter = DecisionFormatterBuilder::default()
+                .with_verbosity(100)
+                .build();
+
+            let (solution, _) = formatter.run_and_print_resolve(solver).await?;
+            Ok(solution)
+        }
+
+        SolverImpl::Resolvo(solver) => solver.solve().await,
+    }
 }
 
 /// Runs the given solver, logging the output with reasonable output settings
@@ -296,9 +316,19 @@ async fn test_solver_package_with_no_recipe_from_cmd_line_and_impossible_initial
     }
 }
 
+fn step_solver() -> SolverImpl {
+    SolverImpl::Step(StepSolver::default())
+}
+
+fn resolvo_solver() -> SolverImpl {
+    SolverImpl::Resolvo(ResolvoSolver::default())
+}
+
 #[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_solver_single_package_no_deps(mut solver: StepSolver) {
+async fn test_solver_single_package_no_deps(#[case] mut solver: SolverImpl) {
     let options = option_map! {};
     let repo = make_repo!([{"pkg": "my-pkg/1.0.0"}], options=options.clone());
 
@@ -306,7 +336,9 @@ async fn test_solver_single_package_no_deps(mut solver: StepSolver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-pkg"));
 
-    let packages = run_and_print_resolve_for_tests(&solver).await.unwrap();
+    let packages = run_and_print_resolve_for_tests_with_abstract_solver(&solver)
+        .await
+        .unwrap();
     assert_eq!(packages.len(), 1, "expected one resolved package");
     let resolved = packages.get("my-pkg").unwrap();
     assert_eq!(&resolved.spec.version().to_string(), "1.0.0");
