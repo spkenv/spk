@@ -33,8 +33,8 @@ use spk_schema::{
     Variant,
     VersionIdent,
 };
-use spk_solve::Recipe;
 use spk_solve::solution::{LayerPackageAndComponents, get_spfs_layers_to_packages};
+use spk_solve::{Recipe, Solver};
 use spk_storage;
 use strum::{Display, EnumString, IntoEnumIterator, VariantNames};
 
