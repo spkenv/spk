@@ -4302,6 +4302,7 @@ dependencies = [
  "miette",
  "spfs",
  "spk-cli-common",
+ "spk-solve",
  "tokio",
  "tracing",
 ]
@@ -4318,6 +4319,7 @@ dependencies = [
  "spk-cli-common",
  "spk-exec",
  "spk-schema",
+ "spk-solve",
  "tokio",
 ]
 
@@ -4382,6 +4384,7 @@ dependencies = [
  "spfs",
  "spk-cli-common",
  "spk-exec",
+ "spk-solve",
  "spk-storage",
  "tokio",
  "tracing",
@@ -4595,6 +4598,7 @@ dependencies = [
  "crossterm",
  "ctrlc",
  "dyn-clone",
+ "enum_dispatch",
  "futures",
  "itertools 0.12.1",
  "miette",

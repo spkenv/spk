@@ -28,8 +28,9 @@ use spk_storage::RepositoryHandle;
 use spk_storage::fixtures::*;
 
 use super::{ErrorDetails, Solver};
+use crate::abstract_solver::{AbstractSolver, SolverImpl};
 use crate::io::DecisionFormatterBuilder;
-use crate::{Error, Result, option_map, spec};
+use crate::{Error, Result, cdcl_solver, option_map, spec};
 
 #[fixture]
 fn solver() -> Solver {
@@ -113,6 +114,25 @@ async fn run_and_print_resolve_for_tests(solver: &Solver) -> Result<super::Solut
 
     let (solution, _) = formatter.run_and_print_resolve(solver).await?;
     Ok(solution)
+}
+
+/// Runs the given solver, printing the output with reasonable output settings
+/// for unit test debugging and inspection.
+async fn run_and_print_resolve_for_tests_with_abstract_solver(
+    solver: &SolverImpl,
+) -> Result<super::Solution> {
+    match solver {
+        SolverImpl::Og(solver) => {
+            let formatter = DecisionFormatterBuilder::default()
+                .with_verbosity(100)
+                .build();
+
+            let (solution, _) = formatter.run_and_print_resolve(solver).await?;
+            Ok(solution)
+        }
+
+        SolverImpl::Cdcl(solver) => solver.solve().await,
+    }
 }
 
 /// Runs the given solver, logging the output with reasonable output settings
@@ -296,9 +316,19 @@ async fn test_solver_package_with_no_recipe_from_cmd_line_and_impossible_initial
     }
 }
 
+fn og_solver() -> SolverImpl {
+    SolverImpl::Og(Solver::default())
+}
+
+fn cdcl_solver() -> SolverImpl {
+    SolverImpl::Cdcl(cdcl_solver::Solver::default())
+}
+
 #[rstest]
+#[case::og(og_solver())]
+#[case::cdcl(cdcl_solver())]
 #[tokio::test]
-async fn test_solver_single_package_no_deps(mut solver: Solver) {
+async fn test_solver_single_package_no_deps(#[case] mut solver: SolverImpl) {
     let options = option_map! {};
     let repo = make_repo!([{"pkg": "my-pkg/1.0.0"}], options=options.clone());
 
@@ -306,7 +336,9 @@ async fn test_solver_single_package_no_deps(mut solver: Solver) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("my-pkg"));
 
-    let packages = run_and_print_resolve_for_tests(&solver).await.unwrap();
+    let packages = run_and_print_resolve_for_tests_with_abstract_solver(&solver)
+        .await
+        .unwrap();
     assert_eq!(packages.len(), 1, "expected one resolved package");
     let resolved = packages.get("my-pkg").unwrap();
     assert_eq!(&resolved.spec.version().to_string(), "1.0.0");

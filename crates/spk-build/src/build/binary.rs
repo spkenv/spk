@@ -37,7 +37,7 @@ use spk_schema::{
 };
 use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
-use spk_solve::{BoxedResolverCallback, Named, ResolverCallback, Solver};
+use spk_solve::{AbstractSolver, BoxedResolverCallback, Named, ResolverCallback, Solver};
 use spk_storage as storage;
 
 use crate::report::{BuildOutputReport, BuildReport, BuildSetupReport};

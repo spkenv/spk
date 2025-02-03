@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+mod abstract_solver;
 mod cdcl_solver;
 mod error;
 mod io;
@@ -13,6 +14,7 @@ mod status_line;
 
 use std::sync::Arc;
 
+pub use abstract_solver::AbstractSolver;
 // Publicly exported CdclSolver to stop dead code warnings
 pub use cdcl_solver::Solver as CdclSolver;
 pub use error::{Error, Result};
