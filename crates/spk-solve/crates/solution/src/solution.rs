@@ -112,7 +112,7 @@ impl PartialOrd for PackageSource {
 }
 
 /// Represents a package request that has been resolved.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct SolvedRequest {
     pub request: PkgRequest,
     pub spec: Arc<Spec>,
@@ -252,6 +252,28 @@ impl SolvedRequest {
             } => Some(repo.name().into()),
             PackageSource::SpkInternalTest => None,
         }
+    }
+}
+
+impl std::fmt::Debug for SolvedRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SolvedRequest")
+            .field("request", &self.request.to_string())
+            .field("spec", &format!("{}", self.spec.ident()))
+            .field(
+                "source",
+                &match &self.source {
+                    PackageSource::Repository { repo, .. } => {
+                        format!("Repository={}", repo.name())
+                    }
+                    PackageSource::BuildFromSource { recipe } => {
+                        format!("BuildFromSource={}", recipe.ident())
+                    }
+                    PackageSource::Embedded { parent, .. } => format!("Embedded={parent}"),
+                    PackageSource::SpkInternalTest => "SpkInternalTest".to_string(),
+                },
+            )
+            .finish()
     }
 }
 
