@@ -4540,6 +4540,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "variantly",
 ]
 
 [[package]]
