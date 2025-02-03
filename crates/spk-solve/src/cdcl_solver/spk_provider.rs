@@ -313,6 +313,7 @@ impl DependencyProvider for SpkProvider {
         };
 
         for build in located_builds {
+            let is_src = build.component.is_source();
             let solvable_id = *self
                 .interned_solvables
                 .borrow_mut()
@@ -321,7 +322,14 @@ impl DependencyProvider for SpkProvider {
                     self.pool
                         .intern_solvable(name, SpkSolvable::LocatedBuildIdentWithComponent(build))
                 });
-            candidates.candidates.push(solvable_id);
+            if is_src {
+                candidates.excluded.push((
+                    solvable_id,
+                    self.pool.intern_string("source builds are excluded"),
+                ));
+            } else {
+                candidates.candidates.push(solvable_id);
+            }
         }
 
         Some(candidates)
