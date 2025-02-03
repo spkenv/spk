@@ -192,3 +192,26 @@ async fn global_vars(#[case] global_spec: &str, #[case] expected_color: &str) {
         expected_color
     );
 }
+
+#[rstest]
+#[tokio::test]
+async fn package_with_source_build() {
+    let repo = make_repo!(
+        [
+            {"pkg": "dep/1.0.0/src"},
+            {"pkg": "needs-dep/1.0.0",
+             "install": {
+                 "requirements": [
+                     {"pkg": "dep"}
+                 ]
+             }
+            },
+        ]
+    );
+
+    let mut solver = Solver::new(vec![repo.into()], Cow::Borrowed(&[]));
+    solver
+        .solve(&[request!("needs-dep/1.0.0")])
+        .await
+        .expect_err("src build should not satisfy dependency");
+}

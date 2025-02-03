@@ -8,6 +8,7 @@ use resolvo::utils::VersionSet;
 use spk_schema::Request;
 use spk_schema::ident::LocatedBuildIdent;
 use spk_schema::ident_component::Component;
+use variantly::Variantly;
 
 /// This allows for storing strings of different types but hash and compare by
 /// the underlying strings.
@@ -87,7 +88,7 @@ impl std::fmt::Display for RequestVS {
 }
 
 /// Like `Component` but without the `All` variant.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Variantly)]
 pub(crate) enum ComponentWithoutAll {
     Build,
     Run,
