@@ -9,6 +9,7 @@ use miette::{bail, Context, IntoDiagnostic, Result};
 use spfs::storage::fallback::FallbackProxy;
 use spk_cli_common::{build_required_packages, flags, CommandArgs, Run};
 use spk_exec::resolve_runtime_layers;
+use spk_solve::AbstractSolver;
 
 /// Output the contents of an spk environment (/spfs) to a folder
 #[derive(Args)]

@@ -11,6 +11,7 @@ use spfs::tracking::SpecFile;
 use spfs_cli_common::Progress;
 use spk_cli_common::{build_required_packages, flags, CommandArgs, Run};
 use spk_exec::setup_runtime_with_reporter;
+use spk_solve::AbstractSolver;
 #[cfg(feature = "statsd")]
 use spk_solve::{get_metrics_client, SPK_RUN_TIME_METRIC};
 

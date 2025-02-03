@@ -13,20 +13,22 @@ use pkg_request_version_set::SpkSolvable;
 use spk_provider::SpkProvider;
 use spk_schema::ident::{InclusionPolicy, PinPolicy, PkgRequest, RangeIdent};
 use spk_schema::version_range::VersionFilter;
-use spk_schema::Request;
+use spk_schema::{OptionMap, Request};
 use spk_solve_solution::{PackageSource, Solution};
 use spk_solve_validation::Validators;
 use spk_storage::RepositoryHandle;
 
+use crate::abstract_solver::AbstractSolver;
 use crate::{Error, Result};
 
 #[cfg(test)]
 #[path = "cdcl_solver_tests.rs"]
 mod cdcl_solver_tests;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Solver {
     repos: Vec<Arc<RepositoryHandle>>,
+    requests: Vec<Request>,
     _validators: Cow<'static, [Validators]>,
 }
 
@@ -34,14 +36,14 @@ impl Solver {
     pub fn new(repos: Vec<Arc<RepositoryHandle>>, validators: Cow<'static, [Validators]>) -> Self {
         Self {
             repos,
+            requests: Vec::new(),
             _validators: validators,
         }
     }
 
-    pub async fn solve(&mut self, requests: &[Request]) -> Result<Solution> {
+    pub async fn solve(&self) -> Result<Solution> {
         let repos = self.repos.clone();
-        // XXX: Taking a slice reference doesn't make sense anymore.
-        let requests = requests.to_vec();
+        let requests = self.requests.clone();
         // Use a blocking thread so resolvo can call `block_on` on the runtime.
         let solvables = tokio::task::spawn_blocking(move || {
             let mut provider = Some(SpkProvider::new(repos.clone()));
@@ -136,5 +138,22 @@ impl Solver {
             );
         }
         Ok(solution)
+    }
+}
+
+impl AbstractSolver for Solver {
+    fn add_repository<R>(&mut self, repo: R)
+    where
+        R: Into<Arc<RepositoryHandle>>,
+    {
+        self.repos.push(repo.into());
+    }
+
+    fn add_request(&mut self, request: Request) {
+        self.requests.push(request);
+    }
+
+    fn update_options(&mut self, _options: OptionMap) {
+        // TODO
     }
 }

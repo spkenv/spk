@@ -35,6 +35,7 @@ console = { workspace = true }
 crossterm = "0.28.1"
 ctrlc = "3.2"
 dyn-clone = { workspace = true }
+enum_dispatch = { workspace = true }
 futures = { workspace = true }
 itertools = { workspace = true }
 miette = { workspace = true }

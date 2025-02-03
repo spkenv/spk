@@ -10,6 +10,7 @@ use spk_cli_common::{current_env, flags, CommandArgs, Run};
 use spk_schema::ident::RequestedBy;
 use spk_schema::Package;
 use spk_solve::solution::{get_spfs_layers_to_packages, LayerPackageAndComponents, PackageSource};
+use spk_solve::AbstractSolver;
 
 #[cfg(test)]
 #[path = "./cmd_bake_test.rs"]

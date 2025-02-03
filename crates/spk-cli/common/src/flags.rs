@@ -11,6 +11,7 @@ use std::sync::Arc;
 use clap::{Args, ValueEnum, ValueHint};
 use miette::{bail, miette, Context, IntoDiagnostic, Result};
 use solve::{
+    AbstractSolver,
     DecisionFormatter,
     DecisionFormatterBuilder,
     MultiSolverKind,
