@@ -9,7 +9,7 @@ use rstest::{fixture, rstest};
 use spk_cmd_build::build_package;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::ident::build_ident;
-use spk_solve::{DecisionFormatterBuilder, StepSolver};
+use spk_solve::{DecisionFormatterBuilder, Solver, StepSolver};
 use spk_solve_macros::request;
 use spk_storage::fixtures::*;
 

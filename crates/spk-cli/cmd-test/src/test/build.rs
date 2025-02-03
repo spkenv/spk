@@ -15,7 +15,7 @@ use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
 use spk_schema::{AnyIdent, Recipe, SpecRecipe};
 use spk_solve::solution::Solution;
-use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, StepSolver};
+use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver, StepSolver};
 use spk_storage as storage;
 
 use super::Tester;
