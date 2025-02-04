@@ -16,10 +16,11 @@ use once_cell::sync::OnceCell;
 use progress_bar_derive_macro::ProgressBar;
 
 use super::prune::PruneParameters;
+use crate::io::Pluralize;
 use crate::prelude::*;
 use crate::runtime::makedirs_with_perms;
 use crate::storage::fs::OpenFsRepository;
-use crate::{encoding, graph, storage, tracking, Error, Result};
+use crate::{encoding, graph, storage, tracking, Digest, Error, Result};
 
 #[cfg(test)]
 #[path = "./clean_test.rs"]
@@ -43,7 +44,7 @@ where
     attached: DashSet<encoding::Digest>,
     dry_run: bool,
     must_be_older_than: DateTime<Utc>,
-    prune_repeated_tags: bool,
+    prune_repeated_tags: Option<u64>,
     prune_params: PruneParameters,
     remove_proxies_with_no_links: bool,
 }
@@ -66,7 +67,7 @@ impl<'repo> Cleaner<'repo, SilentCleanReporter> {
             attached: Default::default(),
             dry_run: false,
             must_be_older_than: Utc::now(),
-            prune_repeated_tags: false,
+            prune_repeated_tags: None,
             prune_params: Default::default(),
             remove_proxies_with_no_links: true,
         }
@@ -154,7 +155,7 @@ where
 
     /// When walking the history of a tag, delete older entries
     /// that have the same target as a more recent one.
-    pub fn with_prune_repeated_tags(mut self, prune_repeated_tags: bool) -> Self {
+    pub fn with_prune_repeated_tags(mut self, prune_repeated_tags: Option<u64>) -> Self {
         self.prune_repeated_tags = prune_repeated_tags;
         self
     }
@@ -229,11 +230,12 @@ where
             " - {} each item in the tag's history, and for each one:",
             "VISIT".cyan()
         );
-        if self.prune_repeated_tags || !self.prune_params.is_empty() {
-            if self.prune_repeated_tags {
+        if self.prune_repeated_tags.is_some() || !self.prune_params.is_empty() {
+            if let Some(number) = self.prune_repeated_tags {
+                let entries = "entry".pluralize(number);
                 let _ = writeln!(
                     &mut out,
-                    " - {prune} any entry that has a the same target as a more recent entry",
+                    " - {prune} all but {number} {entries} with the same target as a more recent entry"
                 );
             }
             let PruneParameters {
@@ -366,14 +368,24 @@ where
             .await?;
         let mut to_prune = Vec::with_capacity(history.len() / 2);
         let mut to_keep = Vec::with_capacity(history.len() / 2);
-        let mut seen_targets = std::collections::HashSet::new();
+        let mut seen_targets: HashMap<Digest, u64> = std::collections::HashMap::new();
         for (i, tag) in history.into_iter().enumerate() {
             let spec = tag.to_spec(i as u64);
             self.reporter.visit_tag(&tag);
-            if !seen_targets.insert(tag.target) && self.prune_repeated_tags {
-                to_prune.push(tag);
-                continue;
-            }
+            let count = if let Some(seen_count) = seen_targets.get(&tag.target) {
+                if let Some(keep_number) = self.prune_repeated_tags {
+                    if *seen_count >= keep_number {
+                        to_prune.push(tag);
+                        continue;
+                    }
+                }
+                *seen_count + 1
+            } else {
+                1
+            };
+
+            seen_targets.insert(tag.target, count);
+
             if self.prune_params.should_prune(&spec, &tag) {
                 to_prune.push(tag);
             } else {
