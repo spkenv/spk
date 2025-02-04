@@ -67,7 +67,7 @@ pub enum Error {
     #[error("Error: Flushing solver log file: {0}")]
     SolverLogFileFlushError(#[source] std::io::Error),
     #[error(
-        "cannot build package ({0}) from source during a solve when it has a dependency on itself"
+        "Cannot build package ({0}) from source during a solve when it has a dependency on itself"
     )]
     SolverBuildFromSourceDependencyLoopError(VersionIdent),
 }
