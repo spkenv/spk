@@ -187,6 +187,11 @@ impl<S> SpfsRepository<S> {
         })
     }
 
+    /// Access to the underlying [`spfs::storage::RepositoryHandle`].
+    pub fn inner(&self) -> &spfs::storage::RepositoryHandle {
+        &self.inner
+    }
+
     /// Pin this repository to a specific point in time, limiting
     /// all queries and making it read-only
     pub fn pin_at_time(&mut self, ts: &spfs::tracking::TimeSpec) {
