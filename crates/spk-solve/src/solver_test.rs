@@ -1008,14 +1008,14 @@ async fn test_solver_build_from_source_dependency_but_hit_loop(mut solver: Solve
     // - in the process solving for the new build to make it from source
     //   a dependency loop is hit
     let python36 = make_build!({"pkg": "python/3.6.3", "compat": "x.a.b"});
-    let mytool = make_build!({"pkg": "my-tool/99.99.99", "compat": "x.a.b"});
+    let my_tool = make_build!({"pkg": "my-tool/99.99.99", "compat": "x.a.b"});
     let build_with_py36 = make_build!(
         {
             "pkg": "my-tool/1.2.0",
             "build": {"options": [{"pkg": "python"}, {"pkg":"my-tool/99.99.99"}]},
             "install": {"requirements": [{"pkg": "python/3.6.3"}]},
         },
-        [python36, mytool]
+        [python36, my_tool]
     );
 
     let repo = make_repo!(
