@@ -27,6 +27,7 @@ pub use storage::{
     Author,
     Config,
     Data,
+    EnvKeyValue,
     KeyValuePair,
     KeyValuePairBuf,
     MountBackend,
