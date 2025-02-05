@@ -5,6 +5,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 use std::future::ready;
+use std::num::NonZero;
 #[cfg(unix)]
 use std::os::linux::fs::MetadataExt;
 
@@ -44,7 +45,7 @@ where
     attached: DashSet<encoding::Digest>,
     dry_run: bool,
     must_be_older_than: DateTime<Utc>,
-    prune_repeated_tags: Option<u64>,
+    prune_repeated_tags: Option<NonZero<u64>>,
     prune_params: PruneParameters,
     remove_proxies_with_no_links: bool,
 }
@@ -155,7 +156,7 @@ where
 
     /// When walking the history of a tag, delete older entries
     /// that have the same target as a more recent one.
-    pub fn with_prune_repeated_tags(mut self, prune_repeated_tags: Option<u64>) -> Self {
+    pub fn with_prune_repeated_tags(mut self, prune_repeated_tags: Option<NonZero<u64>>) -> Self {
         self.prune_repeated_tags = prune_repeated_tags;
         self
     }
@@ -232,7 +233,7 @@ where
         );
         if self.prune_repeated_tags.is_some() || !self.prune_params.is_empty() {
             if let Some(number) = self.prune_repeated_tags {
-                let entries = "entry".pluralize(number);
+                let entries = "entry".pluralize(number.get());
                 let _ = writeln!(
                     &mut out,
                     " - {prune} all but {number} {entries} with the same target as a more recent entry"
@@ -374,7 +375,7 @@ where
             self.reporter.visit_tag(&tag);
             let count = if let Some(seen_count) = seen_targets.get(&tag.target) {
                 if let Some(keep_number) = self.prune_repeated_tags {
-                    if *seen_count >= keep_number {
+                    if *seen_count >= keep_number.get() {
                         to_prune.push(tag);
                         continue;
                     }

@@ -3,6 +3,7 @@
 // https://github.com/spkenv/spk
 
 use std::collections::HashSet;
+use std::num::NonZero;
 
 use chrono::prelude::*;
 use clap::Parser;
@@ -55,8 +56,8 @@ pub struct CmdClean {
 
     /// When pruning old tag that have the same target as a more
     /// recent version, keep this many of the repeated tags
-    #[clap(long = "prune-repeated-keep", default_value_t = 1, group = "repo_data")]
-    prune_repeated_keep: u64,
+    #[clap(long = "prune-repeated-keep", group = "repo_data")]
+    prune_repeated_keep: Option<NonZero<u64>>,
 
     /// Prune tags older that the given age (eg: 1y, 8w, 10d, 3h, 4m, 8s)
     #[clap(long = "prune-if-older-than", group = "repo_data", value_parser = age_to_date)]
@@ -155,11 +156,9 @@ impl CmdClean {
         }
 
         let prune_repeated_tags = if self.prune_repeated {
-            Some(1)
-        } else if self.prune_repeated_keep > 0 {
-            Some(self.prune_repeated_keep)
+            NonZero::new(1)
         } else {
-            None
+            self.prune_repeated_keep
         };
 
         let cleaner = spfs::Cleaner::new(&repo)
