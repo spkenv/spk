@@ -135,7 +135,7 @@ pub struct TemplateConfig {
     /// Ordered set of versions that this template can produce.
     ///
     /// An empty set of versions does not mean that no versions can
-    /// be produces, but rather that any can be attempted. It's also
+    /// be produced, but rather that any can be attempted. It's also
     /// typical for a template to have a single hard-coded version inside
     /// and so not need to specify values for this field.
     pub versions: BTreeSet<Version>,
