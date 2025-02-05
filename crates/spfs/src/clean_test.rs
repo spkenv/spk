@@ -24,7 +24,7 @@ async fn test_attached_objects(#[future] tmprepo: TempRepo) {
 
     let cleaner = Cleaner::new(&tmprepo).with_reporter(TracingCleanReporter);
     cleaner
-        .discover_attached_objects(manifest.digest().unwrap())
+        .visit_attached_objects(manifest.digest().unwrap())
         .await
         .unwrap();
 
