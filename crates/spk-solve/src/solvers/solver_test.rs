@@ -700,8 +700,6 @@ async fn test_solver_pre_release_config(#[case] mut solver: SolverImpl) {
 
 #[rstest]
 #[case::step(step_solver())]
-// Remove #[should_panic] once resolvo handles this case
-#[should_panic]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_constraint_only(#[case] mut solver: SolverImpl) {
