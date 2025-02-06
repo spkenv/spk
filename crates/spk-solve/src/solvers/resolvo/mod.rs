@@ -83,7 +83,7 @@ impl SolverTrait for Solver {
         let solvables = tokio::task::spawn_blocking(move || {
             let mut provider = Some(SpkProvider::new(repos.clone()));
             let (solver, solved) = loop {
-                let this_iter_provider = provider.take().expect("provider is always Some");
+                let mut this_iter_provider = provider.take().expect("provider is always Some");
                 let pkg_requirements = this_iter_provider.pkg_requirements(&requests);
                 let var_requirements = this_iter_provider.var_requirements(&requests);
                 let mut solver = resolvo::Solver::new(this_iter_provider)

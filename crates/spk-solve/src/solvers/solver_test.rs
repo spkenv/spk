@@ -191,7 +191,7 @@ async fn test_solver_package_with_no_recipe(
 }
 
 #[rstest]
-// This test is only applicable to the og solver
+// This test is only applicable to the step solver
 #[case::step(step_solver())]
 #[tokio::test]
 async fn test_solver_package_with_no_recipe_and_impossible_initial_checks(
@@ -281,7 +281,7 @@ async fn test_solver_package_with_no_recipe_from_cmd_line(#[case] mut solver: So
 }
 
 #[rstest]
-// This test is only applicable to the og solver
+// This test is only applicable to the step solver
 #[case::step(step_solver())]
 #[tokio::test]
 async fn test_solver_package_with_no_recipe_from_cmd_line_and_impossible_initial_checks(
@@ -765,11 +765,12 @@ async fn test_solver_constraint_and_request(#[case] mut solver: SolverImpl) {
 
 #[rstest]
 #[case::step(step_solver())]
-// Remove #[should_panic] once resolvo handles this case
-#[should_panic]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_solver_option_compatibility(#[case] mut solver: SolverImpl) {
+async fn test_solver_option_compatibility(
+    #[case] mut solver: SolverImpl,
+    #[values("~2.0", "~2.7", "~2.7.5", "2,<3", "2.7,<3", "3", "3.7", "3.7.3")] pyver: &str,
+) {
     // test what happens when an option is given in the solver
     // - the options for each build are checked
     // - the resolved build must have used the option
@@ -809,43 +810,37 @@ async fn test_solver_option_compatibility(#[case] mut solver: SolverImpl) {
     // added to some of the version ranges below force the solver to
     // work through the ordered builds until it finds an appropriate
     // 2.x.y values to both solve and pass the test.
-    for pyver in [
-        // Uncomment this, when the '2,<3' parsing bug: https://github.com/spkenv/spk/issues/322 has been fixed
-        //"~2.0", "~2.7", "~2.7.5", "2,<3", "2.7,<3", "3", "3.7", "3.7.3",
-        "~2.0", "~2.7", "~2.7.5", "3", "3.7", "3.7.3",
-    ] {
-        solver.reset();
-        solver.add_repository(repo.clone());
-        solver.add_request(request!("vnp3"));
-        solver.add_request(
-            VarRequest {
-                var: opt_name!("python").to_owned(),
-                value: pyver.into(),
-                description: None,
-            }
-            .into(),
-        );
+    solver.reset();
+    solver.add_repository(repo.clone());
+    solver.add_request(request!("vnp3"));
+    solver.add_request(
+        VarRequest {
+            var: opt_name!("python").to_owned(),
+            value: pyver.into(),
+            description: None,
+        }
+        .into(),
+    );
 
-        let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
+    let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
-        let resolved = solution.get("vnp3").unwrap();
-        let value = resolved
-            .spec
-            .option_values()
-            .remove(opt_name!("python"))
-            .unwrap();
+    let resolved = solution.get("vnp3").unwrap();
+    let value = resolved
+        .spec
+        .option_values()
+        .remove(opt_name!("python"))
+        .unwrap();
 
-        // Check the first digit component of the pyver value
-        let expected = if pyver.starts_with('~') {
-            format!("~{}", pyver.chars().nth(1).unwrap()).to_string()
-        } else {
-            format!("~{}", pyver.chars().next().unwrap()).to_string()
-        };
-        assert!(
-            value.starts_with(&expected),
-            "{value} should start with ~{expected} to be valid for {pyver}"
-        );
-    }
+    // Check the first digit component of the pyver value
+    let expected = if pyver.starts_with('~') {
+        format!("~{}", pyver.chars().nth(1).unwrap()).to_string()
+    } else {
+        format!("~{}", pyver.chars().next().unwrap()).to_string()
+    };
+    assert!(
+        value.starts_with(&expected),
+        "{value} should start with {expected} to be valid for {pyver}"
+    );
 }
 
 #[rstest]
@@ -963,12 +958,11 @@ async fn test_solver_build_from_source(#[case] mut solver: SolverImpl) {
 
 #[rstest]
 #[case::step(step_solver())]
-// Remove #[should_panic] once resolvo handles this case
-#[should_panic]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_build_from_source_unsolvable(#[case] mut solver: SolverImpl) {
     let log = init_logging();
+
     // test when no appropriate build exists but the source is available
     // - if the requested pkg cannot resolve a build environment
     // - this is flagged by the solver as impossible
@@ -1006,21 +1000,28 @@ async fn test_solver_build_from_source_unsolvable(#[case] mut solver: SolverImpl
     let res = run_and_log_resolve_for_tests(&mut solver).await;
 
     assert!(res.is_err(), "should fail to resolve");
-    let log = log.lock();
-    let event = log.all_events().find(|e| {
-        let Some(msg) = e.message() else {
-            return false;
-        };
-        let msg = strip_ansi_escapes::strip(msg);
-        let msg = String::from_utf8_lossy(&msg);
-        msg.ends_with(
-            "TRY my-tool/1.2.0/src - cannot resolve build env for source build: Failed to resolve: there is no solution for these requests using the available packages",
-        )
-    });
-    assert!(
-        event.is_some(),
-        "should block because of failed build env resolve"
-    );
+
+    // This additional assert is specific to the output of the step solver.
+    // XXX The log isn't cleared between test cases, so this code would
+    // sometimes pass while testing the resolvo solver. There is no obvious way
+    // to clear the log.
+    if let SolverImpl::Step(_) = solver {
+        let log = log.lock();
+        let event = log.all_events().find(|e| {
+            let Some(msg) = e.message() else {
+                return false;
+            };
+            let msg = strip_ansi_escapes::strip(msg);
+            let msg = String::from_utf8_lossy(&msg);
+            msg.ends_with(
+                "TRY my-tool/1.2.0/src - cannot resolve build env for source build: Failed to resolve: there is no solution for these requests using the available packages",
+            )
+        });
+        assert!(
+            event.is_some(),
+            "should block because of failed build env resolve"
+        );
+    }
 }
 
 #[rstest]
@@ -1216,7 +1217,7 @@ async fn test_solver_build_from_source_deprecated(#[case] mut solver: SolverImpl
 }
 
 #[rstest]
-// This test is only applicable to the og solver
+// This test is only applicable to the step solver
 #[case::step(step_solver())]
 #[tokio::test]
 async fn test_solver_build_from_source_deprecated_and_impossible_initial_checks(
@@ -1460,7 +1461,7 @@ async fn test_solver_embedded_package_replaces_real_package(#[case] mut solver: 
 }
 
 #[rstest]
-// This test is only applicable to the og solver
+// This test is only applicable to the step solver
 #[case::step(step_solver())]
 #[tokio::test]
 async fn test_solver_initial_request_impossible_masks_embedded_package_solution(
@@ -1514,7 +1515,7 @@ async fn test_solver_initial_request_impossible_masks_embedded_package_solution(
 }
 
 #[rstest]
-// This test is only applicable to the og solver
+// This test is only applicable to the step solver
 #[case::step(step_solver())]
 #[tokio::test]
 async fn test_solver_impossible_request_but_embedded_package_makes_solvable(
@@ -1660,7 +1661,7 @@ async fn test_multiple_packages_embed_same_package(
 }
 
 #[rstest]
-// This test is only applicable to the og solver
+// This test is only applicable to the step solver
 #[case::step(step_solver())]
 #[tokio::test]
 async fn test_solver_with_impossible_checks_in_build_keys(#[case] mut solver: SolverImpl) {
@@ -1780,7 +1781,6 @@ async fn test_solver_embedded_request_invalidates(#[case] mut solver: SolverImpl
 
 #[rstest]
 #[case::step(step_solver())]
-#[should_panic]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_unknown_package_options(#[case] mut solver: SolverImpl) {
@@ -1915,8 +1915,6 @@ async fn test_solver_var_requirements_unresolve(#[case] mut solver: SolverImpl) 
 
 #[rstest]
 #[case::step(step_solver())]
-// Remove #[should_panic] once resolvo handles this case
-#[should_panic]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_build_options_dont_affect_compat(#[case] mut solver: SolverImpl) {
@@ -2847,10 +2845,7 @@ fn test_problem_packages() {
 #[case::resolve_two_part_flavor("blue", "1.0")]
 #[tokio::test]
 async fn test_version_number_masking(
-    #[values(step_solver()
-        // TODO , resolvo_solver()
-    )]
-    mut solver: SolverImpl,
+    #[values(step_solver(), resolvo_solver())] mut solver: SolverImpl,
     #[case] color_to_solve_for: &str,
     #[case] expected_resolved_version: &str,
     #[values(RepoKind::Mem, RepoKind::Spfs)] repo: RepoKind,

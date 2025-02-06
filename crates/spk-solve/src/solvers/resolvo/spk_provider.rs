@@ -22,8 +22,8 @@ use resolvo::{
     VersionSetUnionId,
 };
 use spk_schema::foundation::pkg_name;
-use spk_schema::ident::LocatedBuildIdent;
-use spk_schema::name::PkgNameBuf;
+use spk_schema::ident::{LocatedBuildIdent, PinnableValue, Satisfy, VarRequest};
+use spk_schema::name::{OptNameBuf, PkgNameBuf};
 use spk_schema::{Opt, Package, Request, VersionIdent};
 use spk_storage::RepositoryHandle;
 
@@ -42,6 +42,10 @@ const PSEUDO_PKG_NAME_PREFIX: &str = "global-vars--";
 pub(crate) struct SpkProvider {
     pub(crate) pool: Pool<RequestVS, PkgNameBuf>,
     repos: Vec<Arc<RepositoryHandle>>,
+    /// Global options, like what might be specified with `--opt` to `spk env`.
+    /// Indexed by name. If multiple requests happen to exist with the same
+    /// name, the last one is kept.
+    global_var_requests: HashMap<OptNameBuf, VarRequest<PinnableValue>>,
     interned_solvables: RefCell<HashMap<SpkSolvable, SolvableId>>,
     /// Track all the global var keys and values that have been witnessed while
     /// solving.
@@ -58,6 +62,7 @@ impl SpkProvider {
         Self {
             pool: Pool::new(),
             repos,
+            global_var_requests: Default::default(),
             interned_solvables: Default::default(),
             known_global_var_values: Default::default(),
             queried_global_var_values: Default::default(),
@@ -91,6 +96,7 @@ impl SpkProvider {
         Self {
             pool: Pool::new(),
             repos: self.repos.clone(),
+            global_var_requests: self.global_var_requests.clone(),
             interned_solvables: Default::default(),
             known_global_var_values: RefCell::new(self.known_global_var_values.take()),
             queried_global_var_values: Default::default(),
@@ -98,9 +104,31 @@ impl SpkProvider {
         }
     }
 
-    pub fn var_requirements(&self, _requests: &[Request]) -> Vec<VersionSetId> {
-        // TODO
-        Vec::new()
+    pub fn var_requirements(&mut self, requests: &[Request]) -> Vec<VersionSetId> {
+        self.global_var_requests.reserve(requests.len());
+        requests
+            .iter()
+            .filter_map(|req| match req {
+                Request::Var(var) => Some(var),
+                _ => None,
+            })
+            .filter_map(|req| match req.var.namespace() {
+                Some(pkg_name) => {
+                    // A global request applicable to a specific package.
+                    let dep_name = self.pool.intern_package_name(pkg_name.to_owned());
+                    Some(self.pool.intern_version_set(
+                        dep_name,
+                        RequestVS::SpkRequest(Request::Var(req.clone())),
+                    ))
+                }
+                None => {
+                    // A global request affecting all packages.
+                    self.global_var_requests
+                        .insert(req.var.without_namespace().to_owned(), req.clone());
+                    None
+                }
+            })
+            .collect()
     }
 }
 
@@ -313,7 +341,10 @@ impl DependencyProvider for SpkProvider {
         };
 
         for build in located_builds {
+            // What we need from build before it is moved into the pool.
+            let ident = build.ident.clone();
             let is_src = build.component.is_source();
+
             let solvable_id = *self
                 .interned_solvables
                 .borrow_mut()
@@ -322,13 +353,49 @@ impl DependencyProvider for SpkProvider {
                     self.pool
                         .intern_solvable(name, SpkSolvable::LocatedBuildIdentWithComponent(build))
                 });
+
             if is_src {
                 candidates.excluded.push((
                     solvable_id,
                     self.pool.intern_string("source builds are excluded"),
                 ));
             } else {
-                candidates.candidates.push(solvable_id);
+                // Filter builds that don't conform to global options
+                // XXX: This find runtime will add up.
+                let repo = self
+                    .repos
+                    .iter()
+                    .find(|repo| repo.name() == ident.repository_name())
+                    .expect(
+                        "Expected solved package's repository to be in the list of repositories",
+                    );
+                match repo.read_package(ident.target()).await {
+                    Ok(package) => {
+                        for (opt_name, _value) in package.option_values() {
+                            if let Some(request) = self.global_var_requests.get(&opt_name) {
+                                if let spk_schema::version::Compatibility::Incompatible(
+                                    incompatible_reason,
+                                ) = package.check_satisfies_request(request)
+                                {
+                                    candidates.excluded.push((
+                                        solvable_id,
+                                        self.pool.intern_string(format!(
+                                            "build does not satisfy global var request: {incompatible_reason}"
+                                        )),
+                                    ));
+                                    continue;
+                                }
+                            }
+                        }
+
+                        candidates.candidates.push(solvable_id);
+                    }
+                    Err(err) => {
+                        candidates
+                            .excluded
+                            .push((solvable_id, self.pool.intern_string(err.to_string())));
+                    }
+                }
             }
         }
 
