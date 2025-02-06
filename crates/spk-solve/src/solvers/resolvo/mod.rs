@@ -26,7 +26,7 @@ use spk_schema::ident::{InclusionPolicy, PinPolicy, PkgRequest, RangeIdent};
 use spk_schema::version_range::VersionFilter;
 use spk_schema::{OptionMap, Request};
 use spk_solve_solution::{PackageSource, Solution};
-use spk_solve_validation::Validators;
+use spk_solve_validation::{Validators, default_validators};
 use spk_storage::RepositoryHandle;
 
 use crate::solver::Solver as SolverTrait;
@@ -51,8 +51,32 @@ impl Solver {
             _validators: validators,
         }
     }
+}
 
-    pub async fn solve(&self) -> Result<Solution> {
+#[async_trait::async_trait]
+impl SolverTrait for Solver {
+    fn add_repository<R>(&mut self, repo: R)
+    where
+        R: Into<Arc<RepositoryHandle>>,
+    {
+        self.repos.push(repo.into());
+    }
+
+    fn add_request(&mut self, request: Request) {
+        self.requests.push(request);
+    }
+
+    fn reset(&mut self) {
+        self.repos.truncate(0);
+        self.requests.truncate(0);
+        self._validators = Cow::from(default_validators());
+    }
+
+    fn set_binary_only(&mut self, _binary_only: bool) {
+        // TODO
+    }
+
+    async fn solve(&mut self) -> Result<Solution> {
         let repos = self.repos.clone();
         let requests = self.requests.clone();
         // Use a blocking thread so resolvo can call `block_on` on the runtime.
@@ -149,19 +173,6 @@ impl Solver {
             );
         }
         Ok(solution)
-    }
-}
-
-impl SolverTrait for Solver {
-    fn add_repository<R>(&mut self, repo: R)
-    where
-        R: Into<Arc<RepositoryHandle>>,
-    {
-        self.repos.push(repo.into());
-    }
-
-    fn add_request(&mut self, request: Request) {
-        self.requests.push(request);
     }
 
     fn update_options(&mut self, _options: OptionMap) {
