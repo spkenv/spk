@@ -1024,61 +1024,9 @@ impl Solver {
         Ok(())
     }
 
-    /// Put this solver back into its default state
-    pub fn reset(&mut self) {
-        self.repos.truncate(0);
-        self.initial_state_builders.truncate(0);
-        self.validators = Cow::from(default_validators());
-        (*self.request_validator).reset();
-
-        self.number_of_steps = 0;
-        self.number_builds_skipped = 0;
-        self.number_incompat_versions = 0;
-        self.number_incompat_builds = 0;
-        self.number_total_builds = 0;
-        self.number_of_steps_back.store(0, Ordering::SeqCst);
-        self.error_frequency.clear();
-        self.problem_packages.clear();
-    }
-
     /// Run this solver
     pub fn run(&self) -> SolverRuntime {
         SolverRuntime::new(self.clone())
-    }
-
-    /// If true, only solve pre-built binary packages.
-    ///
-    /// When false, the solver may return packages where the build is not set.
-    /// These packages are known to have a source package available, and the requested
-    /// options are valid for a new build of that source package.
-    /// These packages are not actually built as part of the solver process but their
-    /// build environments are fully resolved and dependencies included
-    pub fn set_binary_only(&mut self, binary_only: bool) {
-        self.request_validator.set_binary_only(binary_only);
-
-        let has_binary_only = self
-            .validators
-            .iter()
-            .find_map(|v| match v {
-                Validators::BinaryOnly(_) => Some(true),
-                _ => None,
-            })
-            .unwrap_or(false);
-        if !(has_binary_only ^ binary_only) {
-            return;
-        }
-        if binary_only {
-            // Add BinaryOnly validator because it was missing.
-            self.validators
-                .to_mut()
-                .insert(0, Validators::BinaryOnly(BinaryOnlyValidator {}))
-        } else {
-            // Remove all BinaryOnly validators because one was found.
-            self.validators = take(self.validators.to_mut())
-                .into_iter()
-                .filter(|v| !matches!(v, Validators::BinaryOnly(_)))
-                .collect();
-        }
     }
 
     /// Enable or disable running impossible checks on the initial requests
@@ -1105,16 +1053,6 @@ impl Solver {
         self.impossible_checks.check_initial_requests
             || self.impossible_checks.check_before_resolving
             || self.impossible_checks.use_in_build_keys
-    }
-
-    pub async fn solve(&mut self) -> Result<Solution> {
-        let mut runtime = self.run();
-        {
-            let iter = runtime.iter();
-            tokio::pin!(iter);
-            while let Some(_step) = iter.try_next().await? {}
-        }
-        runtime.current_solution().await
     }
 
     /// Adds requests for all build requirements
@@ -1170,6 +1108,7 @@ impl Solver {
     }
 }
 
+#[async_trait::async_trait]
 impl SolverTrait for Solver {
     fn add_repository<R>(&mut self, repo: R)
     where
@@ -1193,6 +1132,60 @@ impl SolverTrait for Solver {
             Request::Var(request) => Change::RequestVar(RequestVar::new(request)),
         };
         self.initial_state_builders.push(request);
+    }
+
+    fn reset(&mut self) {
+        self.repos.truncate(0);
+        self.initial_state_builders.truncate(0);
+        self.validators = Cow::from(default_validators());
+        (*self.request_validator).reset();
+
+        self.number_of_steps = 0;
+        self.number_builds_skipped = 0;
+        self.number_incompat_versions = 0;
+        self.number_incompat_builds = 0;
+        self.number_total_builds = 0;
+        self.number_of_steps_back.store(0, Ordering::SeqCst);
+        self.error_frequency.clear();
+        self.problem_packages.clear();
+    }
+
+    fn set_binary_only(&mut self, binary_only: bool) {
+        self.request_validator.set_binary_only(binary_only);
+
+        let has_binary_only = self
+            .validators
+            .iter()
+            .find_map(|v| match v {
+                Validators::BinaryOnly(_) => Some(true),
+                _ => None,
+            })
+            .unwrap_or(false);
+        if !(has_binary_only ^ binary_only) {
+            return;
+        }
+        if binary_only {
+            // Add BinaryOnly validator because it was missing.
+            self.validators
+                .to_mut()
+                .insert(0, Validators::BinaryOnly(BinaryOnlyValidator {}))
+        } else {
+            // Remove all BinaryOnly validators because one was found.
+            self.validators = take(self.validators.to_mut())
+                .into_iter()
+                .filter(|v| !matches!(v, Validators::BinaryOnly(_)))
+                .collect();
+        }
+    }
+
+    async fn solve(&mut self) -> Result<Solution> {
+        let mut runtime = self.run();
+        {
+            let iter = runtime.iter();
+            tokio::pin!(iter);
+            while let Some(_step) = iter.try_next().await? {}
+        }
+        runtime.current_solution().await
     }
 
     fn update_options(&mut self, options: OptionMap) {
