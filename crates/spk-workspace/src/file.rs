@@ -25,11 +25,13 @@ mod file_test;
 /// [`super::Workspace`] to be operated on.
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Deserialize)]
 pub struct WorkspaceFile {
+    /// The package recipes that are part of this workspace
     #[serde(default)]
     pub recipes: Vec<RecipesItem>,
 }
 
 impl WorkspaceFile {
+    /// The expected file name for a workspace file
     pub const FILE_NAME: &str = "workspace.spk.yaml";
 
     /// Load a workspace from its root directory on disk

@@ -2,10 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+//! Find and/or build workspaces.
+
 use std::collections::HashSet;
 
 use crate::error;
 
+/// Used to construct a [`super::Workspace`] either from
+/// yaml files on disk or programmatically.
 #[derive(Default)]
 pub struct WorkspaceBuilder {
     spec_files: HashSet<std::path::PathBuf>,
@@ -59,6 +63,7 @@ impl WorkspaceBuilder {
         self
     }
 
+    /// Build the workspace as configured.
     pub fn build(self) -> Result<super::Workspace, error::BuildError> {
         let mut workspace = super::Workspace::default();
         for file in self.spec_files {

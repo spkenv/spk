@@ -29,16 +29,22 @@ pub struct Workspace {
 }
 
 impl Workspace {
+    /// Create a new workspace [`crate::builder::WorkspaceBuilder`].
     pub fn builder() -> crate::builder::WorkspaceBuilder {
         crate::builder::WorkspaceBuilder::default()
     }
 
+    /// Iterate over all templates in the workspace.
     pub fn iter(&self) -> impl Iterator<Item = (&Option<PkgNameBuf>, &Arc<SpecTemplate>)> {
         self.templates
             .iter()
             .flat_map(|(key, entries)| entries.iter().map(move |e| (key, e)))
     }
 
+    /// Get the default package template file for the workspace.
+    ///
+    /// This only works if the workspace has a single template file
+    /// that matches the workspace glob patterns.
     pub fn default_package_template(&self) -> FindPackageTemplateResult {
         let mut iter = self.iter();
         // This must catch and convert all the errors into the appropriate
@@ -134,10 +140,12 @@ pub enum FindPackageTemplateResult {
     /// No package was specifically requested, and there no template
     /// files in the current repository.
     NoTemplateFiles,
+    /// The template file was not found
     NotFound(String),
 }
 
 impl FindPackageTemplateResult {
+    ///True if a template file was found
     pub fn is_found(&self) -> bool {
         matches!(self, Self::Found { .. })
     }
