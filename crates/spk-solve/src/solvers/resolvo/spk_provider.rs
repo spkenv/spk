@@ -442,14 +442,18 @@ impl DependencyProvider for SpkProvider {
                             let dep_name = self
                                 .pool
                                 .intern_package_name(pkg_request.pkg.name().to_owned());
-                            known_deps.requirements.push(
-                                self.pool
-                                    .intern_version_set(
-                                        dep_name,
-                                        RequestVS::SpkRequest(requirement.clone()),
-                                    )
-                                    .into(),
+                            let dep_vs = self.pool.intern_version_set(
+                                dep_name,
+                                RequestVS::SpkRequest(requirement.clone()),
                             );
+                            match pkg_request.inclusion_policy {
+                                spk_schema::ident::InclusionPolicy::Always => {
+                                    known_deps.requirements.push(dep_vs.into());
+                                }
+                                spk_schema::ident::InclusionPolicy::IfAlreadyPresent => {
+                                    known_deps.constrains.push(dep_vs);
+                                }
+                            };
                         }
                         Request::Var(var_request) => {
                             match &var_request.value {
