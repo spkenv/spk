@@ -845,8 +845,6 @@ async fn test_solver_option_compatibility(
 
 #[rstest]
 #[case::og(og_solver())]
-// Remove #[should_panic] once cdcl handles this case
-#[should_panic]
 #[case::cdcl(cdcl_solver())]
 #[tokio::test]
 async fn test_solver_option_injection(#[case] mut solver: SolverImpl) {
