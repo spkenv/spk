@@ -23,8 +23,9 @@ use std::sync::Arc;
 use pkg_request_version_set::SpkSolvable;
 use spk_provider::SpkProvider;
 use spk_schema::ident::{InclusionPolicy, PinPolicy, PkgRequest, RangeIdent};
+use spk_schema::prelude::{HasVersion, Named, Versioned};
 use spk_schema::version_range::VersionFilter;
-use spk_schema::{OptionMap, Request};
+use spk_schema::{OptionMap, Package, Request};
 use spk_solve_solution::{PackageSource, Solution};
 use spk_solve_validation::{Validators, default_validators};
 use spk_storage::RepositoryHandle;
@@ -132,7 +133,8 @@ impl SolverTrait for Solver {
         .await
         .map_err(|err| Error::String(format!("Tokio panicked? {err}")))??;
 
-        let mut solution = Solution::default();
+        let mut solution_options = OptionMap::default();
+        let mut solution_adds = Vec::with_capacity(solvables.len());
         for located_build_ident_with_component in solvables {
             let pkg_request = PkgRequest {
                 pkg: RangeIdent {
@@ -159,10 +161,38 @@ impl SolverTrait for Solver {
                     repo.name() == located_build_ident_with_component.ident.repository_name()
                 })
                 .expect("Expected solved package's repository to be in the list of repositories");
-            solution.add(
+            let package = repo
+                .read_package(located_build_ident_with_component.ident.target())
+                .await?;
+            let rendered_version = package.compat().render(package.version());
+            solution_options.insert(package.name().as_opt_name().to_owned(), rendered_version);
+            for option in package.get_build_options() {
+                match option {
+                    spk_schema::Opt::Pkg(pkg_opt) => {
+                        if let Some(value) = pkg_opt.get_value(None) {
+                            solution_options.insert(
+                                format!("{}.{}", package.name(), pkg_opt.pkg).try_into().expect("Two packages names separated by a period is a valid option name"),
+                                value,
+                            );
+                        }
+                    }
+                    spk_schema::Opt::Var(var_opt) => {
+                        if let Some(value) = var_opt.get_value(None) {
+                            if var_opt.var.namespace().is_none() {
+                                solution_options.insert(
+                                    format!("{}.{}", package.name(), var_opt.var).try_into().expect("A package name, a period, and a non-namespaced option name is a valid option name"),
+                                    value,
+                                );
+                            } else {
+                                solution_options.insert(var_opt.var.clone(), value);
+                            }
+                        }
+                    }
+                }
+            }
+            solution_adds.push((
                 pkg_request,
-                repo.read_package(located_build_ident_with_component.ident.target())
-                    .await?,
+                package,
                 PackageSource::Repository {
                     repo: Arc::clone(repo),
                     // XXX: Why is this needed?
@@ -170,7 +200,11 @@ impl SolverTrait for Solver {
                         .read_components(located_build_ident_with_component.ident.target())
                         .await?,
                 },
-            );
+            ));
+        }
+        let mut solution = Solution::new(solution_options);
+        for (pkg_request, package, source) in solution_adds {
+            solution.add(pkg_request, package, source);
         }
         Ok(solution)
     }
