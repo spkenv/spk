@@ -845,8 +845,6 @@ async fn test_solver_option_compatibility(
 
 #[rstest]
 #[case::step(step_solver())]
-// Remove #[should_panic] once resolvo handles this case
-#[should_panic]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_option_injection(#[case] mut solver: SolverImpl) {
