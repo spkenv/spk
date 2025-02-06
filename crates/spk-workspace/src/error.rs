@@ -23,10 +23,10 @@ pub enum FromPathError {
 #[derive(thiserror::Error, miette::Diagnostic, Debug)]
 pub enum FromFileError {
     /// Error parsing the glob pattern
-    #[error("Invalid glob pattern")]
+    #[error("invalid glob pattern")]
     PatternError(#[from] glob::PatternError),
     /// Error processing a glob pattern against the filesystem
-    #[error("Failed to process glob pattern")]
+    #[error("failed to process glob pattern")]
     GlobError(#[from] glob::GlobError),
 }
 
@@ -34,7 +34,7 @@ pub enum FromFileError {
 #[derive(thiserror::Error, miette::Diagnostic, Debug)]
 pub enum BuildError {
     /// Error loading a package recipe for the workspace
-    #[error("Failed to load template in workspace: {file:?}")]
+    #[error("failed to load template in workspace: {file:?}")]
     TemplateLoadError {
         /// The file that failed to load
         file: std::path::PathBuf,
@@ -42,7 +42,7 @@ pub enum BuildError {
         source: spk_schema::Error,
     },
     /// A template was found but has no discernible name
-    #[error("Template cannot be loaded into workspace since it has no name defined: {file:?}")]
+    #[error("template cannot be loaded into workspace since it has no name defined: {file:?}")]
     UnnamedTemplate {
         /// The file that could not be loaded
         file: std::path::PathBuf,
