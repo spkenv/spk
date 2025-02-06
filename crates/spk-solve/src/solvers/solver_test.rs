@@ -700,8 +700,6 @@ async fn test_solver_pre_release_config(#[case] mut solver: SolverImpl) {
 
 #[rstest]
 #[case::og(og_solver())]
-// Remove #[should_panic] once cdcl handles this case
-#[should_panic]
 #[case::cdcl(cdcl_solver())]
 #[tokio::test]
 async fn test_solver_constraint_only(#[case] mut solver: SolverImpl) {
