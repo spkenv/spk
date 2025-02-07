@@ -2345,8 +2345,6 @@ async fn test_solver_component_availability(#[case] mut solver: SolverImpl) {
 
 #[rstest]
 #[case::step(step_solver())]
-// Remove #[should_panic] once resolvo handles this case
-#[should_panic]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_component_requirements(#[case] mut solver: SolverImpl) {
@@ -2397,8 +2395,6 @@ async fn test_solver_component_requirements(#[case] mut solver: SolverImpl) {
 
 #[rstest]
 #[case::step(step_solver())]
-// Remove #[should_panic] once resolvo handles this case
-#[should_panic]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_component_requirements_extending(#[case] mut solver: SolverImpl) {
