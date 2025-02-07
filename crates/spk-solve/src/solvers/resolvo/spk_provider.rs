@@ -154,9 +154,25 @@ impl DependencyProvider for SpkProvider {
                         }
                         continue;
                     };
+
                     let compatible = pkg_request
                         .is_version_applicable(located_build_ident_with_component.ident.version());
                     if compatible.is_ok() {
+                        // Only select source builds for requests of source builds.
+                        if located_build_ident_with_component.ident.build().is_source() {
+                            if pkg_request
+                                .pkg
+                                .build
+                                .as_ref()
+                                .map(|build| build.is_source())
+                                .unwrap_or(false)
+                                ^ inverse
+                            {
+                                selected.push(*candidate);
+                            }
+                            continue;
+                        }
+
                         // XXX: This find runtime will add up.
                         let repo = self
                         .repos
@@ -343,7 +359,6 @@ impl DependencyProvider for SpkProvider {
         for build in located_builds {
             // What we need from build before it is moved into the pool.
             let ident = build.ident.clone();
-            let is_src = build.component.is_source();
 
             let solvable_id = *self
                 .interned_solvables
@@ -354,47 +369,38 @@ impl DependencyProvider for SpkProvider {
                         .intern_solvable(name, SpkSolvable::LocatedBuildIdentWithComponent(build))
                 });
 
-            if is_src {
-                candidates.excluded.push((
-                    solvable_id,
-                    self.pool.intern_string("source builds are excluded"),
-                ));
-            } else {
-                // Filter builds that don't conform to global options
-                // XXX: This find runtime will add up.
-                let repo = self
-                    .repos
-                    .iter()
-                    .find(|repo| repo.name() == ident.repository_name())
-                    .expect(
-                        "Expected solved package's repository to be in the list of repositories",
-                    );
-                match repo.read_package(ident.target()).await {
-                    Ok(package) => {
-                        for (opt_name, _value) in package.option_values() {
-                            if let Some(request) = self.global_var_requests.get(&opt_name) {
-                                if let spk_schema::version::Compatibility::Incompatible(
-                                    incompatible_reason,
-                                ) = package.check_satisfies_request(request)
-                                {
-                                    candidates.excluded.push((
+            // Filter builds that don't conform to global options
+            // XXX: This find runtime will add up.
+            let repo = self
+                .repos
+                .iter()
+                .find(|repo| repo.name() == ident.repository_name())
+                .expect("Expected solved package's repository to be in the list of repositories");
+            match repo.read_package(ident.target()).await {
+                Ok(package) => {
+                    for (opt_name, _value) in package.option_values() {
+                        if let Some(request) = self.global_var_requests.get(&opt_name) {
+                            if let spk_schema::version::Compatibility::Incompatible(
+                                incompatible_reason,
+                            ) = package.check_satisfies_request(request)
+                            {
+                                candidates.excluded.push((
                                         solvable_id,
                                         self.pool.intern_string(format!(
                                             "build does not satisfy global var request: {incompatible_reason}"
                                         )),
                                     ));
-                                    continue;
-                                }
+                                continue;
                             }
                         }
+                    }
 
-                        candidates.candidates.push(solvable_id);
-                    }
-                    Err(err) => {
-                        candidates
-                            .excluded
-                            .push((solvable_id, self.pool.intern_string(err.to_string())));
-                    }
+                    candidates.candidates.push(solvable_id);
+                }
+                Err(err) => {
+                    candidates
+                        .excluded
+                        .push((solvable_id, self.pool.intern_string(err.to_string())));
                 }
             }
         }
