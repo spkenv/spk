@@ -6,9 +6,8 @@ use std::sync::Arc;
 
 use resolvo::utils::VersionSet;
 use spk_schema::Request;
-use spk_schema::ident::LocatedBuildIdent;
+use spk_schema::ident::{LocatedBuildIdent, PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
 use spk_schema::ident_component::Component;
-use variantly::Variantly;
 
 /// This allows for storing strings of different types but hash and compare by
 /// the underlying strings.
@@ -87,55 +86,60 @@ impl std::fmt::Display for RequestVS {
     }
 }
 
-/// Like `Component` but without the `All` variant.
-#[derive(Clone, Debug, Eq, Hash, PartialEq, Variantly)]
-pub(crate) enum ComponentWithoutAll {
-    Build,
-    Run,
-    Source,
-    Named(String),
+/// The component portion of a package that can exist in a solution.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub(crate) enum SyntheticComponent {
+    /// This represents the "parent" of any components of a package, used to
+    /// prevent components from different versions of a package from getting
+    /// into the same solution.
+    Base,
+    /// Real components.
+    Actual(Component),
 }
 
-impl From<ComponentWithoutAll> for Component {
-    fn from(c: ComponentWithoutAll) -> Self {
-        match c {
-            ComponentWithoutAll::Build => Component::Build,
-            ComponentWithoutAll::Run => Component::Run,
-            ComponentWithoutAll::Source => Component::Source,
-            ComponentWithoutAll::Named(name) => Component::Named(name),
-        }
-    }
-}
-
-impl TryFrom<Component> for ComponentWithoutAll {
-    type Error = Component;
-
-    fn try_from(c: Component) -> Result<Self, Self::Error> {
-        match c {
-            Component::All => Err(Component::All),
-            Component::Build => Ok(ComponentWithoutAll::Build),
-            Component::Run => Ok(ComponentWithoutAll::Run),
-            Component::Source => Ok(ComponentWithoutAll::Source),
-            Component::Named(name) => Ok(ComponentWithoutAll::Named(name)),
-        }
-    }
-}
-
-impl std::fmt::Display for ComponentWithoutAll {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            ComponentWithoutAll::Build => write!(f, "build"),
-            ComponentWithoutAll::Run => write!(f, "run"),
-            ComponentWithoutAll::Source => write!(f, "source"),
-            ComponentWithoutAll::Named(name) => write!(f, "{name}"),
-        }
+impl SyntheticComponent {
+    #[inline]
+    pub(crate) fn is_all(&self) -> bool {
+        matches!(self, SyntheticComponent::Actual(Component::All))
     }
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) struct LocatedBuildIdentWithComponent {
     pub(crate) ident: LocatedBuildIdent,
-    pub(crate) component: ComponentWithoutAll,
+    pub(crate) component: SyntheticComponent,
+}
+
+impl LocatedBuildIdentWithComponent {
+    /// Create a request that will match this ident but with a different
+    /// component name.
+    pub(crate) fn as_request_with_components(
+        &self,
+        components: impl IntoIterator<Item = Component>,
+    ) -> Request {
+        let mut range_ident = RangeIdent::double_equals(&self.ident.to_any_ident(), components);
+        range_ident.repository_name = Some(self.ident.repository_name().to_owned());
+
+        let mut pkg_request = PkgRequest::new(
+            range_ident,
+            RequestedBy::BinaryBuild(self.ident.target().clone()),
+        );
+        // Since we're using double_equals, is it safe to always enable
+        // prereleases? If self represents a prerelease, then the Request
+        // needs to allow it.
+        pkg_request.prerelease_policy = Some(PreReleasePolicy::IncludeAll);
+
+        Request::Pkg(pkg_request)
+    }
+}
+
+impl PartialEq<SyntheticComponent> for Component {
+    fn eq(&self, other: &SyntheticComponent) -> bool {
+        match other {
+            SyntheticComponent::Base => false,
+            SyntheticComponent::Actual(other) => self == other,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -161,6 +165,11 @@ impl VersionSet for RequestVS {
 
 impl std::fmt::Display for LocatedBuildIdentWithComponent {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}:{}", self.ident, self.component)
+        match &self.component {
+            SyntheticComponent::Base => self.ident.fmt(f),
+            SyntheticComponent::Actual(component) => {
+                write!(f, "{}:{component}", self.ident)
+            }
+        }
     }
 }

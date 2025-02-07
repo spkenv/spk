@@ -2231,8 +2231,6 @@ async fn test_solver_src_package_request_when_no_components_requested(
 
 #[rstest]
 #[case::step(step_solver())]
-// Remove #[should_panic] once resolvo handles this case
-#[should_panic]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_all_component(#[case] mut solver: SolverImpl) {

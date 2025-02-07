@@ -20,7 +20,7 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use pkg_request_version_set::SpkSolvable;
+use pkg_request_version_set::{SpkSolvable, SyntheticComponent};
 use spk_provider::SpkProvider;
 use spk_schema::ident::{InclusionPolicy, PinPolicy, PkgRequest, RangeIdent};
 use spk_schema::prelude::{HasVersion, Named, Versioned};
@@ -136,14 +136,17 @@ impl SolverTrait for Solver {
         let mut solution_options = OptionMap::default();
         let mut solution_adds = Vec::with_capacity(solvables.len());
         for located_build_ident_with_component in solvables {
+            let SyntheticComponent::Actual(solvable_component) =
+                &located_build_ident_with_component.component
+            else {
+                continue;
+            };
+
             let pkg_request = PkgRequest {
                 pkg: RangeIdent {
                     repository_name: None,
                     name: located_build_ident_with_component.ident.name().to_owned(),
-                    components: BTreeSet::from_iter([located_build_ident_with_component
-                        .component
-                        .clone()
-                        .into()]),
+                    components: BTreeSet::from_iter([solvable_component.clone()]),
                     version: VersionFilter::default(),
                     build: None,
                 },
