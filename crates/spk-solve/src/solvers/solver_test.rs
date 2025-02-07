@@ -2139,8 +2139,7 @@ async fn test_solver_components_interaction_with_embeds(#[case] mut solver: Solv
 
 #[rstest]
 #[case::og(og_solver())]
-// This test can sometimes succeed by chance so can't use #[should_panic] here
-// TODO #[case::cdcl(cdcl_solver())]
+#[case::cdcl(cdcl_solver())]
 #[tokio::test]
 async fn test_solver_components_when_no_components_requested(#[case] mut solver: SolverImpl) {
     // test when a package is requested with no components and the
