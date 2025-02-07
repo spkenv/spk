@@ -26,6 +26,7 @@ use spk_solve_macros::{make_build, make_build_and_components, make_package, make
 use spk_solve_solution::PackageSource;
 use spk_storage::RepositoryHandle;
 use spk_storage::fixtures::*;
+use tap::prelude::*;
 
 use crate::io::DecisionFormatterBuilder;
 use crate::solver::{Solver, SolverImpl};
@@ -2269,8 +2270,6 @@ async fn test_solver_all_component(#[case] mut solver: SolverImpl) {
 
 #[rstest]
 #[case::og(og_solver())]
-// Remove #[should_panic] once cdcl handles this case
-#[should_panic]
 #[case::cdcl(cdcl_solver())]
 #[tokio::test]
 async fn test_solver_component_availability(#[case] mut solver: SolverImpl) {
@@ -2326,7 +2325,10 @@ async fn test_solver_component_availability(#[case] mut solver: SolverImpl) {
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("python:bin"));
 
-    let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
+    let solution = run_and_print_resolve_for_tests(&mut solver)
+        .await
+        .tap_err(|e| eprintln!("{e}"))
+        .unwrap();
 
     assert_resolved!(
         solution,
