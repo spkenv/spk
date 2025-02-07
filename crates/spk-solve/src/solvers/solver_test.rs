@@ -67,6 +67,16 @@ macro_rules! assert_resolved {
         assert_eq!(pkg.spec.ident().build(), &$build, $message);
     }};
 
+    ($solution:ident, $pkg:literal, build =~ $build:pat) => {
+        assert_resolved!($solution, $pkg, build =~ $build, "wrong package build was resolved")
+    };
+    ($solution:ident, $pkg:literal, build =~ $build:pat, $message:literal) => {{
+        let pkg = $solution
+            .get($pkg)
+            .expect("expected package to be in solution");
+        assert!(matches!(pkg.spec.ident().build(), $build), $message);
+    }};
+
     ($solution:ident, $pkg:literal, components = [$($component:literal),+ $(,)?]) => {{
         let mut resolved = std::collections::HashSet::<String>::new();
         let pkg = $solution
@@ -510,8 +520,6 @@ async fn test_solver_dependency_already_satisfied(#[case] mut solver: SolverImpl
 
 #[rstest]
 #[case::step(step_solver())]
-// Remove #[should_panic] once resolvo handles this case
-#[should_panic]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_dependency_already_satisfied_conflicting_components(
@@ -1282,8 +1290,6 @@ async fn test_solver_build_from_source_deprecated_and_impossible_initial_checks(
 
 #[rstest]
 #[case::step(step_solver())]
-// Remove #[should_panic] once resolvo handles this case
-#[should_panic]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_embedded_package_adds_request(#[case] mut solver: SolverImpl) {
@@ -1304,18 +1310,21 @@ async fn test_solver_embedded_package_adds_request(#[case] mut solver: SolverImp
     solver.add_repository(Arc::new(repo));
     solver.add_request(request!("maya"));
 
-    let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
+    let solution = run_and_print_resolve_for_tests(&mut solver)
+        .await
+        .tap_err(|e| eprintln!("{e}"))
+        .unwrap();
 
     assert_resolved!(
         solution,
         "qt",
-        build = Build::Embedded(EmbeddedSource::Unknown)
+        build =~ Build::Embedded(_)
     );
     assert_resolved!(solution, "qt", "5.12.6");
     assert_resolved!(
         solution,
         "qt",
-        build = Build::Embedded(EmbeddedSource::Unknown)
+        build =~ Build::Embedded(_)
     );
 }
 
@@ -1361,8 +1370,6 @@ async fn test_solver_embedded_package_solvable(#[case] mut solver: SolverImpl) {
 
 #[rstest]
 #[case::step(step_solver())]
-// Remove #[should_panic] once resolvo handles this case
-#[should_panic]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_embedded_package_unsolvable(#[case] mut solver: SolverImpl) {
@@ -1743,7 +1750,6 @@ async fn test_solver_some_versions_conflicting_requests(#[case] mut solver: Solv
 
 #[rstest]
 #[case::step(step_solver())]
-#[should_panic]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_embedded_request_invalidates(#[case] mut solver: SolverImpl) {
@@ -2633,8 +2639,6 @@ async fn test_solver_component_embedded_multiple_versions(
 
 #[rstest]
 #[case::step(step_solver())]
-// Remove #[should_panic] once resolvo handles this case
-#[should_panic]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_component_embedded_incompatible_requests(#[case] mut solver: SolverImpl) {
