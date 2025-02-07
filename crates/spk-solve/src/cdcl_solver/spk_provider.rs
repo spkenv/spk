@@ -3,7 +3,7 @@
 // https://github.com/spkenv/spk
 
 use std::cell::{Cell, RefCell};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
 use resolvo::utils::Pool;
@@ -22,9 +22,20 @@ use resolvo::{
     VersionSetUnionId,
 };
 use spk_schema::foundation::pkg_name;
-use spk_schema::ident::{LocatedBuildIdent, PinnableValue, PkgRequest, Satisfy, VarRequest};
+use spk_schema::ident::{
+    LocatedBuildIdent,
+    PinnableValue,
+    PkgRequest,
+    RangeIdent,
+    RequestedBy,
+    Satisfy,
+    VarRequest,
+};
+use spk_schema::ident_build::{Build, EmbeddedSource, EmbeddedSourcePackage};
 use spk_schema::ident_component::Component;
 use spk_schema::name::{OptNameBuf, PkgNameBuf};
+use spk_schema::prelude::{HasVersion, Named};
+use spk_schema::version_range::{DoubleEqualsVersion, VersionFilter};
 use spk_schema::{Opt, Package, Request, VersionIdent};
 use spk_storage::RepositoryHandle;
 
@@ -456,6 +467,19 @@ impl DependencyProvider for SpkProvider {
                     let located_build_ident =
                         LocatedBuildIdent::new(repo.name().to_owned(), build.clone());
                     if let SyntheticComponent::Actual(pkg_name_component) = &pkg_name.component {
+                        if let Build::Embedded(EmbeddedSource::Package(parent)) = build.build() {
+                            // Embedded packages don't have components, but
+                            // their parent has a component.
+                            if parent.components.contains(pkg_name_component) {
+                                located_builds.push(LocatedBuildIdentWithComponent {
+                                    ident: located_build_ident,
+                                    component: SyntheticComponent::Actual(
+                                        pkg_name_component.clone(),
+                                    ),
+                                });
+                            }
+                            continue;
+                        }
                         let components =
                             repo.list_build_components(&build).await.unwrap_or_default();
                         for component in components.into_iter().chain(
@@ -684,6 +708,67 @@ impl DependencyProvider for SpkProvider {
                         known_deps
                             .requirements
                             .extend(self.pkg_requirements(&component_spec.requirements));
+                    }
+                }
+                // Also add dependencies on any packages embedded in this
+                // component.
+                // XXX: This ignores the detail of embeds inside components for
+                // now.
+                for embedded in package.embedded().iter() {
+                    let dep_name = self.pool.intern_package_name(PkgNameBufWithComponent {
+                        name: embedded.name().to_owned(),
+                        component: located_build_ident_with_component.component.clone(),
+                    });
+                    known_deps.requirements.push(
+                        self.pool
+                            .intern_version_set(
+                                dep_name,
+                                RequestVS::SpkRequest(Request::Pkg(PkgRequest::new(
+                                    RangeIdent {
+                                        repository_name: Some(
+                                            located_build_ident_with_component
+                                                .ident
+                                                .repository_name()
+                                                .to_owned(),
+                                        ),
+                                        name: embedded.name().to_owned(),
+                                        components: Default::default(),
+                                        version: VersionFilter::single(
+                                            DoubleEqualsVersion::version_range(
+                                                embedded.version().clone(),
+                                            ),
+                                        ),
+                                        // This needs to match the build of
+                                        // the stub for get_candidates to like
+                                        // it.
+                                        build: Some(Build::Embedded(EmbeddedSource::Package(
+                                            Box::new(EmbeddedSourcePackage {
+                                                ident: package.ident().into(),
+                                                // XXX: Hard coded to Run for
+                                                // now.
+                                                components: BTreeSet::from_iter([Component::Run]),
+                                            }),
+                                        ))),
+                                    },
+                                    RequestedBy::Embedded(
+                                        located_build_ident_with_component.ident.target().clone(),
+                                    ),
+                                ))),
+                            )
+                            .into(),
+                    );
+                    // Any install requirements of components inside embedded
+                    // packages with the same name as this component also
+                    // become dependencies.
+                    for embedded_component_requirement in embedded
+                        .components()
+                        .iter()
+                        .filter(|embedded_component| {
+                            embedded_component.name == located_build_ident_with_component.component
+                        })
+                        .flat_map(|embedded_component| embedded_component.requirements.iter())
+                    {
+                        todo!("{embedded_component_requirement:?}");
                     }
                 }
                 for option in package.get_build_options() {
