@@ -65,3 +65,4 @@ variantly = { workspace = true }
 rstest = { workspace = true }
 spk-solve-macros = { workspace = true }
 strip-ansi-escapes = { workspace = true }
+tap = { workspace = true }
