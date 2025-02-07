@@ -2341,8 +2341,6 @@ async fn test_solver_component_availability(#[case] mut solver: SolverImpl) {
 
 #[rstest]
 #[case::og(og_solver())]
-// Remove #[should_panic] once cdcl handles this case
-#[should_panic]
 #[case::cdcl(cdcl_solver())]
 #[tokio::test]
 async fn test_solver_component_requirements(#[case] mut solver: SolverImpl) {
@@ -2393,8 +2391,6 @@ async fn test_solver_component_requirements(#[case] mut solver: SolverImpl) {
 
 #[rstest]
 #[case::og(og_solver())]
-// Remove #[should_panic] once cdcl handles this case
-#[should_panic]
 #[case::cdcl(cdcl_solver())]
 #[tokio::test]
 async fn test_solver_component_requirements_extending(#[case] mut solver: SolverImpl) {

@@ -658,14 +658,13 @@ impl DependencyProvider for SpkProvider {
                             .into(),
                     );
                     // Also add dependencies on any components that this
-                    // component "uses".
-                    package
+                    // component "uses" and its install requirements.
+                    if let Some(component_spec) = package
                         .components()
                         .iter()
                         .find(|component_spec| component_spec.name == *solvable_component)
-                        .into_iter()
-                        .flat_map(|component_spec| component_spec.uses.iter())
-                        .for_each(|uses| {
+                    {
+                        component_spec.uses.iter().for_each(|uses| {
                             let dep_name = self.pool.intern_package_name(PkgNameBufWithComponent {
                                 name: located_build_ident_with_component.ident.name().to_owned(),
                                 component: SyntheticComponent::Actual(uses.clone()),
@@ -682,6 +681,10 @@ impl DependencyProvider for SpkProvider {
                                     .into(),
                             );
                         });
+                        known_deps
+                            .requirements
+                            .extend(self.pkg_requirements(&component_spec.requirements));
+                    }
                 }
                 for option in package.get_build_options() {
                     let Opt::Var(var_opt) = option else {
