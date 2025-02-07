@@ -2195,8 +2195,6 @@ async fn test_solver_components_when_no_components_requested(#[case] mut solver:
 
 #[rstest]
 #[case::og(og_solver())]
-// Remove #[should_panic] once cdcl handles this case
-#[should_panic]
 #[case::cdcl(cdcl_solver())]
 #[tokio::test]
 async fn test_solver_src_package_request_when_no_components_requested(
