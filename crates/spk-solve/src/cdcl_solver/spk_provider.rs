@@ -22,7 +22,8 @@ use resolvo::{
     VersionSetUnionId,
 };
 use spk_schema::foundation::pkg_name;
-use spk_schema::ident::{LocatedBuildIdent, PinnableValue, Satisfy, VarRequest};
+use spk_schema::ident::{LocatedBuildIdent, PinnableValue, PkgRequest, Satisfy, VarRequest};
+use spk_schema::ident_component::Component;
 use spk_schema::name::{OptNameBuf, PkgNameBuf};
 use spk_schema::{Opt, Package, Request, VersionIdent};
 use spk_storage::RepositoryHandle;
@@ -31,6 +32,7 @@ use super::pkg_request_version_set::{
     LocatedBuildIdentWithComponent,
     RequestVS,
     SpkSolvable,
+    SyntheticComponent,
     VarValue,
 };
 
@@ -39,8 +41,30 @@ use super::pkg_request_version_set::{
 // however since it is a legal package name that can't be guaranteed.
 const PSEUDO_PKG_NAME_PREFIX: &str = "global-vars--";
 
+// Using just the package name as a Resolvo "package name" prevents multiple
+// components from the same package from existing in the same solution, since
+// we consider the different components to be different "solvables". Instead,
+// treat different components of a package as separate packages. There needs to
+// be a relationship between every component of a package and a "base"
+// component, to prevent a solve containing a mix of components from different
+// versions of the same package.
+#[derive(Clone, Eq, Hash, PartialEq)]
+pub(crate) struct PkgNameBufWithComponent {
+    pub(crate) name: PkgNameBuf,
+    pub(crate) component: SyntheticComponent,
+}
+
+impl std::fmt::Display for PkgNameBufWithComponent {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match &self.component {
+            SyntheticComponent::Base => write!(f, "{}", self.name),
+            SyntheticComponent::Actual(component) => write!(f, "{}:{component}", self.name),
+        }
+    }
+}
+
 pub(crate) struct SpkProvider {
-    pub(crate) pool: Pool<RequestVS, PkgNameBuf>,
+    pub(crate) pool: Pool<RequestVS, PkgNameBufWithComponent>,
     repos: Vec<Arc<RepositoryHandle>>,
     /// Global options, like what might be specified with `--opt` to `spk env`.
     /// Indexed by name. If multiple requests happen to exist with the same
@@ -70,6 +94,38 @@ impl SpkProvider {
         }
     }
 
+    fn pkg_request_to_known_dependencies(&self, pkg_request: &PkgRequest) -> KnownDependencies {
+        let mut components = pkg_request.pkg.components.iter().peekable();
+        let iter = if components.peek().is_some() {
+            itertools::Either::Right(components.cloned().map(SyntheticComponent::Actual))
+        } else {
+            itertools::Either::Left(std::iter::once(SyntheticComponent::Base))
+        };
+        let mut known_deps = KnownDependencies {
+            requirements: Vec::new(),
+            constrains: Vec::new(),
+        };
+        for component in iter {
+            let dep_name = self.pool.intern_package_name(PkgNameBufWithComponent {
+                name: pkg_request.pkg.name().to_owned(),
+                component,
+            });
+            let dep_vs = self.pool.intern_version_set(
+                dep_name,
+                RequestVS::SpkRequest(Request::Pkg(pkg_request.clone())),
+            );
+            match pkg_request.inclusion_policy {
+                spk_schema::ident::InclusionPolicy::Always => {
+                    known_deps.requirements.push(dep_vs.into());
+                }
+                spk_schema::ident::InclusionPolicy::IfAlreadyPresent => {
+                    known_deps.constrains.push(dep_vs);
+                }
+            }
+        }
+        known_deps
+    }
+
     pub fn pkg_requirements(&self, requests: &[Request]) -> Vec<Requirement> {
         requests
             .iter()
@@ -77,12 +133,7 @@ impl SpkProvider {
                 Request::Pkg(pkg) => Some(pkg),
                 _ => None,
             })
-            .map(|req| {
-                let dep_name = self.pool.intern_package_name(req.pkg.name().to_owned());
-                self.pool
-                    .intern_version_set(dep_name, RequestVS::SpkRequest(Request::Pkg(req.clone())))
-                    .into()
-            })
+            .flat_map(|req| self.pkg_request_to_known_dependencies(req).requirements)
             .collect()
     }
 
@@ -115,7 +166,10 @@ impl SpkProvider {
             .filter_map(|req| match req.var.namespace() {
                 Some(pkg_name) => {
                     // A global request applicable to a specific package.
-                    let dep_name = self.pool.intern_package_name(pkg_name.to_owned());
+                    let dep_name = self.pool.intern_package_name(PkgNameBufWithComponent {
+                        name: pkg_name.to_owned(),
+                        component: SyntheticComponent::Base,
+                    });
                     Some(self.pool.intern_version_set(
                         dep_name,
                         RequestVS::SpkRequest(Request::Var(req.clone())),
@@ -171,6 +225,58 @@ impl DependencyProvider for SpkProvider {
                                 selected.push(*candidate);
                             }
                             continue;
+                        }
+
+                        // Only select All component for requests of All
+                        // component.
+                        if located_build_ident_with_component.component.is_all() {
+                            if pkg_request.pkg.components.contains(&Component::All) ^ inverse {
+                                selected.push(*candidate);
+                            }
+                            continue;
+                        } else
+                        // Only the All component can satisfy requests for All.
+                        if pkg_request.pkg.components.contains(&Component::All) {
+                            if inverse {
+                                selected.push(*candidate);
+                            }
+                            continue;
+                        }
+
+                        // Only the x component can satisfy requests for x.
+                        let mut at_least_one_request_matched_this_solvable = None;
+                        for component in pkg_request.pkg.components.iter() {
+                            if component.is_all() {
+                                continue;
+                            }
+                            if component == &located_build_ident_with_component.component {
+                                at_least_one_request_matched_this_solvable = Some(true);
+                                break;
+                            } else {
+                                at_least_one_request_matched_this_solvable = Some(false);
+                            }
+                        }
+
+                        match at_least_one_request_matched_this_solvable {
+                            Some(true) => {
+                                if inverse {
+                                    continue;
+                                }
+                            }
+                            Some(false) => {
+                                // The request is for specific components but
+                                // this solvable doesn't match any of them.
+                                if inverse {
+                                    selected.push(*candidate);
+                                    continue;
+                                }
+                            }
+                            None => {
+                                // TODO: if at_least_one_request_matched_this_solvable
+                                // is None it means the request didn't specify a
+                                // component. Decide which specific component this
+                                // should match.
+                            }
                         }
 
                         // XXX: This find runtime will add up.
@@ -282,7 +388,7 @@ impl DependencyProvider for SpkProvider {
     async fn get_candidates(&self, name: NameId) -> Option<Candidates> {
         let pkg_name = self.pool.resolve_package_name(name);
 
-        if let Some(key) = pkg_name.strip_prefix(PSEUDO_PKG_NAME_PREFIX) {
+        if let Some(key) = pkg_name.name.strip_prefix(PSEUDO_PKG_NAME_PREFIX) {
             self.queried_global_var_values
                 .borrow_mut()
                 .insert(key.to_owned());
@@ -320,12 +426,12 @@ impl DependencyProvider for SpkProvider {
 
         for repo in &self.repos {
             let versions = repo
-                .list_package_versions(pkg_name)
+                .list_package_versions(&pkg_name.name)
                 .await
                 .unwrap_or_default();
             for version in versions.iter() {
                 // TODO: We need a borrowing version of this to avoid cloning.
-                let pkg_version = VersionIdent::new(pkg_name.clone(), (**version).clone());
+                let pkg_version = VersionIdent::new(pkg_name.name.clone(), (**version).clone());
 
                 let builds = repo
                     .list_package_builds(&pkg_version)
@@ -333,14 +439,31 @@ impl DependencyProvider for SpkProvider {
                     .unwrap_or_default();
 
                 for build in builds {
-                    let components = repo.list_build_components(&build).await.unwrap_or_default();
-                    let located_build_ident = LocatedBuildIdent::new(repo.name().to_owned(), build);
-                    for component in components {
+                    let located_build_ident =
+                        LocatedBuildIdent::new(repo.name().to_owned(), build.clone());
+                    if let SyntheticComponent::Actual(pkg_name_component) = &pkg_name.component {
+                        let components =
+                            repo.list_build_components(&build).await.unwrap_or_default();
+                        for component in components.into_iter().chain(
+                            // A build representing the All component is included so
+                            // when a request for it is found it can act as a
+                            // surrogate that depends on all the individual
+                            // components.
+                            [Component::All],
+                        ) {
+                            if component != *pkg_name_component {
+                                continue;
+                            }
+
+                            located_builds.push(LocatedBuildIdentWithComponent {
+                                ident: located_build_ident.clone(),
+                                component: pkg_name.component.clone(),
+                            });
+                        }
+                    } else {
                         located_builds.push(LocatedBuildIdentWithComponent {
-                            ident: located_build_ident.clone(),
-                            component: component
-                                .try_into()
-                                .expect("list_build_components will never return an All component"),
+                            ident: located_build_ident,
+                            component: SyntheticComponent::Base,
                         });
                     }
                 }
@@ -410,6 +533,9 @@ impl DependencyProvider for SpkProvider {
 
     async fn sort_candidates(&self, _solver: &SolverCache<Self>, solvables: &mut [SolvableId]) {
         // This implementation just picks the highest version.
+        // TODO: The ordering should take component names into account, so
+        // the run component or the build component is tried first in the
+        // appropriate situations.
         solvables.sort_by(|a, b| {
             let a = self.pool.resolve_solvable(*a);
             let b = self.pool.resolve_solvable(*b);
@@ -445,13 +571,41 @@ impl DependencyProvider for SpkProvider {
     }
 
     async fn get_dependencies(&self, solvable: SolvableId) -> Dependencies {
-        // TODO: get dependencies!
         let solvable = self.pool.resolve_solvable(solvable);
         let SpkSolvable::LocatedBuildIdentWithComponent(located_build_ident_with_component) =
             &solvable.record
         else {
             return Dependencies::Known(KnownDependencies::default());
         };
+        if let SyntheticComponent::Base = located_build_ident_with_component.component {
+            let component_to_target =
+                if located_build_ident_with_component.ident.build().is_source() {
+                    Component::Source
+                } else {
+                    // XXX: hard coding a dependency on run for now.
+                    Component::Run
+                };
+
+            let dep_name = self.pool.intern_package_name(PkgNameBufWithComponent {
+                name: located_build_ident_with_component.ident.name().to_owned(),
+                component: SyntheticComponent::Actual(component_to_target.clone()),
+            });
+            let known_deps = KnownDependencies {
+                requirements: vec![
+                    self.pool
+                        .intern_version_set(
+                            dep_name,
+                            RequestVS::SpkRequest(
+                                located_build_ident_with_component
+                                    .as_request_with_components([component_to_target]),
+                            ),
+                        )
+                        .into(),
+                ],
+                constrains: Vec::new(),
+            };
+            return Dependencies::Known(known_deps);
+        }
         // XXX: This find runtime will add up.
         let repo = self
             .repos
@@ -468,6 +622,51 @@ impl DependencyProvider for SpkProvider {
                     // This is where IfAlreadyPresent constraints would go.
                     constrains: Vec::with_capacity(package.get_build_options().len()),
                 };
+                if located_build_ident_with_component.component.is_all() {
+                    // The only dependencies of the All component are the other
+                    // components defined in the package.
+                    for component_spec in package.components().iter() {
+                        let dep_name = self.pool.intern_package_name(PkgNameBufWithComponent {
+                            name: located_build_ident_with_component.ident.name().to_owned(),
+                            component: SyntheticComponent::Actual(component_spec.name.clone()),
+                        });
+                        known_deps.requirements.push(
+                            self.pool
+                                .intern_version_set(
+                                    dep_name,
+                                    RequestVS::SpkRequest(
+                                        located_build_ident_with_component
+                                            .as_request_with_components([component_spec
+                                                .name
+                                                .clone()]),
+                                    ),
+                                )
+                                .into(),
+                        );
+                    }
+                    return Dependencies::Known(known_deps);
+                } else if let SyntheticComponent::Actual(ref _solvable_component) =
+                    located_build_ident_with_component.component
+                {
+                    // For any non-All/non-Base component, add a dependency on
+                    // the base to ensure all components come from the same
+                    // base version.
+                    let dep_name = self.pool.intern_package_name(PkgNameBufWithComponent {
+                        name: located_build_ident_with_component.ident.name().to_owned(),
+                        component: SyntheticComponent::Base,
+                    });
+                    known_deps.requirements.push(
+                        self.pool
+                            .intern_version_set(
+                                dep_name,
+                                RequestVS::SpkRequest(
+                                    located_build_ident_with_component
+                                        .as_request_with_components([]),
+                                ),
+                            )
+                            .into(),
+                    );
+                }
                 for option in package.get_build_options() {
                     let Opt::Var(var_opt) = option else {
                         continue;
@@ -495,9 +694,10 @@ impl DependencyProvider for SpkProvider {
                         // in the list of candidates.
                         self.cancel_solving.set(true);
                     }
-                    let dep_name = self
-                        .pool
-                        .intern_package_name(pkg_name!(&pseudo_pkg_name).to_owned());
+                    let dep_name = self.pool.intern_package_name(PkgNameBufWithComponent {
+                        name: pkg_name!(&pseudo_pkg_name).to_owned(),
+                        component: SyntheticComponent::Base,
+                    });
                     // Add a constraint not a dependency because the package
                     // is targeting a specific global var value but there may
                     // not be a request for that var of a specific value.
@@ -512,21 +712,9 @@ impl DependencyProvider for SpkProvider {
                 for requirement in package.runtime_requirements().iter() {
                     match requirement {
                         Request::Pkg(pkg_request) => {
-                            let dep_name = self
-                                .pool
-                                .intern_package_name(pkg_request.pkg.name().to_owned());
-                            let dep_vs = self.pool.intern_version_set(
-                                dep_name,
-                                RequestVS::SpkRequest(requirement.clone()),
-                            );
-                            match pkg_request.inclusion_policy {
-                                spk_schema::ident::InclusionPolicy::Always => {
-                                    known_deps.requirements.push(dep_vs.into());
-                                }
-                                spk_schema::ident::InclusionPolicy::IfAlreadyPresent => {
-                                    known_deps.constrains.push(dep_vs);
-                                }
-                            };
+                            let kd = self.pkg_request_to_known_dependencies(pkg_request);
+                            known_deps.requirements.extend(kd.requirements);
+                            known_deps.constrains.extend(kd.constrains);
                         }
                         Request::Var(var_request) => {
                             match &var_request.value {
@@ -535,7 +723,10 @@ impl DependencyProvider for SpkProvider {
                                 spk_schema::ident::PinnableValue::Pinned(value) => {
                                     let dep_name = match var_request.var.namespace() {
                                         Some(pkg_name) => {
-                                            self.pool.intern_package_name(pkg_name.to_owned())
+                                            self.pool.intern_package_name(PkgNameBufWithComponent {
+                                                name: pkg_name.to_owned(),
+                                                component: SyntheticComponent::Base,
+                                            })
                                         }
                                         None => {
                                             // Since we will be adding
@@ -564,7 +755,10 @@ impl DependencyProvider for SpkProvider {
                                                 self.cancel_solving.set(true);
                                             }
                                             let dep_name = self.pool.intern_package_name(
-                                                pkg_name!(&pseudo_pkg_name).to_owned(),
+                                                PkgNameBufWithComponent {
+                                                    name: pkg_name!(&pseudo_pkg_name).to_owned(),
+                                                    component: SyntheticComponent::Base,
+                                                },
                                             );
                                             known_deps.requirements.push(
                                                 self.pool
