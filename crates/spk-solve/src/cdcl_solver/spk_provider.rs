@@ -99,7 +99,21 @@ impl SpkProvider {
         let iter = if components.peek().is_some() {
             itertools::Either::Right(components.cloned().map(SyntheticComponent::Actual))
         } else {
-            itertools::Either::Left(std::iter::once(SyntheticComponent::Base))
+            itertools::Either::Left(
+                // A request with no components is assumed to be a request for
+                // the run (or source) component.
+                if pkg_request
+                    .pkg
+                    .build
+                    .as_ref()
+                    .map(|build| build.is_source())
+                    .unwrap_or(false)
+                {
+                    std::iter::once(SyntheticComponent::Actual(Component::Source))
+                } else {
+                    std::iter::once(SyntheticComponent::Actual(Component::Run))
+                },
+            )
         };
         let mut known_deps = KnownDependencies {
             requirements: Vec::new(),
@@ -578,33 +592,10 @@ impl DependencyProvider for SpkProvider {
             return Dependencies::Known(KnownDependencies::default());
         };
         if let SyntheticComponent::Base = located_build_ident_with_component.component {
-            let component_to_target =
-                if located_build_ident_with_component.ident.build().is_source() {
-                    Component::Source
-                } else {
-                    // XXX: hard coding a dependency on run for now.
-                    Component::Run
-                };
-
-            let dep_name = self.pool.intern_package_name(PkgNameBufWithComponent {
-                name: located_build_ident_with_component.ident.name().to_owned(),
-                component: SyntheticComponent::Actual(component_to_target.clone()),
-            });
-            let known_deps = KnownDependencies {
-                requirements: vec![
-                    self.pool
-                        .intern_version_set(
-                            dep_name,
-                            RequestVS::SpkRequest(
-                                located_build_ident_with_component
-                                    .as_request_with_components([component_to_target]),
-                            ),
-                        )
-                        .into(),
-                ],
-                constrains: Vec::new(),
-            };
-            return Dependencies::Known(known_deps);
+            // Base can't depend on anything because we don't know what
+            // components actually exist or if requests exist for whatever it
+            // was we picked if we were to pick a component to depend on.
+            return Dependencies::Known(KnownDependencies::default());
         }
         // XXX: This find runtime will add up.
         let repo = self
@@ -645,7 +636,7 @@ impl DependencyProvider for SpkProvider {
                         );
                     }
                     return Dependencies::Known(known_deps);
-                } else if let SyntheticComponent::Actual(ref _solvable_component) =
+                } else if let SyntheticComponent::Actual(ref solvable_component) =
                     located_build_ident_with_component.component
                 {
                     // For any non-All/non-Base component, add a dependency on
@@ -666,6 +657,31 @@ impl DependencyProvider for SpkProvider {
                             )
                             .into(),
                     );
+                    // Also add dependencies on any components that this
+                    // component "uses".
+                    package
+                        .components()
+                        .iter()
+                        .find(|component_spec| component_spec.name == *solvable_component)
+                        .into_iter()
+                        .flat_map(|component_spec| component_spec.uses.iter())
+                        .for_each(|uses| {
+                            let dep_name = self.pool.intern_package_name(PkgNameBufWithComponent {
+                                name: located_build_ident_with_component.ident.name().to_owned(),
+                                component: SyntheticComponent::Actual(uses.clone()),
+                            });
+                            known_deps.requirements.push(
+                                self.pool
+                                    .intern_version_set(
+                                        dep_name,
+                                        RequestVS::SpkRequest(
+                                            located_build_ident_with_component
+                                                .as_request_with_components([uses.clone()]),
+                                        ),
+                                    )
+                                    .into(),
+                            );
+                        });
                 }
                 for option in package.get_build_options() {
                     let Opt::Var(var_opt) = option else {
