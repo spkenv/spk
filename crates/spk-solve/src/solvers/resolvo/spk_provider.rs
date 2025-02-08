@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::str::FromStr;
@@ -37,9 +38,10 @@ use spk_schema::ident_component::Component;
 use spk_schema::name::{OptNameBuf, PkgNameBuf};
 use spk_schema::prelude::{HasVersion, Named};
 use spk_schema::version::Version;
-use spk_schema::version_range::{DoubleEqualsVersion, VersionFilter};
-use spk_schema::{BuildIdent, Opt, Package, Request, VersionIdent};
+use spk_schema::version_range::{DoubleEqualsVersion, Ranged, VersionFilter, parse_version_range};
+use spk_schema::{BuildIdent, Opt, Package, Recipe, Request, VersionIdent};
 use spk_storage::RepositoryHandle;
+use tracing::{Instrument, debug_span};
 
 use super::pkg_request_version_set::{
     LocatedBuildIdentWithComponent,
@@ -48,6 +50,7 @@ use super::pkg_request_version_set::{
     SyntheticComponent,
     VarValue,
 };
+use crate::Solver;
 
 // "global-vars--" represents a pseudo- package that accumulates global var
 // constraints. The name is intended to never conflict with a real package name,
@@ -76,6 +79,11 @@ impl std::fmt::Display for PkgNameBufWithComponent {
     }
 }
 
+enum CanBuildFromSource {
+    Yes,
+    No(StringId),
+}
+
 pub(crate) struct SpkProvider {
     pub(crate) pool: Pool<RequestVS, PkgNameBufWithComponent>,
     repos: Vec<Arc<RepositoryHandle>>,
@@ -92,10 +100,109 @@ pub(crate) struct SpkProvider {
     /// restarting the solve.
     queried_global_var_values: RefCell<HashSet<String>>,
     cancel_solving: Cell<bool>,
+    binary_only: bool,
+    /// When recursively exploring building packages from source, track chain
+    /// of packages to detect cycles.
+    build_from_source_trail: RefCell<HashSet<LocatedBuildIdent>>,
 }
 
 impl SpkProvider {
-    pub fn new(repos: Vec<Arc<RepositoryHandle>>) -> Self {
+    /// Return if the given solvable is buildable from source considering the
+    /// existing requests.
+    async fn can_build_from_source(&self, ident: &LocatedBuildIdent) -> CanBuildFromSource {
+        if self.build_from_source_trail.borrow().contains(ident) {
+            return CanBuildFromSource::No(
+                self.pool
+                    .intern_string(format!("cycle detected while building {ident} from source")),
+            );
+        }
+
+        // Get solver requirements from the recipe.
+        let recipe = match self
+            .repos
+            .iter()
+            .find(|repo| repo.name() == ident.repository_name())
+        {
+            Some(repo) => match repo.read_recipe(&ident.clone().to_version_ident()).await {
+                Ok(recipe) => recipe,
+                Err(err) => {
+                    return CanBuildFromSource::No(
+                        self.pool
+                            .intern_string(format!("failed to read recipe: {err}")),
+                    );
+                }
+            },
+            None => {
+                return CanBuildFromSource::No(
+                    self.pool
+                        .intern_string("package's repository is not in the list of repositories"),
+                );
+            }
+        };
+
+        // Do we try all the variants in the recipe?
+        let variants = recipe.default_variants(
+            // XXX: What should really go here?
+            &Default::default(),
+        );
+
+        let mut solve_errors = Vec::new();
+
+        for variant in variants.iter() {
+            let mut solver = super::Solver::new(self.repos.clone(), Cow::Borrowed(&[]));
+            solver.set_binary_only(false);
+            solver.set_build_from_source_trail(HashSet::from_iter(
+                self.build_from_source_trail
+                    .borrow()
+                    .iter()
+                    .cloned()
+                    .chain([ident.clone()]),
+            ));
+
+            let build_requirements = match recipe.get_build_requirements(&variant) {
+                Ok(build_requirements) => build_requirements,
+                Err(err) => {
+                    return CanBuildFromSource::No(
+                        self.pool
+                            .intern_string(format!("failed to get build requirements: {err}")),
+                    );
+                }
+            };
+
+            for request in build_requirements.iter() {
+                solver.add_request(request.clone());
+            }
+
+            // These are last to take priority over the requests in the recipe.
+            for request in self.global_var_requests.values() {
+                solver.add_request(Request::Var(request.clone()));
+            }
+
+            match solver
+                .solve()
+                .instrument(debug_span!(
+                    "recursive solve",
+                    ident = ident.to_string(),
+                    variant = variant.to_string()
+                ))
+                .await
+            {
+                Ok(_solution) => return CanBuildFromSource::Yes,
+                Err(err) => solve_errors.push(err),
+            };
+        }
+
+        CanBuildFromSource::No(
+            self.pool
+                .intern_string(format!("failed to build from source: {solve_errors:?}")),
+        )
+    }
+
+    pub fn new(
+        repos: Vec<Arc<RepositoryHandle>>,
+        binary_only: bool,
+        build_from_source_trail: HashSet<LocatedBuildIdent>,
+    ) -> Self {
         Self {
             pool: Pool::new(),
             repos,
@@ -104,6 +211,8 @@ impl SpkProvider {
             known_global_var_values: Default::default(),
             queried_global_var_values: Default::default(),
             cancel_solving: Default::default(),
+            binary_only,
+            build_from_source_trail: RefCell::new(build_from_source_trail),
         }
     }
 
@@ -255,6 +364,8 @@ impl SpkProvider {
             known_global_var_values: RefCell::new(self.known_global_var_values.take()),
             queried_global_var_values: Default::default(),
             cancel_solving: Default::default(),
+            binary_only: self.binary_only,
+            build_from_source_trail: self.build_from_source_trail.clone(),
         }
     }
 
@@ -315,8 +426,21 @@ impl DependencyProvider for SpkProvider {
                     let compatible = pkg_request
                         .is_version_applicable(located_build_ident_with_component.ident.version());
                     if compatible.is_ok() {
+                        let is_source =
+                            located_build_ident_with_component.ident.build().is_source();
+
+                        // If build from source is enabled, any source build is
+                        // a candidate. Source builds that can't be built from
+                        // source are filtered out in `get_candidates`.
+                        if located_build_ident_with_component.requires_build_from_source {
+                            if !inverse {
+                                selected.push(*candidate);
+                            }
+                            continue;
+                        }
+
                         // Only select source builds for requests of source builds.
-                        if located_build_ident_with_component.ident.build().is_source() {
+                        if is_source {
                             if pkg_request
                                 .pkg
                                 .build
@@ -577,19 +701,23 @@ impl DependencyProvider for SpkProvider {
                             // components.
                             [Component::All],
                         ) {
-                            if component != *pkg_name_component {
+                            if component != *pkg_name_component
+                                && (self.binary_only || !component.is_source())
+                            {
                                 continue;
                             }
 
                             located_builds.push(LocatedBuildIdentWithComponent {
                                 ident: located_build_ident.clone(),
                                 component: pkg_name.component.clone(),
+                                requires_build_from_source: component != *pkg_name_component,
                             });
                         }
                     } else {
                         located_builds.push(LocatedBuildIdentWithComponent {
                             ident: located_build_ident,
                             component: SyntheticComponent::Base,
+                            requires_build_from_source: false,
                         });
                     }
                 }
@@ -608,6 +736,7 @@ impl DependencyProvider for SpkProvider {
         for build in located_builds {
             // What we need from build before it is moved into the pool.
             let ident = build.ident.clone();
+            let requires_build_from_source = build.requires_build_from_source;
 
             let solvable_id = *self
                 .interned_solvables
@@ -625,8 +754,47 @@ impl DependencyProvider for SpkProvider {
                 .iter()
                 .find(|repo| repo.name() == ident.repository_name())
                 .expect("Expected solved package's repository to be in the list of repositories");
+
+            if requires_build_from_source {
+                match self.can_build_from_source(&ident).await {
+                    CanBuildFromSource::Yes => {
+                        candidates.candidates.push(solvable_id);
+                    }
+                    CanBuildFromSource::No(reason) => {
+                        candidates.excluded.push((solvable_id, reason));
+                    }
+                }
+                continue;
+            }
+
             match repo.read_package(ident.target()).await {
                 Ok(package) => {
+                    // Filter builds that don't satisfy global var requests
+                    if let Some(VarRequest {
+                        value: PinnableValue::Pinned(expected_version),
+                        ..
+                    }) = self.global_var_requests.get(ident.name().as_opt_name())
+                    {
+                        if let Ok(expected_version) = parse_version_range(expected_version) {
+                            if let spk_schema::version::Compatibility::Incompatible(
+                                incompatible_reason,
+                            ) = expected_version.is_applicable(package.version())
+                            {
+                                candidates.excluded.push((
+                                solvable_id,
+                                self.pool.intern_string(format!(
+                                    "build version does not satisfy global var request: {incompatible_reason}"
+                                )),
+                            ));
+                                continue;
+                            }
+                        }
+                    }
+
+                    // XXX: `package.check_satisfies_request` walks the
+                    // package's build options, so is it better to do this loop
+                    // over `option_values` here, or loop over all the
+                    // global_var_requests instead?
                     for (opt_name, _value) in package.option_values() {
                         if let Some(request) = self.global_var_requests.get(&opt_name) {
                             if let spk_schema::version::Compatibility::Incompatible(
@@ -636,7 +804,7 @@ impl DependencyProvider for SpkProvider {
                                 candidates.excluded.push((
                                         solvable_id,
                                         self.pool.intern_string(format!(
-                                            "build does not satisfy global var request: {incompatible_reason}"
+                                            "build option {opt_name} does not satisfy global var request: {incompatible_reason}"
                                         )),
                                     ));
                                 continue;
@@ -669,7 +837,18 @@ impl DependencyProvider for SpkProvider {
                 (
                     SpkSolvable::LocatedBuildIdentWithComponent(a),
                     SpkSolvable::LocatedBuildIdentWithComponent(b),
-                ) => b.ident.version().cmp(a.ident.version()),
+                ) => match b.ident.version().cmp(a.ident.version()) {
+                    std::cmp::Ordering::Equal => {
+                        // Sort source builds last
+                        match (a.ident.build(), b.ident.build()) {
+                            (Build::Source, Build::Source) => std::cmp::Ordering::Equal,
+                            (Build::Source, _) => std::cmp::Ordering::Greater,
+                            (_, Build::Source) => std::cmp::Ordering::Less,
+                            _ => std::cmp::Ordering::Equal,
+                        }
+                    }
+                    ord => ord,
+                },
                 (
                     SpkSolvable::GlobalVar {
                         key: a_key,

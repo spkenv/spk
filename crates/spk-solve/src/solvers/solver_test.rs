@@ -909,8 +909,6 @@ async fn test_solver_option_injection(#[case] mut solver: SolverImpl) {
 
 #[rstest]
 #[case::step(step_solver())]
-// Remove #[should_panic] once resolvo handles this case
-#[should_panic]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_build_from_source(#[case] mut solver: SolverImpl) {
@@ -942,7 +940,10 @@ async fn test_solver_build_from_source(#[case] mut solver: SolverImpl) {
     solver.add_request(request!({"var": "debug/on"}));
     solver.add_request(request!("my-tool"));
 
-    let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
+    let solution = run_and_print_resolve_for_tests(&mut solver)
+        .await
+        .tap_err(|e| eprintln!("{e}"))
+        .unwrap();
 
     let resolved = solution.get("my-tool").unwrap();
     assert!(
@@ -1033,8 +1034,6 @@ async fn test_solver_build_from_source_unsolvable(#[case] mut solver: SolverImpl
 
 #[rstest]
 #[case::step(step_solver())]
-// Remove #[should_panic] once resolvo handles this case
-#[should_panic]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_build_from_source_dependency(#[case] mut solver: SolverImpl) {
