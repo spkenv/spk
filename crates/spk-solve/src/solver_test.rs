@@ -1601,8 +1601,6 @@ async fn test_solver_impossible_request_but_embedded_package_makes_solvable(
 /// panic.
 #[rstest]
 #[case::og(og_solver())]
-// Remove #[should_panic] once cdcl handles this case
-#[should_panic]
 #[case::cdcl(cdcl_solver())]
 #[tokio::test]
 async fn test_multiple_packages_embed_same_package(
@@ -1649,7 +1647,10 @@ async fn test_multiple_packages_embed_same_package(
     }
 
     match run_and_print_resolve_for_tests(&mut solver).await {
+        // og solver's error
         Err(Error::GraphError(spk_solve_graph::Error::FailedToResolve(_))) => {}
+        // cdcl solver's error
+        Err(Error::FailedToResolve(_)) => {}
         Ok(_) => {
             panic!("No solution expected");
         }
