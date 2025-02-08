@@ -106,7 +106,7 @@ impl SolverTrait for Solver {
                             provider = Some(solver.provider().reset());
                             continue;
                         }
-                        return Err(Error::String(format!(
+                        return Err(Error::FailedToResolve(format!(
                             "{}",
                             conflict.display_user_friendly(&solver)
                         )));
