@@ -4,6 +4,7 @@
 
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, HashMap, HashSet};
+use std::str::FromStr;
 use std::sync::Arc;
 
 use resolvo::utils::Pool;
@@ -35,8 +36,9 @@ use spk_schema::ident_build::{Build, EmbeddedSource, EmbeddedSourcePackage};
 use spk_schema::ident_component::Component;
 use spk_schema::name::{OptNameBuf, PkgNameBuf};
 use spk_schema::prelude::{HasVersion, Named};
+use spk_schema::version::Version;
 use spk_schema::version_range::{DoubleEqualsVersion, VersionFilter};
-use spk_schema::{Opt, Package, Request, VersionIdent};
+use spk_schema::{BuildIdent, Opt, Package, Request, VersionIdent};
 use spk_storage::RepositoryHandle;
 
 use super::pkg_request_version_set::{
@@ -467,21 +469,31 @@ impl DependencyProvider for SpkProvider {
                     let located_build_ident =
                         LocatedBuildIdent::new(repo.name().to_owned(), build.clone());
                     if let SyntheticComponent::Actual(pkg_name_component) = &pkg_name.component {
-                        if let Build::Embedded(EmbeddedSource::Package(parent)) = build.build() {
-                            // Embedded packages don't have components, but
-                            // their parent has a component.
-                            if parent.components.contains(pkg_name_component) {
-                                located_builds.push(LocatedBuildIdentWithComponent {
-                                    ident: located_build_ident,
-                                    component: SyntheticComponent::Actual(
-                                        pkg_name_component.clone(),
-                                    ),
-                                });
-                            }
-                            continue;
-                        }
-                        let components =
-                            repo.list_build_components(&build).await.unwrap_or_default();
+                        let components = if let Build::Embedded(EmbeddedSource::Package(_parent)) =
+                            build.build()
+                        {
+                            // Does this embedded stub contain the component
+                            // being requested? For whatever reason,
+                            // list_build_components returns an empty list for
+                            // embedded stubs.
+                            itertools::Either::Right(
+                                if let Ok(stub) = repo.read_embed_stub(&build).await {
+                                    itertools::Either::Right(
+                                        stub.components()
+                                            .iter()
+                                            .map(|component_spec| component_spec.name.clone())
+                                            .collect::<Vec<_>>()
+                                            .into_iter(),
+                                    )
+                                } else {
+                                    itertools::Either::Left(std::iter::empty())
+                                },
+                            )
+                        } else {
+                            itertools::Either::Left(
+                                repo.list_build_components(&build).await.unwrap_or_default(),
+                            )
+                        };
                         for component in components.into_iter().chain(
                             // A build representing the All component is included so
                             // when a request for it is found it can act as a
@@ -615,12 +627,15 @@ impl DependencyProvider for SpkProvider {
         else {
             return Dependencies::Known(KnownDependencies::default());
         };
-        if let SyntheticComponent::Base = located_build_ident_with_component.component {
-            // Base can't depend on anything because we don't know what
-            // components actually exist or if requests exist for whatever it
-            // was we picked if we were to pick a component to depend on.
-            return Dependencies::Known(KnownDependencies::default());
-        }
+        let actual_component = match &located_build_ident_with_component.component {
+            SyntheticComponent::Base => {
+                // Base can't depend on anything because we don't know what
+                // components actually exist or if requests exist for whatever it
+                // was we picked if we were to pick a component to depend on.
+                return Dependencies::Known(KnownDependencies::default());
+            }
+            SyntheticComponent::Actual(component) => component,
+        };
         // XXX: This find runtime will add up.
         let repo = self
             .repos
@@ -660,9 +675,7 @@ impl DependencyProvider for SpkProvider {
                         );
                     }
                     return Dependencies::Known(known_deps);
-                } else if let SyntheticComponent::Actual(ref solvable_component) =
-                    located_build_ident_with_component.component
-                {
+                } else {
                     // For any non-All/non-Base component, add a dependency on
                     // the base to ensure all components come from the same
                     // base version.
@@ -686,7 +699,7 @@ impl DependencyProvider for SpkProvider {
                     if let Some(component_spec) = package
                         .components()
                         .iter()
-                        .find(|component_spec| component_spec.name == *solvable_component)
+                        .find(|component_spec| component_spec.name == *actual_component)
                     {
                         component_spec.uses.iter().for_each(|uses| {
                             let dep_name = self.pool.intern_package_name(PkgNameBufWithComponent {
@@ -712,8 +725,6 @@ impl DependencyProvider for SpkProvider {
                 }
                 // Also add dependencies on any packages embedded in this
                 // component.
-                // XXX: This ignores the detail of embeds inside components for
-                // now.
                 for embedded in package.embedded().iter() {
                     let dep_name = self.pool.intern_package_name(PkgNameBufWithComponent {
                         name: embedded.name().to_owned(),
@@ -740,12 +751,11 @@ impl DependencyProvider for SpkProvider {
                                         ),
                                         // This needs to match the build of
                                         // the stub for get_candidates to like
-                                        // it.
+                                        // it. Stub parents are always the Run
+                                        // component.
                                         build: Some(Build::Embedded(EmbeddedSource::Package(
                                             Box::new(EmbeddedSourcePackage {
                                                 ident: package.ident().into(),
-                                                // XXX: Hard coded to Run for
-                                                // now.
                                                 components: BTreeSet::from_iter([Component::Run]),
                                             }),
                                         ))),
@@ -769,6 +779,102 @@ impl DependencyProvider for SpkProvider {
                         .flat_map(|embedded_component| embedded_component.requirements.iter())
                     {
                         todo!("{embedded_component_requirement:?}");
+                    }
+                }
+                // If this solvable is an embedded stub and it is
+                // representing that it provides a component that lives in a
+                // component of the parent, then that parent component needs
+                // to be included in the solution.
+                if let Build::Embedded(EmbeddedSource::Package(parent)) =
+                    located_build_ident_with_component.ident.build()
+                {
+                    match actual_component {
+                        Component::Run => {
+                            // The Run component is the default "home" of
+                            // embedded packages, no dependency needed in this
+                            // case.
+                        }
+                        component => 'invalid_parent: {
+                            // XXX: Do we not have a convenient way to read the
+                            // parent package from an embedded stub ident?
+                            let Ok(pkg_name) = PkgNameBuf::from_str(&parent.ident.pkg_name) else {
+                                break 'invalid_parent;
+                            };
+                            let Some(version_str) = parent.ident.version_str.as_ref() else {
+                                break 'invalid_parent;
+                            };
+                            let Ok(version) = Version::from_str(version_str) else {
+                                break 'invalid_parent;
+                            };
+                            let Some(build_str) = parent.ident.build_str.as_ref() else {
+                                break 'invalid_parent;
+                            };
+                            let Ok(build) = Build::from_str(build_str) else {
+                                break 'invalid_parent;
+                            };
+                            let ident = BuildIdent::new(
+                                VersionIdent::new(pkg_name, version),
+                                build.clone(),
+                            );
+                            let Ok(parent) = repo.read_package(&ident).await else {
+                                break 'invalid_parent;
+                            };
+                            // Look through the components of the parent to see
+                            // if one (or more?) of them embeds this component.
+                            for parent_component in parent.components().iter() {
+                                parent_component
+                                    .embedded
+                                    .iter()
+                                    .filter(|embedded_package| {
+                                        embedded_package.pkg.name()
+                                            == located_build_ident_with_component.ident.name()
+                                            && embedded_package.components().contains(component)
+                                    })
+                                    .for_each(|_embedded_package| {
+                                        let dep_name = self.pool.intern_package_name(
+                                            PkgNameBufWithComponent {
+                                                name: ident.name().to_owned(),
+                                                component: SyntheticComponent::Actual(
+                                                    parent_component.name.clone(),
+                                                ),
+                                            },
+                                        );
+                                        known_deps.requirements.push(
+                                            self.pool.intern_version_set(
+                                                dep_name,
+                                                RequestVS::SpkRequest(Request::Pkg(
+                                                    PkgRequest::new(
+                                                        RangeIdent {
+                                                            repository_name: Some(
+                                                                located_build_ident_with_component
+                                                                    .ident
+                                                                    .repository_name()
+                                                                    .to_owned(),
+                                                            ),
+                                                            name: ident.name().to_owned(),
+                                                            components: BTreeSet::from_iter([
+                                                                parent_component.name.clone(),
+                                                            ]),
+                                                            version: VersionFilter::single(
+                                                                DoubleEqualsVersion::version_range(
+                                                                    ident.version().clone(),
+                                                                ),
+                                                            ),
+                                                            build: Some(build.clone()),
+                                                        },
+                                                        RequestedBy::Embedded(
+                                                            located_build_ident_with_component
+                                                                .ident
+                                                                .target()
+                                                                .clone(),
+                                                        ),
+                                                    ),
+                                                ))
+                                            ).into(),
+                                        );
+                                    });
+                            }
+                        }
                     }
                 }
                 for option in package.get_build_options() {
