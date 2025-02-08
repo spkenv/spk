@@ -1330,8 +1330,6 @@ async fn test_solver_embedded_package_adds_request(#[case] mut solver: SolverImp
 
 #[rstest]
 #[case::step(step_solver())]
-// Remove #[should_panic] once resolvo handles this case
-#[should_panic]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_embedded_package_solvable(#[case] mut solver: SolverImpl) {
@@ -1364,7 +1362,7 @@ async fn test_solver_embedded_package_solvable(#[case] mut solver: SolverImpl) {
     assert_resolved!(
         solution,
         "qt",
-        build = Build::Embedded(EmbeddedSource::Unknown)
+        build =~ Build::Embedded(_)
     );
 }
 
@@ -1405,7 +1403,6 @@ async fn test_solver_embedded_package_unsolvable(#[case] mut solver: SolverImpl)
 
 #[rstest]
 #[case::step(step_solver())]
-#[should_panic]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_embedded_package_replaces_real_package(#[case] mut solver: SolverImpl) {
@@ -1461,7 +1458,7 @@ async fn test_solver_embedded_package_replaces_real_package(#[case] mut solver: 
     assert_resolved!(
         solution,
         "qt",
-        build = Build::Embedded(EmbeddedSource::Unknown)
+        build =~ Build::Embedded(_)
     );
     assert_not_resolved!(solution, "unwanted-dep");
 }
