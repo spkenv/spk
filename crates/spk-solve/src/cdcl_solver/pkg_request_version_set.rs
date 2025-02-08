@@ -104,10 +104,28 @@ impl SyntheticComponent {
     }
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+// The `requires_build_from_source` field is ignored for hashing and equality
+// purposes.
+#[derive(Clone, Debug)]
 pub(crate) struct LocatedBuildIdentWithComponent {
     pub(crate) ident: LocatedBuildIdent,
     pub(crate) component: SyntheticComponent,
+    pub(crate) requires_build_from_source: bool,
+}
+
+impl std::hash::Hash for LocatedBuildIdentWithComponent {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.ident.hash(state);
+        self.component.hash(state);
+    }
+}
+
+impl Eq for LocatedBuildIdentWithComponent {}
+
+impl PartialEq for LocatedBuildIdentWithComponent {
+    fn eq(&self, other: &Self) -> bool {
+        self.ident == other.ident && self.component == other.component
+    }
 }
 
 impl LocatedBuildIdentWithComponent {
