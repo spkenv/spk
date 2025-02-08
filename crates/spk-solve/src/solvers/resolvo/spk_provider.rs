@@ -168,6 +168,82 @@ impl SpkProvider {
         self.cancel_solving.get()
     }
 
+    fn request_to_known_dependencies(&self, requirement: &Request) -> KnownDependencies {
+        let mut known_deps = KnownDependencies::default();
+        match requirement {
+            Request::Pkg(pkg_request) => {
+                let kd = self.pkg_request_to_known_dependencies(pkg_request);
+                known_deps.requirements.extend(kd.requirements);
+                known_deps.constrains.extend(kd.constrains);
+            }
+            Request::Var(var_request) => {
+                match &var_request.value {
+                    spk_schema::ident::PinnableValue::FromBuildEnv => todo!(),
+                    spk_schema::ident::PinnableValue::FromBuildEnvIfPresent => todo!(),
+                    spk_schema::ident::PinnableValue::Pinned(value) => {
+                        let dep_name = match var_request.var.namespace() {
+                            Some(pkg_name) => {
+                                self.pool.intern_package_name(PkgNameBufWithComponent {
+                                    name: pkg_name.to_owned(),
+                                    component: SyntheticComponent::Base,
+                                })
+                            }
+                            None => {
+                                // Since we will be adding constraints for
+                                // global vars we need to add the pseudo-package
+                                // to the dependency list so it will influence
+                                // decisions.
+                                let pseudo_pkg_name = format!(
+                                    "{PSEUDO_PKG_NAME_PREFIX}{}",
+                                    var_request.var.base_name()
+                                );
+                                if self
+                                    .known_global_var_values
+                                    .borrow_mut()
+                                    .entry(var_request.var.base_name().to_owned())
+                                    .or_default()
+                                    .insert(VarValue::ArcStr(Arc::clone(value)))
+                                    && self
+                                        .queried_global_var_values
+                                        .borrow()
+                                        .contains(var_request.var.base_name())
+                                {
+                                    // Seeing a new value for a var that has
+                                    // already locked in the list of candidates.
+                                    self.cancel_solving.set(true);
+                                }
+                                let dep_name =
+                                    self.pool.intern_package_name(PkgNameBufWithComponent {
+                                        name: pkg_name!(&pseudo_pkg_name).to_owned(),
+                                        component: SyntheticComponent::Base,
+                                    });
+                                known_deps.requirements.push(
+                                    self.pool
+                                        .intern_version_set(
+                                            dep_name,
+                                            RequestVS::GlobalVar {
+                                                key: var_request.var.base_name().to_owned(),
+                                                value: VarValue::ArcStr(Arc::clone(value)),
+                                            },
+                                        )
+                                        .into(),
+                                );
+                                dep_name
+                            }
+                        };
+                        // If we end up adding pkg_name to the solve, it needs
+                        // to satisfy this var request.
+                        known_deps.constrains.push(self.pool.intern_version_set(
+                            dep_name,
+                            RequestVS::SpkRequest(requirement.clone()),
+                        ));
+                    }
+                }
+            }
+        }
+        known_deps
+    }
+
     /// Return a new provider to restart the solve, preserving what was learned
     /// about global variables.
     pub fn reset(&self) -> Self {
@@ -773,12 +849,12 @@ impl DependencyProvider for SpkProvider {
                     for embedded_component_requirement in embedded
                         .components()
                         .iter()
-                        .filter(|embedded_component| {
-                            embedded_component.name == located_build_ident_with_component.component
-                        })
+                        .filter(|embedded_component| embedded_component.name == *actual_component)
                         .flat_map(|embedded_component| embedded_component.requirements.iter())
                     {
-                        todo!("{embedded_component_requirement:?}");
+                        let kd = self.request_to_known_dependencies(embedded_component_requirement);
+                        known_deps.requirements.extend(kd.requirements);
+                        known_deps.constrains.extend(kd.constrains);
                     }
                 }
                 // If this solvable is an embedded stub and it is
@@ -920,85 +996,9 @@ impl DependencyProvider for SpkProvider {
                     ));
                 }
                 for requirement in package.runtime_requirements().iter() {
-                    match requirement {
-                        Request::Pkg(pkg_request) => {
-                            let kd = self.pkg_request_to_known_dependencies(pkg_request);
-                            known_deps.requirements.extend(kd.requirements);
-                            known_deps.constrains.extend(kd.constrains);
-                        }
-                        Request::Var(var_request) => {
-                            match &var_request.value {
-                                spk_schema::ident::PinnableValue::FromBuildEnv => todo!(),
-                                spk_schema::ident::PinnableValue::FromBuildEnvIfPresent => todo!(),
-                                spk_schema::ident::PinnableValue::Pinned(value) => {
-                                    let dep_name = match var_request.var.namespace() {
-                                        Some(pkg_name) => {
-                                            self.pool.intern_package_name(PkgNameBufWithComponent {
-                                                name: pkg_name.to_owned(),
-                                                component: SyntheticComponent::Base,
-                                            })
-                                        }
-                                        None => {
-                                            // Since we will be adding
-                                            // constraints for global vars we
-                                            // need to add the pseudo-package
-                                            // to the dependency list so it
-                                            // will influence decisions.
-                                            let pseudo_pkg_name = format!(
-                                                "{PSEUDO_PKG_NAME_PREFIX}{}",
-                                                var_request.var.base_name()
-                                            );
-                                            if self
-                                                .known_global_var_values
-                                                .borrow_mut()
-                                                .entry(var_request.var.base_name().to_owned())
-                                                .or_default()
-                                                .insert(VarValue::ArcStr(Arc::clone(value)))
-                                                && self
-                                                    .queried_global_var_values
-                                                    .borrow()
-                                                    .contains(var_request.var.base_name())
-                                            {
-                                                // Seeing a new value for a var
-                                                // that has already locked in
-                                                // the list of candidates.
-                                                self.cancel_solving.set(true);
-                                            }
-                                            let dep_name = self.pool.intern_package_name(
-                                                PkgNameBufWithComponent {
-                                                    name: pkg_name!(&pseudo_pkg_name).to_owned(),
-                                                    component: SyntheticComponent::Base,
-                                                },
-                                            );
-                                            known_deps.requirements.push(
-                                                self.pool
-                                                    .intern_version_set(
-                                                        dep_name,
-                                                        RequestVS::GlobalVar {
-                                                            key: var_request
-                                                                .var
-                                                                .base_name()
-                                                                .to_owned(),
-                                                            value: VarValue::ArcStr(Arc::clone(
-                                                                value,
-                                                            )),
-                                                        },
-                                                    )
-                                                    .into(),
-                                            );
-                                            dep_name
-                                        }
-                                    };
-                                    // If we end up adding pkg_name to the solve,
-                                    // it needs to satisfy this var request.
-                                    known_deps.constrains.push(self.pool.intern_version_set(
-                                        dep_name,
-                                        RequestVS::SpkRequest(requirement.clone()),
-                                    ));
-                                }
-                            }
-                        }
-                    }
+                    let kd = self.request_to_known_dependencies(requirement);
+                    known_deps.requirements.extend(kd.requirements);
+                    known_deps.constrains.extend(kd.constrains);
                 }
                 Dependencies::Known(known_deps)
             }
