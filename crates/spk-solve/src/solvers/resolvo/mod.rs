@@ -17,12 +17,13 @@ mod pkg_request_version_set;
 mod spk_provider;
 
 use std::borrow::Cow;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 
 use pkg_request_version_set::{SpkSolvable, SyntheticComponent};
 use spk_provider::SpkProvider;
 use spk_schema::ident::{InclusionPolicy, PinPolicy, PkgRequest, RangeIdent};
+use spk_schema::ident_component::Component;
 use spk_schema::prelude::{HasVersion, Named, Versioned};
 use spk_schema::version_range::VersionFilter;
 use spk_schema::{OptionMap, Package, Request};
@@ -135,12 +136,41 @@ impl SolverTrait for Solver {
 
         let mut solution_options = OptionMap::default();
         let mut solution_adds = Vec::with_capacity(solvables.len());
+        // Keep track of the index of each package added to `solution_adds` in
+        // order to merge components. Components of a package come out of the
+        // solver as separate solvables. The solver logic guarantees that any
+        // two entries in this list with the same package name are for the same
+        // package and this merging of components is valid.
+        let mut seen_packages = HashMap::new();
         for located_build_ident_with_component in solvables {
             let SyntheticComponent::Actual(solvable_component) =
                 &located_build_ident_with_component.component
             else {
                 continue;
             };
+
+            if let Some(existing_index) =
+                seen_packages.get(located_build_ident_with_component.ident.name())
+            {
+                if let Some((
+                    PkgRequest {
+                        pkg: RangeIdent { components, .. },
+                        ..
+                    },
+                    _,
+                    _,
+                )) = solution_adds.get_mut(*existing_index)
+                {
+                    // If we visit a solvable for the "All" component, the
+                    // solver guarantees that we will have all the components.
+                    if !components.contains(&Component::All) {
+                        components.insert(solvable_component.clone());
+                    } else if solvable_component.is_all() {
+                        *components = BTreeSet::from([Component::All]);
+                    }
+                }
+                continue;
+            }
 
             let pkg_request = PkgRequest {
                 pkg: RangeIdent {
@@ -193,6 +223,11 @@ impl SolverTrait for Solver {
                     }
                 }
             }
+            let next_index = solution_adds.len();
+            seen_packages.insert(
+                located_build_ident_with_component.ident.name().to_owned(),
+                next_index,
+            );
             solution_adds.push((
                 pkg_request,
                 package,
