@@ -2058,8 +2058,6 @@ async fn test_solver_components(#[case] mut solver: SolverImpl) {
 
 #[rstest]
 #[case::og(og_solver())]
-// Remove #[should_panic] once cdcl handles this case
-#[should_panic]
 #[case::cdcl(cdcl_solver())]
 #[tokio::test]
 async fn test_solver_components_interaction_with_embeds(#[case] mut solver: SolverImpl) {
@@ -2123,7 +2121,10 @@ async fn test_solver_components_interaction_with_embeds(#[case] mut solver: Solv
     solver.add_request(request!("fake-pkg:comp1"));
     solver.add_request(request!("victim"));
 
-    let Ok(solution) = run_and_print_resolve_for_tests(&mut solver).await else {
+    let Ok(solution) = run_and_print_resolve_for_tests(&mut solver)
+        .await
+        .tap_err(|e| eprintln!("{e}"))
+    else {
         panic!("Expected a valid solution");
     };
 
