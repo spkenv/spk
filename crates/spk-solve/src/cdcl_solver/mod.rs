@@ -6,12 +6,12 @@ mod pkg_request_version_set;
 mod spk_provider;
 
 use std::borrow::Cow;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
 use pkg_request_version_set::{SpkSolvable, SyntheticComponent};
 use spk_provider::SpkProvider;
-use spk_schema::ident::{InclusionPolicy, PinPolicy, PkgRequest, RangeIdent};
+use spk_schema::ident::{InclusionPolicy, LocatedBuildIdent, PinPolicy, PkgRequest, RangeIdent};
 use spk_schema::ident_component::Component;
 use spk_schema::prelude::{HasVersion, Named, Versioned};
 use spk_schema::version_range::VersionFilter;
@@ -31,7 +31,9 @@ mod cdcl_solver_tests;
 pub struct Solver {
     repos: Vec<Arc<RepositoryHandle>>,
     requests: Vec<Request>,
+    binary_only: bool,
     _validators: Cow<'static, [Validators]>,
+    build_from_source_trail: HashSet<LocatedBuildIdent>,
 }
 
 impl Solver {
@@ -39,8 +41,14 @@ impl Solver {
         Self {
             repos,
             requests: Vec::new(),
+            binary_only: true,
             _validators: validators,
+            build_from_source_trail: HashSet::new(),
         }
+    }
+
+    pub(crate) fn set_build_from_source_trail(&mut self, trail: HashSet<LocatedBuildIdent>) {
+        self.build_from_source_trail = trail;
     }
 }
 
@@ -63,16 +71,22 @@ impl AbstractSolver for Solver {
         self._validators = Cow::from(default_validators());
     }
 
-    fn set_binary_only(&mut self, _binary_only: bool) {
-        // TODO
+    fn set_binary_only(&mut self, binary_only: bool) {
+        self.binary_only = binary_only;
     }
 
     async fn solve(&mut self) -> Result<Solution> {
         let repos = self.repos.clone();
         let requests = self.requests.clone();
+        let binary_only = self.binary_only;
+        let build_from_source_trail = self.build_from_source_trail.clone();
         // Use a blocking thread so resolvo can call `block_on` on the runtime.
         let solvables = tokio::task::spawn_blocking(move || {
-            let mut provider = Some(SpkProvider::new(repos.clone()));
+            let mut provider = Some(SpkProvider::new(
+                repos.clone(),
+                binary_only,
+                build_from_source_trail,
+            ));
             let (solver, solved) = loop {
                 let mut this_iter_provider = provider.take().expect("provider is always Some");
                 let pkg_requirements = this_iter_provider.pkg_requirements(&requests);
@@ -217,17 +231,25 @@ impl AbstractSolver for Solver {
                 located_build_ident_with_component.ident.name().to_owned(),
                 next_index,
             );
-            solution_adds.push((
-                pkg_request,
-                package,
-                PackageSource::Repository {
-                    repo: Arc::clone(repo),
-                    // XXX: Why is this needed?
-                    components: repo
-                        .read_components(located_build_ident_with_component.ident.target())
-                        .await?,
-                },
-            ));
+            solution_adds.push((pkg_request, package, {
+                if located_build_ident_with_component.requires_build_from_source {
+                    PackageSource::BuildFromSource {
+                        recipe: repo
+                            .read_recipe(
+                                &located_build_ident_with_component.ident.to_version_ident(),
+                            )
+                            .await?,
+                    }
+                } else {
+                    PackageSource::Repository {
+                        repo: Arc::clone(repo),
+                        // XXX: Why is this needed?
+                        components: repo
+                            .read_components(located_build_ident_with_component.ident.target())
+                            .await?,
+                    }
+                }
+            }));
         }
         let mut solution = Solution::new(solution_options);
         for (pkg_request, package, source) in solution_adds {
