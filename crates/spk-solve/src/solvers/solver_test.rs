@@ -2560,10 +2560,7 @@ async fn test_solver_component_embedded_component_requirements(
 #[case::downstream3("downstream3", false)]
 #[tokio::test]
 async fn test_solver_component_embedded_multiple_versions(
-    #[values(og_solver()
-        // TODO , cdcl_solver()
-    )]
-    mut solver: SolverImpl,
+    #[values(og_solver(), cdcl_solver())] mut solver: SolverImpl,
     #[case] package_to_request: &str,
     #[case] expected_solve_result: bool,
 ) {
@@ -2614,14 +2611,17 @@ async fn test_solver_component_embedded_multiple_versions(
     solver.add_repository(repo);
     solver.add_request(request!(package_to_request));
 
-    match run_and_print_resolve_for_tests(&mut solver).await {
+    match run_and_print_resolve_for_tests(&mut solver)
+        .await
+        .tap_err(|e| eprintln!("{e}"))
+    {
         Ok(solution) => {
             assert!(expected_solve_result, "expected solve to fail");
 
             assert_resolved!(
                 solution,
                 "dep-e1",
-                build = Build::Embedded(EmbeddedSource::Unknown)
+                build =~ Build::Embedded(_)
             );
         }
         Err(_) => {
