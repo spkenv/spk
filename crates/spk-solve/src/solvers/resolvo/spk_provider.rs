@@ -802,6 +802,34 @@ impl DependencyProvider for SpkProvider {
                 // Also add dependencies on any packages embedded in this
                 // component.
                 for embedded in package.embedded().iter() {
+                    // If this embedded package is configured to exist in
+                    // specific components, then skip it if this solvable's
+                    // component is not one of those.
+                    let components_where_this_embedded_package_exists = package
+                        .components()
+                        .iter()
+                        .filter_map(|component_spec| {
+                            if component_spec.embedded.iter().any(|embedded_package| {
+                                embedded_package.pkg.name() == embedded.name()
+                                    && embedded_package
+                                        .pkg
+                                        .target()
+                                        .as_ref()
+                                        .map(|version| version == embedded.version())
+                                        .unwrap_or(true)
+                            }) {
+                                Some(component_spec.name.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<BTreeSet<_>>();
+                    if !components_where_this_embedded_package_exists.is_empty()
+                        && !components_where_this_embedded_package_exists.contains(actual_component)
+                    {
+                        continue;
+                    }
+
                     let dep_name = self.pool.intern_package_name(PkgNameBufWithComponent {
                         name: embedded.name().to_owned(),
                         component: located_build_ident_with_component.component.clone(),
@@ -904,6 +932,17 @@ impl DependencyProvider for SpkProvider {
                                     .filter(|embedded_package| {
                                         embedded_package.pkg.name()
                                             == located_build_ident_with_component.ident.name()
+                                            && embedded_package
+                                                .pkg
+                                                .target()
+                                                .as_ref()
+                                                .map(|version| {
+                                                    version
+                                                        == located_build_ident_with_component
+                                                            .ident
+                                                            .version()
+                                                })
+                                                .unwrap_or(true)
                                             && embedded_package.components().contains(component)
                                     })
                                     .for_each(|_embedded_package| {
