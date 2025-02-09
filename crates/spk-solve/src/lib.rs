@@ -67,12 +67,11 @@ pub use {
 
 #[async_trait::async_trait]
 pub trait ResolverCallback: Send + Sync {
-    /// Run a solve using the given [`crate::Solver`],
-    /// producing a [`crate::Solution`].
-    async fn solve<'s, 'a: 's>(
-        &'s self,
-        r: &'a Solver,
-    ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)>;
+    type Solver;
+    type SolveResult;
+
+    /// Run a solve using the given [`Self::Solver`] producing a [`Self::SolveResult`].
+    async fn solve<'s, 'a: 's>(&'s self, r: &'a Self::Solver) -> Result<Self::SolveResult>;
 }
 
 /// A no-frills implementation of [`ResolverCallback`].
@@ -80,10 +79,10 @@ pub struct DefaultResolver {}
 
 #[async_trait::async_trait]
 impl ResolverCallback for DefaultResolver {
-    async fn solve<'s, 'a: 's>(
-        &'s self,
-        r: &'a Solver,
-    ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
+    type Solver = Solver;
+    type SolveResult = (Solution, Arc<tokio::sync::RwLock<Graph>>);
+
+    async fn solve<'s, 'a: 's>(&'s self, r: &'a Self::Solver) -> Result<Self::SolveResult> {
         let mut runtime = r.run();
         let solution = runtime.solution().await;
         match solution {
@@ -93,4 +92,23 @@ impl ResolverCallback for DefaultResolver {
     }
 }
 
-pub type BoxedResolverCallback<'a> = Box<dyn ResolverCallback + 'a>;
+pub type BoxedResolverCallback<'a> = Box<
+    dyn ResolverCallback<Solver = Solver, SolveResult = (Solution, Arc<tokio::sync::RwLock<Graph>>)>
+        + 'a,
+>;
+
+/// Another no-frills implementation of [`ResolverCallback`].
+pub struct DefaultCdclResolver {}
+
+#[async_trait::async_trait]
+impl ResolverCallback for DefaultCdclResolver {
+    type Solver = cdcl_solver::Solver;
+    type SolveResult = Solution;
+
+    async fn solve<'s, 'a: 's>(&'s self, r: &'a Self::Solver) -> Result<Self::SolveResult> {
+        r.solve().await
+    }
+}
+
+pub type BoxedCdclResolverCallback<'a> =
+    Box<dyn ResolverCallback<Solver = cdcl_solver::Solver, SolveResult = Solution> + 'a>;

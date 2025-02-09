@@ -35,9 +35,10 @@ use spk_schema::{
     Variant,
     VariantExt,
 };
+use spk_solve::cdcl_solver::{self, Solver};
 use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
-use spk_solve::{AbstractSolver, BoxedResolverCallback, Named, ResolverCallback, Solver};
+use spk_solve::{AbstractSolver, BoxedCdclResolverCallback, Named, ResolverCallback};
 use spk_storage as storage;
 
 use crate::report::{BuildOutputReport, BuildReport, BuildSetupReport};
@@ -133,8 +134,8 @@ pub struct BinaryPackageBuilder<'a, Recipe> {
     source: BuildSource,
     solver: Solver,
     environment: HashMap<String, String>,
-    source_resolver: BoxedResolverCallback<'a>,
-    build_resolver: BoxedResolverCallback<'a>,
+    source_resolver: BoxedCdclResolverCallback<'a>,
+    build_resolver: BoxedCdclResolverCallback<'a>,
     last_solve_graph: Arc<tokio::sync::RwLock<Graph>>,
     repos: Vec<Arc<storage::RepositoryHandle>>,
     interactive: bool,
@@ -157,14 +158,14 @@ where
             prefix: PathBuf::from("/spfs"),
             solver: Solver::default(),
             environment: Default::default(),
-            #[cfg(test)]
-            source_resolver: Box::new(spk_solve::DecisionFormatter::new_testing()),
-            #[cfg(not(test))]
-            source_resolver: Box::new(spk_solve::DefaultResolver {}),
-            #[cfg(test)]
-            build_resolver: Box::new(spk_solve::DecisionFormatter::new_testing()),
-            #[cfg(not(test))]
-            build_resolver: Box::new(spk_solve::DefaultResolver {}),
+            //#[cfg(test)]
+            //source_resolver: Box::new(spk_solve::DecisionFormatter::new_testing()),
+            //#[cfg(not(test))]
+            source_resolver: Box::new(spk_solve::DefaultCdclResolver {}),
+            //#[cfg(test)]
+            //build_resolver: Box::new(spk_solve::DecisionFormatter::new_testing()),
+            //#[cfg(not(test))]
+            build_resolver: Box::new(spk_solve::DefaultCdclResolver {}),
             last_solve_graph: Arc::new(tokio::sync::RwLock::new(Graph::new())),
             repos: Default::default(),
             interactive: false,
@@ -222,7 +223,7 @@ where
     /// process as needed.
     pub fn with_source_resolver<F>(&mut self, resolver: F) -> &mut Self
     where
-        F: ResolverCallback + 'a,
+        F: ResolverCallback<Solver = cdcl_solver::Solver, SolveResult = Solution> + 'a,
     {
         self.source_resolver = Box::new(resolver);
         self
@@ -236,7 +237,7 @@ where
     /// process as needed.
     pub fn with_build_resolver<F>(&mut self, resolver: F) -> &mut Self
     where
-        F: ResolverCallback + 'a,
+        F: ResolverCallback<Solver = cdcl_solver::Solver, SolveResult = Solution> + 'a,
     {
         self.build_resolver = Box::new(resolver);
         self
@@ -441,8 +442,9 @@ where
 
         self.solver.add_request(request.into());
 
-        let (solution, graph) = self.source_resolver.solve(&self.solver).await?;
-        self.last_solve_graph = graph;
+        //let (solution, graph) = self.source_resolver.solve(&self.solver).await?;
+        //self.last_solve_graph = graph;
+        let solution = self.source_resolver.solve(&self.solver).await?;
         Ok(solution)
     }
 
@@ -466,8 +468,9 @@ where
             self.solver.add_request(request.clone());
         }
 
-        let (solution, graph) = self.build_resolver.solve(&self.solver).await?;
-        self.last_solve_graph = graph;
+        //let (solution, graph) = self.build_resolver.solve(&self.solver).await?;
+        //self.last_solve_graph = graph;
+        let solution = self.build_resolver.solve(&self.solver).await?;
         Ok(solution)
     }
 

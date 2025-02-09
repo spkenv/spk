@@ -4342,6 +4342,7 @@ dependencies = [
  "spk-build",
  "spk-cli-common",
  "spk-schema",
+ "spk-solve",
  "spk-storage",
  "tempfile",
  "tokio",

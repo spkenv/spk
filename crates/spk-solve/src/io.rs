@@ -2120,20 +2120,20 @@ impl DecisionFormatter {
 
 #[async_trait::async_trait]
 impl ResolverCallback for &DecisionFormatter {
-    async fn solve<'s, 'a: 's>(
-        &'s self,
-        r: &'a Solver,
-    ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
+    type Solver = Solver;
+    type SolveResult = (Solution, Arc<tokio::sync::RwLock<Graph>>);
+
+    async fn solve<'s, 'a: 's>(&'s self, r: &'a Self::Solver) -> Result<Self::SolveResult> {
         self.run_and_print_resolve(r).await
     }
 }
 
 #[async_trait::async_trait]
 impl ResolverCallback for DecisionFormatter {
-    async fn solve<'s, 'a: 's>(
-        &'s self,
-        r: &'a Solver,
-    ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
+    type Solver = Solver;
+    type SolveResult = (Solution, Arc<tokio::sync::RwLock<Graph>>);
+
+    async fn solve<'s, 'a: 's>(&'s self, r: &'a Self::Solver) -> Result<Self::SolveResult> {
         self.run_and_print_resolve(r).await
     }
 }
