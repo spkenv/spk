@@ -23,7 +23,6 @@ use resolvo::{
     VersionSetId,
     VersionSetUnionId,
 };
-use spk_schema::foundation::pkg_name;
 use spk_schema::ident::{
     LocatedBuildIdent,
     PinnableValue,
@@ -52,11 +51,6 @@ use super::pkg_request_version_set::{
 };
 use crate::Solver;
 
-// "global-vars--" represents a pseudo- package that accumulates global var
-// constraints. The name is intended to never conflict with a real package name,
-// however since it is a legal package name that can't be guaranteed.
-const PSEUDO_PKG_NAME_PREFIX: &str = "global-vars--";
-
 // Using just the package name as a Resolvo "package name" prevents multiple
 // components from the same package from existing in the same solution, since
 // we consider the different components to be different "solvables". Instead,
@@ -79,13 +73,257 @@ impl std::fmt::Display for PkgNameBufWithComponent {
     }
 }
 
+#[derive(Clone, Eq, Hash, PartialEq)]
+pub(crate) enum ResolvoPackageName {
+    GlobalVar(OptNameBuf),
+    PkgNameBufWithComponent(PkgNameBufWithComponent),
+}
+
+impl ResolvoPackageName {
+    async fn get_candidates(&self, name: NameId, provider: &SpkProvider) -> Option<Candidates> {
+        match self {
+            ResolvoPackageName::GlobalVar(key) => {
+                provider
+                    .queried_global_var_values
+                    .borrow_mut()
+                    .insert(key.clone());
+
+                if let Some(values) = provider.known_global_var_values.borrow().get(key) {
+                    let mut candidates = Candidates {
+                        candidates: Vec::with_capacity(values.len()),
+                        ..Default::default()
+                    };
+                    for value in values {
+                        let solvable_id = *provider
+                            .interned_solvables
+                            .borrow_mut()
+                            .entry(SpkSolvable::GlobalVar {
+                                key: key.clone(),
+                                value: value.clone(),
+                            })
+                            .or_insert_with(|| {
+                                provider.pool.intern_solvable(
+                                    name,
+                                    SpkSolvable::GlobalVar {
+                                        key: key.clone(),
+                                        value: value.clone(),
+                                    },
+                                )
+                            });
+                        candidates.candidates.push(solvable_id);
+                    }
+                    return Some(candidates);
+                }
+                None
+            }
+            ResolvoPackageName::PkgNameBufWithComponent(pkg_name) => {
+                let mut located_builds = Vec::new();
+
+                for repo in &provider.repos {
+                    let versions = repo
+                        .list_package_versions(&pkg_name.name)
+                        .await
+                        .unwrap_or_default();
+                    for version in versions.iter() {
+                        // TODO: We need a borrowing version of this to avoid cloning.
+                        let pkg_version =
+                            VersionIdent::new(pkg_name.name.clone(), (**version).clone());
+
+                        let builds = repo
+                            .list_package_builds(&pkg_version)
+                            .await
+                            .unwrap_or_default();
+
+                        for build in builds {
+                            let located_build_ident =
+                                LocatedBuildIdent::new(repo.name().to_owned(), build.clone());
+                            if let SyntheticComponent::Actual(pkg_name_component) =
+                                &pkg_name.component
+                            {
+                                let components =
+                                    if let Build::Embedded(EmbeddedSource::Package(_parent)) =
+                                        build.build()
+                                    {
+                                        // Does this embedded stub contain the component
+                                        // being requested? For whatever reason,
+                                        // list_build_components returns an empty list for
+                                        // embedded stubs.
+                                        itertools::Either::Right(
+                                            if let Ok(stub) = repo.read_embed_stub(&build).await {
+                                                itertools::Either::Right(
+                                                    stub.components()
+                                                        .iter()
+                                                        .map(|component_spec| {
+                                                            component_spec.name.clone()
+                                                        })
+                                                        .collect::<Vec<_>>()
+                                                        .into_iter(),
+                                                )
+                                            } else {
+                                                itertools::Either::Left(std::iter::empty())
+                                            },
+                                        )
+                                    } else {
+                                        itertools::Either::Left(
+                                            repo.list_build_components(&build)
+                                                .await
+                                                .unwrap_or_default(),
+                                        )
+                                    };
+                                for component in components.into_iter().chain(
+                                    // A build representing the All component is included so
+                                    // when a request for it is found it can act as a
+                                    // surrogate that depends on all the individual
+                                    // components.
+                                    [Component::All],
+                                ) {
+                                    if component != *pkg_name_component
+                                        && (provider.binary_only || !component.is_source())
+                                    {
+                                        continue;
+                                    }
+
+                                    located_builds.push(LocatedBuildIdentWithComponent {
+                                        ident: located_build_ident.clone(),
+                                        component: pkg_name.component.clone(),
+                                        requires_build_from_source: component
+                                            != *pkg_name_component,
+                                    });
+                                }
+                            } else {
+                                located_builds.push(LocatedBuildIdentWithComponent {
+                                    ident: located_build_ident,
+                                    component: SyntheticComponent::Base,
+                                    requires_build_from_source: false,
+                                });
+                            }
+                        }
+                    }
+                }
+
+                if located_builds.is_empty() {
+                    return None;
+                }
+
+                let mut candidates = Candidates {
+                    candidates: Vec::with_capacity(located_builds.len()),
+                    ..Default::default()
+                };
+
+                for build in located_builds {
+                    // What we need from build before it is moved into the pool.
+                    let ident = build.ident.clone();
+                    let requires_build_from_source = build.requires_build_from_source;
+
+                    let solvable_id = *provider
+                        .interned_solvables
+                        .borrow_mut()
+                        .entry(SpkSolvable::LocatedBuildIdentWithComponent(build.clone()))
+                        .or_insert_with(|| {
+                            provider.pool.intern_solvable(
+                                name,
+                                SpkSolvable::LocatedBuildIdentWithComponent(build),
+                            )
+                        });
+
+                    // Filter builds that don't conform to global options
+                    // XXX: This find runtime will add up.
+                    let repo = provider
+                .repos
+                .iter()
+                .find(|repo| repo.name() == ident.repository_name())
+                .expect("Expected solved package's repository to be in the list of repositories");
+
+                    if requires_build_from_source {
+                        match provider.can_build_from_source(&ident).await {
+                            CanBuildFromSource::Yes => {
+                                candidates.candidates.push(solvable_id);
+                            }
+                            CanBuildFromSource::No(reason) => {
+                                candidates.excluded.push((solvable_id, reason));
+                            }
+                        }
+                        continue;
+                    }
+
+                    match repo.read_package(ident.target()).await {
+                        Ok(package) => {
+                            // Filter builds that don't satisfy global var requests
+                            if let Some(VarRequest {
+                                value: PinnableValue::Pinned(expected_version),
+                                ..
+                            }) = provider.global_var_requests.get(ident.name().as_opt_name())
+                            {
+                                if let Ok(expected_version) = parse_version_range(expected_version)
+                                {
+                                    if let spk_schema::version::Compatibility::Incompatible(
+                                        incompatible_reason,
+                                    ) = expected_version.is_applicable(package.version())
+                                    {
+                                        candidates.excluded.push((
+                                solvable_id,
+                                provider.pool.intern_string(format!(
+                                    "build version does not satisfy global var request: {incompatible_reason}"
+                                )),
+                            ));
+                                        continue;
+                                    }
+                                }
+                            }
+
+                            // XXX: `package.check_satisfies_request` walks the
+                            // package's build options, so is it better to do this loop
+                            // over `option_values` here, or loop over all the
+                            // global_var_requests instead?
+                            for (opt_name, _value) in package.option_values() {
+                                if let Some(request) = provider.global_var_requests.get(&opt_name) {
+                                    if let spk_schema::version::Compatibility::Incompatible(
+                                        incompatible_reason,
+                                    ) = package.check_satisfies_request(request)
+                                    {
+                                        candidates.excluded.push((
+                                        solvable_id,
+                                        provider.pool.intern_string(format!(
+                                            "build option {opt_name} does not satisfy global var request: {incompatible_reason}"
+                                        )),
+                                    ));
+                                        continue;
+                                    }
+                                }
+                            }
+
+                            candidates.candidates.push(solvable_id);
+                        }
+                        Err(err) => {
+                            candidates
+                                .excluded
+                                .push((solvable_id, provider.pool.intern_string(err.to_string())));
+                        }
+                    }
+                }
+
+                Some(candidates)
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for ResolvoPackageName {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            ResolvoPackageName::GlobalVar(name) => write!(f, "{name}"),
+            ResolvoPackageName::PkgNameBufWithComponent(name) => write!(f, "{name}"),
+        }
+    }
+}
+
 enum CanBuildFromSource {
     Yes,
     No(StringId),
 }
 
 pub(crate) struct SpkProvider {
-    pub(crate) pool: Pool<RequestVS, PkgNameBufWithComponent>,
+    pub(crate) pool: Pool<RequestVS, ResolvoPackageName>,
     repos: Vec<Arc<RepositoryHandle>>,
     /// Global options, like what might be specified with `--opt` to `spk env`.
     /// Indexed by name. If multiple requests happen to exist with the same
@@ -94,11 +332,11 @@ pub(crate) struct SpkProvider {
     interned_solvables: RefCell<HashMap<SpkSolvable, SolvableId>>,
     /// Track all the global var keys and values that have been witnessed while
     /// solving.
-    known_global_var_values: RefCell<HashMap<String, HashSet<VarValue>>>,
+    known_global_var_values: RefCell<HashMap<OptNameBuf, HashSet<VarValue>>>,
     /// Track which global var candidates have been queried by the solver. Once
     /// queried, it is no longer possible to add more possible values without
     /// restarting the solve.
-    queried_global_var_values: RefCell<HashSet<String>>,
+    queried_global_var_values: RefCell<HashSet<OptNameBuf>>,
     cancel_solving: Cell<bool>,
     binary_only: bool,
     /// When recursively exploring building packages from source, track chain
@@ -248,10 +486,14 @@ impl SpkProvider {
             constrains: Vec::new(),
         };
         for component in iter {
-            let dep_name = self.pool.intern_package_name(PkgNameBufWithComponent {
-                name: pkg_request.pkg.name().to_owned(),
-                component,
-            });
+            let dep_name =
+                self.pool
+                    .intern_package_name(ResolvoPackageName::PkgNameBufWithComponent(
+                        PkgNameBufWithComponent {
+                            name: pkg_request.pkg.name().to_owned(),
+                            component,
+                        },
+                    ));
             let dep_vs = self.pool.intern_version_set(
                 dep_name,
                 RequestVS::SpkRequest(Request::Pkg(pkg_request.clone())),
@@ -297,47 +539,44 @@ impl SpkProvider {
                     spk_schema::ident::PinnableValue::FromBuildEnvIfPresent => todo!(),
                     spk_schema::ident::PinnableValue::Pinned(value) => {
                         let dep_name = match var_request.var.namespace() {
-                            Some(pkg_name) => {
-                                self.pool.intern_package_name(PkgNameBufWithComponent {
-                                    name: pkg_name.to_owned(),
-                                    component: SyntheticComponent::Base,
-                                })
-                            }
+                            Some(pkg_name) => self.pool.intern_package_name(
+                                ResolvoPackageName::PkgNameBufWithComponent(
+                                    PkgNameBufWithComponent {
+                                        name: pkg_name.to_owned(),
+                                        component: SyntheticComponent::Base,
+                                    },
+                                ),
+                            ),
                             None => {
                                 // Since we will be adding constraints for
                                 // global vars we need to add the pseudo-package
                                 // to the dependency list so it will influence
                                 // decisions.
-                                let pseudo_pkg_name = format!(
-                                    "{PSEUDO_PKG_NAME_PREFIX}{}",
-                                    var_request.var.base_name()
-                                );
                                 if self
                                     .known_global_var_values
                                     .borrow_mut()
-                                    .entry(var_request.var.base_name().to_owned())
+                                    .entry(var_request.var.without_namespace().to_owned())
                                     .or_default()
                                     .insert(VarValue::ArcStr(Arc::clone(value)))
                                     && self
                                         .queried_global_var_values
                                         .borrow()
-                                        .contains(var_request.var.base_name())
+                                        .contains(var_request.var.without_namespace())
                                 {
                                     // Seeing a new value for a var that has
                                     // already locked in the list of candidates.
                                     self.cancel_solving.set(true);
                                 }
                                 let dep_name =
-                                    self.pool.intern_package_name(PkgNameBufWithComponent {
-                                        name: pkg_name!(&pseudo_pkg_name).to_owned(),
-                                        component: SyntheticComponent::Base,
-                                    });
+                                    self.pool.intern_package_name(ResolvoPackageName::GlobalVar(
+                                        var_request.var.without_namespace().to_owned(),
+                                    ));
                                 known_deps.requirements.push(
                                     self.pool
                                         .intern_version_set(
                                             dep_name,
                                             RequestVS::GlobalVar {
-                                                key: var_request.var.base_name().to_owned(),
+                                                key: var_request.var.without_namespace().to_owned(),
                                                 value: VarValue::ArcStr(Arc::clone(value)),
                                             },
                                         )
@@ -386,10 +625,14 @@ impl SpkProvider {
             .filter_map(|req| match req.var.namespace() {
                 Some(pkg_name) => {
                     // A global request applicable to a specific package.
-                    let dep_name = self.pool.intern_package_name(PkgNameBufWithComponent {
-                        name: pkg_name.to_owned(),
-                        component: SyntheticComponent::Base,
-                    });
+                    let dep_name =
+                        self.pool
+                            .intern_package_name(ResolvoPackageName::PkgNameBufWithComponent(
+                                PkgNameBufWithComponent {
+                                    name: pkg_name.to_owned(),
+                                    component: SyntheticComponent::Base,
+                                },
+                            ));
                     Some(self.pool.intern_version_set(
                         dep_name,
                         RequestVS::SpkRequest(Request::Var(req.clone())),
@@ -588,7 +831,7 @@ impl DependencyProvider for SpkProvider {
                                     }
                                     continue;
                                 };
-                                if (var_request.var.base_name() == record_key
+                                if (var_request.var.without_namespace() == record_key
                                     && value == record_value)
                                     ^ inverse
                                 {
@@ -619,216 +862,8 @@ impl DependencyProvider for SpkProvider {
     }
 
     async fn get_candidates(&self, name: NameId) -> Option<Candidates> {
-        let pkg_name = self.pool.resolve_package_name(name);
-
-        if let Some(key) = pkg_name.name.strip_prefix(PSEUDO_PKG_NAME_PREFIX) {
-            self.queried_global_var_values
-                .borrow_mut()
-                .insert(key.to_owned());
-
-            if let Some(values) = self.known_global_var_values.borrow().get(key) {
-                let mut candidates = Candidates {
-                    candidates: Vec::with_capacity(values.len()),
-                    ..Default::default()
-                };
-                for value in values {
-                    let solvable_id = *self
-                        .interned_solvables
-                        .borrow_mut()
-                        .entry(SpkSolvable::GlobalVar {
-                            key: key.to_owned(),
-                            value: value.clone(),
-                        })
-                        .or_insert_with(|| {
-                            self.pool.intern_solvable(
-                                name,
-                                SpkSolvable::GlobalVar {
-                                    key: key.to_owned(),
-                                    value: value.clone(),
-                                },
-                            )
-                        });
-                    candidates.candidates.push(solvable_id);
-                }
-                return Some(candidates);
-            }
-            return None;
-        }
-
-        let mut located_builds = Vec::new();
-
-        for repo in &self.repos {
-            let versions = repo
-                .list_package_versions(&pkg_name.name)
-                .await
-                .unwrap_or_default();
-            for version in versions.iter() {
-                // TODO: We need a borrowing version of this to avoid cloning.
-                let pkg_version = VersionIdent::new(pkg_name.name.clone(), (**version).clone());
-
-                let builds = repo
-                    .list_package_builds(&pkg_version)
-                    .await
-                    .unwrap_or_default();
-
-                for build in builds {
-                    let located_build_ident =
-                        LocatedBuildIdent::new(repo.name().to_owned(), build.clone());
-                    if let SyntheticComponent::Actual(pkg_name_component) = &pkg_name.component {
-                        let components = if let Build::Embedded(EmbeddedSource::Package(_parent)) =
-                            build.build()
-                        {
-                            // Does this embedded stub contain the component
-                            // being requested? For whatever reason,
-                            // list_build_components returns an empty list for
-                            // embedded stubs.
-                            itertools::Either::Right(
-                                if let Ok(stub) = repo.read_embed_stub(&build).await {
-                                    itertools::Either::Right(
-                                        stub.components()
-                                            .iter()
-                                            .map(|component_spec| component_spec.name.clone())
-                                            .collect::<Vec<_>>()
-                                            .into_iter(),
-                                    )
-                                } else {
-                                    itertools::Either::Left(std::iter::empty())
-                                },
-                            )
-                        } else {
-                            itertools::Either::Left(
-                                repo.list_build_components(&build).await.unwrap_or_default(),
-                            )
-                        };
-                        for component in components.into_iter().chain(
-                            // A build representing the All component is included so
-                            // when a request for it is found it can act as a
-                            // surrogate that depends on all the individual
-                            // components.
-                            [Component::All],
-                        ) {
-                            if component != *pkg_name_component
-                                && (self.binary_only || !component.is_source())
-                            {
-                                continue;
-                            }
-
-                            located_builds.push(LocatedBuildIdentWithComponent {
-                                ident: located_build_ident.clone(),
-                                component: pkg_name.component.clone(),
-                                requires_build_from_source: component != *pkg_name_component,
-                            });
-                        }
-                    } else {
-                        located_builds.push(LocatedBuildIdentWithComponent {
-                            ident: located_build_ident,
-                            component: SyntheticComponent::Base,
-                            requires_build_from_source: false,
-                        });
-                    }
-                }
-            }
-        }
-
-        if located_builds.is_empty() {
-            return None;
-        }
-
-        let mut candidates = Candidates {
-            candidates: Vec::with_capacity(located_builds.len()),
-            ..Default::default()
-        };
-
-        for build in located_builds {
-            // What we need from build before it is moved into the pool.
-            let ident = build.ident.clone();
-            let requires_build_from_source = build.requires_build_from_source;
-
-            let solvable_id = *self
-                .interned_solvables
-                .borrow_mut()
-                .entry(SpkSolvable::LocatedBuildIdentWithComponent(build.clone()))
-                .or_insert_with(|| {
-                    self.pool
-                        .intern_solvable(name, SpkSolvable::LocatedBuildIdentWithComponent(build))
-                });
-
-            // Filter builds that don't conform to global options
-            // XXX: This find runtime will add up.
-            let repo = self
-                .repos
-                .iter()
-                .find(|repo| repo.name() == ident.repository_name())
-                .expect("Expected solved package's repository to be in the list of repositories");
-
-            if requires_build_from_source {
-                match self.can_build_from_source(&ident).await {
-                    CanBuildFromSource::Yes => {
-                        candidates.candidates.push(solvable_id);
-                    }
-                    CanBuildFromSource::No(reason) => {
-                        candidates.excluded.push((solvable_id, reason));
-                    }
-                }
-                continue;
-            }
-
-            match repo.read_package(ident.target()).await {
-                Ok(package) => {
-                    // Filter builds that don't satisfy global var requests
-                    if let Some(VarRequest {
-                        value: PinnableValue::Pinned(expected_version),
-                        ..
-                    }) = self.global_var_requests.get(ident.name().as_opt_name())
-                    {
-                        if let Ok(expected_version) = parse_version_range(expected_version) {
-                            if let spk_schema::version::Compatibility::Incompatible(
-                                incompatible_reason,
-                            ) = expected_version.is_applicable(package.version())
-                            {
-                                candidates.excluded.push((
-                                solvable_id,
-                                self.pool.intern_string(format!(
-                                    "build version does not satisfy global var request: {incompatible_reason}"
-                                )),
-                            ));
-                                continue;
-                            }
-                        }
-                    }
-
-                    // XXX: `package.check_satisfies_request` walks the
-                    // package's build options, so is it better to do this loop
-                    // over `option_values` here, or loop over all the
-                    // global_var_requests instead?
-                    for (opt_name, _value) in package.option_values() {
-                        if let Some(request) = self.global_var_requests.get(&opt_name) {
-                            if let spk_schema::version::Compatibility::Incompatible(
-                                incompatible_reason,
-                            ) = package.check_satisfies_request(request)
-                            {
-                                candidates.excluded.push((
-                                        solvable_id,
-                                        self.pool.intern_string(format!(
-                                            "build option {opt_name} does not satisfy global var request: {incompatible_reason}"
-                                        )),
-                                    ));
-                                continue;
-                            }
-                        }
-                    }
-
-                    candidates.candidates.push(solvable_id);
-                }
-                Err(err) => {
-                    candidates
-                        .excluded
-                        .push((solvable_id, self.pool.intern_string(err.to_string())));
-                }
-            }
-        }
-
-        Some(candidates)
+        let resolvo_package_name = self.pool.resolve_package_name(name);
+        resolvo_package_name.get_candidates(name, self).await
     }
 
     async fn sort_candidates(&self, _solver: &SolverCache<Self>, solvables: &mut [SolvableId]) {
@@ -917,10 +952,12 @@ impl DependencyProvider for SpkProvider {
                     // The only dependencies of the All component are the other
                     // components defined in the package.
                     for component_spec in package.components().iter() {
-                        let dep_name = self.pool.intern_package_name(PkgNameBufWithComponent {
-                            name: located_build_ident_with_component.ident.name().to_owned(),
-                            component: SyntheticComponent::Actual(component_spec.name.clone()),
-                        });
+                        let dep_name = self.pool.intern_package_name(
+                            ResolvoPackageName::PkgNameBufWithComponent(PkgNameBufWithComponent {
+                                name: located_build_ident_with_component.ident.name().to_owned(),
+                                component: SyntheticComponent::Actual(component_spec.name.clone()),
+                            }),
+                        );
                         known_deps.requirements.push(
                             self.pool
                                 .intern_version_set(
@@ -940,10 +977,17 @@ impl DependencyProvider for SpkProvider {
                     // For any non-All/non-Base component, add a dependency on
                     // the base to ensure all components come from the same
                     // base version.
-                    let dep_name = self.pool.intern_package_name(PkgNameBufWithComponent {
-                        name: located_build_ident_with_component.ident.name().to_owned(),
-                        component: SyntheticComponent::Base,
-                    });
+                    let dep_name =
+                        self.pool
+                            .intern_package_name(ResolvoPackageName::PkgNameBufWithComponent(
+                                PkgNameBufWithComponent {
+                                    name: located_build_ident_with_component
+                                        .ident
+                                        .name()
+                                        .to_owned(),
+                                    component: SyntheticComponent::Base,
+                                },
+                            ));
                     known_deps.requirements.push(
                         self.pool
                             .intern_version_set(
@@ -963,10 +1007,17 @@ impl DependencyProvider for SpkProvider {
                         .find(|component_spec| component_spec.name == *actual_component)
                     {
                         component_spec.uses.iter().for_each(|uses| {
-                            let dep_name = self.pool.intern_package_name(PkgNameBufWithComponent {
-                                name: located_build_ident_with_component.ident.name().to_owned(),
-                                component: SyntheticComponent::Actual(uses.clone()),
-                            });
+                            let dep_name = self.pool.intern_package_name(
+                                ResolvoPackageName::PkgNameBufWithComponent(
+                                    PkgNameBufWithComponent {
+                                        name: located_build_ident_with_component
+                                            .ident
+                                            .name()
+                                            .to_owned(),
+                                        component: SyntheticComponent::Actual(uses.clone()),
+                                    },
+                                ),
+                            );
                             known_deps.requirements.push(
                                 self.pool
                                     .intern_version_set(
@@ -1015,10 +1066,14 @@ impl DependencyProvider for SpkProvider {
                         continue;
                     }
 
-                    let dep_name = self.pool.intern_package_name(PkgNameBufWithComponent {
-                        name: embedded.name().to_owned(),
-                        component: located_build_ident_with_component.component.clone(),
-                    });
+                    let dep_name =
+                        self.pool
+                            .intern_package_name(ResolvoPackageName::PkgNameBufWithComponent(
+                                PkgNameBufWithComponent {
+                                    name: embedded.name().to_owned(),
+                                    component: located_build_ident_with_component.component.clone(),
+                                },
+                            ));
                     known_deps.requirements.push(
                         self.pool
                             .intern_version_set(
@@ -1132,12 +1187,14 @@ impl DependencyProvider for SpkProvider {
                                     })
                                     .for_each(|_embedded_package| {
                                         let dep_name = self.pool.intern_package_name(
-                                            PkgNameBufWithComponent {
-                                                name: ident.name().to_owned(),
-                                                component: SyntheticComponent::Actual(
-                                                    parent_component.name.clone(),
-                                                ),
-                                            },
+                                            ResolvoPackageName::PkgNameBufWithComponent(
+                                                PkgNameBufWithComponent {
+                                                    name: ident.name().to_owned(),
+                                                    component: SyntheticComponent::Actual(
+                                                        parent_component.name.clone(),
+                                                    ),
+                                                },
+                                            ),
                                         );
                                         known_deps.requirements.push(
                                             self.pool.intern_version_set(
@@ -1187,34 +1244,31 @@ impl DependencyProvider for SpkProvider {
                     let Some(value) = var_opt.get_value(None) else {
                         continue;
                     };
-                    let pseudo_pkg_name =
-                        format!("{PSEUDO_PKG_NAME_PREFIX}{}", var_opt.var.base_name());
                     if self
                         .known_global_var_values
                         .borrow_mut()
-                        .entry(var_opt.var.base_name().to_owned())
+                        .entry(var_opt.var.without_namespace().to_owned())
                         .or_default()
                         .insert(VarValue::Owned(value.clone()))
                         && self
                             .queried_global_var_values
                             .borrow()
-                            .contains(var_opt.var.base_name())
+                            .contains(var_opt.var.without_namespace())
                     {
                         // Seeing a new value for a var that has already locked
                         // in the list of candidates.
                         self.cancel_solving.set(true);
                     }
-                    let dep_name = self.pool.intern_package_name(PkgNameBufWithComponent {
-                        name: pkg_name!(&pseudo_pkg_name).to_owned(),
-                        component: SyntheticComponent::Base,
-                    });
+                    let dep_name = self.pool.intern_package_name(ResolvoPackageName::GlobalVar(
+                        var_opt.var.without_namespace().to_owned(),
+                    ));
                     // Add a constraint not a dependency because the package
                     // is targeting a specific global var value but there may
                     // not be a request for that var of a specific value.
                     known_deps.constrains.push(self.pool.intern_version_set(
                         dep_name,
                         RequestVS::GlobalVar {
-                            key: var_opt.var.base_name().to_owned(),
+                            key: var_opt.var.without_namespace().to_owned(),
                             value: VarValue::Owned(value),
                         },
                     ));
