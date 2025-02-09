@@ -8,6 +8,7 @@ use resolvo::utils::VersionSet;
 use spk_schema::Request;
 use spk_schema::ident::{LocatedBuildIdent, PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
 use spk_schema::ident_component::Component;
+use spk_schema::name::OptNameBuf;
 
 /// This allows for storing strings of different types but hash and compare by
 /// the underlying strings.
@@ -74,7 +75,7 @@ impl std::fmt::Display for VarValue {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) enum RequestVS {
     SpkRequest(Request),
-    GlobalVar { key: String, value: VarValue },
+    GlobalVar { key: OptNameBuf, value: VarValue },
 }
 
 impl std::fmt::Display for RequestVS {
@@ -163,7 +164,7 @@ impl PartialEq<SyntheticComponent> for Component {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) enum SpkSolvable {
     LocatedBuildIdentWithComponent(LocatedBuildIdentWithComponent),
-    GlobalVar { key: String, value: VarValue },
+    GlobalVar { key: OptNameBuf, value: VarValue },
 }
 
 impl std::fmt::Display for SpkSolvable {
