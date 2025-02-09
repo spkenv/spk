@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::any::Any;
+
 use clap::Args;
 use miette::Result;
 use spk_cli_common::{CommandArgs, Run, flags};
@@ -81,12 +83,17 @@ impl Run for Explain {
         }
 
         // Always show the solution packages for the solve
-        let formatter = self
-            .formatter_settings
-            .get_formatter_builder(self.verbose + 1)?
-            .with_solution(true)
-            .build();
-        formatter.run_and_print_resolve(&solver).await?;
+        if let Some(solver) = (&solver as &dyn Any).downcast_ref::<spk_solve::StepSolver>() {
+            let formatter = self
+                .formatter_settings
+                .get_formatter_builder(self.verbose + 1)?
+                .with_solution(true)
+                .build();
+            formatter.run_and_print_resolve(solver).await?;
+        } else {
+            // TODO: print the solve
+            solver.solve().await?;
+        }
 
         Ok(0)
     }

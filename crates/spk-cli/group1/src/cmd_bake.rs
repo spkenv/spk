@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::any::Any;
+
 use clap::Args;
 use futures::TryFutureExt;
 use miette::IntoDiagnostic;
@@ -238,8 +240,14 @@ impl Bake {
             solver.add_request(request)
         }
 
-        let formatter = self.formatter_settings.get_formatter(self.verbose)?;
-        let (solution, _) = formatter.run_and_print_resolve(&solver).await?;
+        let solution =
+            if let Some(solver) = (&solver as &dyn Any).downcast_ref::<spk_solve::StepSolver>() {
+                let formatter = self.formatter_settings.get_formatter(self.verbose)?;
+                let (solution, _) = formatter.run_and_print_resolve(solver).await?;
+                solution
+            } else {
+                solver.solve().await?
+            };
 
         // The solution order is the order things were found during
         // the solve. Need to reverse it to match up with the spfs

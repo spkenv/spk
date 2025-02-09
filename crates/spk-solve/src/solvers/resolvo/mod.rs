@@ -83,12 +83,24 @@ impl SolverTrait for Solver {
         self.requests.push(request);
     }
 
+    fn get_pkg_requests(&self) -> Vec<PkgRequest> {
+        self.requests
+            .iter()
+            .filter_map(|r| r.pkg_ref())
+            .cloned()
+            .collect()
+    }
+
     fn get_var_requests(&self) -> Vec<VarRequest> {
         self.requests
             .iter()
             .filter_map(|r| r.var_ref())
             .cloned()
             .collect()
+    }
+
+    fn repositories(&self) -> &[Arc<RepositoryHandle>] {
+        &self.repos
     }
 
     fn reset(&mut self) {
