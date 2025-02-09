@@ -1000,6 +1000,7 @@ async fn test_solver_build_from_source_unsolvable(#[case] mut solver: SolverImpl
     repo.publish_recipe(&recipe).await.unwrap();
 
     solver.add_repository(Arc::new(repo));
+    solver.set_binary_only(false);
     // the new option value should disqualify the existing build
     // and there is no 6.3 that can be resolved for this request
     solver.add_request(request!({"var": "gcc/6.3"}));
@@ -1080,8 +1081,8 @@ async fn test_solver_build_from_source_dependency(#[case] mut solver: SolverImpl
     // but a new one should be generated for this set of options
     solver.update_options(option_map! {"debug" => "on"});
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("my-tool"));
     solver.set_binary_only(false);
+    solver.add_request(request!("my-tool"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
@@ -1208,6 +1209,7 @@ async fn test_solver_build_from_source_deprecated(#[case] mut solver: SolverImpl
     repo.force_publish_recipe(&spec).await.unwrap();
 
     solver.add_repository(Arc::new(repo));
+    solver.set_binary_only(false);
     solver.add_request(request!({"var": "debug/on"}));
     solver.add_request(request!("my-tool"));
 
@@ -1254,6 +1256,7 @@ async fn test_solver_build_from_source_deprecated_and_impossible_initial_checks(
     repo.force_publish_recipe(&spec).await.unwrap();
 
     solver.add_repository(Arc::new(repo));
+    solver.set_binary_only(false);
     solver.add_request(request!({"var": "debug/on"}));
     solver.add_request(request!("my-tool"));
     if let SolverImpl::Step(ref mut solver) = solver {
