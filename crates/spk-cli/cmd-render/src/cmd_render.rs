@@ -52,8 +52,13 @@ impl Run for Render {
             solver.add_request(name);
         }
 
-        let formatter = self.formatter_settings.get_formatter(self.verbose)?;
-        let (solution, _) = formatter.run_and_print_resolve(&solver).await?;
+        let solution = if let Some(solver) = solver.as_any().downcast_ref::<spk_solve::Solver>() {
+            let formatter = self.formatter_settings.get_formatter(self.verbose)?;
+            let (solution, _) = formatter.run_and_print_resolve(solver).await?;
+            solution
+        } else {
+            solver.solve().await?
+        };
 
         let solution = build_required_packages(&solution).await?;
         let stack = resolve_runtime_layers(true, &solution).await?;

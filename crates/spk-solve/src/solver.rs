@@ -212,11 +212,6 @@ impl ErrorFreq {
 }
 
 impl Solver {
-    /// Return a reference to the solver's list of repositories.
-    pub fn repositories(&self) -> &Vec<Arc<RepositoryHandle>> {
-        &self.repos
-    }
-
     pub fn get_initial_state(&self) -> Arc<State> {
         let mut state = None;
         let base = State::default_state();
@@ -1134,12 +1129,28 @@ impl AbstractSolver for Solver {
         self.initial_state_builders.push(request);
     }
 
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn get_pkg_requests(&self) -> Vec<PkgRequest> {
+        self.get_initial_state()
+            .get_pkg_requests()
+            .iter()
+            .map(|pkg_request| (***pkg_request).clone())
+            .collect()
+    }
+
     fn get_var_requests(&self) -> Vec<VarRequest> {
         self.get_initial_state()
             .get_var_requests()
             .iter()
             .cloned()
             .collect()
+    }
+
+    fn repositories(&self) -> &[Arc<RepositoryHandle>] {
+        &self.repos
     }
 
     fn reset(&mut self) {

@@ -42,6 +42,7 @@ use spk_solve_graph::{
 
 use crate::solver::ErrorFreq;
 use crate::{
+    AbstractSolver,
     Error,
     ResolverCallback,
     Result,
