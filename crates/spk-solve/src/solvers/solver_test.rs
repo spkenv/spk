@@ -19,7 +19,7 @@ use spk_schema::ident::{
     parse_ident_range,
     version_ident,
 };
-use spk_schema::ident_build::{Build, BuildId, EmbeddedSource};
+use spk_schema::ident_build::{Build, BuildId};
 use spk_schema::prelude::*;
 use spk_schema::{recipe, v0};
 use spk_solve_macros::{make_build, make_build_and_components, make_package, make_repo, request};
@@ -202,8 +202,8 @@ async fn test_solver_package_with_no_recipe(
 }
 
 #[rstest]
-// This test is only applicable to the step solver
 #[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_package_with_no_recipe_and_impossible_initial_checks(
     #[case] mut solver: SolverImpl,
@@ -292,8 +292,8 @@ async fn test_solver_package_with_no_recipe_from_cmd_line(#[case] mut solver: So
 }
 
 #[rstest]
-// This test is only applicable to the step solver
 #[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_package_with_no_recipe_from_cmd_line_and_impossible_initial_checks(
     #[case] mut solver: SolverImpl,
@@ -1226,8 +1226,8 @@ async fn test_solver_build_from_source_deprecated(#[case] mut solver: SolverImpl
 }
 
 #[rstest]
-// This test is only applicable to the step solver
 #[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_build_from_source_deprecated_and_impossible_initial_checks(
     #[case] mut solver: SolverImpl,
@@ -1276,6 +1276,9 @@ async fn test_solver_build_from_source_deprecated_and_impossible_initial_checks(
             // the solver to run. The solver finds the package/version
             // recipe is deprecated and refuses to build a binary from
             // the source package.
+        }
+        Err(Error::FailedToResolve(_)) => {
+            // Success; same as above, but for the resolvo solver.
         }
         Err(Error::InitialRequestsContainImpossibleError(_)) => {
             // Success, when the 'migration-to-components' feature is
@@ -1467,8 +1470,8 @@ async fn test_solver_embedded_package_replaces_real_package(#[case] mut solver: 
 }
 
 #[rstest]
-// This test is only applicable to the step solver
 #[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_initial_request_impossible_masks_embedded_package_solution(
     #[case] mut solver: SolverImpl,
@@ -1511,7 +1514,7 @@ async fn test_solver_initial_request_impossible_masks_embedded_package_solution(
             assert_resolved!(
                 solution,
                 "qt",
-                build = Build::Embedded(EmbeddedSource::Unknown)
+                build =~ Build::Embedded(_)
             );
         }
         Err(err) => {
@@ -1521,8 +1524,8 @@ async fn test_solver_initial_request_impossible_masks_embedded_package_solution(
 }
 
 #[rstest]
-// This test is only applicable to the step solver
 #[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_impossible_request_but_embedded_package_makes_solvable(
     #[case] mut solver: SolverImpl,
@@ -1593,7 +1596,7 @@ async fn test_solver_impossible_request_but_embedded_package_makes_solvable(
             assert_resolved!(
                 solution,
                 "qt",
-                build = Build::Embedded(EmbeddedSource::Unknown)
+                build =~ Build::Embedded(_)
             );
         }
         Err(err) => {
@@ -1668,8 +1671,8 @@ async fn test_multiple_packages_embed_same_package(
 }
 
 #[rstest]
-// This test is only applicable to the step solver
 #[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_with_impossible_checks_in_build_keys(#[case] mut solver: SolverImpl) {
     let options1 = option_map! {"dep" => "1.0.0"};
