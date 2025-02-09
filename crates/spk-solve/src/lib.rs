@@ -3,7 +3,7 @@
 // https://github.com/spkenv/spk
 
 mod abstract_solver;
-mod cdcl_solver;
+pub mod cdcl_solver;
 mod error;
 mod io;
 #[cfg(feature = "statsd")]
