@@ -68,52 +68,8 @@ impl Solver {
     pub(crate) fn set_build_from_source_trail(&mut self, trail: HashSet<LocatedBuildIdent>) {
         self.build_from_source_trail = trail;
     }
-}
 
-#[async_trait::async_trait]
-impl SolverTrait for Solver {
-    fn add_repository<R>(&mut self, repo: R)
-    where
-        R: Into<Arc<RepositoryHandle>>,
-    {
-        self.repos.push(repo.into());
-    }
-
-    fn add_request(&mut self, request: Request) {
-        self.requests.push(request);
-    }
-
-    fn get_pkg_requests(&self) -> Vec<PkgRequest> {
-        self.requests
-            .iter()
-            .filter_map(|r| r.pkg_ref())
-            .cloned()
-            .collect()
-    }
-
-    fn get_var_requests(&self) -> Vec<VarRequest> {
-        self.requests
-            .iter()
-            .filter_map(|r| r.var_ref())
-            .cloned()
-            .collect()
-    }
-
-    fn repositories(&self) -> &[Arc<RepositoryHandle>] {
-        &self.repos
-    }
-
-    fn reset(&mut self) {
-        self.repos.truncate(0);
-        self.requests.truncate(0);
-        self._validators = Cow::from(default_validators());
-    }
-
-    fn set_binary_only(&mut self, binary_only: bool) {
-        self.binary_only = binary_only;
-    }
-
-    async fn solve(&mut self) -> Result<Solution> {
+    pub async fn solve(&self) -> Result<Solution> {
         let repos = self.repos.clone();
         let requests = self.requests.clone();
         let binary_only = self.binary_only;
@@ -294,6 +250,54 @@ impl SolverTrait for Solver {
             solution.add(pkg_request, package, source);
         }
         Ok(solution)
+    }
+}
+
+#[async_trait::async_trait]
+impl SolverTrait for Solver {
+    fn add_repository<R>(&mut self, repo: R)
+    where
+        R: Into<Arc<RepositoryHandle>>,
+    {
+        self.repos.push(repo.into());
+    }
+
+    fn add_request(&mut self, request: Request) {
+        self.requests.push(request);
+    }
+
+    fn get_pkg_requests(&self) -> Vec<PkgRequest> {
+        self.requests
+            .iter()
+            .filter_map(|r| r.pkg_ref())
+            .cloned()
+            .collect()
+    }
+
+    fn get_var_requests(&self) -> Vec<VarRequest> {
+        self.requests
+            .iter()
+            .filter_map(|r| r.var_ref())
+            .cloned()
+            .collect()
+    }
+
+    fn repositories(&self) -> &[Arc<RepositoryHandle>] {
+        &self.repos
+    }
+
+    fn reset(&mut self) {
+        self.repos.truncate(0);
+        self.requests.truncate(0);
+        self._validators = Cow::from(default_validators());
+    }
+
+    fn set_binary_only(&mut self, binary_only: bool) {
+        self.binary_only = binary_only;
+    }
+
+    async fn solve(&mut self) -> Result<Solution> {
+        Solver::solve(self).await
     }
 
     fn update_options(&mut self, _options: OptionMap) {

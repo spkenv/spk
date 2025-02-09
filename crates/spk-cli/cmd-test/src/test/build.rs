@@ -15,7 +15,13 @@ use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
 use spk_schema::{AnyIdent, Recipe, SpecRecipe};
 use spk_solve::solution::Solution;
-use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver, StepSolver};
+use spk_solve::{
+    BoxedCdclResolverCallback,
+    DefaultCdclResolver,
+    ResolverCallback,
+    ResolvoSolver,
+    Solver,
+};
 use spk_storage as storage;
 
 use super::Tester;
@@ -28,8 +34,8 @@ pub struct PackageBuildTester<'a> {
     options: OptionMap,
     additional_requirements: Vec<Request>,
     source: BuildSource,
-    source_resolver: BoxedResolverCallback<'a>,
-    build_resolver: BoxedResolverCallback<'a>,
+    source_resolver: BoxedCdclResolverCallback<'a>,
+    build_resolver: BoxedCdclResolverCallback<'a>,
 }
 
 impl<'a> PackageBuildTester<'a> {
@@ -44,8 +50,8 @@ impl<'a> PackageBuildTester<'a> {
             options: OptionMap::default(),
             additional_requirements: Vec::new(),
             source,
-            source_resolver: Box::new(DefaultResolver {}),
-            build_resolver: Box::new(DefaultResolver {}),
+            source_resolver: Box::new(DefaultCdclResolver {}),
+            build_resolver: Box::new(DefaultCdclResolver {}),
         }
     }
 
@@ -82,7 +88,7 @@ impl<'a> PackageBuildTester<'a> {
     /// process as needed.
     pub fn with_source_resolver<F>(&mut self, resolver: F) -> &mut Self
     where
-        F: ResolverCallback + 'a,
+        F: ResolverCallback<Solver = ResolvoSolver, SolveResult = Solution> + 'a,
     {
         self.source_resolver = Box::new(resolver);
         self
@@ -96,7 +102,7 @@ impl<'a> PackageBuildTester<'a> {
     /// process as needed.
     pub fn with_build_resolver<F>(&mut self, resolver: F) -> &mut Self
     where
-        F: ResolverCallback + 'a,
+        F: ResolverCallback<Solver = ResolvoSolver, SolveResult = Solution> + 'a,
     {
         self.build_resolver = Box::new(resolver);
         self
@@ -117,18 +123,20 @@ impl<'a> PackageBuildTester<'a> {
             }
         }
 
-        let mut solver = StepSolver::default();
+        let mut solver = ResolvoSolver::default();
         solver.set_binary_only(true);
         solver.update_options(self.options.clone());
         for repo in self.repos.iter().cloned() {
             solver.add_repository(repo);
         }
-        solver.configure_for_build_environment(&self.recipe)?;
+        // TODO
+        // solver.configure_for_build_environment(&self.recipe)?;
         for request in self.additional_requirements.drain(..) {
             solver.add_request(request)
         }
 
-        let (solution, _) = self.build_resolver.solve(&solver).await?;
+        // let (solution, _) = self.build_resolver.solve(&solver).await?;
+        let solution = self.build_resolver.solve(&solver).await?;
 
         for layer in resolve_runtime_layers(requires_localization, &solution).await? {
             rt.push_digest(layer);
@@ -154,7 +162,7 @@ impl<'a> PackageBuildTester<'a> {
     }
 
     async fn resolve_source_package(&mut self, package: &AnyIdent) -> Result<Solution> {
-        let mut solver = StepSolver::default();
+        let mut solver = ResolvoSolver::default();
         solver.update_options(self.options.clone());
         let local_repo: Arc<storage::RepositoryHandle> =
             Arc::new(storage::local_repository().await?.into());
@@ -175,7 +183,8 @@ impl<'a> PackageBuildTester<'a> {
 
         solver.add_request(request.into());
 
-        let (solution, _) = self.source_resolver.solve(&solver).await?;
+        // let (solution, _) = self.source_resolver.solve(&solver).await?;
+        let solution = self.source_resolver.solve(&solver).await?;
         Ok(solution)
     }
 }

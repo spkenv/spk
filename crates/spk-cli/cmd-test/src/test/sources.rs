@@ -13,7 +13,14 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
 use spk_schema::{Recipe, SpecRecipe};
-use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver, StepSolver};
+use spk_solve::{
+    BoxedCdclResolverCallback,
+    DefaultCdclResolver,
+    ResolverCallback,
+    ResolvoSolver,
+    Solution,
+    Solver,
+};
 use spk_storage as storage;
 
 use super::Tester;
@@ -26,7 +33,7 @@ pub struct PackageSourceTester<'a> {
     options: OptionMap,
     additional_requirements: Vec<Request>,
     source: Option<PathBuf>,
-    env_resolver: BoxedResolverCallback<'a>,
+    env_resolver: BoxedCdclResolverCallback<'a>,
 }
 
 impl<'a> PackageSourceTester<'a> {
@@ -39,7 +46,7 @@ impl<'a> PackageSourceTester<'a> {
             options: OptionMap::default(),
             additional_requirements: Vec::new(),
             source: None,
-            env_resolver: Box::new(DefaultResolver {}),
+            env_resolver: Box::new(DefaultCdclResolver {}),
         }
     }
 
@@ -77,7 +84,7 @@ impl<'a> PackageSourceTester<'a> {
     /// process as needed.
     pub fn watch_environment_resolve<F>(&mut self, resolver: F) -> &mut Self
     where
-        F: ResolverCallback + 'a,
+        F: ResolverCallback<Solver = ResolvoSolver, SolveResult = Solution> + 'a,
     {
         self.env_resolver = Box::new(resolver);
         self
@@ -92,7 +99,7 @@ impl<'a> PackageSourceTester<'a> {
 
         let requires_localization = rt.config.mount_backend.requires_localization();
 
-        let mut solver = StepSolver::default();
+        let mut solver = ResolvoSolver::default();
         solver.set_binary_only(true);
         solver.update_options(self.options.clone());
         for repo in self.repos.iter().cloned() {
@@ -116,7 +123,8 @@ impl<'a> PackageSourceTester<'a> {
             solver.add_request(request)
         }
 
-        let (solution, _) = self.env_resolver.solve(&solver).await?;
+        // let (solution, _) = self.env_resolver.solve(&solver).await?;
+        let solution = self.env_resolver.solve(&solver).await?;
 
         for layer in resolve_runtime_layers(requires_localization, &solution).await? {
             rt.push_digest(layer);
