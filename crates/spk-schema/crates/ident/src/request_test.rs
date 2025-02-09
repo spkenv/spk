@@ -73,11 +73,11 @@ fn test_prerelease_policy_restricts(
 ) {
     let mut a = serde_yaml::from_str::<Request>(request_a)
         .unwrap()
-        .into_pkg()
+        .pkg()
         .expect("expected pkg request");
     let b = serde_yaml::from_str::<Request>(request_b)
         .unwrap()
-        .into_pkg()
+        .pkg()
         .expect("expected pkg request");
 
     a.restrict(&b).unwrap();
@@ -149,11 +149,11 @@ fn test_prerelease_policy_contains(
 ) {
     let a = serde_yaml::from_str::<Request>(request_a)
         .unwrap()
-        .into_pkg()
+        .pkg()
         .expect("expected pkg request");
     let b = serde_yaml::from_str::<Request>(request_b)
         .unwrap()
-        .into_pkg()
+        .pkg()
         .expect("expected pkg request");
 
     let compat = a.contains(&b);
@@ -164,11 +164,11 @@ fn test_prerelease_policy_contains(
 fn test_inclusion_policy() {
     let mut a = serde_yaml::from_str::<Request>("{pkg: something, include: IfAlreadyPresent}")
         .unwrap()
-        .into_pkg()
+        .pkg()
         .expect("expected pkg request");
     let b = serde_yaml::from_str::<Request>("{pkg: something, include: Always}")
         .unwrap()
-        .into_pkg()
+        .pkg()
         .expect("expected pkg request");
 
     a.restrict(&b).unwrap();
@@ -182,11 +182,11 @@ fn test_inclusion_policy() {
 fn test_compat_and_equals_restrict() {
     let mut a = serde_yaml::from_str::<Request>("{pkg: something/Binary:1.2.3}")
         .unwrap()
-        .into_pkg()
+        .pkg()
         .expect("expected pkg request");
     let b = serde_yaml::from_str::<Request>("{pkg: something/=1.2.3}")
         .unwrap()
-        .into_pkg()
+        .pkg()
         .expect("expected pkg request");
 
     a.restrict(&b).unwrap();
@@ -247,14 +247,8 @@ fn test_inclusion_policy_and_merge(
     #[case] expected_policy: InclusionPolicy,
     #[case] expected_merged_range: Option<&str>,
 ) {
-    let mut a = serde_yaml::from_str::<Request>(a)
-        .unwrap()
-        .into_pkg()
-        .unwrap();
-    let b = serde_yaml::from_str::<Request>(b)
-        .unwrap()
-        .into_pkg()
-        .unwrap();
+    let mut a = serde_yaml::from_str::<Request>(a).unwrap().pkg().unwrap();
+    let b = serde_yaml::from_str::<Request>(b).unwrap().pkg().unwrap();
 
     let r = a.restrict(&b);
     match expected_merged_range {
@@ -306,7 +300,7 @@ fn test_var_request_pinned_roundtrip() {
         "should be able to round-trip serialize a var request with pin"
     );
     assert!(
-        res.unwrap().into_var().unwrap().value.is_from_build_env(),
+        res.unwrap().var().unwrap().value.is_from_build_env(),
         "should preserve pin value"
     );
 }
@@ -347,7 +341,7 @@ fn test_pkg_request_pin_rendering(
 ) {
     let req = serde_yaml::from_str::<Request>(&format!("{{pkg: test, fromBuildEnv: {pin}}}"))
         .unwrap()
-        .into_pkg()
+        .pkg()
         .expect("expected package request");
     let version = parse_build_ident(format!("test/{version}/src")).unwrap();
     let res = req
@@ -473,7 +467,7 @@ fn test_deserialize_pkg_pin_string_or_bool() {
     let reqs = Vec::<Request>::from_yaml(YAML).expect("expected yaml parsing to succeed");
     let pins: Vec<_> = reqs
         .into_iter()
-        .map(|r| r.into_pkg().expect("expected a pkg request").pin)
+        .map(|r| r.pkg().expect("expected a pkg request").pin)
         .collect();
     assert_eq!(
         pins,
