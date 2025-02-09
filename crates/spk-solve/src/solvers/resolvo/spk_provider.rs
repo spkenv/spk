@@ -39,7 +39,7 @@ use spk_schema::name::{OptNameBuf, PkgNameBuf};
 use spk_schema::prelude::{HasVersion, Named};
 use spk_schema::version::Version;
 use spk_schema::version_range::{DoubleEqualsVersion, Ranged, VersionFilter, parse_version_range};
-use spk_schema::{BuildIdent, Opt, Package, Recipe, Request, VersionIdent};
+use spk_schema::{BuildIdent, Deprecate, Opt, Package, Recipe, Request, VersionIdent};
 use spk_storage::RepositoryHandle;
 use tracing::{Instrument, debug_span};
 
@@ -124,6 +124,12 @@ impl SpkProvider {
             .find(|repo| repo.name() == ident.repository_name())
         {
             Some(repo) => match repo.read_recipe(&ident.clone().to_version_ident()).await {
+                Ok(recipe) if recipe.is_deprecated() => {
+                    return CanBuildFromSource::No(
+                        self.pool
+                            .intern_string(format!("recipe for {ident} is deprecated")),
+                    );
+                }
                 Ok(recipe) => recipe,
                 Err(err) => {
                     return CanBuildFromSource::No(

@@ -1179,8 +1179,6 @@ async fn test_solver_deprecated_version(#[case] mut solver: SolverImpl) {
 
 #[rstest]
 #[case::og(og_solver())]
-// Remove #[should_panic] once cdcl handles this case
-#[should_panic]
 #[case::cdcl(cdcl_solver())]
 #[tokio::test]
 async fn test_solver_build_from_source_deprecated(#[case] mut solver: SolverImpl) {
@@ -1215,7 +1213,10 @@ async fn test_solver_build_from_source_deprecated(#[case] mut solver: SolverImpl
 
     let res = run_and_print_resolve_for_tests(&mut solver).await;
     match res {
+        // og solver's error
         Err(Error::GraphError(spk_solve_graph::Error::FailedToResolve(_))) => {}
+        // cdcl solver's error
+        Err(Error::FailedToResolve(_)) => {}
         Err(err) => {
             panic!("expected solver spk_solver_graph::Error::FailedToResolve, got: '{err:?}'")
         }
