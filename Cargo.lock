@@ -4483,6 +4483,7 @@ dependencies = [
  "spk-schema-foundation",
  "tap",
  "thiserror",
+ "variantly",
 ]
 
 [[package]]
