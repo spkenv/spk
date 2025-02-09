@@ -258,7 +258,7 @@ pub struct Solver {
 }
 
 impl Solver {
-    pub async fn get_solver(&self, options: &Options) -> Result<impl AbstractSolver> {
+    pub async fn get_solver(&self, options: &Options) -> Result<impl SolverTrait> {
         let option_map = options.get_options()?;
 
         //let mut solver = solve::StepSolver::default();

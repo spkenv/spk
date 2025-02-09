@@ -7,6 +7,7 @@ use spk_schema::foundation::name::OptName;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::VarRequest;
 use spk_schema::option_map::HOST_OPTIONS;
+use spk_solve::Solver;
 
 #[rstest]
 #[case(&["hello:world"], &[("hello", "world")])]
@@ -43,8 +44,6 @@ async fn test_get_solver_with_host_options(#[values(true, false)] no_host: bool)
     // correctly.
 
     use std::collections::HashSet;
-
-    use spk_solve::AbstractSolver;
 
     let options_flags = crate::flags::Options {
         options: Vec::new(),

@@ -43,7 +43,6 @@ use spk_schema::{BuildIdent, Deprecate, Opt, Package, Recipe, Request, VersionId
 use spk_storage::RepositoryHandle;
 use tracing::{Instrument, debug_span};
 
-use super::AbstractSolver;
 use super::pkg_request_version_set::{
     LocatedBuildIdentWithComponent,
     RequestVS,
@@ -51,6 +50,7 @@ use super::pkg_request_version_set::{
     SyntheticComponent,
     VarValue,
 };
+use crate::Solver;
 
 // "global-vars--" represents a pseudo- package that accumulates global var
 // constraints. The name is intended to never conflict with a real package name,
