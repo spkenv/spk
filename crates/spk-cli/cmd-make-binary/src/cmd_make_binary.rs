@@ -15,6 +15,7 @@ use spk_schema::foundation::format::FormatIdent;
 use spk_schema::ident::{PkgRequest, RequestedBy};
 use spk_schema::option_map::HOST_OPTIONS;
 use spk_schema::prelude::*;
+use spk_solve::DefaultCdclResolver;
 use spk_storage as storage;
 
 #[cfg(test)]
@@ -166,11 +167,11 @@ impl Run for MakeBinary {
                 let mut fmt_builder = self
                     .formatter_settings
                     .get_formatter_builder(self.verbose)?;
-                let src_formatter = fmt_builder
+                let _src_formatter = fmt_builder
                     .with_solution(true)
                     .with_header("Src Resolver ")
                     .build();
-                let build_formatter = fmt_builder
+                let _build_formatter = fmt_builder
                     .with_solution(true)
                     .with_header("Build Resolver ")
                     .build();
@@ -179,8 +180,8 @@ impl Run for MakeBinary {
                 builder
                     .with_repositories(repos.iter().cloned())
                     .set_interactive(self.interactive)
-                    .with_source_resolver(&src_formatter)
-                    .with_build_resolver(&build_formatter)
+                    .with_source_resolver(DefaultCdclResolver {})
+                    .with_build_resolver(DefaultCdclResolver {})
                     .with_allow_circular_dependencies(self.allow_circular_dependencies);
 
                 if self.here {

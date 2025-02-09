@@ -15,6 +15,7 @@ use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::option_map::{HOST_OPTIONS, OptionMap};
 use spk_schema::prelude::*;
 use spk_schema::{Recipe, Request, TestStage};
+use spk_solve::DefaultCdclResolver;
 
 use crate::test::{PackageBuildTester, PackageInstallTester, PackageSourceTester, Tester};
 
@@ -160,11 +161,11 @@ impl Run for CmdTest {
                         let mut builder = self
                             .formatter_settings
                             .get_formatter_builder(self.verbose)?;
-                        let src_formatter = builder.with_header("Source Resolver ").build();
-                        let build_src_formatter =
+                        let _src_formatter = builder.with_header("Source Resolver ").build();
+                        let _build_src_formatter =
                             builder.with_header("Build Source Resolver ").build();
-                        let build_formatter = builder.with_header("Build Resolver ").build();
-                        let install_formatter =
+                        let _build_formatter = builder.with_header("Build Resolver ").build();
+                        let _install_formatter =
                             builder.with_header("Install Env Resolver ").build();
 
                         let mut tester: Box<dyn Tester> = match stage {
@@ -177,7 +178,7 @@ impl Run for CmdTest {
                                     .with_repositories(repos.iter().cloned())
                                     .with_requirements(test.additional_requirements())
                                     .with_source(source.clone())
-                                    .watch_environment_resolve(&src_formatter);
+                                    .watch_environment_resolve(DefaultCdclResolver {});
 
                                 Box::new(tester)
                             }
@@ -208,8 +209,8 @@ impl Run for CmdTest {
                                             },
                                         ),
                                     )
-                                    .with_source_resolver(&build_src_formatter)
-                                    .with_build_resolver(&build_formatter);
+                                    .with_source_resolver(DefaultCdclResolver {})
+                                    .with_build_resolver(DefaultCdclResolver {});
 
                                 Box::new(tester)
                             }
@@ -227,7 +228,7 @@ impl Run for CmdTest {
                                     .with_requirements(test.additional_requirements())
                                     .with_requirements(options_reqs.clone())
                                     .with_source(source.clone())
-                                    .watch_environment_resolve(&install_formatter);
+                                    .watch_environment_resolve(DefaultCdclResolver {});
 
                                 Box::new(tester)
                             }
