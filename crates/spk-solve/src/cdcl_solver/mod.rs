@@ -65,6 +65,22 @@ impl AbstractSolver for Solver {
         self.requests.push(request);
     }
 
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn get_pkg_requests(&self) -> Vec<PkgRequest> {
+        self.requests
+            .iter()
+            .filter_map(|r| r.pkg_ref())
+            .cloned()
+            .collect()
+    }
+
+    fn repositories(&self) -> &[Arc<RepositoryHandle>] {
+        &self.repos
+    }
+
     fn reset(&mut self) {
         self.repos.truncate(0);
         self.requests.truncate(0);

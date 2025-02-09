@@ -52,6 +52,7 @@ use crate::{
 };
 use crate::{
     show_search_space_stats,
+    AbstractSolver,
     Error,
     ResolverCallback,
     Result,

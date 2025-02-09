@@ -258,10 +258,11 @@ pub struct Solver {
 }
 
 impl Solver {
-    pub async fn get_solver(&self, options: &Options) -> Result<solve::Solver> {
+    pub async fn get_solver(&self, options: &Options) -> Result<impl AbstractSolver> {
         let option_map = options.get_options()?;
 
-        let mut solver = solve::Solver::default();
+        //let mut solver = solve::Solver::default();
+        let mut solver = solve::CdclSolver::default();
         solver.update_options(option_map);
 
         for (name, repo) in self.repos.get_repos_for_non_destructive_operation().await? {
@@ -269,15 +270,15 @@ impl Solver {
             solver.add_repository(repo);
         }
         solver.set_binary_only(!self.allow_builds);
-        solver.set_initial_request_impossible_checks(
-            self.check_impossible_initial || self.check_impossible_all,
-        );
-        solver.set_resolve_validation_impossible_checks(
-            self.check_impossible_validation || self.check_impossible_all,
-        );
-        solver.set_build_key_impossible_checks(
-            self.check_impossible_builds || self.check_impossible_all,
-        );
+        //solver.set_initial_request_impossible_checks(
+        //    self.check_impossible_initial || self.check_impossible_all,
+        //);
+        //solver.set_resolve_validation_impossible_checks(
+        //    self.check_impossible_validation || self.check_impossible_all,
+        //);
+        //solver.set_build_key_impossible_checks(
+        //    self.check_impossible_builds || self.check_impossible_all,
+        //);
 
         Ok(solver)
     }
