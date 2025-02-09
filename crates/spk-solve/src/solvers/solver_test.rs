@@ -1179,8 +1179,6 @@ async fn test_solver_deprecated_version(#[case] mut solver: SolverImpl) {
 
 #[rstest]
 #[case::step(step_solver())]
-// Remove #[should_panic] once resolvo handles this case
-#[should_panic]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_build_from_source_deprecated(#[case] mut solver: SolverImpl) {
@@ -1215,8 +1213,11 @@ async fn test_solver_build_from_source_deprecated(#[case] mut solver: SolverImpl
 
     let res = run_and_print_resolve_for_tests(&mut solver).await;
     match res {
+        // step solver's error
         Err(Error::GraphError(ref graph_err))
             if matches!(&**graph_err, spk_solve_graph::Error::FailedToResolve(_)) => {}
+        // resolvo solver's error
+        Err(Error::FailedToResolve(_)) => {}
         Err(err) => {
             panic!("expected solver spk_solver_graph::Error::FailedToResolve, got: '{err:?}'")
         }
