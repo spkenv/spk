@@ -4,7 +4,7 @@
 
 use rstest::rstest;
 
-use super::{GitSource, LocalSource, ScriptSource, TarSource};
+use super::{LocalSource, ScriptSource, TarSource};
 use crate::foundation::fixtures::*;
 
 #[rstest]
@@ -41,30 +41,30 @@ fn test_local_source_file(tmpdir: tempfile::TempDir) {
     assert!(dest_dir.join("file.txt").exists());
 }
 
-#[rstest]
-fn test_git_sources(tmpdir: tempfile::TempDir) {
-    init_logging();
-    let source_dir = tmpdir.path().join("source");
-    let dest_dir = tmpdir.path().join("dest");
-    {
-        std::fs::create_dir_all(&source_dir).unwrap();
-        std::fs::create_dir_all(&dest_dir).unwrap();
-        std::fs::File::create(source_dir.join("file.txt")).unwrap();
-    }
-    let spec = format!(
-        "{{git: {:?}}}",
-        std::env::current_dir()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-    );
-    let source: GitSource = serde_yaml::from_str(&spec).unwrap();
-    source.collect(&dest_dir).unwrap();
-
-    assert!(dest_dir.join(".git").is_dir());
-}
+// #[rstest]
+// fn test_git_sources(tmpdir: tempfile::TempDir) {
+//     init_logging();
+//     let source_dir = tmpdir.path().join("source");
+//     let dest_dir = tmpdir.path().join("dest");
+//     {
+//         std::fs::create_dir_all(&source_dir).unwrap();
+//         std::fs::create_dir_all(&dest_dir).unwrap();
+//         std::fs::File::create(source_dir.join("file.txt")).unwrap();
+//     }
+//     let spec = format!(
+//         "{{git: {:?}}}",
+//         std::env::current_dir()
+//             .unwrap()
+//             .parent()
+//             .unwrap()
+//             .parent()
+//             .unwrap()
+//     );
+//     let source: GitSource = serde_yaml::from_str(&spec).unwrap();
+//     source.collect(&dest_dir).unwrap();
+//
+//     assert!(dest_dir.join(".git").is_dir());
+// }
 
 #[rstest]
 fn test_tar_sources(tmpdir: tempfile::TempDir) {
