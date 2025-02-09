@@ -630,7 +630,7 @@ impl Requests {
         let mut req = serde_yaml::from_value::<Request>(request_data.into())
             .into_diagnostic()
             .wrap_err_with(|| format!("Failed to parse request {request}"))?
-            .into_pkg()
+            .pkg()
             .ok_or_else(|| miette!("Expected a package request, got None"))?;
         req.add_requester(RequestedBy::CommandLine);
 
