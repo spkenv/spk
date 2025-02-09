@@ -63,12 +63,17 @@ impl Run for Install {
             solver.add_request(request);
         }
 
-        let formatter = self.formatter_settings.get_formatter(self.verbose)?;
-        let (solution, _) = formatter.run_and_print_resolve(&solver).await?;
+        let solution = if let Some(solver) = solver.as_any().downcast_ref::<spk_solve::StepSolver>()
+        {
+            let formatter = self.formatter_settings.get_formatter(self.verbose)?;
+            let (solution, _) = formatter.run_and_print_resolve(solver).await?;
+            solution
+        } else {
+            solver.solve().await?
+        };
 
         println!("The following packages will be installed:\n");
         let requested: HashSet<_> = solver
-            .get_initial_state()
             .get_pkg_requests()
             .iter()
             .map(|r| r.pkg.name.clone())

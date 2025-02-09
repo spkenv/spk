@@ -42,7 +42,15 @@ use spk_solve_graph::{
 
 use crate::solvers::step::ErrorFreq;
 use crate::solvers::{StepSolver, StepSolverRuntime};
-use crate::{Error, ResolverCallback, Result, Solution, StatusLine, show_search_space_stats};
+use crate::{
+    AbstractSolver,
+    Error,
+    ResolverCallback,
+    Result,
+    Solution,
+    StatusLine,
+    show_search_space_stats,
+};
 #[cfg(feature = "statsd")]
 use crate::{
     SPK_SOLUTION_PACKAGE_COUNT_METRIC,
