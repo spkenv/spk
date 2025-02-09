@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::any::Any;
 use std::sync::Arc;
 
 use enum_dispatch::enum_dispatch;
-use spk_schema::ident::VarRequest;
+use spk_schema::ident::{PkgRequest, VarRequest};
 use spk_schema::{OptionMap, Request};
 use spk_solve_solution::Solution;
 use spk_storage::RepositoryHandle;
@@ -22,7 +23,7 @@ pub(crate) enum SolverImpl {
 
 #[async_trait::async_trait]
 #[enum_dispatch]
-pub trait Solver {
+pub trait Solver: Any {
     /// Add a repository where the solver can get packages.
     fn add_repository<R>(&mut self, repo: R)
     where
@@ -31,8 +32,14 @@ pub trait Solver {
     /// Add a request to this solver.
     fn add_request(&mut self, request: Request);
 
+    /// Return the PkgRequests added to the solver.
+    fn get_pkg_requests(&self) -> Vec<PkgRequest>;
+
     /// Return the VarRequests added to the solver.
     fn get_var_requests(&self) -> Vec<VarRequest>;
+
+    /// Return a reference to the solver's list of repositories.
+    fn repositories(&self) -> &[Arc<RepositoryHandle>];
 
     /// Put this solver back into its default state
     fn reset(&mut self);
