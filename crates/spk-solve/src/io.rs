@@ -65,7 +65,7 @@ const STOP_ON_BLOCK_FLAG: &str = "--stop-on-block";
 const BY_USER: &str = "by user";
 
 const CLI_SOLVER: &str = "cli";
-const IMPOSSIBLE_CHECKS_SOLVER: &str = "check";
+const IMPOSSIBLE_CHECKS_SOLVER: &str = "checks";
 const ALL_SOLVERS: &str = "all";
 
 const UNABLE_TO_GET_OUTPUT_FILE_LOCK: &str = "Unable to get lock to write solver output to file";
