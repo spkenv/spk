@@ -45,12 +45,15 @@ fn solver() -> StepSolver {
 /// of resolved components, or the specific build of the package.
 macro_rules! assert_resolved {
     ($solution:ident, $pkg:literal, $version:literal) => {
-        assert_resolved!($solution, $pkg, $version, "wrong package version was resolved")
+        assert_resolved!($solution, $pkg, version = $version, "wrong package version was resolved")
+    };
+    ($solution:ident, $pkg:literal, version = $version:expr) => {
+        assert_resolved!($solution, $pkg, version = $version, "wrong package version was resolved")
     };
     ($solution:ident, $pkg:literal, $version:literal, $message:literal) => {
         assert_resolved!($solution, $pkg, version = $version, $message)
     };
-    ($solution:ident, $pkg:literal, version = $version:literal, $message:literal) => {{
+    ($solution:ident, $pkg:literal, version = $version:expr, $message:literal) => {{
         let pkg = $solution
             .get($pkg)
             .expect("expected package to be in solution");
@@ -2922,4 +2925,31 @@ async fn test_version_number_masking(
         expected_resolved_version
     );
     assert_ne!(resolved.spec.ident().build(), &Build::Source);
+}
+
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
+#[tokio::test]
+async fn request_for_all_component_picks_correct_version(
+    #[case] mut solver: SolverImpl,
+    #[values("1.0.0", "2.0.0", "3.0.0")] version: &str,
+) {
+    // A request for :all component still controls for version compatibility
+
+    let repo = make_repo!(
+        [
+            { "pkg": "mypkg/1.0.0" },
+            { "pkg": "mypkg/2.0.0" },
+            { "pkg": "mypkg/3.0.0" },
+        ]
+    );
+    let repo = Arc::new(repo);
+
+    solver.add_repository(repo);
+    let request_str = format!("mypkg:all/{version}");
+    solver.add_request(request!(request_str));
+
+    let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
+    assert_resolved!(solution, "mypkg", version = version);
 }

@@ -675,6 +675,7 @@ impl DependencyProvider for SpkProvider {
                     let compatible = pkg_request
                         .is_version_applicable(located_build_ident_with_component.ident.version());
                     if compatible.is_ok() {
+                        tracing::trace!(pkg_request = %pkg_request.pkg, version = %located_build_ident_with_component.ident.version(), "version applicable");
                         let is_source =
                             located_build_ident_with_component.ident.build().is_source();
 
@@ -706,52 +707,57 @@ impl DependencyProvider for SpkProvider {
                         // Only select All component for requests of All
                         // component.
                         if located_build_ident_with_component.component.is_all() {
-                            if pkg_request.pkg.components.contains(&Component::All) ^ inverse {
-                                selected.push(*candidate);
-                            }
-                            continue;
-                        } else
-                        // Only the All component can satisfy requests for All.
-                        if pkg_request.pkg.components.contains(&Component::All) {
-                            if inverse {
-                                selected.push(*candidate);
-                            }
-                            continue;
-                        }
-
-                        // Only the x component can satisfy requests for x.
-                        let mut at_least_one_request_matched_this_solvable = None;
-                        for component in pkg_request.pkg.components.iter() {
-                            if component.is_all() {
-                                continue;
-                            }
-                            if component == &located_build_ident_with_component.component {
-                                at_least_one_request_matched_this_solvable = Some(true);
-                                break;
-                            } else {
-                                at_least_one_request_matched_this_solvable = Some(false);
-                            }
-                        }
-
-                        match at_least_one_request_matched_this_solvable {
-                            Some(true) => {
-                                if inverse {
-                                    continue;
-                                }
-                            }
-                            Some(false) => {
-                                // The request is for specific components but
-                                // this solvable doesn't match any of them.
+                            // This can disqualify but not qualify; version
+                            // compatibility check is still required.
+                            if !pkg_request.pkg.components.contains(&Component::All) {
                                 if inverse {
                                     selected.push(*candidate);
+                                }
+                                continue;
+                            }
+                        } else {
+                            // Only the All component can satisfy requests for All.
+                            if pkg_request.pkg.components.contains(&Component::All) {
+                                if inverse {
+                                    selected.push(*candidate);
+                                }
+                                continue;
+                            }
+
+                            // Only the x component can satisfy requests for x.
+                            let mut at_least_one_request_matched_this_solvable = None;
+                            for component in pkg_request.pkg.components.iter() {
+                                if component.is_all() {
                                     continue;
                                 }
+                                if component == &located_build_ident_with_component.component {
+                                    at_least_one_request_matched_this_solvable = Some(true);
+                                    break;
+                                } else {
+                                    at_least_one_request_matched_this_solvable = Some(false);
+                                }
                             }
-                            None => {
-                                // TODO: if at_least_one_request_matched_this_solvable
-                                // is None it means the request didn't specify a
-                                // component. Decide which specific component this
-                                // should match.
+
+                            match at_least_one_request_matched_this_solvable {
+                                Some(true) => {
+                                    if inverse {
+                                        continue;
+                                    }
+                                }
+                                Some(false) => {
+                                    // The request is for specific components but
+                                    // this solvable doesn't match any of them.
+                                    if inverse {
+                                        selected.push(*candidate);
+                                        continue;
+                                    }
+                                }
+                                None => {
+                                    // TODO: if at_least_one_request_matched_this_solvable
+                                    // is None it means the request didn't specify a
+                                    // component. Decide which specific component this
+                                    // should match.
+                                }
                             }
                         }
 
@@ -768,6 +774,7 @@ impl DependencyProvider for SpkProvider {
                             .await
                         {
                             if pkg_request.is_satisfied_by(&package).is_ok() ^ inverse {
+                                tracing::trace!(pkg_request = %pkg_request.pkg, package = %package.ident(), %inverse, "satisfied by");
                                 selected.push(*candidate);
                             }
                         } else if inverse {
