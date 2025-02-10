@@ -5,7 +5,7 @@
 use clap::Args;
 use miette::Result;
 use spk_cli_common::{CommandArgs, Run, flags};
-use spk_solve::Solver;
+use spk_solve::{Package, Solver};
 
 /// Show the resolve process for a set of packages.
 #[derive(Args)]
@@ -90,7 +90,10 @@ impl Run for Explain {
             formatter.run_and_print_resolve(solver).await?;
         } else {
             // TODO: print the solve
-            solver.solve().await?;
+            let solution = solver.solve().await?;
+            for item in solution.items() {
+                println!("{}", item.spec.ident());
+            }
         }
 
         Ok(0)
