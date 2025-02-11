@@ -49,7 +49,7 @@ use super::pkg_request_version_set::{
     SyntheticComponent,
     VarValue,
 };
-use super::AbstractSolver;
+use crate::AbstractSolverMut;
 
 // Using just the package name as a Resolvo "package name" prevents multiple
 // components from the same package from existing in the same solution, since

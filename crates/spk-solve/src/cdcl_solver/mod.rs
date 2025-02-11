@@ -21,7 +21,7 @@ use spk_solve_validation::{default_validators, Validators};
 use spk_storage::RepositoryHandle;
 
 use crate::abstract_solver::AbstractSolver;
-use crate::{DecisionFormatter, Error, Result};
+use crate::{AbstractSolverExt, AbstractSolverMut, DecisionFormatter, Error, Result};
 
 #[cfg(test)]
 #[path = "cdcl_solver_tests.rs"]
@@ -250,19 +250,7 @@ impl Solver {
     }
 }
 
-#[async_trait::async_trait]
 impl AbstractSolver for Solver {
-    fn add_repository<R>(&mut self, repo: R)
-    where
-        R: Into<Arc<RepositoryHandle>>,
-    {
-        self.repos.push(repo.into());
-    }
-
-    fn add_request(&mut self, request: Request) {
-        self.requests.push(request);
-    }
-
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -277,6 +265,13 @@ impl AbstractSolver for Solver {
 
     fn repositories(&self) -> &[Arc<RepositoryHandle>] {
         &self.repos
+    }
+}
+
+#[async_trait::async_trait]
+impl AbstractSolverMut for Solver {
+    fn add_request(&mut self, request: Request) {
+        self.requests.push(request);
     }
 
     fn reset(&mut self) {
@@ -316,5 +311,15 @@ impl AbstractSolver for Solver {
 
     fn update_options(&mut self, options: OptionMap) {
         self.options.extend(options);
+    }
+}
+
+#[async_trait::async_trait]
+impl AbstractSolverExt for Solver {
+    fn add_repository<R>(&mut self, repo: R)
+    where
+        R: Into<Arc<RepositoryHandle>>,
+    {
+        self.repos.push(repo.into());
     }
 }

@@ -10,7 +10,7 @@ use spk_schema::{opt_name, Package};
 use spk_solve_macros::{make_repo, request};
 
 use super::Solver;
-use crate::cdcl_solver::AbstractSolver;
+use crate::cdcl_solver::AbstractSolverMut;
 
 #[rstest]
 #[tokio::test]
@@ -160,8 +160,6 @@ async fn package_with_dependency_on_variant(
 #[case::expect_green("color/green", "green")]
 #[tokio::test]
 async fn global_vars(#[case] global_spec: &str, #[case] expected_color: &str) {
-    use crate::cdcl_solver::AbstractSolver;
-
     let repo = make_repo!(
         [
             {"pkg": "dep/1.0.0",

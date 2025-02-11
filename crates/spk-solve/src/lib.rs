@@ -12,13 +12,10 @@ mod search_space;
 mod solver;
 mod status_line;
 
-use std::sync::Arc;
-
-pub use abstract_solver::AbstractSolver;
+pub use abstract_solver::{AbstractSolver, AbstractSolverExt, AbstractSolverMut, SolverImpl};
 // Publicly exported CdclSolver to stop dead code warnings
 pub use cdcl_solver::Solver as CdclSolver;
 pub use error::{Error, Result};
-use graph::Graph;
 pub use io::{
     DecisionFormatter,
     DecisionFormatterBuilder,
@@ -64,51 +61,3 @@ pub use {
     spk_solve_solution as solution,
     spk_solve_validation as validation,
 };
-
-#[async_trait::async_trait]
-pub trait ResolverCallback: Send + Sync {
-    type Solver;
-    type SolveResult;
-
-    /// Run a solve using the given [`Self::Solver`] producing a [`Self::SolveResult`].
-    async fn solve<'s, 'a: 's>(&'s self, r: &'a Self::Solver) -> Result<Self::SolveResult>;
-}
-
-/// A no-frills implementation of [`ResolverCallback`].
-pub struct DefaultResolver {}
-
-#[async_trait::async_trait]
-impl ResolverCallback for DefaultResolver {
-    type Solver = Solver;
-    type SolveResult = (Solution, Arc<tokio::sync::RwLock<Graph>>);
-
-    async fn solve<'s, 'a: 's>(&'s self, r: &'a Self::Solver) -> Result<Self::SolveResult> {
-        let mut runtime = r.run();
-        let solution = runtime.solution().await;
-        match solution {
-            Err(err) => Err(err),
-            Ok(s) => Ok((s, runtime.graph())),
-        }
-    }
-}
-
-pub type BoxedResolverCallback<'a> = Box<
-    dyn ResolverCallback<Solver = Solver, SolveResult = (Solution, Arc<tokio::sync::RwLock<Graph>>)>
-        + 'a,
->;
-
-/// Another no-frills implementation of [`ResolverCallback`].
-pub struct DefaultCdclResolver {}
-
-#[async_trait::async_trait]
-impl ResolverCallback for DefaultCdclResolver {
-    type Solver = cdcl_solver::Solver;
-    type SolveResult = Solution;
-
-    async fn solve<'s, 'a: 's>(&'s self, r: &'a Self::Solver) -> Result<Self::SolveResult> {
-        r.solve().await
-    }
-}
-
-pub type BoxedCdclResolverCallback<'a> =
-    Box<dyn ResolverCallback<Solver = cdcl_solver::Solver, SolveResult = Solution> + 'a>;

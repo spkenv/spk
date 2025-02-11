@@ -34,7 +34,7 @@ use spk_schema::{
     VersionIdent,
 };
 use spk_solve::solution::{get_spfs_layers_to_packages, LayerPackageAndComponents};
-use spk_solve::{AbstractSolver, Recipe};
+use spk_solve::{AbstractSolver, AbstractSolverMut, Recipe};
 use spk_storage;
 use strum::{Display, EnumString, IntoEnumIterator, VariantNames};
 

@@ -11,7 +11,6 @@ use std::sync::Arc;
 use clap::{Args, ValueEnum, ValueHint};
 use miette::{bail, miette, Context, IntoDiagnostic, Result};
 use solve::{
-    AbstractSolver,
     DecisionFormatter,
     DecisionFormatterBuilder,
     MultiSolverKind,
@@ -37,6 +36,7 @@ use spk_schema::option_map::HOST_OPTIONS;
 use spk_schema::{Recipe, SpecFileData, SpecRecipe, Template, TestStage, VariantExt};
 #[cfg(feature = "statsd")]
 use spk_solve::{get_metrics_client, SPK_RUN_TIME_METRIC};
+use spk_solve::{AbstractSolverExt, AbstractSolverMut};
 use spk_workspace::FindPackageTemplateResult;
 pub use variant::{Variant, VariantBuildStatus, VariantLocation};
 use {spk_solve as solve, spk_storage as storage};
@@ -258,7 +258,10 @@ pub struct Solver {
 }
 
 impl Solver {
-    pub async fn get_solver(&self, options: &Options) -> Result<impl AbstractSolver> {
+    pub async fn get_solver(
+        &self,
+        options: &Options,
+    ) -> Result<impl AbstractSolverExt + AbstractSolverMut + Clone + Default> {
         let option_map = options.get_options()?;
 
         //let mut solver = solve::Solver::default();
