@@ -1161,7 +1161,7 @@ impl DecisionFormatter {
     /// appropriate. This runs two solvers in parallel (one based on
     /// the given solver, one with additional options) and takes the
     /// result from the first to finish.
-    pub async fn run_and_print_resolve(
+    pub(crate) async fn run_and_print_resolve(
         &self,
         solver: &StepSolver,
     ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
