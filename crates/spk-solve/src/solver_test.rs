@@ -29,7 +29,7 @@ use spk_storage::fixtures::*;
 use tap::prelude::*;
 
 use super::{ErrorDetails, Solver};
-use crate::abstract_solver::{AbstractSolver, SolverImpl};
+use crate::abstract_solver::{AbstractSolverExt, AbstractSolverMut, SolverImpl};
 use crate::io::DecisionFormatterBuilder;
 use crate::{Error, Result, cdcl_solver, option_map, spec};
 

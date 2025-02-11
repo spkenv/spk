@@ -35,10 +35,9 @@ use spk_schema::{
     Variant,
     VariantExt,
 };
-use spk_solve::cdcl_solver::{self, Solver};
 use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
-use spk_solve::{AbstractSolver, BoxedCdclResolverCallback, Named, ResolverCallback};
+use spk_solve::{AbstractSolverExt, AbstractSolverMut, DecisionFormatter, Named};
 use spk_storage as storage;
 
 use crate::report::{BuildOutputReport, BuildReport, BuildSetupReport};
@@ -118,8 +117,9 @@ where
 ///
 /// ```no_run
 /// # use spk_schema::{recipe, foundation::option_map};
+/// # use spk_solve::Solver;
 /// # async fn demo() {
-/// spk_build::BinaryPackageBuilder::from_recipe(recipe!({
+/// spk_build::BinaryPackageBuilder::<_, Solver>::from_recipe(recipe!({
 ///         "pkg": "my-pkg",
 ///         "build": {"script": "echo hello, world"},
 ///      }))
@@ -128,14 +128,14 @@ where
 ///     .unwrap();
 /// # }
 /// ```
-pub struct BinaryPackageBuilder<'a, Recipe> {
+pub struct BinaryPackageBuilder<Recipe, Solver> {
     prefix: PathBuf,
     recipe: Recipe,
     source: BuildSource,
     solver: Solver,
     environment: HashMap<String, String>,
-    source_resolver: BoxedCdclResolverCallback<'a>,
-    build_resolver: BoxedCdclResolverCallback<'a>,
+    source_solve_formatter: DecisionFormatter,
+    build_solve_formatter: DecisionFormatter,
     last_solve_graph: Arc<tokio::sync::RwLock<Graph>>,
     repos: Vec<Arc<storage::RepositoryHandle>>,
     interactive: bool,
@@ -143,29 +143,30 @@ pub struct BinaryPackageBuilder<'a, Recipe> {
     allow_circular_dependencies: bool,
 }
 
-impl<'a, Recipe> BinaryPackageBuilder<'a, Recipe>
+impl<Recipe, Solver> BinaryPackageBuilder<Recipe, Solver>
 where
     Recipe: spk_schema::Recipe,
-    Recipe::Output: Package + serde::Serialize,
 {
-    /// Create a new builder that builds a binary package from the given recipe
-    pub fn from_recipe(recipe: Recipe) -> Self {
+    /// Create a new builder that builds a binary package from the given recipe.
+    ///
+    /// Use the provided solver.
+    pub fn from_recipe_with_solver(recipe: Recipe, solver: Solver) -> Self {
         let source =
             BuildSource::SourcePackage(recipe.ident().to_build_ident(Build::Source).into());
         Self {
             recipe,
             source,
             prefix: PathBuf::from("/spfs"),
-            solver: Solver::default(),
+            solver,
             environment: Default::default(),
-            //#[cfg(test)]
-            //source_resolver: Box::new(spk_solve::DecisionFormatter::new_testing()),
-            //#[cfg(not(test))]
-            source_resolver: Box::new(spk_solve::DefaultCdclResolver {}),
-            //#[cfg(test)]
-            //build_resolver: Box::new(spk_solve::DecisionFormatter::new_testing()),
-            //#[cfg(not(test))]
-            build_resolver: Box::new(spk_solve::DefaultCdclResolver {}),
+            #[cfg(test)]
+            source_solve_formatter: DecisionFormatter::new_testing(),
+            #[cfg(not(test))]
+            source_solve_formatter: DecisionFormatter::default(),
+            #[cfg(test)]
+            build_solve_formatter: DecisionFormatter::new_testing(),
+            #[cfg(not(test))]
+            build_solve_formatter: DecisionFormatter::default(),
             last_solve_graph: Arc::new(tokio::sync::RwLock::new(Graph::new())),
             repos: Default::default(),
             interactive: false,
@@ -173,7 +174,27 @@ where
             allow_circular_dependencies: false,
         }
     }
+}
 
+impl<Recipe, Solver> BinaryPackageBuilder<Recipe, Solver>
+where
+    Recipe: spk_schema::Recipe,
+    Solver: Default,
+{
+    /// Create a new builder that builds a binary package from the given recipe.
+    ///
+    /// This will use a default instance of the generic solver type.
+    pub fn from_recipe(recipe: Recipe) -> Self {
+        Self::from_recipe_with_solver(recipe, Solver::default())
+    }
+}
+
+impl<Recipe, Solver> BinaryPackageBuilder<Recipe, Solver>
+where
+    Recipe: spk_schema::Recipe,
+    Recipe::Output: Package + serde::Serialize,
+    Solver: AbstractSolverExt + AbstractSolverMut,
+{
     /// Allow circular dependencies when resolving dependencies.
     ///
     /// Normally if a build dependency has a dependency on the package being
@@ -215,31 +236,15 @@ where
         self
     }
 
-    /// Provide a function that will be called when resolving the source package.
-    ///
-    /// This function should run the provided solver runtime to
-    /// completion, returning the final result. This function
-    /// is useful for introspecting and reporting on the solve
-    /// process as needed.
-    pub fn with_source_resolver<F>(&mut self, resolver: F) -> &mut Self
-    where
-        F: ResolverCallback<Solver = cdcl_solver::Solver, SolveResult = Solution> + 'a,
-    {
-        self.source_resolver = Box::new(resolver);
+    /// Provide a formatter to use when resolving the source environment.
+    pub fn with_source_formatter(&mut self, formatter: DecisionFormatter) -> &mut Self {
+        self.source_solve_formatter = formatter;
         self
     }
 
-    /// Provide a function that will be called when resolving the build environment.
-    ///
-    /// This function should run the provided solver runtime to
-    /// completion, returning the final result. This function
-    /// is useful for introspecting and reporting on the solve
-    /// process as needed.
-    pub fn with_build_resolver<F>(&mut self, resolver: F) -> &mut Self
-    where
-        F: ResolverCallback<Solver = cdcl_solver::Solver, SolveResult = Solution> + 'a,
-    {
-        self.build_resolver = Box::new(resolver);
+    /// Provide a formatter to use when resolving the build environment.
+    pub fn with_build_formatter(&mut self, formatter: DecisionFormatter) -> &mut Self {
+        self.build_solve_formatter = formatter;
         self
     }
 
@@ -444,7 +449,10 @@ where
 
         //let (solution, graph) = self.source_resolver.solve(&self.solver).await?;
         //self.last_solve_graph = graph;
-        let solution = self.source_resolver.solve(&self.solver).await?;
+        let solution = self
+            .solver
+            .run_and_print_resolve(&self.source_solve_formatter)
+            .await?;
         Ok(solution)
     }
 
@@ -470,7 +478,10 @@ where
 
         //let (solution, graph) = self.build_resolver.solve(&self.solver).await?;
         //self.last_solve_graph = graph;
-        let solution = self.build_resolver.solve(&self.solver).await?;
+        let solution = self
+            .solver
+            .run_and_print_resolve(&self.build_solve_formatter)
+            .await?;
         Ok(solution)
     }
 

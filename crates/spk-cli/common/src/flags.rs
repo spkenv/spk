@@ -11,7 +11,8 @@ use std::sync::Arc;
 use clap::{Args, ValueEnum, ValueHint};
 use miette::{Context, IntoDiagnostic, Result, bail, miette};
 use solve::{
-    AbstractSolver,
+    AbstractSolverExt,
+    AbstractSolverMut,
     DEFAULT_SOLVER_RUN_FILE_PREFIX,
     DecisionFormatter,
     DecisionFormatterBuilder,
@@ -258,7 +259,10 @@ pub struct Solver {
 }
 
 impl Solver {
-    pub async fn get_solver(&self, options: &Options) -> Result<impl AbstractSolver> {
+    pub async fn get_solver(
+        &self,
+        options: &Options,
+    ) -> Result<impl AbstractSolverExt + AbstractSolverMut + Clone + Default> {
         let option_map = options.get_options()?;
 
         //let mut solver = solve::Solver::default();

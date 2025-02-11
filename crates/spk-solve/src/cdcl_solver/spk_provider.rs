@@ -42,7 +42,6 @@ use spk_schema::{BuildIdent, Deprecate, Opt, OptionMap, Package, Recipe, Request
 use spk_storage::RepositoryHandle;
 use tracing::{Instrument, debug_span};
 
-use super::AbstractSolver;
 use super::pkg_request_version_set::{
     LocatedBuildIdentWithComponent,
     RequestVS,
@@ -50,6 +49,7 @@ use super::pkg_request_version_set::{
     SyntheticComponent,
     VarValue,
 };
+use crate::AbstractSolverMut;
 
 // Using just the package name as a Resolvo "package name" prevents multiple
 // components from the same package from existing in the same solution, since

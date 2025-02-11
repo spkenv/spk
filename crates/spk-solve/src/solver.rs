@@ -57,7 +57,7 @@ use super::error;
 use crate::abstract_solver::AbstractSolver;
 use crate::error::OutOfOptions;
 use crate::option_map::OptionMap;
-use crate::{DecisionFormatter, Error, Result};
+use crate::{AbstractSolverExt, AbstractSolverMut, DecisionFormatter, Error, Result};
 
 // Public to allow other tests to use its macros
 #[cfg(test)]
@@ -1103,32 +1103,7 @@ impl Solver {
     }
 }
 
-#[async_trait::async_trait]
 impl AbstractSolver for Solver {
-    fn add_repository<R>(&mut self, repo: R)
-    where
-        R: Into<Arc<RepositoryHandle>>,
-    {
-        self.repos.push(repo.into());
-    }
-
-    fn add_request(&mut self, request: Request) {
-        let request = match request {
-            Request::Pkg(mut request) => {
-                if request.pkg.components.is_empty() {
-                    if request.pkg.is_source() {
-                        request.pkg.components.insert(Component::Source);
-                    } else {
-                        request.pkg.components.insert(Component::default_for_run());
-                    }
-                }
-                Change::RequestPackage(RequestPackage::new(request))
-            }
-            Request::Var(request) => Change::RequestVar(RequestVar::new(request)),
-        };
-        self.initial_state_builders.push(request);
-    }
-
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -1151,6 +1126,26 @@ impl AbstractSolver for Solver {
 
     fn repositories(&self) -> &[Arc<RepositoryHandle>] {
         &self.repos
+    }
+}
+
+#[async_trait::async_trait]
+impl AbstractSolverMut for Solver {
+    fn add_request(&mut self, request: Request) {
+        let request = match request {
+            Request::Pkg(mut request) => {
+                if request.pkg.components.is_empty() {
+                    if request.pkg.is_source() {
+                        request.pkg.components.insert(Component::Source);
+                    } else {
+                        request.pkg.components.insert(Component::default_for_run());
+                    }
+                }
+                Change::RequestPackage(RequestPackage::new(request))
+            }
+            Request::Var(request) => Change::RequestVar(RequestVar::new(request)),
+        };
+        self.initial_state_builders.push(request);
     }
 
     fn reset(&mut self) {
@@ -1220,6 +1215,16 @@ impl AbstractSolver for Solver {
     fn update_options(&mut self, options: OptionMap) {
         self.initial_state_builders
             .push(Change::SetOptions(SetOptions::new(options)))
+    }
+}
+
+#[async_trait::async_trait]
+impl AbstractSolverExt for Solver {
+    fn add_repository<R>(&mut self, repo: R)
+    where
+        R: Into<Arc<RepositoryHandle>>,
+    {
+        self.repos.push(repo.into());
     }
 }
 

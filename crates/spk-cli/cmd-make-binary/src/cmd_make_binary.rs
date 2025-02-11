@@ -15,7 +15,6 @@ use spk_schema::foundation::format::FormatIdent;
 use spk_schema::ident::{PkgRequest, RequestedBy};
 use spk_schema::option_map::HOST_OPTIONS;
 use spk_schema::prelude::*;
-use spk_solve::DefaultCdclResolver;
 use spk_storage as storage;
 
 #[cfg(test)]
@@ -27,7 +26,7 @@ mod cmd_make_binary_test;
 #[clap(visible_aliases = &["mkbinary", "mkbin", "mkb"])]
 pub struct MakeBinary {
     #[clap(flatten)]
-    pub repos: flags::Repositories,
+    pub solver: flags::Solver,
     #[clap(flatten)]
     pub options: flags::Options,
     #[clap(flatten)]
@@ -94,7 +93,7 @@ impl Run for MakeBinary {
         let (_runtime, local, repos) = tokio::try_join!(
             self.runtime.ensure_active_runtime(&["make-binary", "mkbinary", "mkbin", "mkb"]),
             storage::local_repository().map_ok(storage::RepositoryHandle::from).map_err(miette::Error::from),
-            async { self.repos.get_repos_for_non_destructive_operation().await }
+            async { self.solver.repos.get_repos_for_non_destructive_operation().await }
         )?;
         let repos = repos
             .into_iter()
@@ -167,21 +166,23 @@ impl Run for MakeBinary {
                 let mut fmt_builder = self
                     .formatter_settings
                     .get_formatter_builder(self.verbose)?;
-                let _src_formatter = fmt_builder
+                let src_formatter = fmt_builder
                     .with_solution(true)
                     .with_header("Src Resolver ")
                     .build();
-                let _build_formatter = fmt_builder
+                let build_formatter = fmt_builder
                     .with_solution(true)
                     .with_header("Build Resolver ")
                     .build();
 
-                let mut builder = BinaryPackageBuilder::from_recipe((*recipe).clone());
+                let solver = self.solver.get_solver(&self.options).await?;
+                let mut builder =
+                    BinaryPackageBuilder::from_recipe_with_solver((*recipe).clone(), solver);
                 builder
                     .with_repositories(repos.iter().cloned())
                     .set_interactive(self.interactive)
-                    .with_source_resolver(DefaultCdclResolver {})
-                    .with_build_resolver(DefaultCdclResolver {})
+                    .with_source_formatter(src_formatter)
+                    .with_build_formatter(build_formatter)
                     .with_allow_circular_dependencies(self.allow_circular_dependencies);
 
                 if self.here {
