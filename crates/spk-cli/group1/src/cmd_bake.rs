@@ -238,14 +238,8 @@ impl Bake {
             solver.add_request(request)
         }
 
-        let solution = if let Some(solver) = solver.as_any().downcast_ref::<spk_solve::StepSolver>()
-        {
-            let formatter = self.formatter_settings.get_formatter(self.verbose)?;
-            let (solution, _) = formatter.run_and_print_resolve(solver).await?;
-            solution
-        } else {
-            solver.solve().await?
-        };
+        let formatter = self.formatter_settings.get_formatter(self.verbose)?;
+        let solution = solver.run_and_print_resolve(&formatter).await?;
 
         // The solution order is the order things were found during
         // the solve. Need to reverse it to match up with the spfs
