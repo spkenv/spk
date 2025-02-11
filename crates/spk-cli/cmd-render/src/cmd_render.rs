@@ -9,7 +9,7 @@ use miette::{Context, IntoDiagnostic, Result, bail};
 use spfs::storage::fallback::FallbackProxy;
 use spk_cli_common::{CommandArgs, Run, build_required_packages, flags};
 use spk_exec::resolve_runtime_layers;
-use spk_solve::Solver;
+use spk_solve::{Solver, SolverMut};
 
 /// Output the contents of an spk environment (/spfs) to a folder
 #[derive(Args)]
@@ -55,7 +55,7 @@ impl Run for Render {
         let formatter = self.formatter_settings.get_formatter(self.verbose)?;
         let solution = solver.run_and_print_resolve(&formatter).await?;
 
-        let solution = build_required_packages(&solution).await?;
+        let solution = build_required_packages(&solution, solver.clone()).await?;
         let stack = resolve_runtime_layers(true, &solution).await?;
         std::fs::create_dir_all(&self.target)
             .into_diagnostic()

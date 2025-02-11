@@ -18,7 +18,7 @@ pub struct Build {
     #[clap(flatten)]
     runtime: flags::Runtime,
     #[clap(flatten)]
-    repos: flags::Repositories,
+    solver: flags::Solver,
     #[clap(flatten)]
     options: flags::Options,
 
@@ -107,8 +107,8 @@ impl Run for Build {
             let mut make_binary = spk_cmd_make_binary::cmd_make_binary::MakeBinary {
                 verbose: self.verbose,
                 runtime: self.runtime.clone(),
-                repos: self.repos.clone(),
                 options: self.options.clone(),
+                solver: self.solver.clone(),
                 here: self.here,
                 interactive: self.interactive,
                 env: self.env,

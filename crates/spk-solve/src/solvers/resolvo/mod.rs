@@ -39,7 +39,7 @@ use spk_solve_validation::{Validators, default_validators};
 use spk_storage::RepositoryHandle;
 
 use crate::solver::Solver as SolverTrait;
-use crate::{DecisionFormatter, Error, Result};
+use crate::{DecisionFormatter, Error, Result, SolverExt, SolverMut};
 
 #[cfg(test)]
 #[path = "resolvo_tests.rs"]
@@ -268,19 +268,7 @@ impl Solver {
     }
 }
 
-#[async_trait::async_trait]
 impl SolverTrait for Solver {
-    fn add_repository<R>(&mut self, repo: R)
-    where
-        R: Into<Arc<RepositoryHandle>>,
-    {
-        self.repos.push(repo.into());
-    }
-
-    fn add_request(&mut self, request: Request) {
-        self.requests.push(request);
-    }
-
     fn get_pkg_requests(&self) -> Vec<PkgRequest> {
         self.requests
             .iter()
@@ -299,6 +287,13 @@ impl SolverTrait for Solver {
 
     fn repositories(&self) -> &[Arc<RepositoryHandle>] {
         &self.repos
+    }
+}
+
+#[async_trait::async_trait]
+impl SolverMut for Solver {
+    fn add_request(&mut self, request: Request) {
+        self.requests.push(request);
     }
 
     fn reset(&mut self) {
@@ -338,5 +333,15 @@ impl SolverTrait for Solver {
 
     fn update_options(&mut self, options: OptionMap) {
         self.options.extend(options);
+    }
+}
+
+#[async_trait::async_trait]
+impl SolverExt for Solver {
+    fn add_repository<R>(&mut self, repo: R)
+    where
+        R: Into<Arc<RepositoryHandle>>,
+    {
+        self.repos.push(repo.into());
     }
 }
