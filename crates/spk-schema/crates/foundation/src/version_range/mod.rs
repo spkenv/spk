@@ -576,8 +576,14 @@ pub struct LowestSpecifiedRange {
 impl LowestSpecifiedRange {
     pub const REQUIRED_NUMBER_OF_DIGITS: usize = 2;
 
-    pub fn new(specified: usize, base: Version) -> Self {
-        Self { specified, base }
+    pub fn new(mut base: Version) -> Self {
+        while base.parts.len() < Self::REQUIRED_NUMBER_OF_DIGITS {
+            base.parts.push(0);
+        }
+        Self {
+            specified: base.parts.len(),
+            base,
+        }
     }
 }
 

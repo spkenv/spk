@@ -3,6 +3,7 @@
 // https://github.com/spkenv/spk
 
 use std::borrow::Cow;
+use std::collections::HashSet;
 use std::io::Read;
 use std::path::Path;
 use std::str::FromStr;
@@ -136,10 +137,12 @@ macro_rules! spec {
 
 /// A generic, structured data object that can be turned into a recipe
 /// when provided with the necessary option values
+#[derive(Debug)]
 pub struct SpecTemplate {
     name: Option<PkgNameBuf>,
+    versions: HashSet<Version>,
     file_path: std::path::PathBuf,
-    template: String,
+    template: Arc<str>,
 }
 
 impl SpecTemplate {
@@ -147,11 +150,25 @@ impl SpecTemplate {
     pub fn source(&self) -> &str {
         &self.template
     }
-}
 
-impl SpecTemplate {
+    /// The name of the item that this template will create.
     pub fn name(&self) -> Option<&PkgNameBuf> {
         self.name.as_ref()
+    }
+
+    /// The versions that are available to create with this template.
+    ///
+    /// An empty set does not signify no versions, but rather that
+    /// nothing has been specified or discerned.
+    pub fn versions(&self) -> &HashSet<Version> {
+        &self.versions
+    }
+
+    /// Clear and reset the versions that are available to create
+    /// with this template.
+    pub fn set_versions(&mut self, versions: impl IntoIterator<Item = Version>) {
+        self.versions.clear();
+        self.versions.extend(versions);
     }
 }
 
@@ -251,7 +268,8 @@ impl TemplateExt for SpecTemplate {
         Ok(Self {
             file_path,
             name,
-            template,
+            versions: Default::default(),
+            template: template.into(),
         })
     }
 }

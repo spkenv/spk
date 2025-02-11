@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use std::path::Path;
+use std::collections::BTreeSet;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use bracoxide::tokenizer::TokenizationError;
@@ -25,11 +26,13 @@ mod file_test;
 /// [`super::Workspace`] to be operated on.
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Deserialize)]
 pub struct WorkspaceFile {
+    /// The package recipes that are part of this workspace
     #[serde(default)]
     pub recipes: Vec<RecipesItem>,
 }
 
 impl WorkspaceFile {
+    /// The expected file name for a workspace file
     pub const FILE_NAME: &str = "workspace.spk.yaml";
 
     /// Load a workspace from its root directory on disk
@@ -45,8 +48,9 @@ impl WorkspaceFile {
     }
 
     /// Load the workspace for a given dir, looking at parent directories
-    /// as necessary to find the workspace root
-    pub fn discover<P: AsRef<Path>>(cwd: P) -> Result<Self, LoadWorkspaceFileError> {
+    /// as necessary to find the workspace root. Returns the workspace root directory
+    /// that was found, if any.
+    pub fn discover<P: AsRef<Path>>(cwd: P) -> Result<(Self, PathBuf), LoadWorkspaceFileError> {
         let cwd = if cwd.as_ref().is_absolute() {
             cwd.as_ref().to_owned()
         } else {
@@ -62,7 +66,7 @@ impl WorkspaceFile {
         let mut candidate: std::path::PathBuf = cwd.clone();
         loop {
             if candidate.join(WorkspaceFile::FILE_NAME).is_file() {
-                return Self::load(candidate);
+                return Self::load(&candidate).map(|l| (l, candidate));
             }
             if !candidate.pop() {
                 break;
@@ -75,7 +79,7 @@ impl WorkspaceFile {
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd)]
 pub struct RecipesItem {
     pub path: glob::Pattern,
-    pub versions: Vec<Version>,
+    pub config: TemplateConfig,
 }
 
 impl<'de> serde::de::Deserialize<'de> for RecipesItem {
@@ -99,7 +103,7 @@ impl<'de> serde::de::Deserialize<'de> for RecipesItem {
                 let path = glob::Pattern::new(v).map_err(serde::de::Error::custom)?;
                 Ok(RecipesItem {
                     path,
-                    versions: Vec::new(),
+                    config: Default::default(),
                 })
             }
 
@@ -110,14 +114,73 @@ impl<'de> serde::de::Deserialize<'de> for RecipesItem {
                 #[derive(Deserialize)]
                 struct RawRecipeItem {
                     path: String,
-                    #[serde(default)]
+                    #[serde(flatten)]
+                    config: TemplateConfig,
+                }
+
+                let RawRecipeItem { path, config } =
+                    RawRecipeItem::deserialize(serde::de::value::MapAccessDeserializer::new(map))?;
+                let mut base = self.visit_str(&path)?;
+                base.config = config;
+                Ok(base)
+            }
+        }
+
+        deserializer.deserialize_any(RecipeCollectorVisitor)
+    }
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Default)]
+pub struct TemplateConfig {
+    /// Ordered set of versions that this template can produce.
+    ///
+    /// An empty set of versions does not mean that no versions can
+    /// be produced, but rather that any can be attempted. It's also
+    /// typical for a template to have a single hard-coded version inside
+    /// and so not need to specify values for this field.
+    pub versions: BTreeSet<Version>,
+}
+
+impl TemplateConfig {
+    /// Update this config with newly specified data.
+    ///
+    /// Default values in the provided `other` value do not
+    /// overwrite existing data in this instance.
+    pub fn update(&mut self, other: Self) {
+        let Self { versions } = other;
+        if !versions.is_empty() {
+            self.versions = versions;
+        }
+    }
+}
+
+impl<'de> serde::de::Deserialize<'de> for TemplateConfig {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        struct TemplateConfigVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for TemplateConfigVisitor {
+            type Value = TemplateConfig;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("additional recipe collection configuration")
+            }
+
+            fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                #[derive(Deserialize)]
+                struct RawConfig {
                     versions: Vec<String>,
                 }
 
-                let raw_recipe =
-                    RawRecipeItem::deserialize(serde::de::value::MapAccessDeserializer::new(map))?;
-                let mut base = self.visit_str(&raw_recipe.path)?;
-                for (i, version_expr) in raw_recipe.versions.into_iter().enumerate() {
+                let raw_config =
+                    RawConfig::deserialize(serde::de::value::MapAccessDeserializer::new(map))?;
+                let mut base = TemplateConfig::default();
+                for (i, version_expr) in raw_config.versions.into_iter().enumerate() {
                     let expand_result = bracoxide::bracoxidize(&version_expr);
                     let expanded = match expand_result {
                         Ok(expanded) => expanded,
@@ -142,13 +205,13 @@ impl<'de> serde::de::Deserialize<'de> for RecipesItem {
                                 "brace expansion in position {i} produced invalid version '{version}': {err}"
                             ))
                         })?;
-                        base.versions.push(parsed);
+                        base.versions.insert(parsed);
                     }
                 }
                 Ok(base)
             }
         }
 
-        deserializer.deserialize_any(RecipeCollectorVisitor)
+        deserializer.deserialize_map(TemplateConfigVisitor)
     }
 }

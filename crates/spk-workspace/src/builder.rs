@@ -2,13 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use std::collections::HashSet;
+//! Find and/or build workspaces.
+
+use std::collections::HashMap;
 
 use crate::error;
 
+/// Used to construct a [`super::Workspace`] either from
+/// yaml files on disk or programmatically.
 #[derive(Default)]
 pub struct WorkspaceBuilder {
-    spec_files: HashSet<std::path::PathBuf>,
+    root: Option<std::path::PathBuf>,
+    spec_files: HashMap<std::path::PathBuf, crate::file::TemplateConfig>,
 }
 
 impl WorkspaceBuilder {
@@ -22,8 +27,9 @@ impl WorkspaceBuilder {
         self,
         dir: impl AsRef<std::path::Path>,
     ) -> Result<Self, error::FromPathError> {
-        let file = crate::file::WorkspaceFile::discover(dir)?;
-        self.load_from_file(file)
+        let (file, root) = crate::file::WorkspaceFile::discover(dir)?;
+        self.with_root(root)
+            .load_from_file(file)
             .map_err(error::FromPathError::from)
     }
 
@@ -32,37 +38,66 @@ impl WorkspaceBuilder {
         self,
         file: crate::file::WorkspaceFile,
     ) -> Result<Self, error::FromFileError> {
-        file.recipes.iter().try_fold(self, |builder, pattern| {
-            builder.with_glob_pattern(pattern.path.as_str())
-        })
+        file.recipes
+            .iter()
+            .try_fold(self, |builder, item| builder.with_recipes_item(item))
+    }
+
+    /// Specify the root directory for the workspace.
+    ///
+    /// This is the path that will be used to resolve all
+    /// relative paths and relative glob patterns. If not
+    /// specified, the current working directory will be used.
+    pub fn with_root(mut self, root: impl Into<std::path::PathBuf>) -> Self {
+        self.root = Some(root.into());
+        self
     }
 
     /// Add all recipe files matching a glob pattern to the workspace.
     ///
     /// If the provided pattern is relative, it will be relative to the
     /// current working directory.
-    pub fn with_glob_pattern<S: AsRef<str>>(
+    pub fn with_recipes_item(
         mut self,
-        pattern: S,
+        item: &crate::file::RecipesItem,
     ) -> Result<Self, error::FromFileError> {
-        let mut glob_results = glob::glob(pattern.as_ref())?;
+        let with_root = self.root.as_deref().map(|p| p.join(item.path.as_str()));
+        let pattern = with_root
+            .as_deref()
+            .and_then(|p| p.to_str())
+            .unwrap_or(item.path.as_str());
+        let mut glob_results = glob::glob(pattern)?;
         while let Some(path) = glob_results.next().transpose()? {
-            self = self.with_recipe_file(path);
+            self.spec_files
+                .entry(path)
+                .or_default()
+                .update(item.config.clone());
         }
 
         Ok(self)
     }
 
-    /// Add a recipe file to the workspace.
-    pub fn with_recipe_file(mut self, path: impl Into<std::path::PathBuf>) -> Self {
-        self.spec_files.insert(path.into());
-        self
+    /// Add all recipe files matching a glob pattern to the workspace.
+    ///
+    /// If the provided pattern is relative, it will be relative to the
+    /// workspace root (if it has one) or current working directory.
+    /// All configuration for this path will be left as the defaults
+    /// unless already set.
+    pub fn with_glob_pattern<S: AsRef<str>>(
+        self,
+        pattern: S,
+    ) -> Result<Self, error::FromFileError> {
+        self.with_recipes_item(&crate::file::RecipesItem {
+            path: glob::Pattern::new(pattern.as_ref())?,
+            config: Default::default(),
+        })
     }
 
+    /// Build the workspace as configured.
     pub fn build(self) -> Result<super::Workspace, error::BuildError> {
         let mut workspace = super::Workspace::default();
-        for file in self.spec_files {
-            workspace.load_template_file(file)?;
+        for (file, config) in self.spec_files {
+            workspace.load_template_file_with_config(file, config)?;
         }
         Ok(workspace)
     }

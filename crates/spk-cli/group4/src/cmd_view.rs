@@ -228,16 +228,16 @@ impl View {
         workspace: &spk_workspace::Workspace,
         show_variants_with_tests: bool,
     ) -> Result<i32> {
-        let template = match self.package.as_ref() {
+        let configured = match self.package.as_ref() {
             None => workspace.default_package_template(),
             Some(name) => workspace.find_package_template(name),
         }
         .must_be_found();
-        let rendered_data = template.render(options)?;
+        let rendered_data = configured.template.render(options)?;
         let recipe = rendered_data.into_recipe().wrap_err_with(|| {
             format!(
                 "{filename} was expected to contain a recipe",
-                filename = template.file_path().to_string_lossy()
+                filename = configured.template.file_path().to_string_lossy()
             )
         })?;
 

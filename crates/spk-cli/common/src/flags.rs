@@ -391,12 +391,12 @@ impl Requests {
             let path = std::path::Path::new(package);
             if path.is_file() {
                 let workspace = self.workspace.load_or_default()?;
-                let template = workspace.find_package_template(&package).must_be_found();
-                let rendered_data = template.render(options)?;
+                let configured = workspace.find_package_template(package).must_be_found();
+                let rendered_data = configured.template.render(options)?;
                 let recipe = rendered_data.into_recipe().wrap_err_with(|| {
                     format!(
                         "{filename} was expected to contain a recipe",
-                        filename = template.file_path().to_string_lossy()
+                        filename = configured.template.file_path().to_string_lossy()
                     )
                 })?;
                 idents.push(recipe.ident().to_any_ident(None));
@@ -750,6 +750,10 @@ impl std::str::FromStr for PackageSpecifier {
 #[derive(Args, Default, Clone)]
 pub struct Packages {
     /// The package names or yaml spec files to operate on
+    ///
+    /// Package requests may also come with a version when multiple
+    /// versions might be found in the local workspace or configured
+    /// repositories.
     #[clap(name = "PKG|SPEC_FILE")]
     pub packages: Vec<PackageSpecifier>,
 
@@ -833,20 +837,20 @@ where
         None => workspace.default_package_template(),
         Some(package_name) => workspace.find_package_template(package_name),
     };
-    let template = match from_workspace {
+    let configured = match from_workspace {
         FindPackageTemplateResult::Found(template) => template,
         res @ FindPackageTemplateResult::MultipleTemplateFiles(_) => {
             // must_be_found() will exit the program when called on MultipleTemplateFiles
             res.must_be_found();
             unreachable!()
         }
-        FindPackageTemplateResult::NoTemplateFiles | FindPackageTemplateResult::NotFound(_) => {
+        FindPackageTemplateResult::NoTemplateFiles | FindPackageTemplateResult::NotFound(..) => {
             // If couldn't find a template file, maybe there's an
             // existing package/version that's been published
             match package_name.map(AsRef::as_ref) {
                 Some(name) if std::path::Path::new(name).is_file() => {
                     tracing::debug!(?name, "Loading anonymous template file into workspace...");
-                    workspace.load_template_file(name)?.clone()
+                    workspace.load_template_file(name)?
                 }
                 Some(name) => {
                     tracing::debug!("Unable to find package file: {}", name);
@@ -897,17 +901,17 @@ where
             }
         }
     };
-    let found = template.render(options).wrap_err_with(|| {
+    let found = configured.template.render(options).wrap_err_with(|| {
         format!(
             "{filename} was expected to contain a valid spk yaml data file",
-            filename = template.file_path().to_string_lossy()
+            filename = configured.template.file_path().to_string_lossy()
         )
     })?;
     tracing::debug!(
-        "Rendered template from the data in {:?}",
-        template.file_path()
+        "Rendered configured.template from the data in {:?}",
+        configured.template.file_path()
     );
-    Ok((found, template.file_path().to_owned()))
+    Ok((found, configured.template.file_path().to_owned()))
 }
 
 #[derive(Args, Clone)]
