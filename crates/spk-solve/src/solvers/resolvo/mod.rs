@@ -84,7 +84,9 @@ impl Solver {
                 binary_only,
                 build_from_source_trail,
             ));
+            let mut loop_counter = 0;
             let (solver, solved) = loop {
+                loop_counter += 1;
                 let mut this_iter_provider = provider.take().expect("provider is always Some");
                 let pkg_requirements = this_iter_provider.root_pkg_requirements(&requests);
                 let mut var_requirements = this_iter_provider.var_requirements(&requests);
@@ -99,8 +101,13 @@ impl Solver {
                     .constraints(var_requirements);
                 match solver.solve(problem) {
                     Ok(solved) => break (solver, solved),
-                    Err(resolvo::UnsolvableOrCancelled::Cancelled(_)) => {
+                    Err(resolvo::UnsolvableOrCancelled::Cancelled(msg)) => {
+                        let msg = msg.downcast_ref::<String>();
                         provider = Some(solver.provider().reset());
+                        tracing::info!(
+                            "Solver retry {loop_counter}: {msg:?}",
+                            msg = msg.map_or("unknown", |v| v)
+                        );
                         continue;
                     }
                     Err(resolvo::UnsolvableOrCancelled::Unsolvable(conflict)) => {
@@ -109,6 +116,7 @@ impl Solver {
                         // needs to cancel (unknown if this ever happens).
                         if solver.provider().is_canceled() {
                             provider = Some(solver.provider().reset());
+                            tracing::info!("Solver retry {loop_counter}");
                             continue;
                         }
                         return Err(Error::FailedToResolve(format!(
