@@ -14,7 +14,7 @@ use spk_exec::setup_current_runtime;
 use spk_schema::Package;
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::spec_ops::Named;
-use spk_solve::Solver;
+use spk_solve::{Solver, SolverMut};
 
 /// Install a package into the current environment
 #[derive(Args)]
@@ -119,7 +119,7 @@ impl Run for Install {
             }
         }
 
-        let compiled_solution = build_required_packages(&solution)
+        let compiled_solution = build_required_packages(&solution, solver)
             .await
             .wrap_err("Failed to build one or more packages from source")?;
         setup_current_runtime(&compiled_solution).await?;
