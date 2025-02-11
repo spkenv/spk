@@ -38,7 +38,7 @@ use spk_schema::name::{OptNameBuf, PkgNameBuf};
 use spk_schema::prelude::{HasVersion, Named};
 use spk_schema::version::Version;
 use spk_schema::version_range::{DoubleEqualsVersion, Ranged, VersionFilter, parse_version_range};
-use spk_schema::{BuildIdent, Deprecate, Opt, Package, Recipe, Request, VersionIdent};
+use spk_schema::{BuildIdent, Deprecate, Opt, OptionMap, Package, Recipe, Request, VersionIdent};
 use spk_storage::RepositoryHandle;
 use tracing::{Instrument, debug_span};
 
@@ -643,6 +643,39 @@ impl SpkProvider {
                     self.global_var_requests
                         .insert(req.var.without_namespace().to_owned(), req.clone());
                     None
+                }
+            })
+            .collect()
+    }
+
+    pub fn var_requirements_from_options(&mut self, options: OptionMap) -> Vec<VersionSetId> {
+        self.global_var_requests.reserve(options.len());
+        options
+            .into_iter()
+            .filter_map(|(var, value)| {
+                let req = VarRequest::new_with_value(var, value);
+                match req.var.namespace() {
+                    Some(pkg_name) => {
+                        // A global request applicable to a specific package.
+                        let dep_name = self.pool.intern_package_name(
+                            ResolvoPackageName::PkgNameBufWithComponent(PkgNameBufWithComponent {
+                                name: pkg_name.to_owned(),
+                                component: SyntheticComponent::Base,
+                            }),
+                        );
+                        Some(
+                            self.pool.intern_version_set(
+                                dep_name,
+                                RequestVS::SpkRequest(Request::Var(req)),
+                            ),
+                        )
+                    }
+                    None => {
+                        // A global request affecting all packages.
+                        self.global_var_requests
+                            .insert(req.var.without_namespace().to_owned(), req);
+                        None
+                    }
                 }
             })
             .collect()
