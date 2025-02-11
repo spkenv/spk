@@ -642,6 +642,17 @@ impl SpkProvider {
                     // A global request affecting all packages.
                     self.global_var_requests
                         .insert(req.var.without_namespace().to_owned(), req.clone());
+                    match &req.value {
+                        PinnableValue::FromBuildEnv => {}
+                        PinnableValue::FromBuildEnvIfPresent => {}
+                        PinnableValue::Pinned(arc) => {
+                            self.known_global_var_values
+                                .borrow_mut()
+                                .entry(req.var.without_namespace().to_owned())
+                                .or_default()
+                                .insert(VarValue::ArcStr(Arc::clone(arc)));
+                        }
+                    };
                     None
                 }
             })
@@ -653,6 +664,7 @@ impl SpkProvider {
         options
             .into_iter()
             .filter_map(|(var, value)| {
+                let var_value = VarValue::Owned(value.clone());
                 let req = VarRequest::new_with_value(var, value);
                 match req.var.namespace() {
                     Some(pkg_name) => {
@@ -673,7 +685,12 @@ impl SpkProvider {
                     None => {
                         // A global request affecting all packages.
                         self.global_var_requests
-                            .insert(req.var.without_namespace().to_owned(), req);
+                            .insert(req.var.without_namespace().to_owned(), req.clone());
+                        self.known_global_var_values
+                            .borrow_mut()
+                            .entry(req.var.without_namespace().to_owned())
+                            .or_default()
+                            .insert(var_value);
                         None
                     }
                 }
