@@ -66,7 +66,7 @@ build:
     solver.add_request(request!("one"));
     solver.add_request(request!("two"));
 
-    let (solution, _) = formatter.run_and_log_resolve(&solver).await.unwrap();
+    let solution = solver.run_and_log_resolve(&formatter).await.unwrap();
 
     let resolved_layers = solution_to_resolved_runtime_layers(&solution).unwrap();
 

@@ -1194,33 +1194,12 @@ impl DecisionFormatter {
     /// info-level event as appropriate. This runs two solvers in
     /// parallel (one based on the given solver, one with additional
     /// options) and takes the result from the first to finish.
-    pub async fn run_and_log_resolve(
+    pub(crate) async fn run_and_log_resolve(
         &self,
         solver: &StepSolver,
     ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
         let solvers = self.setup_solvers(solver);
         self.run_multi_solve(solvers, OutputKind::Tracing).await
-    }
-
-    /// Run the solver runtime to completion, logging each step as a
-    /// tracing info-level event as appropriate. This does not run
-    /// multiple solver and won't benefit from running solvers in
-    /// parallel.
-    pub async fn run_and_log_decisions(
-        &self,
-        runtime: &mut StepSolverRuntime,
-    ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
-        // Note: this is not currently used directly. We may be able
-        // to remove this method.
-        let start = Instant::now();
-        let loop_outcome = self.run_solver_loop(runtime, OutputKind::Tracing).await;
-        let solve_time = start.elapsed();
-
-        #[cfg(feature = "statsd")]
-        self.send_solver_end_metrics(solve_time);
-
-        self.check_and_output_solver_results(loop_outcome, solve_time, runtime, OutputKind::Tracing)
-            .await
     }
 
     fn setup_solvers(&self, base_solver: &StepSolver) -> Vec<SolverTaskSettings> {
