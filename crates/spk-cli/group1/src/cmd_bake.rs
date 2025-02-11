@@ -9,8 +9,8 @@ use serde::Serialize;
 use spk_cli_common::{CommandArgs, Run, current_env, flags};
 use spk_schema::Package;
 use spk_schema::ident::RequestedBy;
-use spk_solve::Solver;
 use spk_solve::solution::{LayerPackageAndComponents, PackageSource, get_spfs_layers_to_packages};
+use spk_solve::{Solver, SolverMut};
 
 #[cfg(test)]
 #[path = "./cmd_bake_test.rs"]

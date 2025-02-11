@@ -15,7 +15,8 @@ use solve::{
     DecisionFormatter,
     DecisionFormatterBuilder,
     MultiSolverKind,
-    Solver as SolverTrait,
+    SolverExt,
+    SolverMut,
 };
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::ident_build::Build;
@@ -258,7 +259,10 @@ pub struct Solver {
 }
 
 impl Solver {
-    pub async fn get_solver(&self, options: &Options) -> Result<impl SolverTrait> {
+    pub async fn get_solver(
+        &self,
+        options: &Options,
+    ) -> Result<impl SolverExt + SolverMut + Clone + Default + 'static> {
         let option_map = options.get_options()?;
 
         //let mut solver = solve::StepSolver::default();

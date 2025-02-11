@@ -56,7 +56,7 @@ use spk_storage::RepositoryHandle;
 use crate::error::{self, OutOfOptions};
 use crate::option_map::OptionMap;
 use crate::solver::Solver as SolverTrait;
-use crate::{DecisionFormatter, Error, Result};
+use crate::{DecisionFormatter, Error, Result, SolverExt, SolverMut};
 
 /// Structure to hold whether the three kinds of impossible checks are
 /// enabled or disabled in a solver.
@@ -1103,32 +1103,7 @@ impl Solver {
     }
 }
 
-#[async_trait::async_trait]
 impl SolverTrait for Solver {
-    fn add_repository<R>(&mut self, repo: R)
-    where
-        R: Into<Arc<RepositoryHandle>>,
-    {
-        self.repos.push(repo.into());
-    }
-
-    fn add_request(&mut self, request: Request) {
-        let request = match request {
-            Request::Pkg(mut request) => {
-                if request.pkg.components.is_empty() {
-                    if request.pkg.is_source() {
-                        request.pkg.components.insert(Component::Source);
-                    } else {
-                        request.pkg.components.insert(Component::default_for_run());
-                    }
-                }
-                Change::RequestPackage(RequestPackage::new(request))
-            }
-            Request::Var(request) => Change::RequestVar(RequestVar::new(request)),
-        };
-        self.initial_state_builders.push(request);
-    }
-
     fn get_pkg_requests(&self) -> Vec<PkgRequest> {
         self.get_initial_state()
             .get_pkg_requests()
@@ -1147,6 +1122,26 @@ impl SolverTrait for Solver {
 
     fn repositories(&self) -> &[Arc<RepositoryHandle>] {
         &self.repos
+    }
+}
+
+#[async_trait::async_trait]
+impl SolverMut for Solver {
+    fn add_request(&mut self, request: Request) {
+        let request = match request {
+            Request::Pkg(mut request) => {
+                if request.pkg.components.is_empty() {
+                    if request.pkg.is_source() {
+                        request.pkg.components.insert(Component::Source);
+                    } else {
+                        request.pkg.components.insert(Component::default_for_run());
+                    }
+                }
+                Change::RequestPackage(RequestPackage::new(request))
+            }
+            Request::Var(request) => Change::RequestVar(RequestVar::new(request)),
+        };
+        self.initial_state_builders.push(request);
     }
 
     fn reset(&mut self) {
@@ -1216,6 +1211,16 @@ impl SolverTrait for Solver {
     fn update_options(&mut self, options: OptionMap) {
         self.initial_state_builders
             .push(Change::SetOptions(SetOptions::new(options)))
+    }
+}
+
+#[async_trait::async_trait]
+impl SolverExt for Solver {
+    fn add_repository<R>(&mut self, repo: R)
+    where
+        R: Into<Arc<RepositoryHandle>>,
+    {
+        self.repos.push(repo.into());
     }
 }
 

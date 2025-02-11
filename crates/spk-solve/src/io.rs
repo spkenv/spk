@@ -42,15 +42,7 @@ use spk_solve_graph::{
 
 use crate::solvers::step::ErrorFreq;
 use crate::solvers::{StepSolver, StepSolverRuntime};
-use crate::{
-    Error,
-    ResolverCallback,
-    Result,
-    Solution,
-    Solver,
-    StatusLine,
-    show_search_space_stats,
-};
+use crate::{Error, Result, Solution, Solver, StatusLine, show_search_space_stats};
 #[cfg(feature = "statsd")]
 use crate::{
     SPK_SOLUTION_PACKAGE_COUNT_METRIC,
@@ -1010,7 +1002,7 @@ impl OutputKind {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub(crate) struct DecisionFormatterSettings {
     pub(crate) verbosity: u8,
     pub(crate) report_time: bool,
@@ -1041,12 +1033,13 @@ enum LoopOutcome {
     Success,
 }
 
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, Default)]
 pub enum MultiSolverKind {
     Unchanged,
     AllImpossibleChecks,
     // This isn't a solver on its own. It indicates: the run all the
     // solvers in parallel but show the output from the unchanged one.
+    #[default]
     All,
 }
 
@@ -1123,7 +1116,7 @@ struct SolverResult {
     pub(crate) result: Result<(Solution, Arc<tokio::sync::RwLock<spk_solve_graph::Graph>>)>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct DecisionFormatter {
     pub(crate) settings: DecisionFormatterSettings,
 }
@@ -2101,25 +2094,5 @@ impl DecisionFormatter {
         }
 
         out
-    }
-}
-
-#[async_trait::async_trait]
-impl ResolverCallback for &DecisionFormatter {
-    type Solver = StepSolver;
-    type SolveResult = (Solution, Arc<tokio::sync::RwLock<Graph>>);
-
-    async fn solve<'s, 'a: 's>(&'s self, r: &'a Self::Solver) -> Result<Self::SolveResult> {
-        self.run_and_print_resolve(r).await
-    }
-}
-
-#[async_trait::async_trait]
-impl ResolverCallback for DecisionFormatter {
-    type Solver = StepSolver;
-    type SolveResult = (Solution, Arc<tokio::sync::RwLock<Graph>>);
-
-    async fn solve<'s, 'a: 's>(&'s self, r: &'a Self::Solver) -> Result<Self::SolveResult> {
-        self.run_and_print_resolve(r).await
     }
 }

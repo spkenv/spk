@@ -11,9 +11,9 @@ use spfs::tracking::SpecFile;
 use spfs_cli_common::Progress;
 use spk_cli_common::{CommandArgs, Run, build_required_packages, flags};
 use spk_exec::setup_runtime_with_reporter;
-use spk_solve::Solver;
 #[cfg(feature = "statsd")]
 use spk_solve::{SPK_RUN_TIME_METRIC, get_metrics_client};
+use spk_solve::{Solver, SolverMut};
 
 /// Resolve and run an environment on-the-fly
 ///
@@ -90,7 +90,7 @@ impl Run for Env {
         let formatter = self.formatter_settings.get_formatter(self.verbose)?;
         let solution = solver.run_and_print_resolve(&formatter).await?;
 
-        let solution = build_required_packages(&solution).await?;
+        let solution = build_required_packages(&solution, solver).await?;
 
         rt.status.editable =
             self.runtime.editable() || self.requests.any_build_stage_requests(&self.requested)?;

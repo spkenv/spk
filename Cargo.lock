@@ -4183,6 +4183,7 @@ dependencies = [
  "futures",
  "itertools 0.14.0",
  "miette",
+ "rstest",
  "spfs",
  "spk-build",
  "spk-cli-common",

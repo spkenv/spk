@@ -12,19 +12,12 @@ use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
 use spk_schema::ident_build::Build;
 use spk_schema::{Recipe, SpecRecipe, Variant, VariantExt};
-use spk_solve::{
-    BoxedCdclResolverCallback,
-    DefaultCdclResolver,
-    ResolverCallback,
-    ResolvoSolver,
-    Solution,
-    Solver,
-};
+use spk_solve::{DecisionFormatter, ResolvoSolver, SolverExt, SolverMut};
 use spk_storage as storage;
 
 use super::Tester;
 
-pub struct PackageInstallTester<'a, V> {
+pub struct PackageInstallTester<V> {
     prefix: PathBuf,
     recipe: SpecRecipe,
     script: String,
@@ -32,11 +25,11 @@ pub struct PackageInstallTester<'a, V> {
     options: OptionMap,
     additional_requirements: Vec<Request>,
     source: Option<PathBuf>,
-    env_resolver: BoxedCdclResolverCallback<'a>,
+    env_formatter: DecisionFormatter,
     variant: V,
 }
 
-impl<'a, V> PackageInstallTester<'a, V>
+impl<V> PackageInstallTester<V>
 where
     V: Clone + Variant + Send,
 {
@@ -49,7 +42,7 @@ where
             options: OptionMap::default(),
             additional_requirements: Vec::new(),
             source: None,
-            env_resolver: Box::new(DefaultCdclResolver {}),
+            env_formatter: DecisionFormatter::default(),
             variant,
         }
     }
@@ -79,17 +72,9 @@ where
         self
     }
 
-    /// Provide a function that will be called when resolving the test environment.
-    ///
-    /// This function should run the provided solver runtime to
-    /// completion, returning the final result. This function
-    /// is useful for introspecting and reporting on the solve
-    /// process as needed.
-    pub fn watch_environment_resolve<F>(&mut self, resolver: F) -> &mut Self
-    where
-        F: ResolverCallback<Solver = ResolvoSolver, SolveResult = Solution> + 'a,
-    {
-        self.env_resolver = Box::new(resolver);
+    /// Provide a formatter to use when resolving the test environment.
+    pub fn watch_environment_formatter(&mut self, formatter: DecisionFormatter) -> &mut Self {
+        self.env_formatter = formatter;
         self
     }
 
@@ -130,7 +115,7 @@ where
         }
 
         // let (solution, _) = self.env_resolver.solve(&solver).await?;
-        let solution = self.env_resolver.solve(&solver).await?;
+        let solution = solver.run_and_print_resolve(&self.env_formatter).await?;
 
         for layer in resolve_runtime_layers(requires_localization, &solution).await? {
             rt.push_digest(layer);
@@ -150,7 +135,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<V> Tester for PackageInstallTester<'_, V>
+impl<V> Tester for PackageInstallTester<V>
 where
     V: Clone + Variant + Send,
 {

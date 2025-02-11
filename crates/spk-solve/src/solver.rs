@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use std::any::Any;
 use std::sync::Arc;
 
 use enum_dispatch::enum_dispatch;
@@ -14,24 +13,16 @@ use variantly::Variantly;
 
 use crate::{DecisionFormatter, Result};
 
-#[enum_dispatch(Solver)]
-#[derive(Variantly)]
-pub(crate) enum SolverImpl {
+#[enum_dispatch(Solver, SolverExt, SolverMut)]
+#[derive(Clone, Variantly)]
+pub enum SolverImpl {
     Step(crate::StepSolver),
     Resolvo(crate::solvers::ResolvoSolver),
 }
 
 #[async_trait::async_trait]
 #[enum_dispatch]
-pub trait Solver: Any {
-    /// Add a repository where the solver can get packages.
-    fn add_repository<R>(&mut self, repo: R)
-    where
-        R: Into<Arc<RepositoryHandle>>;
-
-    /// Add a request to this solver.
-    fn add_request(&mut self, request: Request);
-
+pub trait Solver {
     /// Return the PkgRequests added to the solver.
     fn get_pkg_requests(&self) -> Vec<PkgRequest>;
 
@@ -40,6 +31,13 @@ pub trait Solver: Any {
 
     /// Return a reference to the solver's list of repositories.
     fn repositories(&self) -> &[Arc<RepositoryHandle>];
+}
+
+#[async_trait::async_trait]
+#[enum_dispatch]
+pub trait SolverMut {
+    /// Add a request to this solver.
+    fn add_request(&mut self, request: Request);
 
     /// Put this solver back into its default state
     fn reset(&mut self);
@@ -79,4 +77,93 @@ pub trait Solver: Any {
     async fn solve(&mut self) -> Result<Solution>;
 
     fn update_options(&mut self, options: OptionMap);
+}
+
+impl<T> Solver for &T
+where
+    T: Solver,
+{
+    fn get_pkg_requests(&self) -> Vec<PkgRequest> {
+        T::get_pkg_requests(self)
+    }
+
+    fn get_var_requests(&self) -> Vec<VarRequest> {
+        T::get_var_requests(self)
+    }
+
+    fn repositories(&self) -> &[Arc<RepositoryHandle>] {
+        T::repositories(self)
+    }
+}
+
+impl<T> Solver for &mut T
+where
+    T: Solver,
+{
+    fn get_pkg_requests(&self) -> Vec<PkgRequest> {
+        T::get_pkg_requests(self)
+    }
+
+    fn get_var_requests(&self) -> Vec<VarRequest> {
+        T::get_var_requests(self)
+    }
+
+    fn repositories(&self) -> &[Arc<RepositoryHandle>] {
+        T::repositories(self)
+    }
+}
+
+#[async_trait::async_trait]
+impl<T> SolverMut for &mut T
+where
+    T: SolverMut + Send + Sync,
+{
+    fn add_request(&mut self, request: Request) {
+        T::add_request(self, request)
+    }
+
+    fn reset(&mut self) {
+        T::reset(self)
+    }
+
+    async fn run_and_log_resolve(&mut self, formatter: &DecisionFormatter) -> Result<Solution> {
+        T::run_and_log_resolve(self, formatter).await
+    }
+
+    async fn run_and_print_resolve(&mut self, formatter: &DecisionFormatter) -> Result<Solution> {
+        T::run_and_print_resolve(self, formatter).await
+    }
+
+    fn set_binary_only(&mut self, binary_only: bool) {
+        T::set_binary_only(self, binary_only)
+    }
+
+    async fn solve(&mut self) -> Result<Solution> {
+        T::solve(self).await
+    }
+
+    fn update_options(&mut self, options: OptionMap) {
+        T::update_options(self, options)
+    }
+}
+
+#[async_trait::async_trait]
+#[enum_dispatch]
+pub trait SolverExt: Solver {
+    /// Add a repository where the solver can get packages.
+    fn add_repository<R>(&mut self, repo: R)
+    where
+        R: Into<Arc<RepositoryHandle>>;
+}
+
+impl<T> SolverExt for &mut T
+where
+    T: SolverExt + Sync,
+{
+    fn add_repository<R>(&mut self, repo: R)
+    where
+        R: Into<Arc<RepositoryHandle>>,
+    {
+        T::add_repository(self, repo);
+    }
 }

@@ -10,7 +10,7 @@ use spk_schema::{Package, opt_name};
 use spk_solve_macros::{make_repo, request};
 
 use super::Solver;
-use crate::Solver as SolverTrait;
+use crate::SolverMut;
 
 #[rstest]
 #[tokio::test]

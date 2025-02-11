@@ -29,7 +29,7 @@ use spk_storage::fixtures::*;
 use tap::prelude::*;
 
 use crate::io::DecisionFormatterBuilder;
-use crate::solver::{Solver, SolverImpl};
+use crate::solver::{SolverExt, SolverImpl, SolverMut};
 use crate::solvers::step::{ErrorDetails, ErrorFreq};
 use crate::{Error, ResolvoSolver, Result, Solution, StepSolver, option_map, spec};
 

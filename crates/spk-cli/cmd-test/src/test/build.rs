@@ -15,18 +15,12 @@ use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
 use spk_schema::{AnyIdent, Recipe, SpecRecipe};
 use spk_solve::solution::Solution;
-use spk_solve::{
-    BoxedCdclResolverCallback,
-    DefaultCdclResolver,
-    ResolverCallback,
-    ResolvoSolver,
-    Solver,
-};
+use spk_solve::{DecisionFormatter, ResolvoSolver, SolverExt, SolverMut};
 use spk_storage as storage;
 
 use super::Tester;
 
-pub struct PackageBuildTester<'a> {
+pub struct PackageBuildTester {
     prefix: PathBuf,
     recipe: SpecRecipe,
     script: String,
@@ -34,11 +28,11 @@ pub struct PackageBuildTester<'a> {
     options: OptionMap,
     additional_requirements: Vec<Request>,
     source: BuildSource,
-    source_resolver: BoxedCdclResolverCallback<'a>,
-    build_resolver: BoxedCdclResolverCallback<'a>,
+    source_formatter: DecisionFormatter,
+    build_formatter: DecisionFormatter,
 }
 
-impl<'a> PackageBuildTester<'a> {
+impl PackageBuildTester {
     pub fn new(recipe: SpecRecipe, script: String) -> Self {
         let source =
             BuildSource::SourcePackage(recipe.ident().to_any_ident(Some(Build::Source)).into());
@@ -50,8 +44,8 @@ impl<'a> PackageBuildTester<'a> {
             options: OptionMap::default(),
             additional_requirements: Vec::new(),
             source,
-            source_resolver: Box::new(DefaultCdclResolver {}),
-            build_resolver: Box::new(DefaultCdclResolver {}),
+            source_formatter: DecisionFormatter::default(),
+            build_formatter: DecisionFormatter::default(),
         }
     }
 
@@ -80,31 +74,15 @@ impl<'a> PackageBuildTester<'a> {
         self
     }
 
-    /// Provide a function that will be called when resolving the source package.
-    ///
-    /// This function should run the provided solver runtime to
-    /// completion, returning the final result. This function
-    /// is useful for introspecting and reporting on the solve
-    /// process as needed.
-    pub fn with_source_resolver<F>(&mut self, resolver: F) -> &mut Self
-    where
-        F: ResolverCallback<Solver = ResolvoSolver, SolveResult = Solution> + 'a,
-    {
-        self.source_resolver = Box::new(resolver);
+    /// Provide a formatter to use when resolving the source package.
+    pub fn with_source_formatter(&mut self, formatter: DecisionFormatter) -> &mut Self {
+        self.source_formatter = formatter;
         self
     }
 
-    /// Provide a function that will be called when resolving the build environment.
-    ///
-    /// This function should run the provided solver runtime to
-    /// completion, returning the final result. This function
-    /// is useful for introspecting and reporting on the solve
-    /// process as needed.
-    pub fn with_build_resolver<F>(&mut self, resolver: F) -> &mut Self
-    where
-        F: ResolverCallback<Solver = ResolvoSolver, SolveResult = Solution> + 'a,
-    {
-        self.build_resolver = Box::new(resolver);
+    /// Provide a formatter to use when resolving the build environment.
+    pub fn with_build_formatter(&mut self, formatter: DecisionFormatter) -> &mut Self {
+        self.build_formatter = formatter;
         self
     }
 
@@ -136,7 +114,7 @@ impl<'a> PackageBuildTester<'a> {
         }
 
         // let (solution, _) = self.build_resolver.solve(&solver).await?;
-        let solution = self.build_resolver.solve(&solver).await?;
+        let solution = solver.run_and_print_resolve(&self.build_formatter).await?;
 
         for layer in resolve_runtime_layers(requires_localization, &solution).await? {
             rt.push_digest(layer);
@@ -184,13 +162,13 @@ impl<'a> PackageBuildTester<'a> {
         solver.add_request(request.into());
 
         // let (solution, _) = self.source_resolver.solve(&solver).await?;
-        let solution = self.source_resolver.solve(&solver).await?;
+        let solution = solver.run_and_print_resolve(&self.source_formatter).await?;
         Ok(solution)
     }
 }
 
 #[async_trait::async_trait]
-impl Tester for PackageBuildTester<'_> {
+impl Tester for PackageBuildTester {
     async fn test(&mut self) -> Result<()> {
         self.test().await
     }

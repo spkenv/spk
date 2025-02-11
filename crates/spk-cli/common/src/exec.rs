@@ -8,6 +8,7 @@ use spk_build::BinaryPackageBuilder;
 use spk_schema::Package;
 use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
 use spk_solve::solution::{PackageSource, Solution};
+use spk_solve::{SolverExt, SolverMut};
 use spk_storage as storage;
 
 use crate::Result;
@@ -15,7 +16,13 @@ use crate::Result;
 /// Build any packages in the given solution that need building.
 ///
 /// Returns a new solution of only binary packages.
-pub async fn build_required_packages(solution: &Solution) -> Result<Solution> {
+pub async fn build_required_packages<Solver>(
+    solution: &Solution,
+    _solver: Solver,
+) -> Result<Solution>
+where
+    Solver: SolverExt + SolverMut + Default,
+{
     let handle: storage::RepositoryHandle = storage::local_repository().await?.into();
     let local_repo = Arc::new(handle);
     let repos = solution.repositories();
@@ -35,10 +42,11 @@ pub async fn build_required_packages(solution: &Solution) -> Result<Solution> {
             item.spec.ident().format_ident(),
             options.format_option_map()
         );
-        let (package, components) = BinaryPackageBuilder::from_recipe((**recipe).clone())
-            .with_repositories(repos.clone())
-            .build_and_publish(&options, &*local_repo)
-            .await?;
+        let (package, components) =
+            BinaryPackageBuilder::from_recipe_with_solver((**recipe).clone(), Solver::default())
+                .with_repositories(repos.clone())
+                .build_and_publish(&options, &*local_repo)
+                .await?;
         let source = PackageSource::Repository {
             repo: local_repo.clone(),
             components,

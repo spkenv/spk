@@ -13,19 +13,12 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
 use spk_schema::{Recipe, SpecRecipe};
-use spk_solve::{
-    BoxedCdclResolverCallback,
-    DefaultCdclResolver,
-    ResolverCallback,
-    ResolvoSolver,
-    Solution,
-    Solver,
-};
+use spk_solve::{DecisionFormatter, ResolvoSolver, SolverExt, SolverMut};
 use spk_storage as storage;
 
 use super::Tester;
 
-pub struct PackageSourceTester<'a> {
+pub struct PackageSourceTester {
     prefix: PathBuf,
     recipe: SpecRecipe,
     script: String,
@@ -33,10 +26,10 @@ pub struct PackageSourceTester<'a> {
     options: OptionMap,
     additional_requirements: Vec<Request>,
     source: Option<PathBuf>,
-    env_resolver: BoxedCdclResolverCallback<'a>,
+    env_formatter: DecisionFormatter,
 }
 
-impl<'a> PackageSourceTester<'a> {
+impl PackageSourceTester {
     pub fn new(recipe: SpecRecipe, script: String) -> Self {
         Self {
             prefix: PathBuf::from("/spfs"),
@@ -46,7 +39,7 @@ impl<'a> PackageSourceTester<'a> {
             options: OptionMap::default(),
             additional_requirements: Vec::new(),
             source: None,
-            env_resolver: Box::new(DefaultCdclResolver {}),
+            env_formatter: DecisionFormatter::default(),
         }
     }
 
@@ -76,17 +69,9 @@ impl<'a> PackageSourceTester<'a> {
         self
     }
 
-    /// Provide a function that will be called when resolving the test environment.
-    ///
-    /// This function should run the provided solver runtime to
-    /// completion, returning the final result. This function
-    /// is useful for introspecting and reporting on the solve
-    /// process as needed.
-    pub fn watch_environment_resolve<F>(&mut self, resolver: F) -> &mut Self
-    where
-        F: ResolverCallback<Solver = ResolvoSolver, SolveResult = Solution> + 'a,
-    {
-        self.env_resolver = Box::new(resolver);
+    /// Provide a formatter to use when resolving the test environment.
+    pub fn watch_environment_formatter(&mut self, formatter: DecisionFormatter) -> &mut Self {
+        self.env_formatter = formatter;
         self
     }
 
@@ -124,7 +109,7 @@ impl<'a> PackageSourceTester<'a> {
         }
 
         // let (solution, _) = self.env_resolver.solve(&solver).await?;
-        let solution = self.env_resolver.solve(&solver).await?;
+        let solution = solver.run_and_print_resolve(&self.env_formatter).await?;
 
         for layer in resolve_runtime_layers(requires_localization, &solution).await? {
             rt.push_digest(layer);
@@ -145,7 +130,7 @@ impl<'a> PackageSourceTester<'a> {
 }
 
 #[async_trait::async_trait]
-impl Tester for PackageSourceTester<'_> {
+impl Tester for PackageSourceTester {
     async fn test(&mut self) -> Result<()> {
         self.test().await
     }
