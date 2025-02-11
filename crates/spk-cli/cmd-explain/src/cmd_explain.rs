@@ -7,7 +7,7 @@ use std::any::Any;
 use clap::Args;
 use miette::Result;
 use spk_cli_common::{CommandArgs, Run, flags};
-use spk_solve::{Package, Solver};
+use spk_solve::Solver;
 
 /// Show the resolve process for a set of packages.
 #[derive(Args)]
@@ -91,11 +91,16 @@ impl Run for Explain {
                 .build();
             formatter.run_and_print_resolve(solver).await?;
         } else {
-            // TODO: print the solve
             let solution = solver.solve().await?;
-            for item in solution.items() {
-                println!("{}", item.spec.ident());
-            }
+            let output = solution
+                .format_solution_with_highest_versions(
+                    self.verbose + 1,
+                    solver.repositories(),
+                    // the order coming out of resolvo is ... random?
+                    true,
+                )
+                .await?;
+            println!("{output}");
         }
 
         Ok(0)
