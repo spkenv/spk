@@ -21,7 +21,7 @@ use spk_solve_validation::{default_validators, Validators};
 use spk_storage::RepositoryHandle;
 
 use crate::abstract_solver::AbstractSolver;
-use crate::{Error, Result};
+use crate::{DecisionFormatter, Error, Result};
 
 #[cfg(test)]
 #[path = "cdcl_solver_tests.rs"]
@@ -283,6 +283,22 @@ impl AbstractSolver for Solver {
         self.repos.truncate(0);
         self.requests.truncate(0);
         self._validators = Cow::from(default_validators());
+    }
+
+    async fn run_and_print_resolve(&mut self, formatter: &DecisionFormatter) -> Result<Solution> {
+        let solution = self.solve().await?;
+        let output = solution
+            .format_solution_with_highest_versions(
+                formatter.settings.verbosity,
+                self.repositories(),
+                // the order coming out of resolvo is ... random?
+                true,
+            )
+            .await?;
+        if formatter.settings.show_solution {
+            println!("{output}");
+        }
+        Ok(solution)
     }
 
     fn set_binary_only(&mut self, binary_only: bool) {

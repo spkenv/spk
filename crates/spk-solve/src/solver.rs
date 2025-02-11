@@ -57,7 +57,7 @@ use super::error;
 use crate::abstract_solver::AbstractSolver;
 use crate::error::OutOfOptions;
 use crate::option_map::OptionMap;
-use crate::{Error, Result};
+use crate::{DecisionFormatter, Error, Result};
 
 // Public to allow other tests to use its macros
 #[cfg(test)]
@@ -1159,6 +1159,11 @@ impl AbstractSolver for Solver {
         self.number_of_steps_back.store(0, Ordering::SeqCst);
         self.error_frequency.clear();
         self.problem_packages.clear();
+    }
+
+    async fn run_and_print_resolve(&mut self, formatter: &DecisionFormatter) -> Result<Solution> {
+        let (solution, _graph) = formatter.run_and_print_resolve(self).await?;
+        Ok(solution)
     }
 
     fn set_binary_only(&mut self, binary_only: bool) {
