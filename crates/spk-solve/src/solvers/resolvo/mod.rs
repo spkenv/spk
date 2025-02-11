@@ -86,7 +86,7 @@ impl Solver {
             ));
             let (solver, solved) = loop {
                 let mut this_iter_provider = provider.take().expect("provider is always Some");
-                let pkg_requirements = this_iter_provider.pkg_requirements(&requests);
+                let pkg_requirements = this_iter_provider.root_pkg_requirements(&requests);
                 let mut var_requirements = this_iter_provider.var_requirements(&requests);
                 // XXX: Not sure if this will result in the desired precedence
                 // when options and var requests for the same thing exist.
