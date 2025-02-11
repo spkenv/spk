@@ -935,18 +935,48 @@ impl DependencyProvider for SpkProvider {
                 (
                     SpkSolvable::LocatedBuildIdentWithComponent(a),
                     SpkSolvable::LocatedBuildIdentWithComponent(b),
-                ) => match b.ident.version().cmp(a.ident.version()) {
-                    std::cmp::Ordering::Equal => {
-                        // Sort source builds last
-                        match (a.ident.build(), b.ident.build()) {
-                            (Build::Source, Build::Source) => std::cmp::Ordering::Equal,
-                            (Build::Source, _) => std::cmp::Ordering::Greater,
-                            (_, Build::Source) => std::cmp::Ordering::Less,
-                            _ => std::cmp::Ordering::Equal,
+                ) => {
+                    // Sort source packages last to prefer using any existing
+                    // build of whatever version over building from source.
+                    match (a.ident.build(), b.ident.build()) {
+                        (Build::Source, Build::Source) => {}
+                        (Build::Source, _) => return std::cmp::Ordering::Greater,
+                        (_, Build::Source) => return std::cmp::Ordering::Less,
+                        _ => {}
+                    };
+                    // Sort embedded packages second last, even if an embedded
+                    // package has the highest version.
+                    match (a.ident.build(), b.ident.build()) {
+                        (Build::Embedded(_), Build::Embedded(_)) => {}
+                        (Build::Embedded(_), _) => return std::cmp::Ordering::Greater,
+                        (_, Build::Embedded(_)) => return std::cmp::Ordering::Less,
+                        _ => {}
+                    };
+                    // Then prefer higher versions...
+                    match b.ident.version().cmp(a.ident.version()) {
+                        std::cmp::Ordering::Equal => {
+                            // Sort source builds last
+                            match (a.ident.build(), b.ident.build()) {
+                                (Build::Source, Build::Source) => {}
+                                (Build::Source, _) => return std::cmp::Ordering::Greater,
+                                (_, Build::Source) => return std::cmp::Ordering::Less,
+                                _ => {}
+                            };
+                            // Sort embedded packges second last
+                            match (a.ident.build(), b.ident.build()) {
+                                (Build::Embedded(_), Build::Embedded(_)) => {
+                                    // TODO: Could perhaps sort on the parent
+                                    // package to prefer a newer parent.
+                                    std::cmp::Ordering::Equal
+                                }
+                                (Build::Embedded(_), _) => std::cmp::Ordering::Greater,
+                                (_, Build::Embedded(_)) => std::cmp::Ordering::Less,
+                                _ => std::cmp::Ordering::Equal,
+                            }
                         }
+                        ord => ord,
                     }
-                    ord => ord,
-                },
+                }
                 (
                     SpkSolvable::GlobalVar {
                         key: a_key,
