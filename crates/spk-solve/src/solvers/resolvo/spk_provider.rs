@@ -3,7 +3,7 @@
 // https://github.com/spkenv/spk
 
 use std::borrow::Cow;
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -355,7 +355,7 @@ pub(crate) struct SpkProvider {
     /// queried, it is no longer possible to add more possible values without
     /// restarting the solve.
     queried_global_var_values: RefCell<HashSet<OptNameBuf>>,
-    cancel_solving: Cell<bool>,
+    cancel_solving: RefCell<Option<String>>,
     binary_only: bool,
     /// When recursively exploring building packages from source, track chain
     /// of packages to detect cycles.
@@ -561,7 +561,7 @@ impl SpkProvider {
     }
 
     pub fn is_canceled(&self) -> bool {
-        self.cancel_solving.get()
+        self.cancel_solving.borrow().is_some()
     }
 
     fn request_to_known_dependencies(&self, requirement: &Request) -> KnownDependencies {
@@ -604,7 +604,10 @@ impl SpkProvider {
                                 {
                                     // Seeing a new value for a var that has
                                     // already locked in the list of candidates.
-                                    self.cancel_solving.set(true);
+                                    *self.cancel_solving.borrow_mut() = Some(format!(
+                                        "Saw new value for global var: {}/{value}",
+                                        var_request.var.without_namespace()
+                                    ));
                                 }
                                 let dep_name =
                                     self.pool.intern_package_name(ResolvoPackageName::GlobalVar(
@@ -1384,7 +1387,10 @@ impl DependencyProvider for SpkProvider {
                     {
                         // Seeing a new value for a var that has already locked
                         // in the list of candidates.
-                        self.cancel_solving.set(true);
+                        *self.cancel_solving.borrow_mut() = Some(format!(
+                            "Saw new value for global var: {}/{value}",
+                            var_opt.var.without_namespace()
+                        ));
                     }
                     let dep_name = self.pool.intern_package_name(ResolvoPackageName::GlobalVar(
                         var_opt.var.without_namespace().to_owned(),
@@ -1415,10 +1421,10 @@ impl DependencyProvider for SpkProvider {
     }
 
     fn should_cancel_with_value(&self) -> Option<Box<dyn std::any::Any>> {
-        if self.cancel_solving.get() {
+        if let Some(msg) = self.cancel_solving.borrow().as_ref() {
             // Eventually there will be more than one reason the solve is
             // cancelled...
-            Some(Box::new(()))
+            Some(Box::new(msg.clone()))
         } else {
             None
         }
