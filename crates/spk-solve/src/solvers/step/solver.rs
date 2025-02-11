@@ -1165,6 +1165,11 @@ impl SolverTrait for Solver {
         self.problem_packages.clear();
     }
 
+    async fn run_and_log_resolve(&mut self, formatter: &DecisionFormatter) -> Result<Solution> {
+        let (solution, _graph) = formatter.run_and_log_resolve(self).await?;
+        Ok(solution)
+    }
+
     async fn run_and_print_resolve(&mut self, formatter: &DecisionFormatter) -> Result<Solution> {
         let (solution, _graph) = formatter.run_and_print_resolve(self).await?;
         Ok(solution)

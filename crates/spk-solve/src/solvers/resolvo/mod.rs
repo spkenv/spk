@@ -307,6 +307,11 @@ impl SolverTrait for Solver {
         self._validators = Cow::from(default_validators());
     }
 
+    async fn run_and_log_resolve(&mut self, formatter: &DecisionFormatter) -> Result<Solution> {
+        // This solver doesn't currently support tracing.
+        self.run_and_print_resolve(formatter).await
+    }
+
     async fn run_and_print_resolve(&mut self, formatter: &DecisionFormatter) -> Result<Solution> {
         let solution = self.solve().await?;
         let output = solution

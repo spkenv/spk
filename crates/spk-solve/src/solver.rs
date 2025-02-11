@@ -46,6 +46,17 @@ pub trait Solver: Any {
 
     /// Run the solver as configured using the given formatter.
     ///
+    /// "log" means that solver progress is output via tracing, as
+    /// configured by the formatter.
+    ///
+    /// The solution may also be printed, if found, as configured by the
+    /// formatter.
+    ///
+    /// Not all formatter settings may be supported by every solver.
+    async fn run_and_log_resolve(&mut self, formatter: &DecisionFormatter) -> Result<Solution>;
+
+    /// Run the solver as configured using the given formatter.
+    ///
     /// "print" means that solver progress is printed to the console, as
     /// configured by the formatter.
     ///
