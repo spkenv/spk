@@ -119,12 +119,27 @@ impl ResolvoPackageName {
             ResolvoPackageName::PkgNameBufWithComponent(pkg_name) => {
                 let mut located_builds = Vec::new();
 
+                let root_pkg_request = provider.global_pkg_requests.get(&pkg_name.name);
+
                 for repo in &provider.repos {
                     let versions = repo
                         .list_package_versions(&pkg_name.name)
                         .await
                         .unwrap_or_default();
                     for version in versions.iter() {
+                        // Skip versions known to be excluded to avoid the
+                        // overhead of reading all the builds and their package
+                        // specs. The tradeoff is that resolvo doesn't learn
+                        // these builds exist to use them when constructing
+                        // error messages. However from observation solver
+                        // errors already don't mention versions that aren't
+                        // applicable to root requests.
+                        if let Some(pkg_request) = root_pkg_request {
+                            if !pkg_request.pkg.version.is_applicable(version).is_ok() {
+                                continue;
+                            }
+                        }
+
                         // TODO: We need a borrowing version of this to avoid cloning.
                         let pkg_version =
                             VersionIdent::new(pkg_name.name.clone(), (**version).clone());
@@ -325,6 +340,9 @@ enum CanBuildFromSource {
 pub(crate) struct SpkProvider {
     pub(crate) pool: Pool<RequestVS, ResolvoPackageName>,
     repos: Vec<Arc<RepositoryHandle>>,
+    /// Global package requests. These can be used to constrain the candidates
+    /// returned for these packages.
+    global_pkg_requests: HashMap<PkgNameBuf, PkgRequest>,
     /// Global options, like what might be specified with `--opt` to `spk env`.
     /// Indexed by name. If multiple requests happen to exist with the same
     /// name, the last one is kept.
@@ -450,6 +468,7 @@ impl SpkProvider {
         Self {
             pool: Pool::new(),
             repos,
+            global_pkg_requests: Default::default(),
             global_var_requests: Default::default(),
             interned_solvables: Default::default(),
             known_global_var_values: Default::default(),
@@ -510,7 +529,27 @@ impl SpkProvider {
         known_deps
     }
 
-    pub fn pkg_requirements(&self, requests: &[Request]) -> Vec<Requirement> {
+    /// Add any package requests found in the given requests to the global
+    /// package requests, returning a list of Requirement.
+    pub(crate) fn root_pkg_requirements(&mut self, requests: &[Request]) -> Vec<Requirement> {
+        self.global_pkg_requests.reserve(requests.len());
+        requests
+            .iter()
+            .filter_map(|req| match req {
+                Request::Pkg(pkg) => Some(pkg),
+                _ => None,
+            })
+            .flat_map(|req| {
+                self.global_pkg_requests
+                    .insert(req.pkg.name().to_owned(), req.clone());
+                self.pkg_request_to_known_dependencies(req).requirements
+            })
+            .collect()
+    }
+
+    /// Return a list of requirements for all the package requests found in the
+    /// given requests.
+    fn dep_pkg_requirements(&self, requests: &[Request]) -> Vec<Requirement> {
         requests
             .iter()
             .filter_map(|req| match req {
@@ -604,6 +643,7 @@ impl SpkProvider {
         Self {
             pool: Pool::new(),
             repos: self.repos.clone(),
+            global_pkg_requests: self.global_pkg_requests.clone(),
             global_var_requests: self.global_var_requests.clone(),
             interned_solvables: Default::default(),
             known_global_var_values: RefCell::new(self.known_global_var_values.take()),
@@ -1119,7 +1159,7 @@ impl DependencyProvider for SpkProvider {
                         });
                         known_deps
                             .requirements
-                            .extend(self.pkg_requirements(&component_spec.requirements));
+                            .extend(self.dep_pkg_requirements(&component_spec.requirements));
                     }
                 }
                 // Also add dependencies on any packages embedded in this
