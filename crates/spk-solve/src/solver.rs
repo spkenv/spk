@@ -12,7 +12,7 @@ use spk_solve_solution::Solution;
 use spk_storage::RepositoryHandle;
 use variantly::Variantly;
 
-use crate::Result;
+use crate::{DecisionFormatter, Result};
 
 #[enum_dispatch(Solver)]
 #[derive(Variantly)]
@@ -43,6 +43,17 @@ pub trait Solver: Any {
 
     /// Put this solver back into its default state
     fn reset(&mut self);
+
+    /// Run the solver as configured using the given formatter.
+    ///
+    /// "print" means that solver progress is printed to the console, as
+    /// configured by the formatter.
+    ///
+    /// The solution may also be printed, if found, as configured by the
+    /// formatter.
+    ///
+    /// Not all formatter settings may be supported by every solver.
+    async fn run_and_print_resolve(&mut self, formatter: &DecisionFormatter) -> Result<Solution>;
 
     /// If true, only solve pre-built binary packages.
     ///

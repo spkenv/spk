@@ -53,10 +53,10 @@ use spk_solve_validation::{
 };
 use spk_storage::RepositoryHandle;
 
-use crate::error::OutOfOptions;
+use crate::error::{self, OutOfOptions};
 use crate::option_map::OptionMap;
 use crate::solver::Solver as SolverTrait;
-use crate::{Error, Result, error};
+use crate::{DecisionFormatter, Error, Result};
 
 /// Structure to hold whether the three kinds of impossible checks are
 /// enabled or disabled in a solver.
@@ -1163,6 +1163,11 @@ impl SolverTrait for Solver {
         self.number_of_steps_back.store(0, Ordering::SeqCst);
         self.error_frequency.clear();
         self.problem_packages.clear();
+    }
+
+    async fn run_and_print_resolve(&mut self, formatter: &DecisionFormatter) -> Result<Solution> {
+        let (solution, _graph) = formatter.run_and_print_resolve(self).await?;
+        Ok(solution)
     }
 
     fn set_binary_only(&mut self, binary_only: bool) {
