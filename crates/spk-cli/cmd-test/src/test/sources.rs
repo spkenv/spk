@@ -13,29 +13,37 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
 use spk_schema::{Recipe, SpecRecipe};
-use spk_solve::{DecisionFormatter, ResolvoSolver, SolverExt, SolverMut};
+use spk_solve::{DecisionFormatter, SolverExt, SolverMut};
 use spk_storage as storage;
 
 use super::Tester;
 
-pub struct PackageSourceTester {
+pub struct PackageSourceTester<Solver>
+where
+    Solver: Send,
+{
     prefix: PathBuf,
     recipe: SpecRecipe,
     script: String,
     repos: Vec<Arc<storage::RepositoryHandle>>,
+    solver: Solver,
     options: OptionMap,
     additional_requirements: Vec<Request>,
     source: Option<PathBuf>,
     env_formatter: DecisionFormatter,
 }
 
-impl PackageSourceTester {
-    pub fn new(recipe: SpecRecipe, script: String) -> Self {
+impl<Solver> PackageSourceTester<Solver>
+where
+    Solver: SolverExt + SolverMut + Send,
+{
+    pub fn new(recipe: SpecRecipe, script: String, solver: Solver) -> Self {
         Self {
             prefix: PathBuf::from("/spfs"),
             recipe,
             script,
             repos: Vec::new(),
+            solver,
             options: OptionMap::default(),
             additional_requirements: Vec::new(),
             source: None,
@@ -84,11 +92,10 @@ impl PackageSourceTester {
 
         let requires_localization = rt.config.mount_backend.requires_localization();
 
-        let mut solver = ResolvoSolver::default();
-        solver.set_binary_only(true);
-        solver.update_options(self.options.clone());
+        self.solver.set_binary_only(true);
+        self.solver.update_options(self.options.clone());
         for repo in self.repos.iter().cloned() {
-            solver.add_repository(repo);
+            self.solver.add_repository(repo);
         }
 
         if self.source.is_none() {
@@ -101,15 +108,18 @@ impl PackageSourceTester {
                 .with_prerelease(Some(PreReleasePolicy::IncludeAll))
                 .with_pin(None)
                 .with_compat(None);
-            solver.add_request(request.into());
+            self.solver.add_request(request.into());
         }
 
         for request in self.additional_requirements.drain(..) {
-            solver.add_request(request)
+            self.solver.add_request(request)
         }
 
         // let (solution, _) = self.env_resolver.solve(&solver).await?;
-        let solution = solver.run_and_print_resolve(&self.env_formatter).await?;
+        let solution = self
+            .solver
+            .run_and_print_resolve(&self.env_formatter)
+            .await?;
 
         for layer in resolve_runtime_layers(requires_localization, &solution).await? {
             rt.push_digest(layer);
@@ -130,7 +140,10 @@ impl PackageSourceTester {
 }
 
 #[async_trait::async_trait]
-impl Tester for PackageSourceTester {
+impl<Solver> Tester for PackageSourceTester<Solver>
+where
+    Solver: SolverExt + SolverMut + Send,
+{
     async fn test(&mut self) -> Result<()> {
         self.test().await
     }
