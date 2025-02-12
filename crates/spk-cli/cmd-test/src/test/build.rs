@@ -15,16 +15,20 @@ use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
 use spk_schema::{AnyIdent, Recipe, SpecRecipe};
 use spk_solve::solution::Solution;
-use spk_solve::{DecisionFormatter, ResolvoSolver, SolverExt, SolverMut};
+use spk_solve::{DecisionFormatter, SolverExt, SolverMut};
 use spk_storage as storage;
 
 use super::Tester;
 
-pub struct PackageBuildTester {
+pub struct PackageBuildTester<Solver>
+where
+    Solver: Send,
+{
     prefix: PathBuf,
     recipe: SpecRecipe,
     script: String,
     repos: Vec<Arc<storage::RepositoryHandle>>,
+    solver: Solver,
     options: OptionMap,
     additional_requirements: Vec<Request>,
     source: BuildSource,
@@ -32,8 +36,11 @@ pub struct PackageBuildTester {
     build_formatter: DecisionFormatter,
 }
 
-impl PackageBuildTester {
-    pub fn new(recipe: SpecRecipe, script: String) -> Self {
+impl<Solver> PackageBuildTester<Solver>
+where
+    Solver: SolverExt + SolverMut + Default + Send,
+{
+    pub fn new(recipe: SpecRecipe, script: String, solver: Solver) -> Self {
         let source =
             BuildSource::SourcePackage(recipe.ident().to_any_ident(Some(Build::Source)).into());
         Self {
@@ -41,6 +48,7 @@ impl PackageBuildTester {
             recipe,
             script,
             repos: Vec::new(),
+            solver,
             options: OptionMap::default(),
             additional_requirements: Vec::new(),
             source,
@@ -101,20 +109,22 @@ impl PackageBuildTester {
             }
         }
 
-        let mut solver = ResolvoSolver::default();
-        solver.set_binary_only(true);
-        solver.update_options(self.options.clone());
+        self.solver.set_binary_only(true);
+        self.solver.update_options(self.options.clone());
         for repo in self.repos.iter().cloned() {
-            solver.add_repository(repo);
+            self.solver.add_repository(repo);
         }
         // TODO
         // solver.configure_for_build_environment(&self.recipe)?;
         for request in self.additional_requirements.drain(..) {
-            solver.add_request(request)
+            self.solver.add_request(request)
         }
 
         // let (solution, _) = self.build_resolver.solve(&solver).await?;
-        let solution = solver.run_and_print_resolve(&self.build_formatter).await?;
+        let solution = self
+            .solver
+            .run_and_print_resolve(&self.build_formatter)
+            .await?;
 
         for layer in resolve_runtime_layers(requires_localization, &solution).await? {
             rt.push_digest(layer);
@@ -140,7 +150,7 @@ impl PackageBuildTester {
     }
 
     async fn resolve_source_package(&mut self, package: &AnyIdent) -> Result<Solution> {
-        let mut solver = ResolvoSolver::default();
+        let mut solver = Solver::default();
         solver.update_options(self.options.clone());
         let local_repo: Arc<storage::RepositoryHandle> =
             Arc::new(storage::local_repository().await?.into());
@@ -168,7 +178,10 @@ impl PackageBuildTester {
 }
 
 #[async_trait::async_trait]
-impl Tester for PackageBuildTester {
+impl<Solver> Tester for PackageBuildTester<Solver>
+where
+    Solver: SolverExt + SolverMut + Default + Send,
+{
     async fn test(&mut self) -> Result<()> {
         self.test().await
     }
