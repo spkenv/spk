@@ -32,7 +32,7 @@ pub struct CmdTest {
     #[clap(flatten)]
     pub runtime: flags::Runtime,
     #[clap(flatten)]
-    pub repos: flags::Repositories,
+    pub solver: flags::Solver,
     #[clap(flatten)]
     pub workspace: flags::Workspace,
 
@@ -69,7 +69,7 @@ impl Run for CmdTest {
         let options = self.options.get_options()?;
         let (_runtime, repos) = tokio::try_join!(
             self.runtime.ensure_active_runtime(&["test"]),
-            self.repos.get_repos_for_non_destructive_operation()
+            self.solver.repos.get_repos_for_non_destructive_operation()
         )?;
         let repos = repos
             .into_iter()
@@ -169,8 +169,13 @@ impl Run for CmdTest {
 
                         let mut tester: Box<dyn Tester> = match stage {
                             TestStage::Sources => {
-                                let mut tester =
-                                    PackageSourceTester::new((*recipe).clone(), test.script());
+                                let solver = self.solver.get_solver(&self.options).await?;
+
+                                let mut tester = PackageSourceTester::new(
+                                    (*recipe).clone(),
+                                    test.script(),
+                                    solver,
+                                );
 
                                 tester
                                     .with_options(variant.options().into_owned())
@@ -183,8 +188,13 @@ impl Run for CmdTest {
                             }
 
                             TestStage::Build => {
-                                let mut tester =
-                                    PackageBuildTester::new((*recipe).clone(), test.script());
+                                let solver = self.solver.get_solver(&self.options).await?;
+
+                                let mut tester = PackageBuildTester::new(
+                                    (*recipe).clone(),
+                                    test.script(),
+                                    solver,
+                                );
 
                                 tester
                                     .with_options(variant.options().into_owned())
@@ -215,10 +225,13 @@ impl Run for CmdTest {
                             }
 
                             TestStage::Install => {
+                                let solver = self.solver.get_solver(&self.options).await?;
+
                                 let mut tester = PackageInstallTester::new(
                                     (*recipe).clone(),
                                     test.script(),
                                     &variant,
+                                    solver,
                                 );
 
                                 tester
