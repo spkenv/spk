@@ -54,9 +54,6 @@ pub struct MakeBinary {
     #[clap(flatten)]
     pub variant: flags::Variant,
 
-    #[clap(flatten)]
-    pub formatter_settings: flags::DecisionFormatterSettings,
-
     /// Allow dependencies of the package being built to have a dependency on
     /// this package.
     #[clap(long)]
@@ -164,7 +161,8 @@ impl Run for MakeBinary {
 
                 // Always show the solution packages for the solves
                 let mut fmt_builder = self
-                    .formatter_settings
+                    .solver
+                    .decision_formatter_settings
                     .get_formatter_builder(self.verbose)?;
                 let src_formatter = fmt_builder
                     .with_solution(true)

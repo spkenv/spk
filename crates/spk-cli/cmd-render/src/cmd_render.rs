@@ -24,9 +24,6 @@ pub struct Render {
     #[clap(short, long, global = true, action = clap::ArgAction::Count)]
     pub verbose: u8,
 
-    #[clap(flatten)]
-    pub formatter_settings: flags::DecisionFormatterSettings,
-
     /// The packages to resolve and render
     #[clap(name = "PKG", required = true)]
     packages: Vec<String>,
@@ -52,7 +49,10 @@ impl Run for Render {
             solver.add_request(name);
         }
 
-        let formatter = self.formatter_settings.get_formatter(self.verbose)?;
+        let formatter = self
+            .solver
+            .decision_formatter_settings
+            .get_formatter(self.verbose)?;
         let solution = solver.run_and_print_resolve(&formatter).await?;
 
         let solution = build_required_packages(&solution, solver.clone()).await?;

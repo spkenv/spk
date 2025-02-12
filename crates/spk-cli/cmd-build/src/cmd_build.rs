@@ -44,9 +44,6 @@ pub struct Build {
     #[clap(flatten)]
     variant: flags::Variant,
 
-    #[clap(flatten)]
-    pub formatter_settings: flags::DecisionFormatterSettings,
-
     /// Allow dependencies of the package being built to have a dependency on
     /// this package.
     #[clap(long)]
@@ -114,7 +111,6 @@ impl Run for Build {
                 env: self.env,
                 packages,
                 variant: self.variant.clone(),
-                formatter_settings: self.formatter_settings.clone(),
                 allow_circular_dependencies: self.allow_circular_dependencies,
                 created_builds: spk_cli_common::BuildResult::default(),
             };
