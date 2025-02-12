@@ -234,6 +234,9 @@ pub struct Solver {
     #[clap(flatten)]
     pub repos: Repositories,
 
+    #[clap(flatten)]
+    pub decision_formatter_settings: DecisionFormatterSettings,
+
     /// If true, build packages from source if needed
     #[clap(long)]
     pub allow_builds: bool,

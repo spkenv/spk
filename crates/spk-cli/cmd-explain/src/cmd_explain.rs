@@ -20,9 +20,6 @@ pub struct Explain {
     #[clap(short, long, global = true, action = clap::ArgAction::Count)]
     pub verbose: u8,
 
-    #[clap(flatten)]
-    pub formatter_settings: flags::DecisionFormatterSettings,
-
     /// The requests to resolve
     #[clap(name = "REQUESTS", required = true)]
     pub requested: Vec<String>,
@@ -82,7 +79,8 @@ impl Run for Explain {
 
         // Always show the solution packages for the solve
         let formatter = self
-            .formatter_settings
+            .solver
+            .decision_formatter_settings
             .get_formatter_builder(self.verbose + 1)?
             .with_solution(true)
             .build();
