@@ -183,7 +183,7 @@ where
     Solver: SolverExt + SolverMut + Default + Send,
 {
     async fn test(&mut self) -> Result<()> {
-        self.test().await
+        PackageBuildTester::test(self).await
     }
     fn prefix(&self) -> &Path {
         &self.prefix
