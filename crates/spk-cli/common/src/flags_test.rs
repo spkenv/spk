@@ -9,6 +9,8 @@ use spk_schema::ident::VarRequest;
 use spk_schema::option_map::HOST_OPTIONS;
 use spk_solve::Solver;
 
+use crate::flags::{DecisionFormatterSettings, SolverToRun, SolverToShow};
+
 #[rstest]
 #[case(&["hello:world"], &[("hello", "world")])]
 #[case(&["hello=world"], &[("hello", "world")])]
@@ -58,6 +60,26 @@ async fn test_get_solver_with_host_options(#[values(true, false)] no_host: bool)
             disable_repo: Default::default(),
             when: None,
             legacy_spk_version_tags: false,
+        },
+        decision_formatter_settings: DecisionFormatterSettings {
+            time: Default::default(),
+            increase_verbosity: Default::default(),
+            max_verbosity_increase_level: Default::default(),
+            timeout: Default::default(),
+            show_solution: Default::default(),
+            long_solves: Default::default(),
+            max_frequent_errors: Default::default(),
+            status_bar: Default::default(),
+            solver_to_run: SolverToRun::Cli,
+            solver_to_show: SolverToShow::Cli,
+            show_search_size: Default::default(),
+            compare_solvers: Default::default(),
+            stop_on_block: Default::default(),
+            step_on_block: Default::default(),
+            step_on_decision: Default::default(),
+            output_to_dir: Default::default(),
+            output_to_dir_min_verbosity: Default::default(),
+            output_file_prefix: Default::default(),
         },
         allow_builds: false,
         check_impossible_initial: false,

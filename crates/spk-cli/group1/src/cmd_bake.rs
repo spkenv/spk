@@ -64,9 +64,6 @@ pub struct Bake {
     #[clap(short, long, global = true, action = clap::ArgAction::Count)]
     pub verbose: u8,
 
-    #[clap(flatten)]
-    pub formatter_settings: flags::DecisionFormatterSettings,
-
     /// The requests to resolve and bake
     #[clap(name = "REQUESTS")]
     pub requested: Vec<String>,
@@ -238,7 +235,10 @@ impl Bake {
             solver.add_request(request)
         }
 
-        let formatter = self.formatter_settings.get_formatter(self.verbose)?;
+        let formatter = self
+            .solver
+            .decision_formatter_settings
+            .get_formatter(self.verbose)?;
         let solution = solver.run_and_print_resolve(&formatter).await?;
 
         // The solution order is the order things were found during

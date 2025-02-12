@@ -39,9 +39,6 @@ pub struct CmdTest {
     #[clap(short, long, global = true, action = clap::ArgAction::Count)]
     pub verbose: u8,
 
-    #[clap(flatten)]
-    pub formatter_settings: flags::DecisionFormatterSettings,
-
     /// Test in the current directory, instead of the source package
     ///
     /// This is mostly relevant when testing source and build stages
@@ -158,7 +155,8 @@ impl Run for CmdTest {
                     );
                     for (index, test) in selected.into_iter().enumerate() {
                         let mut builder = self
-                            .formatter_settings
+                            .solver
+                            .decision_formatter_settings
                             .get_formatter_builder(self.verbose)?;
                         let src_formatter = builder.with_header("Source Resolver ").build();
                         let build_src_formatter =
