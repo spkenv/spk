@@ -4,7 +4,7 @@
 
 use std::cmp::max;
 use std::collections::VecDeque;
-use std::fmt::{Display, Write};
+use std::fmt::Write;
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, ErrorKind, Write as IOWrite};
 use std::path::{Path, PathBuf};
@@ -59,6 +59,7 @@ const BY_USER: &str = "by user";
 const CLI_SOLVER: &str = "cli";
 const IMPOSSIBLE_CHECKS_SOLVER: &str = "checks";
 const ALL_SOLVERS: &str = "all";
+const RESOLVO_SOLVER: &str = "resolvo";
 
 const UNABLE_TO_GET_OUTPUT_FILE_LOCK: &str = "Unable to get lock to write solver output to file";
 const UNABLE_TO_WRITE_OUTPUT_MESSAGE: &str = "Unable to write solver output message to file";
@@ -1033,14 +1034,22 @@ enum LoopOutcome {
     Success,
 }
 
-#[derive(PartialEq, Eq, Clone, Debug, Default)]
+#[derive(PartialEq, Eq, Clone, Debug, Default, strum::Display)]
 pub enum MultiSolverKind {
+    #[strum(to_string = "Unchanged")]
     Unchanged,
+    #[strum(to_string = "All Impossible Checks")]
     AllImpossibleChecks,
     // This isn't a solver on its own. It indicates: the run all the
     // solvers in parallel but show the output from the unchanged one.
+    // This runs all the solvers implemented in the original solver. At least
+    // for now, it is not possible to run both the original solver and the
+    // new solver in parallel.
     #[default]
+    #[strum(to_string = "All")]
     All,
+    #[strum(to_string = "Resolvo")]
+    Resolvo,
 }
 
 impl MultiSolverKind {
@@ -1055,6 +1064,7 @@ impl MultiSolverKind {
             MultiSolverKind::Unchanged => CLI_SOLVER,
             MultiSolverKind::AllImpossibleChecks => IMPOSSIBLE_CHECKS_SOLVER,
             MultiSolverKind::All => ALL_SOLVERS,
+            MultiSolverKind::Resolvo => RESOLVO_SOLVER,
         }
     }
 
@@ -1079,17 +1089,6 @@ impl MultiSolverKind {
             IMPOSSIBLE_CHECKS_SOLVER => MultiSolverKind::AllImpossibleChecks,
             _ => MultiSolverKind::Unchanged,
         }
-    }
-}
-
-impl Display for MultiSolverKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = match self {
-            MultiSolverKind::Unchanged => "Unchanged",
-            MultiSolverKind::AllImpossibleChecks => "All Impossible Checks",
-            MultiSolverKind::All => "All",
-        };
-        write!(f, "{name}")
     }
 }
 
@@ -1228,6 +1227,7 @@ impl DecisionFormatter {
                     ignore_failure: false,
                 },
             ]),
+            MultiSolverKind::Resolvo => unreachable!(),
         }
     }
 
