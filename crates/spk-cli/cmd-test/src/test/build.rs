@@ -38,7 +38,7 @@ where
 
 impl<Solver> PackageBuildTester<Solver>
 where
-    Solver: SolverExt + SolverMut + Default + Send,
+    Solver: SolverExt + SolverMut + Clone + Send,
 {
     pub fn new(recipe: SpecRecipe, script: String, solver: Solver) -> Self {
         let source =
@@ -109,22 +109,22 @@ where
             }
         }
 
-        self.solver.set_binary_only(true);
-        self.solver.update_options(self.options.clone());
+        // Use a clone of the solver before changing settings so
+        // `resolve_source_package` can do the same.
+        let mut solver = self.solver.clone();
+        solver.set_binary_only(true);
+        solver.update_options(self.options.clone());
         for repo in self.repos.iter().cloned() {
-            self.solver.add_repository(repo);
+            solver.add_repository(repo);
         }
         // TODO
         // solver.configure_for_build_environment(&self.recipe)?;
         for request in self.additional_requirements.drain(..) {
-            self.solver.add_request(request)
+            solver.add_request(request)
         }
 
         // let (solution, _) = self.build_resolver.solve(&solver).await?;
-        let solution = self
-            .solver
-            .run_and_print_resolve(&self.build_formatter)
-            .await?;
+        let solution = solver.run_and_print_resolve(&self.build_formatter).await?;
 
         for layer in resolve_runtime_layers(requires_localization, &solution).await? {
             rt.push_digest(layer);
@@ -150,7 +150,9 @@ where
     }
 
     async fn resolve_source_package(&mut self, package: &AnyIdent) -> Result<Solution> {
-        let mut solver = Solver::default();
+        // Use a clone of the solver before changing settings so `test` can do
+        // the same.
+        let mut solver = self.solver.clone();
         solver.update_options(self.options.clone());
         let local_repo: Arc<storage::RepositoryHandle> =
             Arc::new(storage::local_repository().await?.into());
@@ -180,7 +182,7 @@ where
 #[async_trait::async_trait]
 impl<Solver> Tester for PackageBuildTester<Solver>
 where
-    Solver: SolverExt + SolverMut + Default + Send,
+    Solver: SolverExt + SolverMut + Clone + Send,
 {
     async fn test(&mut self) -> Result<()> {
         PackageBuildTester::test(self).await

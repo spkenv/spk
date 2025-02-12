@@ -18,10 +18,10 @@ use crate::Result;
 /// Returns a new solution of only binary packages.
 pub async fn build_required_packages<Solver>(
     solution: &Solution,
-    _solver: Solver,
+    solver: Solver,
 ) -> Result<Solution>
 where
-    Solver: SolverExt + SolverMut + Default,
+    Solver: SolverExt + SolverMut + Clone,
 {
     let handle: storage::RepositoryHandle = storage::local_repository().await?.into();
     let local_repo = Arc::new(handle);
@@ -43,7 +43,7 @@ where
             options.format_option_map()
         );
         let (package, components) =
-            BinaryPackageBuilder::from_recipe_with_solver((**recipe).clone(), Solver::default())
+            BinaryPackageBuilder::from_recipe_with_solver((**recipe).clone(), solver.clone())
                 .with_repositories(repos.clone())
                 .build_and_publish(&options, &*local_repo)
                 .await?;

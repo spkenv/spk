@@ -4544,6 +4544,7 @@ dependencies = [
  "spk-storage",
  "statsd 0.15.0",
  "strip-ansi-escapes 0.2.0",
+ "strum",
  "tap",
  "thiserror",
  "tokio",
