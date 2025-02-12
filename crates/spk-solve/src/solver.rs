@@ -15,6 +15,9 @@ use variantly::Variantly;
 use crate::{DecisionFormatter, Result};
 
 #[enum_dispatch(Solver, SolverExt, SolverMut)]
+// Don't derive Default. If some code is generic on AbstractSolver and is given
+// one of these, if it wants a "default" solver it needs to be given a new
+// solver of the same variety and `SolverImpl::default()` can't do that.
 #[derive(Clone, Variantly)]
 pub enum SolverImpl {
     Og(crate::StepSolver),
