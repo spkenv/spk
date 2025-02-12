@@ -33,9 +33,6 @@ pub struct Install {
     #[clap(long, short)]
     yes: bool,
 
-    #[clap(flatten)]
-    pub formatter_settings: flags::DecisionFormatterSettings,
-
     /// The packages to install
     #[clap(name = "PKG", required = true)]
     pub packages: Vec<String>,
@@ -63,7 +60,10 @@ impl Run for Install {
             solver.add_request(request);
         }
 
-        let formatter = self.formatter_settings.get_formatter(self.verbose)?;
+        let formatter = self
+            .solver
+            .decision_formatter_settings
+            .get_formatter(self.verbose)?;
         let solution = solver.run_and_print_resolve(&formatter).await?;
 
         println!("The following packages will be installed:\n");

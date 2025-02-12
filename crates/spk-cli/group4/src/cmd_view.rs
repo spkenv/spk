@@ -90,9 +90,6 @@ pub struct View {
     #[clap(short = 'f', long)]
     pub format: Option<OutputFormat>,
 
-    #[clap(flatten)]
-    pub formatter_settings: flags::DecisionFormatterSettings,
-
     /// Explicitly get info on a filepath
     #[clap(short = 'F', long)]
     filepath: Option<String>,
@@ -653,7 +650,10 @@ impl View {
             (&solver as &dyn Any).downcast_ref::<spk_solve::StepSolver>()
         {
             let mut runtime = solver.run();
-            let formatter = self.formatter_settings.get_formatter(self.verbose)?;
+            let formatter = self
+                .solver
+                .decision_formatter_settings
+                .get_formatter(self.verbose)?;
             let result = formatter.run_and_print_decisions(&mut runtime).await;
             match result {
                 Ok((s, _)) => s,
