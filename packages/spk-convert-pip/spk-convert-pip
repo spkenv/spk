@@ -92,6 +92,13 @@ def main() -> int:
         help="Do not follow and convert dependencies of the requested pip packages",
     )
     pip_cmd.add_argument(
+        "--force-deps",
+        dest="force_deps",
+        action="store_true",
+        default=False,
+        help="Do not skip dependencies that appear to already be converted",
+    )
+    pip_cmd.add_argument(
         "packages",
         nargs="+",
         metavar="NAME[VERSION]",
@@ -109,6 +116,8 @@ def main() -> int:
         importer.with_python_version(args.python_version)
     if args.python_abi:
         importer.with_python_abi(args.python_abi)
+    if args.force_deps:
+        importer.with_force_deps(args.force_deps)
 
     for name in args.packages:
         req = Requirement(name)
@@ -162,11 +171,16 @@ class PipImporter:
         self._python_version = "3.7"
         self._python_abi: Optional[str] = "cp37m"
         self._follow_deps = True
+        self._force_deps = False
         self._visited: Dict[str, VisitedPackage] = {}
         self._cli_args = ""
 
     def with_cli_args(self, cli_args: str) -> "PipImporter":
         self._cli_args = cli_args
+        return self
+
+    def with_force_deps(self, force_deps: bool) -> "PipImporter":
+        self._force_deps = force_deps
         return self
 
     def with_python_version(self, version: str) -> "PipImporter":
@@ -401,7 +415,10 @@ class PipImporter:
                 map(operator.itemgetter(0), requirement.requirements)
             )
 
-            request = {"pkg": f"{spk_name}/{spk_requirements}"}
+            dep_request = f"{spk_name}/{spk_requirements}"
+            dep_var_requests = []
+
+            request = {"pkg": dep_request}
             spec["install"]["requirements"].append(request)
 
             def combine_requirements(
@@ -419,12 +436,47 @@ class PipImporter:
             )
 
             for extra in dep_requirement.extras:
+                dep_var_request = (f"{spk_name}.python_extra_{extra}", "true")
+                dep_var_requests.append(dep_var_request)
+
                 spec["install"]["requirements"].append(
-                    {"var": f"{spk_name}.python_extra_{extra}/true"}
+                    {"var": "/".join(dep_var_request)}
                 )
 
             if self._follow_deps:
                 _LOGGER.debug("following dependencies...")
+
+                if not self._force_deps:
+                    # See if a package already exists that can satisfy the
+                    # requirements without having to import it (again).
+                    cmd = [
+                        spk_exe(),
+                        "explain",
+                        "--timeout=30",
+                        "--increase-verbosity=0",
+                    ]
+                    if self._python_abi is not None:
+                        cmd.extend(
+                            ["--opt", "=".join(["python.abi", self._python_abi])]
+                        )
+                    for var_request in dep_var_requests:
+                        cmd.extend(["--opt", "=".join(var_request)])
+                    cmd.append(f"python/{self._python_version}")
+                    cmd.append(dep_request)
+
+                    _LOGGER.debug(f"checking if dependency can resolve with: {cmd}")
+
+                    try:
+                        subprocess.check_call(
+                            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                        )
+                    except subprocess.CalledProcessError:
+                        pass
+                    else:
+                        _LOGGER.info(
+                            f"skipping dependency that already resolves: {dep_request}"
+                        )
+                        continue
 
                 builds.extend(self.import_package(dep_requirement))
 

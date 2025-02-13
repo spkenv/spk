@@ -1,4 +1,4 @@
-pkg: spk-convert-pip/1.4.2
+pkg: spk-convert-pip/1.5.0
 api: v0/package
 build:
   script:
