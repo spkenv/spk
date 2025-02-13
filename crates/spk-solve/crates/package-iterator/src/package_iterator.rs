@@ -468,64 +468,17 @@ struct ChangeCounter {
     pub use_it: bool,
 }
 
-impl SortedBuildIterator {
-    pub async fn new(
-        _options: OptionMap,
-        source: Arc<tokio::sync::Mutex<dyn BuildIterator + Send>>,
-        builds_with_impossible_requests: HashMap<BuildIdent, Compatibility>,
-    ) -> Result<Self> {
-        // Note: _options is unused in this implementation, it was used
-        // in the by_distance sorting implementation
-        let mut builds = VecDeque::<BuildWithRepos>::new();
-        {
-            let mut source_lock = source.lock().await;
-            while let Some(item) = source_lock.next().await? {
-                builds.push_back(item);
-            }
-        }
+pub struct BuildToSortedOptName {}
 
-        let mut sbi = SortedBuildIterator { builds };
-
-        sbi.sort_by_build_option_values(builds_with_impossible_requests)
-            .await;
-        Ok(sbi)
-    }
-
-    /// Helper for making BuildKey structures used in the sorting in
-    /// sort_by_build_option_values() below
-    fn make_option_values_build_key(
-        spec: &Spec,
-        ordered_names: &Vec<OptNameBuf>,
-        build_name_values: &HashMap<BuildIdent, OptionMap>,
-        makes_an_impossible_request: bool,
-    ) -> BuildKey {
-        let build_id = spec.ident();
-        let empty = OptionMap::default();
-        let name_values = match build_name_values.get(build_id) {
-            Some(nv) => nv,
-            None => &empty,
-        };
-        BuildKey::new(
-            spec.ident(),
-            ordered_names,
-            name_values,
-            makes_an_impossible_request,
-        )
-    }
-
-    /// Sorts builds by keys based on ordered build option names and
-    /// differing values in those options
-    async fn sort_by_build_option_values(
-        &mut self,
-        builds_with_impossible_requests: HashMap<BuildIdent, Compatibility>,
-    ) {
-        let start = Instant::now();
-
+impl BuildToSortedOptName {
+    pub fn sort_builds<'a>(
+        builds: impl Iterator<Item = &'a (Arc<Spec>, PackageSource)>,
+    ) -> (Vec<OptNameBuf>, HashMap<BuildIdent, OptionMap>) {
         let mut number_non_src_builds: u64 = 0;
         let mut build_name_values: HashMap<BuildIdent, OptionMap> = HashMap::default();
         let mut changes: HashMap<OptNameBuf, ChangeCounter> = HashMap::new();
 
-        for (build, _) in self.builds.iter().flat_map(|hm| hm.values()) {
+        for (build, _) in builds {
             // Skip this if it's a '/src' build because '/src' builds
             // won't use the build option values in their key, they
             // don't need to be looked at. They have a type of key
@@ -610,6 +563,77 @@ impl SortedBuildIterator {
         // BUILD_KEY_NAME_ORDER to ensure they fall in the correct
         // position for a site's spk setup.
         BUILD_KEY_NAME_ORDER.promote_names(key_entry_names.as_mut_slice(), |n| n);
+
+        (key_entry_names, build_name_values)
+    }
+}
+
+impl SortedBuildIterator {
+    pub async fn new(
+        _options: OptionMap,
+        source: Arc<tokio::sync::Mutex<dyn BuildIterator + Send>>,
+        builds_with_impossible_requests: HashMap<BuildIdent, Compatibility>,
+    ) -> Result<Self> {
+        // Note: _options is unused in this implementation, it was used
+        // in the by_distance sorting implementation
+        let mut builds = VecDeque::<BuildWithRepos>::new();
+        {
+            let mut source_lock = source.lock().await;
+            while let Some(item) = source_lock.next().await? {
+                builds.push_back(item);
+            }
+        }
+
+        let mut sbi = SortedBuildIterator { builds };
+
+        sbi.sort_by_build_option_values(builds_with_impossible_requests)
+            .await;
+        Ok(sbi)
+    }
+
+    pub async fn new_from_builds(
+        builds: VecDeque<BuildWithRepos>,
+        builds_with_impossible_requests: HashMap<BuildIdent, Compatibility>,
+    ) -> Result<Self> {
+        let mut sbi = SortedBuildIterator { builds };
+
+        sbi.sort_by_build_option_values(builds_with_impossible_requests)
+            .await;
+        Ok(sbi)
+    }
+
+    /// Helper for making BuildKey structures used in the sorting in
+    /// sort_by_build_option_values() below
+    fn make_option_values_build_key(
+        spec: &Spec,
+        ordered_names: &Vec<OptNameBuf>,
+        build_name_values: &HashMap<BuildIdent, OptionMap>,
+        makes_an_impossible_request: bool,
+    ) -> BuildKey {
+        let build_id = spec.ident();
+        let empty = OptionMap::default();
+        let name_values = match build_name_values.get(build_id) {
+            Some(nv) => nv,
+            None => &empty,
+        };
+        BuildKey::new(
+            spec.ident(),
+            ordered_names,
+            name_values,
+            makes_an_impossible_request,
+        )
+    }
+
+    /// Sorts builds by keys based on ordered build option names and
+    /// differing values in those options
+    async fn sort_by_build_option_values(
+        &mut self,
+        builds_with_impossible_requests: HashMap<BuildIdent, Compatibility>,
+    ) {
+        let start = Instant::now();
+
+        let (key_entry_names, build_name_values) =
+            BuildToSortedOptName::sort_builds(self.builds.iter().flat_map(|hm| hm.values()));
 
         // Sort the builds by their generated keys generated from the
         // ordered names and values worth including.
