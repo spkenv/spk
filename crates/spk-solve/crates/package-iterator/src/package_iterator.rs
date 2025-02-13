@@ -640,19 +640,17 @@ impl SortedBuildIterator {
         self.builds.make_contiguous().sort_by_cached_key(|hm| {
             // Pull an arbitrary spec out from the hashmap
             let spec = &hm.iter().next().expect("non-empty hashmap").1.0;
-            SortedBuildIterator::make_option_values_build_key(
+            // Reverse the sort to get the build with the highest
+            // "numbers" in the earlier parts of its key to come first,
+            // which also reverse sorts the text values, i.e. "on" will
+            // come before "off".
+            std::cmp::Reverse(SortedBuildIterator::make_option_values_build_key(
                 spec,
                 &key_entry_names,
                 &build_name_values,
                 builds_with_impossible_requests.contains_key(&spec.ident().clone()),
-            )
+            ))
         });
-
-        // Reverse the sort to get the build with the highest
-        // "numbers" in the earlier parts of its key to come first,
-        // which also reverse sorts the text values, i.e. "on" will
-        // come before "off".
-        self.builds.make_contiguous().reverse();
 
         let duration: Duration = start.elapsed();
         tracing::info!(
