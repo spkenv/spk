@@ -187,6 +187,11 @@ impl<S> SpfsRepository<S> {
         })
     }
 
+    /// Access to the underlying [`spfs::storage::RepositoryHandle`].
+    pub fn inner(&self) -> &spfs::storage::RepositoryHandle {
+        &self.inner
+    }
+
     /// Pin this repository to a specific point in time, limiting
     /// all queries and making it read-only
     pub fn pin_at_time(&mut self, ts: &spfs::tracking::TimeSpec) {
@@ -306,6 +311,18 @@ where
     where
         Self: Clone,
     {
+        self.get_concrete_package_builds_with_tag_specs(pkg)
+            .await
+            .map(|map| map.into_keys().collect())
+    }
+
+    async fn get_concrete_package_builds_with_tag_specs(
+        &self,
+        pkg: &VersionIdent,
+    ) -> Result<HashMap<BuildIdent, Option<RelativePathBuf>>>
+    where
+        Self: Clone,
+    {
         // It is possible for a `spk/spec/pkgname/1.0.0/BUILDKEY` tag to
         // exist without a corresponding `spk/spk/pkgname/1.0.0/BUILDKEY`
         // tag. In this scenario, "pkgname" will appear in the results of
@@ -330,31 +347,35 @@ where
 
                 spec_tags
                     .into_iter()
-                    .chain(package_tags)
-                    .filter_map(|entry| match entry {
+                    .map(|tag| (&spec_base, tag))
+                    .chain(package_tags.into_iter().map(|tag| (&package_base, tag)))
+                    .filter_map(|(base, entry)| match entry {
                         Ok(EntryType::Tag(name))
                             if !name.starts_with(EmbeddedSourcePackage::EMBEDDED_BY_PREFIX) =>
                         {
-                            Some(name)
+                            Some((base, name))
                         }
                         Ok(EntryType::Tag(_)) => None,
-                        Ok(EntryType::Folder(name)) => Some(name),
+                        Ok(EntryType::Folder(name)) => Some((base, name)),
                         Ok(EntryType::Namespace { .. }) => None,
                         Err(_) => None,
                     })
-                    .filter_map(|b| match parse_build(&b) {
-                        Ok(v) => Some(v),
+                    .filter_map(|(base, b)| match parse_build(&b) {
+                        Ok(v) => Some((base.join(b), v)),
                         Err(_) => {
                             tracing::warn!("Invalid build found in spfs tags: {}", b);
                             None
                         }
                     })
-                    .map(|b| pkg.to_build_ident(b))
-                    .collect::<HashSet<_>>()
+                    .map(|(tag_spec, b)| (pkg.to_build_ident(b), Some(tag_spec)))
+                    // Because of the `chain` order above, this is intended to
+                    // keep the tag spec of the package instead of the spec, in
+                    // the case where both may exist.
+                    .collect::<HashMap<_, _>>()
             });
         }
 
-        let mut builds = HashSet::new();
+        let mut builds = HashMap::new();
         while let Some(b) = set.join_next().await {
             builds.extend(b.map_err(|err| Error::String(format!("Tokio join error: {err}")))?);
         }
@@ -363,7 +384,16 @@ where
     }
 
     async fn get_embedded_package_builds(&self, pkg: &VersionIdent) -> Result<HashSet<BuildIdent>> {
-        let mut builds = HashSet::new();
+        self.get_embedded_package_builds_with_tag_specs(pkg)
+            .await
+            .map(|map| map.into_keys().collect())
+    }
+
+    async fn get_embedded_package_builds_with_tag_specs(
+        &self,
+        pkg: &VersionIdent,
+    ) -> Result<HashMap<BuildIdent, Option<RelativePathBuf>>> {
+        let mut builds = HashMap::new();
 
         let pkg = pkg.to_any_ident(Some(Build::Source));
         for pkg in Self::iter_possible_parts(&pkg, self.legacy_spk_version_tags) {
@@ -410,10 +440,10 @@ where
                                         .map(|(_, ident_with_components)| ident_with_components)
                                         .ok()
                                     })
-                                    .map(Build::Embedded)
+                                    .map(|src| (base.join(b), Build::Embedded(src)))
                             })
                     })
-                    .map(|b| pkg.to_build_ident(b)),
+                    .map(|(tag_spec, b)| (pkg.to_build_ident(b), Some(tag_spec))),
             );
         }
 
