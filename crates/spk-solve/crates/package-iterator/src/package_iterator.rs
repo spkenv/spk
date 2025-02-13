@@ -609,8 +609,7 @@ impl SortedBuildIterator {
         // names should be added to the configuration
         // BUILD_KEY_NAME_ORDER to ensure they fall in the correct
         // position for a site's spk setup.
-        let mut ordered_names = key_entry_names.clone();
-        BUILD_KEY_NAME_ORDER.promote_names(ordered_names.as_mut_slice(), |n| n);
+        BUILD_KEY_NAME_ORDER.promote_names(key_entry_names.as_mut_slice(), |n| n);
 
         // Sort the builds by their generated keys generated from the
         // ordered names and values worth including.
@@ -619,7 +618,7 @@ impl SortedBuildIterator {
             let spec = &hm.iter().next().expect("non-empty hashmap").1.0;
             SortedBuildIterator::make_option_values_build_key(
                 spec,
-                &ordered_names,
+                &key_entry_names,
                 &build_name_values,
                 builds_with_impossible_requests.contains_key(&spec.ident().clone()),
             )
@@ -641,7 +640,7 @@ impl SortedBuildIterator {
         tracing::debug!(
             target: BUILD_SORT_TARGET,
             "Keys by build option values: built from: [{}]",
-            ordered_names
+            key_entry_names
                 .iter()
                 .map(|n| n.as_str())
                 .collect::<Vec<_>>()
@@ -659,7 +658,7 @@ impl SortedBuildIterator {
                         spec.ident(),
                         SortedBuildIterator::make_option_values_build_key(
                             spec,
-                            &ordered_names,
+                            &key_entry_names,
                             &build_name_values,
                             builds_with_impossible_requests.contains_key(&spec.ident().clone()),
                         ),
