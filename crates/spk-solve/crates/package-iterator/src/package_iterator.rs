@@ -472,13 +472,13 @@ pub struct BuildToSortedOptName {}
 
 impl BuildToSortedOptName {
     pub fn sort_builds<'a>(
-        builds: impl Iterator<Item = &'a (Arc<Spec>, PackageSource)>,
+        builds: impl Iterator<Item = &'a Arc<Spec>>,
     ) -> (Vec<OptNameBuf>, HashMap<BuildIdent, OptionMap>) {
         let mut number_non_src_builds: u64 = 0;
         let mut build_name_values: HashMap<BuildIdent, OptionMap> = HashMap::default();
         let mut changes: HashMap<OptNameBuf, ChangeCounter> = HashMap::new();
 
-        for (build, _) in builds {
+        for build in builds {
             // Skip this if it's a '/src' build because '/src' builds
             // won't use the build option values in their key, they
             // don't need to be looked at. They have a type of key
@@ -591,20 +591,9 @@ impl SortedBuildIterator {
         Ok(sbi)
     }
 
-    pub async fn new_from_builds(
-        builds: VecDeque<BuildWithRepos>,
-        builds_with_impossible_requests: HashMap<BuildIdent, Compatibility>,
-    ) -> Result<Self> {
-        let mut sbi = SortedBuildIterator { builds };
-
-        sbi.sort_by_build_option_values(builds_with_impossible_requests)
-            .await;
-        Ok(sbi)
-    }
-
     /// Helper for making BuildKey structures used in the sorting in
     /// sort_by_build_option_values() below
-    fn make_option_values_build_key(
+    pub fn make_option_values_build_key(
         spec: &Spec,
         ordered_names: &Vec<OptNameBuf>,
         build_name_values: &HashMap<BuildIdent, OptionMap>,
@@ -632,8 +621,11 @@ impl SortedBuildIterator {
     ) {
         let start = Instant::now();
 
-        let (key_entry_names, build_name_values) =
-            BuildToSortedOptName::sort_builds(self.builds.iter().flat_map(|hm| hm.values()));
+        let (key_entry_names, build_name_values) = BuildToSortedOptName::sort_builds(
+            self.builds
+                .iter()
+                .flat_map(|hm| hm.values().map(|(spec, _src)| spec)),
+        );
 
         // Sort the builds by their generated keys generated from the
         // ordered names and values worth including.
