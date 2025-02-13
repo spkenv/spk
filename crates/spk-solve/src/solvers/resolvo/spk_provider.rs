@@ -5,9 +5,11 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap, HashSet};
+use std::ops::Not;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use itertools::Itertools;
 use resolvo::utils::Pool;
 use resolvo::{
     Candidates,
@@ -38,7 +40,18 @@ use spk_schema::name::{OptNameBuf, PkgNameBuf};
 use spk_schema::prelude::{HasVersion, Named};
 use spk_schema::version::Version;
 use spk_schema::version_range::{DoubleEqualsVersion, Ranged, VersionFilter, parse_version_range};
-use spk_schema::{BuildIdent, Deprecate, Opt, OptionMap, Package, Recipe, Request, VersionIdent};
+use spk_schema::{
+    BuildIdent,
+    Deprecate,
+    Opt,
+    OptionMap,
+    Package,
+    Recipe,
+    Request,
+    Spec,
+    VersionIdent,
+};
+use spk_solve_package_iterator::{BuildKey, BuildToSortedOptName, SortedBuildIterator};
 use spk_storage::RepositoryHandle;
 use tracing::{Instrument, debug_span};
 
@@ -337,6 +350,51 @@ enum CanBuildFromSource {
     No(StringId),
 }
 
+/// An iterator that yields slices of items that fall into the same partition.
+///
+/// The partition is determined by the key function.
+/// The items must be already sorted in ascending order by the key function.
+struct PartitionIter<'a, I, F, K>
+where
+    F: for<'i> Fn(&'i I) -> K,
+    K: PartialOrd,
+{
+    slice: &'a [I],
+    key_fn: F,
+}
+
+impl<'a, I, F, K> PartitionIter<'a, I, F, K>
+where
+    F: for<'i> Fn(&'i I) -> K,
+    K: PartialOrd,
+{
+    fn new(slice: &'a [I], key_fn: F) -> Self {
+        Self { slice, key_fn }
+    }
+}
+
+impl<'a, I, F, K> Iterator for PartitionIter<'a, I, F, K>
+where
+    F: for<'i> Fn(&'i I) -> K,
+    K: PartialOrd,
+{
+    type Item = &'a [I];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let element = self.slice.first()?;
+
+        // Is a binary search overkill?
+        let partition_key = (self.key_fn)(element);
+        // No need to check the first element again.
+        let p =
+            1 + self.slice[1..].partition_point(|element| (self.key_fn)(element) <= partition_key);
+
+        let part = &self.slice[..p];
+        self.slice = &self.slice[p..];
+        Some(part)
+    }
+}
+
 pub(crate) struct SpkProvider {
     pub(crate) pool: Pool<RequestVS, ResolvoPackageName>,
     repos: Vec<Arc<RepositoryHandle>>,
@@ -564,6 +622,21 @@ impl SpkProvider {
         self.cancel_solving.borrow().is_some()
     }
 
+    /// Return an iterator that yields slices of builds that are from the same
+    /// package version.
+    ///
+    /// The provided builds must already be sorted otherwise the behavior is
+    /// undefined.
+    fn find_version_runs<'a>(
+        builds: &'a [(SolvableId, &'a LocatedBuildIdentWithComponent, Arc<Spec>)],
+    ) -> impl Iterator<Item = &'a [(SolvableId, &'a LocatedBuildIdentWithComponent, Arc<Spec>)]>
+    {
+        PartitionIter::new(builds, |(_, ident, _)| {
+            // partition by (name, version) ignoring repository
+            (ident.ident.name(), ident.ident.version())
+        })
+    }
+
     fn request_to_known_dependencies(&self, requirement: &Request) -> KnownDependencies {
         let mut known_deps = KnownDependencies::default();
         match requirement {
@@ -655,6 +728,44 @@ impl SpkProvider {
             binary_only: self.binary_only,
             build_from_source_trail: self.build_from_source_trail.clone(),
         }
+    }
+
+    /// Order two builds based on which should be preferred to include in a
+    /// solve as a candidate.
+    ///
+    /// Generally this means a build with newer dependencies is ordered first.
+    fn sort_builds(
+        &self,
+        build_key_index: &HashMap<SolvableId, BuildKey>,
+        a: (SolvableId, &LocatedBuildIdentWithComponent),
+        b: (SolvableId, &LocatedBuildIdentWithComponent),
+    ) -> std::cmp::Ordering {
+        // This function should _not_ return `std::cmp::Ordering::Equal` unless
+        // `a` and `b` are the same build (in practice this function will never
+        // be called when that is true).
+
+        // Embedded stubs are always ordered last.
+        match (a.1.ident.is_embedded(), b.1.ident.is_embedded()) {
+            (true, false) => return std::cmp::Ordering::Greater,
+            (false, true) => return std::cmp::Ordering::Less,
+            _ => {}
+        };
+
+        match (build_key_index.get(&a.0), build_key_index.get(&b.0)) {
+            (Some(a_key), Some(b_key)) => {
+                // BuildKey orders in reverse order from what is needed here.
+                return b_key.cmp(a_key);
+            }
+            (Some(_), None) => return std::cmp::Ordering::Less,
+            (None, Some(_)) => return std::cmp::Ordering::Greater,
+            _ => {}
+        };
+
+        // If neither build has a key, both packages failed to load?
+        // Add debug assert to see if this ever happens.
+        debug_assert!(false, "builds without keys");
+
+        a.1.ident.cmp(&b.1.ident)
     }
 
     pub fn var_requirements(&mut self, requests: &[Request]) -> Vec<VersionSetId> {
@@ -967,13 +1078,94 @@ impl DependencyProvider for SpkProvider {
     }
 
     async fn sort_candidates(&self, _solver: &SolverCache<Self>, solvables: &mut [SolvableId]) {
-        // This implementation just picks the highest version.
+        // Goal: Create a `BuildKey` for each build in `solvables`.
+        // The `BuildKey` factory needs as input the output from
+        // `BuildToSortedOptName::sort_builds`.
+        // `BuildToSortedOptName::sort_builds` needs to be fed builds from the
+        // same version.
+        // `solvables` can be builds from various versions so they need to be
+        // grouped by version.
+        let build_solvables = solvables
+            .iter()
+            .filter_map(|solvable_id| {
+                let solvable = self.pool.resolve_solvable(*solvable_id);
+                match &solvable.record {
+                    SpkSolvable::LocatedBuildIdentWithComponent(
+                        located_build_ident_with_component,
+                    ) =>
+                    // sorting the source build (if any) is handled
+                    // elsewhere; skip source builds.
+                    {
+                        located_build_ident_with_component
+                            .ident
+                            .is_source()
+                            .not()
+                            .then_some((*solvable_id, located_build_ident_with_component))
+                    }
+                    _ => None,
+                }
+            })
+            .sorted_by(
+                |(_, LocatedBuildIdentWithComponent { ident: a, .. }),
+                 (_, LocatedBuildIdentWithComponent { ident: b, .. })| {
+                    // build_solvables will be ordered by (pkg, version, build).
+                    a.target().cmp(b.target())
+                },
+            )
+            .collect::<Vec<_>>();
+
+        // `BuildToSortedOptName::sort_builds` will need the package specs.
+        let mut build_solvables_and_specs = Vec::with_capacity(build_solvables.len());
+        for build_solvable in build_solvables {
+            let (solvable_id, located_build_ident_with_component) = build_solvable;
+            let repo = self
+                .repos
+                .iter()
+                .find(|repo| {
+                    repo.name() == located_build_ident_with_component.ident.repository_name()
+                })
+                .expect("Expected solved package's repository to be in the list of repositories");
+            let Ok(package) = repo
+                .read_package(located_build_ident_with_component.ident.target())
+                .await
+            else {
+                // Any builds that can't load the spec will be sorted to the
+                // end. In most cases the package spec would already be loaded
+                // in cache at this point.
+                continue;
+            };
+            build_solvables_and_specs.push((
+                solvable_id,
+                located_build_ident_with_component,
+                package,
+            ));
+        }
+
+        let mut build_key_index = HashMap::new();
+        build_key_index.reserve(build_solvables_and_specs.len());
+
+        // Find runs of the same package version.
+        for version_run in SpkProvider::find_version_runs(&build_solvables_and_specs) {
+            let (ordered_names, build_name_values) =
+                BuildToSortedOptName::sort_builds(version_run.iter().map(|(_, _, spec)| spec));
+
+            for (solvable_id, _, spec) in version_run {
+                let build_key = SortedBuildIterator::make_option_values_build_key(
+                    spec,
+                    &ordered_names,
+                    &build_name_values,
+                    false,
+                );
+                build_key_index.insert(*solvable_id, build_key);
+            }
+        }
+
         // TODO: The ordering should take component names into account, so
         // the run component or the build component is tried first in the
         // appropriate situations.
-        solvables.sort_by(|a, b| {
-            let a = self.pool.resolve_solvable(*a);
-            let b = self.pool.resolve_solvable(*b);
+        solvables.sort_by(|solvable_id_a, solvable_id_b| {
+            let a = self.pool.resolve_solvable(*solvable_id_a);
+            let b = self.pool.resolve_solvable(*solvable_id_b);
             match (&a.record, &b.record) {
                 (
                     SpkSolvable::LocatedBuildIdentWithComponent(a),
@@ -1005,17 +1197,11 @@ impl DependencyProvider for SpkProvider {
                                 (_, Build::Source) => return std::cmp::Ordering::Less,
                                 _ => {}
                             };
-                            // Sort embedded packges second last
-                            match (a.ident.build(), b.ident.build()) {
-                                (Build::Embedded(_), Build::Embedded(_)) => {
-                                    // TODO: Could perhaps sort on the parent
-                                    // package to prefer a newer parent.
-                                    std::cmp::Ordering::Equal
-                                }
-                                (Build::Embedded(_), _) => std::cmp::Ordering::Greater,
-                                (_, Build::Embedded(_)) => std::cmp::Ordering::Less,
-                                _ => std::cmp::Ordering::Equal,
-                            }
+                            self.sort_builds(
+                                &build_key_index,
+                                (*solvable_id_a, a),
+                                (*solvable_id_b, b),
+                            )
                         }
                         ord => ord,
                     }
