@@ -36,10 +36,10 @@ impl CmdPlatforms {
         Ok(0)
     }
 
-    async fn format_digest<'repo>(
+    async fn format_digest(
         &self,
         digest: spfs::encoding::Digest,
-        repo: &'repo spfs::storage::RepositoryHandle,
+        repo: &spfs::storage::RepositoryHandle,
     ) -> Result<String> {
         if self.tags {
             io::format_digest(digest, DigestFormat::ShortenedWithTags(repo)).await

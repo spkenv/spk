@@ -725,7 +725,7 @@ where
 ///
 /// Only the changes also present in `filter` will be committed. It is
 /// expected to contain paths relative to `$PREFIX`.
-pub async fn commit_component_layers<'a, P, V>(
+pub async fn commit_component_layers<P, V>(
     input: &BuildSetupReport<P, V>,
     collected_changes: Vec<spfs::tracking::Diff<BuildIdent, BuildIdent>>,
 ) -> Result<BuildOutputReport>

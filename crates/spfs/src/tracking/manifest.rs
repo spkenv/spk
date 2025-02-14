@@ -123,11 +123,7 @@ impl<T> Manifest<T> {
         }
         for step in path.split('/') {
             if let EntryKind::Tree = entry.kind {
-                let next = entry.entries.get(step);
-                entry = match next {
-                    Some(entry) => entry,
-                    None => return None,
-                };
+                entry = entry.entries.get(step)?;
             } else {
                 return None;
             }
