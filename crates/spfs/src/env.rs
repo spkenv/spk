@@ -5,15 +5,58 @@
 //! Functions related to the setup and teardown of the spfs runtime environment
 //! and related system namespacing
 
+use std::ffi::{CStr, CString};
 use std::path::{Path, PathBuf};
+
+use linux_raw_sys::general::{fsconfig_command, mount_attr};
+use linux_syscall::{
+    SYS_fsconfig,
+    SYS_fsmount,
+    SYS_fsopen,
+    SYS_mount_setattr,
+    SYS_move_mount,
+    SYS_open_tree,
+    syscall,
+};
 
 use super::runtime;
 use crate::{Error, Result, which};
 
 pub const SPFS_DIR: &str = "/spfs";
 pub const SPFS_DIR_PREFIX: &str = "/spfs/";
+const SPFS_DIR_CSTR: &CStr = c"/spfs";
+
+const EMPTY_CSTR: &CStr = c"";
+const FSCONFIG_INDEX_CSTR: &CStr = c"index";
+const FSCONFIG_LOWERDIR_CSTR: &CStr = c"lowerdir";
+const FSCONFIG_LOWERDIR_APPEND_CSTR: &CStr = c"lowerdir+";
+const FSCONFIG_METACOPY_CSTR: &CStr = c"metacopy";
+const FSCONFIG_NONE_CSTR: &CStr = c"none";
+const FSCONFIG_ON_CSTR: &CStr = c"on";
+const FSCONFIG_RO_CSTR: &CStr = c"ro";
+const FSCONFIG_SOURCE_CSTR: &CStr = c"source";
+const FSCONFIG_UPPERDIR_CSTR: &CStr = c"upperdir";
+const FSCONFIG_WORKDIR_CSTR: &CStr = c"workdir";
+const FSOPEN_OVERLAY_CSTR: &CStr = c"overlay";
 
 const NONE: Option<&str> = None;
+
+// Linux syscall constants from /usr/include/linux/mount.h.
+const FSCONFIG_SET_STRING: u32 = fsconfig_command::FSCONFIG_SET_STRING as u32;
+const FSCONFIG_SET_FLAG: u32 = fsconfig_command::FSCONFIG_SET_FLAG as u32;
+const FSCONFIG_CMD_CREATE: u32 = fsconfig_command::FSCONFIG_CMD_CREATE as u32;
+const FSCONFIG_DEFAULT: u32 = 0x00;
+const FSOPEN_CLOEXEC: u32 = 0x01;
+const FSMOUNT_CLOEXEC: u32 = 0x01;
+const MOUNT_ATTR_RDONLY: u32 = 0x01;
+const MOUNT_ATTR_SIZE_VER0: u32 = 32;
+const MOVE_MOUNT_F_EMPTY_PATH: u32 = 0x04;
+const OPEN_TREE_CLOEXEC: u32 = 0x80000;
+const OPEN_TREE_CLONE: u32 = 0x01;
+
+// Linux fcntl constants from /usr/include/fcntl.h.
+const AT_EMPTY_PATH: u32 = 0x1000;
+const AT_FDCWD: i32 = -100;
 
 /// Manages the configuration of an spfs runtime environment.
 ///
@@ -457,87 +500,6 @@ where
         rt.ensure_required_directories().await
     }
 
-    async fn mount_live_layers(&self, rt: &runtime::Runtime) -> Result<()> {
-        // Mounts the bind mounts from the any live layers in the runtime the top of paths
-        // inside /spfs
-        //
-        // It requires the mount destinations to exist under
-        // /spfs/. If they do not, the mount commands will error. The
-        // mount destinations are either provided by one of the layers
-        // in the runtime, or by an earlier call to
-        // ensure_extra_bind_mount_locations_exist() made in
-        // initialize_runtime()
-        let live_layers = rt.live_layers();
-        if !live_layers.is_empty() {
-            tracing::debug!("mounting the extra bind mounts over the {SPFS_DIR} filesystem ...");
-            let mount = super::resolve::which("mount").unwrap_or_else(|| "/usr/bin/mount".into());
-
-            for layer in live_layers {
-                let injection_mounts = layer.bind_mounts();
-
-                for extra_mount in injection_mounts {
-                    let dest = if extra_mount.dest.starts_with(SPFS_DIR_PREFIX) {
-                        PathBuf::from(extra_mount.dest.clone())
-                    } else {
-                        PathBuf::from(SPFS_DIR).join(extra_mount.dest.clone())
-                    };
-
-                    let mut cmd = tokio::process::Command::new(mount.clone());
-                    cmd.arg("--bind");
-                    cmd.arg(extra_mount.src.to_string_lossy().into_owned());
-                    cmd.arg(dest);
-                    tracing::debug!("About to run: {cmd:?}");
-
-                    match cmd.status().await {
-                        Err(err) => {
-                            return Err(Error::process_spawn_error("mount".to_owned(), err, None))
-                        }
-                        Ok(status) => match status.code() {
-                            Some(0) => (),
-                            _ => {
-                             return Err(format!(
-                                 "Failed to inject bind mount into the {SPFS_DIR} filesystem using: {cmd:?}"
-                             ).into())
-                            }
-                        },
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-
-    async fn unmount_live_layers(&self, rt: &runtime::Runtime) -> Result<()> {
-        // Unmount the bind mounted items from the live layers
-        let live_layers = rt.live_layers();
-        if !live_layers.is_empty() {
-            tracing::debug!("unmounting the extra bind mounts from the {SPFS_DIR} filesystem ...");
-            let umount =
-                super::resolve::which("umount").unwrap_or_else(|| "/usr/bin/umount".into());
-
-            for layer in live_layers {
-                let injection_mounts = layer.bind_mounts();
-
-                for extra_mount in injection_mounts {
-                    let mut cmd = tokio::process::Command::new(umount.clone());
-                    cmd.arg(PathBuf::from(SPFS_DIR).join(extra_mount.dest.clone()));
-                    tracing::debug!("About to run: {cmd:?}");
-
-                    match cmd.status().await {
-                        Err(err) => {
-                            return Err(Error::process_spawn_error("umount".to_owned(), err, None))
-                        }
-                        Ok(status) => match status.code() {
-                            Some(0) => (),
-                            _ => return Err(format!("Failed to unmount a bind mount injected into the {SPFS_DIR} filesystem using: {cmd:?}").into()),
-                        },
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-
     /// Mounts an overlayfs built up from the given list of rendered
     /// layered directories (layer_dirs).
     ///
@@ -553,29 +515,13 @@ where
         rt: &runtime::Runtime,
         layer_dirs: &[P],
     ) -> Result<()> {
-        tracing::debug!("mounting the overlay filesystem...");
-        let overlay_args = get_overlay_args(rt, layer_dirs)?;
-        let mount = super::resolve::which("mount").unwrap_or_else(|| "/usr/bin/mount".into());
-        tracing::debug!("{mount:?} -t overlay -o {overlay_args} none {SPFS_DIR}",);
-        // for some reason, the overlay mount process creates a bad filesystem if the
-        // mount command is called directly from this process. It may be some default
-        // option or minor detail in how the standard mount command works - possibly related
-        // to this process eventually dropping privileges, but that is uncertain right now
-        let mut cmd = tokio::process::Command::new(mount);
-        cmd.args(["-t", "overlay"]);
-        cmd.arg("-o");
-        cmd.arg(overlay_args);
-        cmd.arg("none");
-        cmd.arg(SPFS_DIR);
-        match cmd.status().await {
-            Err(err) => Err(Error::process_spawn_error("mount", err, None)),
-            Ok(status) => match status.code() {
-                Some(0) => Ok(()),
-                _ => Err("Failed to mount overlayfs".into()),
-            },
-        }?;
-
-        self.mount_live_layers(rt).await
+        let spfs_config = crate::Config::current()?;
+        if spfs_config.filesystem.use_mount_syscalls {
+            mount_overlayfs_syscalls(rt, layer_dirs)?;
+        } else {
+            mount_overlayfs_command(rt, layer_dirs).await?;
+        }
+        mount_live_layers(rt).await
     }
 
     #[cfg(feature = "fuse-backend")]
@@ -586,7 +532,7 @@ where
     #[cfg(feature = "fuse-backend")]
     pub(crate) async fn mount_env_fuse(&self, rt: &runtime::Runtime) -> Result<()> {
         self.mount_fuse_onto(rt, SPFS_DIR).await?;
-        self.mount_live_layers(rt).await
+        mount_live_layers(rt).await
     }
 
     #[cfg(feature = "fuse-backend")]
@@ -906,7 +852,7 @@ where
                 // Unmount any extra paths mounted in the depths of
                 // the fuse-only backend before fuse itself is
                 // unmounted to avoid issue with lazy unmounting.
-                self.unmount_live_layers(rt).await?;
+                unmount_live_layers(rt).await?;
                 std::path::Path::new(SPFS_DIR)
             }
             runtime::MountBackend::OverlayFsWithRenders | runtime::MountBackend::WinFsp => {
@@ -1127,6 +1073,23 @@ impl OverlayMountOptions {
     }
 }
 
+/// Close a file descriptor when this struct is dropped.
+struct CloseFd {
+    fd: i32,
+}
+
+impl CloseFd {
+    fn new(fd: i32) -> Self {
+        Self { fd }
+    }
+}
+
+impl Drop for CloseFd {
+    fn drop(&mut self) {
+        nix::unistd::close(self.fd as std::ffi::c_int).ok();
+    }
+}
+
 /// Get the overlayfs arguments for the given list of layer directories.
 ///
 /// This returns an error if the arguments would exceed the legal size limit
@@ -1249,6 +1212,563 @@ pub fn option_to_string(option: &fuser::MountOption) -> String {
         MountOption::Sync => "sync".to_string(),
         MountOption::Async => "async".to_string(),
     }
+}
+
+/// Mount overlayfs layers using the mount command.
+async fn mount_overlayfs_command<P: AsRef<Path>>(
+    rt: &runtime::Runtime,
+    layer_dirs: &[P],
+) -> Result<()> {
+    tracing::debug!("mounting the overlay filesystem using mount...");
+    let overlay_args = get_overlay_args(rt, layer_dirs)?;
+    let mount = super::resolve::which("mount").unwrap_or_else(|| "/usr/bin/mount".into());
+    tracing::debug!("{mount:?} -t overlay -o {overlay_args} none {SPFS_DIR}",);
+    // for some reason, the overlay mount process creates a bad filesystem if the
+    // mount command is called directly from this process. It may be some default
+    // option or minor detail in how the standard mount command works - possibly related
+    // to this process eventually dropping privileges, but that is uncertain right now
+    let mut cmd = tokio::process::Command::new(mount);
+    cmd.args(["-t", "overlay"]);
+    cmd.arg("-o");
+    cmd.arg(overlay_args);
+    cmd.arg("none");
+    cmd.arg(SPFS_DIR);
+    match cmd.status().await {
+        Err(err) => Err(Error::process_spawn_error("mount", err, None)),
+        Ok(status) => match status.code() {
+            Some(0) => Ok(()),
+            _ => Err("Failed to mount overlayfs".into()),
+        },
+    }
+}
+
+/// Mount overlayfs layers using mount syscalls.
+fn mount_overlayfs_syscalls<P: AsRef<Path>>(rt: &runtime::Runtime, layer_dirs: &[P]) -> Result<()> {
+    tracing::debug!("mounting the overlay filesystem using syscalls...");
+
+    let mount_options = OverlayMountOptions::new(rt);
+    let params = runtime::overlayfs::overlayfs_available_options();
+
+    // Safety: filesystem name is null-terminated and fd will be closed on exec.
+    let rc = unsafe { syscall!(SYS_fsopen, FSOPEN_OVERLAY_CSTR.as_ptr(), FSOPEN_CLOEXEC) };
+    let fd = rc.as_u64_unchecked() as i32;
+    if fd < 0 {
+        return Err(format!(
+            "mount_overlayfs_syscalls::SYS_fsopen(overlay, FSOPEN_CLOEXEC) error: {fd}"
+        )
+        .into());
+    }
+
+    // Safety: fd is valid and arguments are null-terminated.
+    let rc = unsafe {
+        syscall!(
+            SYS_fsconfig,
+            fd,
+            FSCONFIG_SET_STRING,
+            FSCONFIG_SOURCE_CSTR.as_ptr(),
+            FSCONFIG_NONE_CSTR.as_ptr(),
+            FSCONFIG_DEFAULT
+        )
+    }
+    .as_u64_unchecked();
+    if rc != 0 {
+        return Err(format!(
+            "mount_overlayfs_syscalls::SYS_fsconfig({}, FSCONFIG_SET_STRING, source, none, 0) error: {}",
+            fd, rc
+        )
+        .into());
+    }
+
+    if mount_options.read_only {
+        // Safety: fd is valid and arguments are null-terminated.
+        let rc = unsafe {
+            syscall!(
+                SYS_fsconfig,
+                fd,
+                FSCONFIG_SET_FLAG,
+                FSCONFIG_RO_CSTR.as_ptr(),
+                std::ptr::null::<u8>(),
+                FSCONFIG_DEFAULT
+            )
+        }
+        .as_u64_unchecked();
+        if rc != 0 {
+            return Err(format!(
+                "mount_overlayfs_syscalls::SYS_fsconfig({}, FSCONFIG_SET_FLAG, ro, NULL) error: {}",
+                fd, rc
+            )
+            .into());
+        }
+    }
+
+    if !mount_options.break_hardlinks && params.contains(OVERLAY_ARGS_INDEX) {
+        // Safety: fd is valid and arguments are null-terminated.
+        let rc = unsafe {
+            syscall!(
+                SYS_fsconfig,
+                fd,
+                FSCONFIG_SET_STRING,
+                FSCONFIG_INDEX_CSTR.as_ptr(),
+                FSCONFIG_ON_CSTR.as_ptr(),
+                FSCONFIG_DEFAULT
+            )
+        }
+        .as_u64_unchecked();
+        if rc != 0 {
+            return Err(format!(
+                "mount_overlayfs_syscalls::SYS_fsconfig({}, FSCONFIG_SET_STRING, index, on, 0) error: {}",
+                fd, rc
+            )
+            .into());
+        }
+    }
+
+    if mount_options.metadata_copy_up && params.contains(OVERLAY_ARGS_METACOPY) {
+        // Safety: fd is valid and arguments are null-terminated.
+        let rc = unsafe {
+            syscall!(
+                SYS_fsconfig,
+                fd,
+                FSCONFIG_SET_STRING,
+                FSCONFIG_METACOPY_CSTR.as_ptr(),
+                FSCONFIG_ON_CSTR.as_ptr(),
+                FSCONFIG_DEFAULT
+            )
+        }
+        .as_u64_unchecked();
+        if rc != 0 {
+            return Err(format!(
+                "mount_overlayfs_syscalls::SYS_fsconfig({}, FSCONFIG_SET_STRING, metacopy, on, 0) error: {}",
+                fd, rc
+            )
+            .into());
+        }
+    }
+
+    // Setup the lowerdir directories in reverse order so that the overlayfs will apply them in
+    // the order we want. The first path specified is the top layer and the last is the bottom layer.
+    // For more details see: https://docs.kernel.org/filesystems/overlayfs.html#multiple-lower-layers
+
+    if mount_options.lowerdir_append {
+        let lower_dir =
+            CString::new(rt.config.lower_dir.to_string_lossy().as_ref()).map_err(|err| {
+                format!(
+                    "unable to create CString from {}: {}",
+                    rt.config.lower_dir.to_string_lossy().as_ref(),
+                    err
+                )
+            })?;
+        for layer in layer_dirs.iter().rev() {
+            let path = CString::new(layer.as_ref().to_string_lossy().as_ref()).map_err(|err| {
+                format!(
+                    "unable to create CString from {}: {}",
+                    layer.as_ref().to_string_lossy().as_ref(),
+                    err
+                )
+            })?;
+            // Safety: fd is valid and arguments are null-terminated.
+            let rc = unsafe {
+                syscall!(
+                    SYS_fsconfig,
+                    fd,
+                    FSCONFIG_SET_STRING,
+                    FSCONFIG_LOWERDIR_APPEND_CSTR.as_ptr(),
+                    path.as_ptr(),
+                    FSCONFIG_DEFAULT
+                )
+            }
+            .as_u64_unchecked();
+            if rc != 0 {
+                return Err(format!(
+                    "mount_overlayfs_syscalls::SYS_fsconfig({}, FSCONFIG_SET_STRING, lowerdir, {:?}, 0) error: {}",
+                    fd, path, rc
+                )
+                .into());
+            }
+        }
+        // Safety: fd is valid and arguments are null-terminated.
+        let rc = unsafe {
+            syscall!(
+                SYS_fsconfig,
+                fd,
+                FSCONFIG_SET_STRING,
+                FSCONFIG_LOWERDIR_APPEND_CSTR.as_ptr(),
+                lower_dir.as_ptr(),
+                FSCONFIG_DEFAULT
+            )
+        }
+        .as_u64_unchecked();
+        if rc != 0 {
+            return Err(format!(
+                "mount_overlayfs_syscalls::SYS_fsconfig({}, FSCONFIG_SET_STRING, lowerdir, {:?}, 0) error: {}",
+                fd, lower_dir, rc
+            )
+            .into());
+        }
+    } else {
+        let mut lower_dir_value = String::new();
+        for layer in layer_dirs.iter().rev() {
+            lower_dir_value += layer.as_ref().to_string_lossy().as_ref();
+            lower_dir_value += ":";
+        }
+        lower_dir_value += rt.config.lower_dir.to_string_lossy().as_ref();
+        let lower_dir = CString::new(lower_dir_value.as_str())
+            .map_err(|err| format!("unable to create CString from {lower_dir_value}: {err}"))?;
+
+        // Safety: fd is valid and arguments are null-terminated.
+        let rc = unsafe {
+            syscall!(
+                SYS_fsconfig,
+                fd,
+                FSCONFIG_SET_STRING,
+                FSCONFIG_LOWERDIR_CSTR.as_ptr(),
+                lower_dir.as_ptr(),
+                FSCONFIG_DEFAULT
+            )
+        }
+        .as_u64_unchecked();
+        if rc != 0 {
+            return Err(format!(
+                "mount_overlayfs_syscalls::SYS_fsconfig({}, FSCONFIG_SET_STRING, lowerdir, {:?}, 0) error: {}",
+                fd, lower_dir, rc
+            )
+            .into());
+        }
+    }
+
+    let upper_dir =
+        CString::new(rt.config.upper_dir.to_string_lossy().as_ref()).map_err(|err| {
+            format!(
+                "unable to create CString from {}: {}",
+                rt.config.upper_dir.to_string_lossy(),
+                err
+            )
+        })?;
+    // Safety: fd is valid and arguments are null-terminated.
+    let rc = unsafe {
+        syscall!(
+            SYS_fsconfig,
+            fd,
+            FSCONFIG_SET_STRING,
+            FSCONFIG_UPPERDIR_CSTR.as_ptr(),
+            upper_dir.as_ptr(),
+            FSCONFIG_DEFAULT
+        )
+    }
+    .as_u64_unchecked();
+    if rc != 0 {
+        return Err(format!(
+            "mount_overlayfs_syscalls::SYS_fsconfig({}, FSCONFIG_SET_STRING, upperdir, {:?}) error: {}",
+            fd, upper_dir, rc
+        )
+        .into());
+    }
+
+    let work_dir = CString::new(rt.config.work_dir.to_string_lossy().as_ref()).map_err(|err| {
+        format!(
+            "unable to create CString from {}: {}",
+            rt.config.work_dir.to_string_lossy(),
+            err
+        )
+    })?;
+    // Safety: fd is valid and arguments are null-terminated.
+    let rc = unsafe {
+        syscall!(
+            SYS_fsconfig,
+            fd,
+            FSCONFIG_SET_STRING,
+            FSCONFIG_WORKDIR_CSTR.as_ptr(),
+            work_dir.as_ptr(),
+            FSCONFIG_DEFAULT
+        )
+    }
+    .as_u64_unchecked();
+    if rc != 0 {
+        return Err(format!(
+            "fsconfig({}, FSCONFIG_SET_STRING, workdir, {:?}) error: {}",
+            fd, work_dir, rc
+        )
+        .into());
+    }
+
+    // Safety: fd is valid and FSCONFIG_CMD_CREATE must be supported.
+    let rc = unsafe {
+        syscall!(
+            SYS_fsconfig,
+            fd,
+            FSCONFIG_CMD_CREATE,
+            std::ptr::null::<u8>(),
+            std::ptr::null::<u8>(),
+            FSCONFIG_DEFAULT
+        )
+    }
+    .as_u64_unchecked() as i32;
+    if rc != 0 {
+        return Err(format!(
+            "mount_overlayfs_syscalls::SYS_fsconfig({}, FSCONFIG_CMD_CREATE, NULL, NULL, 0) error: {}",
+            fd, rc
+        )
+        .into());
+    }
+
+    // Safety: fd is valid and and will be closed on exec.
+    let mount_fd =
+        unsafe { syscall!(SYS_fsmount, fd, FSMOUNT_CLOEXEC, 0u32) }.as_u64_unchecked() as i32;
+    if mount_fd < 0 {
+        return Err(format!("fsmount({}, FSMOUNT_CLOEXEC, 0) error: {}", mount_fd, rc).into());
+    }
+    let _close_mount_fd = CloseFd::new(mount_fd); // Close mount_fd when dropped.
+
+    let attr_set = if mount_options.read_only {
+        MOUNT_ATTR_RDONLY as u64
+    } else {
+        0
+    };
+    let mount_attrs = mount_attr {
+        attr_set,
+        attr_clr: 0,
+        propagation: 0,
+        userns_fd: 0,
+    };
+    // Safety: mount_fd is valid and mount_attr matches the C struct from mount.h.
+    let rc = unsafe {
+        syscall!(
+            SYS_mount_setattr,
+            mount_fd,
+            EMPTY_CSTR.as_ptr(),
+            AT_EMPTY_PATH,
+            std::ptr::addr_of!(mount_attrs),
+            MOUNT_ATTR_SIZE_VER0
+        )
+    }
+    .as_u64_unchecked();
+    if rc != 0 {
+        return Err(format!(
+            "mount_overlayfs_syscalls::SYS_mount_setattr({}, AT_EMPTY_PATH, &mount_attrs, {}) error: {}",
+            mount_fd, MOUNT_ATTR_SIZE_VER0, rc
+        )
+        .into());
+    }
+
+    // Safety: mount_fd is valid and can be mounted at "/spfs".
+    let rc = unsafe {
+        syscall!(
+            SYS_move_mount,
+            mount_fd,
+            EMPTY_CSTR.as_ptr(),
+            AT_FDCWD,
+            SPFS_DIR_CSTR.as_ptr(),
+            MOVE_MOUNT_F_EMPTY_PATH
+        )
+    }
+    .as_u64_unchecked();
+    if rc != 0 {
+        return Err(format!(
+            "mount_overlayfs_syscalls::SYS_move_mount({}, \"\", AT_FDCWD, {:?}, MOVE_MOUNT_F_EMPTY_PATH) error: {}",
+            mount_fd, SPFS_DIR_CSTR, rc
+        )
+        .into());
+    }
+
+    Ok(())
+}
+
+/// Mount bind mounts from live layers in the runtime over the top of paths inside /spfs.
+async fn mount_live_layers(rt: &runtime::Runtime) -> Result<()> {
+    // This requires the mount destinations to exist under
+    // /spfs/. If they do not, the mount commands will error. The
+    // mount destinations are either provided by one of the layers
+    // in the runtime, or by an earlier call to
+    // ensure_extra_bind_mount_locations_exist() made in
+    // initialize_runtime()
+    let live_layers = rt.live_layers();
+    if !live_layers.is_empty() {
+        let spfs_config = crate::Config::current()?;
+        if spfs_config.filesystem.use_mount_syscalls {
+            mount_live_layers_syscalls(live_layers)?;
+        } else {
+            mount_live_layers_command(live_layers).await?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Bind-mount live layers using the "mount" command.
+async fn mount_live_layers_command(live_layers: &Vec<runtime::LiveLayer>) -> Result<()> {
+    tracing::debug!(
+        "mounting extra bind mounts over the {SPFS_DIR} filesystem using the mount command"
+    );
+    let mount = super::resolve::which("mount").unwrap_or_else(|| "/usr/bin/mount".into());
+
+    for layer in live_layers {
+        let injection_mounts = layer.bind_mounts();
+
+        for extra_mount in injection_mounts {
+            let dest = if extra_mount.dest.starts_with(SPFS_DIR_PREFIX) {
+                PathBuf::from(extra_mount.dest.clone())
+            } else {
+                PathBuf::from(SPFS_DIR).join(extra_mount.dest.clone())
+            };
+
+            let mut cmd = tokio::process::Command::new(mount.clone());
+            cmd.arg("--bind");
+            cmd.arg(extra_mount.src.to_string_lossy().into_owned());
+            cmd.arg(dest);
+            tracing::debug!("About to run: {cmd:?}");
+
+            match cmd.status().await {
+                Err(err) => return Err(Error::process_spawn_error("mount".to_owned(), err, None)),
+                Ok(status) => match status.code() {
+                    Some(0) => (),
+                    _ => return Err(format!(
+                        "Failed to inject bind mount into the {SPFS_DIR} filesystem using: {cmd:?}"
+                    )
+                    .into()),
+                },
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Bind-mount live layers using mount syscalls.
+fn mount_live_layers_syscalls(live_layers: &Vec<runtime::LiveLayer>) -> Result<()> {
+    tracing::debug!(
+        "mounting extra bind mounts over the {SPFS_DIR} filesystem using mount syscalls"
+    );
+
+    for layer in live_layers {
+        let injection_mounts = layer.bind_mounts();
+
+        for extra_mount in injection_mounts {
+            let Ok(src) = extra_mount.src.canonicalize() else {
+                return Err(format!("unable to canonicalize {:?}", extra_mount.src).into());
+            };
+            let dest = if extra_mount.dest.starts_with(SPFS_DIR_PREFIX) {
+                PathBuf::from(extra_mount.dest.clone())
+            } else {
+                PathBuf::from(SPFS_DIR).join(extra_mount.dest.clone())
+            };
+            let src_path = CString::new(src.to_string_lossy().as_ref()).map_err(|err| {
+                format!(
+                    "unable to create CString from {}: {err}",
+                    src.to_string_lossy().as_ref(),
+                )
+            })?;
+            let dest_path = CString::new(dest.to_string_lossy().as_ref()).map_err(|err| {
+                format!(
+                    "unable to create CString from {}: {err}",
+                    dest.to_string_lossy().as_ref(),
+                )
+            })?;
+
+            // Safety: the source path must by valid for use with open_tree().
+            let mount_fd = unsafe {
+                syscall!(
+                    SYS_open_tree,
+                    AT_FDCWD,
+                    src_path.as_ptr(),
+                    OPEN_TREE_CLONE | OPEN_TREE_CLOEXEC
+                )
+            }
+            .as_u64_unchecked() as i32;
+            if mount_fd < 0 {
+                return Err(format!("mount_live_layers_syscalls::SYS_open_tree(AT_FDCWD, {:?}, OPEN_TREE_CLONE | OPEN_TREE_CLOEXEC) error: {}",
+                    src_path, mount_fd).into());
+            }
+            let _close_mount_fd = CloseFd::new(mount_fd); // Close mount_fd when dropped.
+
+            // Safety: mount_fd must be valid so that we can move the mount to "/spfs".
+            let rc = unsafe {
+                syscall!(
+                    SYS_move_mount,
+                    mount_fd,
+                    EMPTY_CSTR.as_ptr(),
+                    AT_FDCWD,
+                    dest_path.as_ptr(),
+                    MOVE_MOUNT_F_EMPTY_PATH
+                )
+            }
+            .as_u64_unchecked() as i32;
+            if rc != 0 {
+                return Err(format!(
+                    "mount_overlayfs_syscalls::SYS_move_mount({}, \"\", AT_FDCWD, {:?}, MOVE_MOUNT_F_EMPTY_PATH) error: {}",
+                    mount_fd, dest_path, rc
+                )
+                .into());
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Unmount the bind mounted items from the live layers
+async fn unmount_live_layers(rt: &runtime::Runtime) -> Result<()> {
+    let live_layers = rt.live_layers();
+    if !live_layers.is_empty() {
+        let spfs_config = crate::Config::current()?;
+        if spfs_config.filesystem.use_mount_syscalls {
+            unmount_live_layers_syscalls(live_layers)?;
+        } else {
+            unmount_live_layers_command(live_layers).await?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Unmount live layers using the "umount" command.
+async fn unmount_live_layers_command(live_layers: &Vec<runtime::LiveLayer>) -> Result<()> {
+    tracing::debug!(
+        "unmounting the extra bind mounts from the {SPFS_DIR} filesystem using the umount command ..."
+    );
+    let umount = super::resolve::which("umount").unwrap_or_else(|| "/usr/bin/umount".into());
+    for layer in live_layers {
+        let injection_mounts = layer.bind_mounts();
+        for extra_mount in injection_mounts {
+            let mut cmd = tokio::process::Command::new(umount.clone());
+            cmd.arg(PathBuf::from(SPFS_DIR).join(extra_mount.dest.clone()));
+            tracing::debug!("About to run: {cmd:?}");
+            match cmd.status().await {
+                Err(err) => {
+                    return Err(Error::process_spawn_error("umount".to_owned(), err, None))
+                }
+                Ok(status) => match status.code() {
+                    Some(0) => (),
+                    _ => return Err(format!("Failed to unmount a bind mount injected into the {SPFS_DIR} filesystem using: {cmd:?}").into()),
+                },
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Unmount live layers using umount syscalls.
+fn unmount_live_layers_syscalls(live_layers: &Vec<runtime::LiveLayer>) -> Result<()> {
+    tracing::debug!(
+        "unmounting the extra bind mounts from the {SPFS_DIR} filesystem using syscalls ..."
+    );
+    for layer in live_layers {
+        let injection_mounts = layer.bind_mounts();
+        for extra_mount in injection_mounts {
+            let dest = if extra_mount.dest.starts_with(SPFS_DIR_PREFIX) {
+                PathBuf::from(extra_mount.dest.clone())
+            } else {
+                PathBuf::from(SPFS_DIR).join(extra_mount.dest.clone())
+            };
+            let flags = nix::mount::MntFlags::empty();
+            let result = nix::mount::umount2(&dest, flags);
+            if let Err(err) = result {
+                return Err(Error::wrap_nix(err, format!("Failed to unmount {dest:?}")));
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// Prevent a structure from being [`Send`].
