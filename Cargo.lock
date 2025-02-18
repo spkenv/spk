@@ -1956,10 +1956,34 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0717cef1bc8b636c6e1c1bbdefc09e6322da8a9321966e8928ef80d20f7f770f"
 
 [[package]]
+name = "linux-errno"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "583acc33595c32cf8b0702115d4abdafecfabf257d28513499b93140db38a523"
+dependencies = [
+ "posix-errno",
+]
+
+[[package]]
 name = "linux-raw-sys"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78b3ae25bc7c8c38cec158d1f2757ee79e9b3740fbc7ccf0e59e4b08d793fa89"
+
+[[package]]
+name = "linux-raw-sys"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8bbbb933f93c53df320d2bb19124961a8e91fad88d2dd6f4f40e85ab13d4bb5e"
+
+[[package]]
+name = "linux-syscall"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1ca924c756acef088aa8d06e6a0b0d47d3ba5587b5bbc8a7255f10c1be10c30"
+dependencies = [
+ "linux-errno",
+]
 
 [[package]]
 name = "lock_api"
@@ -2552,6 +2576,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3bccab0e7fd7cc19f820a1c8c91720af652d0c88dc9664dd72aef2614f04af3b"
 
 [[package]]
+name = "posix-errno"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c3ed686be262618484b930cdbdf0db6e991de9a74aebb0855bfde058600927c"
+
+[[package]]
 name = "powerfmt"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3077,7 +3107,7 @@ dependencies = [
  "bitflags 2.4.1",
  "errno",
  "libc",
- "linux-raw-sys",
+ "linux-raw-sys 0.4.14",
  "windows-sys 0.52.0",
 ]
 
@@ -3623,6 +3653,8 @@ dependencies = [
  "indicatif",
  "itertools 0.12.1",
  "libc",
+ "linux-raw-sys 0.8.0",
+ "linux-syscall",
  "miette",
  "nix",
  "nonempty",
