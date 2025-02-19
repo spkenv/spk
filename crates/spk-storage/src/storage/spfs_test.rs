@@ -39,7 +39,7 @@ async fn test_metadata_io(tmpdir: tempfile::TempDir) {
         NormalizedTagStrategy,
     >::new(
         "test-repo",
-        spfs::storage::fs::FsRepository::create(repo_root)
+        spfs::storage::fs::MaybeOpenFsRepository::create(repo_root)
             .await
             .unwrap(),
     ))
@@ -63,7 +63,7 @@ async fn test_upgrade_sets_version(tmpdir: tempfile::TempDir) {
         NormalizedTagStrategy,
     >::new(
         "test-repo",
-        spfs::storage::fs::FsRepository::create(repo_root)
+        spfs::storage::fs::MaybeOpenFsRepository::create(repo_root)
             .await
             .unwrap(),
     ))
@@ -84,7 +84,7 @@ async fn test_upgrade_sets_version(tmpdir: tempfile::TempDir) {
 async fn test_upgrade_changes_tags(tmpdir: tempfile::TempDir) {
     init_logging();
     let repo_root = tmpdir.path();
-    let spfs_repo = spfs::storage::fs::FsRepository::create(repo_root)
+    let spfs_repo = spfs::storage::fs::MaybeOpenFsRepository::create(repo_root)
         .await
         .unwrap();
     let repo = SpfsRepository::<NormalizedTagStrategy>::new(

@@ -274,11 +274,11 @@ async fn test_sync_through_tar(
 #[fixture]
 async fn config(tmpdir: tempfile::TempDir) -> (tempfile::TempDir, Config) {
     let repo_path = tmpdir.path().join("repo");
-    crate::storage::fs::FsRepository::create(&repo_path)
+    crate::storage::fs::MaybeOpenFsRepository::create(&repo_path)
         .await
         .expect("failed to make repo for test");
     let origin_path = tmpdir.path().join("origin");
-    crate::storage::fs::FsRepository::create(&origin_path)
+    crate::storage::fs::MaybeOpenFsRepository::create(&origin_path)
         .await
         .expect("failed to make repo for test");
     let mut conf = Config::default();
