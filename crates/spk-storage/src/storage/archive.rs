@@ -14,8 +14,8 @@ use variantly::Variantly;
 use super::{Repository, SpfsRepository};
 use crate::{Error, NameAndRepositoryWithTagStrategy, Result, SpfsRepositoryHandle};
 
-pub async fn export_package<'a, S>(
-    source_repos: &[SpfsRepositoryHandle<'a>],
+pub async fn export_package<S>(
+    source_repos: &[SpfsRepositoryHandle<'_>],
     pkg: impl AsRef<AnyIdent>,
     filename: impl AsRef<Path>,
 ) -> Result<()>
@@ -153,9 +153,9 @@ where
     Ok(())
 }
 
-async fn copy_any<'a, S2>(
+async fn copy_any<S2>(
     pkg: AnyIdent,
-    src_repo: &SpfsRepositoryHandle<'a>,
+    src_repo: &SpfsRepositoryHandle<'_>,
     dst_repo: &SpfsRepository<S2>,
 ) -> Result<()>
 where
@@ -169,9 +169,9 @@ where
     }
 }
 
-async fn copy_recipe<'a, S2>(
+async fn copy_recipe<S2>(
     pkg: &VersionIdent,
-    src_repo: &SpfsRepositoryHandle<'a>,
+    src_repo: &SpfsRepositoryHandle<'_>,
     dst_repo: &SpfsRepository<S2>,
 ) -> Result<()>
 where
@@ -183,9 +183,9 @@ where
     Ok(())
 }
 
-async fn copy_package<'a, S2>(
+async fn copy_package<S2>(
     pkg: &BuildIdent,
-    src_repo: &SpfsRepositoryHandle<'a>,
+    src_repo: &SpfsRepositoryHandle<'_>,
     dst_repo: &SpfsRepository<S2>,
 ) -> Result<()>
 where
