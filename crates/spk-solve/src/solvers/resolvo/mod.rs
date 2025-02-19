@@ -241,21 +241,58 @@ impl Solver {
                 next_index,
             );
             solution_adds.push((pkg_request, package, {
-                if located_build_ident_with_component.requires_build_from_source {
-                    PackageSource::BuildFromSource {
-                        recipe: repo
-                            .read_recipe(
-                                &located_build_ident_with_component.ident.to_version_ident(),
-                            )
-                            .await?,
+                match located_build_ident_with_component.ident.build() {
+                    spk_schema::ident_build::Build::Source
+                        if located_build_ident_with_component.requires_build_from_source =>
+                    {
+                        PackageSource::BuildFromSource {
+                            recipe: repo
+                                .read_recipe(
+                                    &located_build_ident_with_component.ident.to_version_ident(),
+                                )
+                                .await?,
+                        }
                     }
-                } else {
-                    PackageSource::Repository {
-                        repo: Arc::clone(repo),
-                        // XXX: Why is this needed?
-                        components: repo
-                            .read_components(located_build_ident_with_component.ident.target())
-                            .await?,
+                    spk_schema::ident_build::Build::Source => {
+                        // Not building this from source but just adding the
+                        // source build to the Solution.
+                        PackageSource::Repository {
+                            repo: Arc::clone(repo),
+                            // XXX: Why is this needed?
+                            components: repo
+                                .read_components(located_build_ident_with_component.ident.target())
+                                .await?,
+                        }
+                    }
+                    spk_schema::ident_build::Build::Embedded(embedded_source) => {
+                        match embedded_source {
+                            spk_schema::ident_build::EmbeddedSource::Package(
+                                embedded_source_package,
+                            ) => {
+                                PackageSource::Embedded {
+                                    parent: (**embedded_source_package).clone().try_into()?,
+                                    // XXX: Why is this needed?
+                                    components: repo
+                                        .read_components(
+                                            located_build_ident_with_component.ident.target(),
+                                        )
+                                        .await?
+                                        .keys()
+                                        .cloned()
+                                        .collect(),
+                                }
+                            }
+                            spk_schema::ident_build::EmbeddedSource::Unknown => todo!(),
+                        }
+                    }
+                    spk_schema::ident_build::Build::BuildId(_build_id) => {
+                        PackageSource::Repository {
+                            repo: Arc::clone(repo),
+                            // XXX: Why is this needed?
+                            components: repo
+                                .read_components(located_build_ident_with_component.ident.target())
+                                .await?,
+                        }
                     }
                 }
             }));
