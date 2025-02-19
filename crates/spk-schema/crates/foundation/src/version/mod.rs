@@ -554,6 +554,14 @@ impl TryFrom<&str> for Version {
     }
 }
 
+impl TryFrom<String> for Version {
+    type Error = Error;
+
+    fn try_from(value: String) -> Result<Self> {
+        parse_version(value)
+    }
+}
+
 impl FromStr for Version {
     type Err = Error;
 

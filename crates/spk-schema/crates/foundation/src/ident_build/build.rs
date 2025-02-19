@@ -177,6 +177,14 @@ impl std::fmt::Display for Build {
     }
 }
 
+impl TryFrom<String> for Build {
+    type Error = super::Error;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::from_str(&value)
+    }
+}
+
 impl FromStr for Build {
     type Err = super::Error;
 
