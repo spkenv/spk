@@ -138,6 +138,7 @@ build:
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
 async fn test_build_with_circular_dependency_allow_with_validation(
     tmpdir: tempfile::TempDir,
