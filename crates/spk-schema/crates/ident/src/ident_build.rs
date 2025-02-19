@@ -6,7 +6,7 @@ use std::fmt::Write;
 use std::str::FromStr;
 
 use relative_path::RelativePathBuf;
-use spk_schema_foundation::ident_build::Build;
+use spk_schema_foundation::ident_build::{Build, EmbeddedSourcePackage};
 use spk_schema_foundation::ident_ops::parsing::IdentPartsBuf;
 use spk_schema_foundation::ident_ops::{MetadataPath, TagPath};
 use spk_schema_foundation::name::{PkgName, PkgNameBuf, RepositoryNameBuf};
@@ -29,6 +29,34 @@ use crate::{
 pub type BuildIdent = Ident<VersionIdent, Build>;
 
 crate::ident_version::version_ident_methods!(BuildIdent, .base);
+
+impl TryFrom<EmbeddedSourcePackage> for BuildIdent {
+    type Error = Error;
+
+    fn try_from(value: EmbeddedSourcePackage) -> std::result::Result<Self, Self::Error> {
+        let IdentPartsBuf {
+            repository_name: _,
+            pkg_name,
+            version_str: Some(version),
+            build_str: Some(build),
+        } = value.ident
+        else {
+            return if value.ident.build_str.is_some() {
+                Err(Error::String(
+                    "EmbeddedSourcePackage missing version".to_string(),
+                ))
+            } else {
+                Err(Error::String(
+                    "EmbeddedSourcePackage missing build".to_string(),
+                ))
+            };
+        };
+        Ok(Self::new(
+            VersionIdent::new(pkg_name.try_into()?, version.try_into()?),
+            build.try_into()?,
+        ))
+    }
+}
 
 macro_rules! build_ident_methods {
     ($Ident:ty $(, .$($access:ident).+)?) => {
