@@ -278,6 +278,10 @@ impl Solver {
             self.check_impossible_builds || self.check_impossible_all,
         );
 
+        for r in options.get_var_requests()? {
+            solver.add_request(r.into());
+        }
+
         Ok(solver)
     }
 }
