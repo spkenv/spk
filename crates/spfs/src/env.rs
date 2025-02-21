@@ -1152,7 +1152,7 @@ pub(crate) fn get_overlay_args<P: AsRef<Path>>(
         Err(_) => tracing::debug!("failed to get page size for checking arg length"),
         Ok(None) => (),
         Ok(Some(size)) => {
-            if args.as_bytes().len() as i64 > size - 1 {
+            if args.len() as i64 > size - 1 {
                 return Err(
                     "Mount args would be too large for the kernel; reduce the number of layers"
                         .into(),

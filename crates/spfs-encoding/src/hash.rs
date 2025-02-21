@@ -330,11 +330,7 @@ impl PartialDigest {
 
     /// If this partial digest is actually a full digest, convert it
     pub fn to_digest(&self) -> Option<Digest> {
-        if let Ok(d) = Digest::from_bytes(self.as_slice()) {
-            Some(d)
-        } else {
-            None
-        }
+        Digest::from_bytes(self.as_slice()).ok()
     }
 }
 

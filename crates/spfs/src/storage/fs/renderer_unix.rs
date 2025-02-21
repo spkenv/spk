@@ -22,7 +22,7 @@ use crate::storage::fs::RenderReporter;
 use crate::storage::LocalRepository;
 use crate::{get_config, graph, tracking, Error, OsError, Result};
 
-impl<'repo, Repo, Reporter> Renderer<'repo, Repo, Reporter>
+impl<Repo, Reporter> Renderer<'_, Repo, Reporter>
 where
     Repo: Repository + LocalRepository,
     Reporter: RenderReporter,

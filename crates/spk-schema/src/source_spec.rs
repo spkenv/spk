@@ -370,7 +370,7 @@ pub fn git_version() -> Option<String> {
 
     // eg: git version 1.83.6
     let out = String::from_utf8_lossy(out.stdout.as_slice());
-    out.trim().split(' ').last().map(|s| s.to_string())
+    out.trim().split(' ').next_back().map(|s| s.to_string())
 }
 
 fn default_git_clone_depth() -> u32 {

@@ -116,8 +116,9 @@ impl WithVersionAndBuildSet for PkgRequest {
                         }
                     }
                     DefaultBuildStrategy::Last => {
-                        if let Some(pkg_ident) =
-                            (repo.list_package_builds(&ident).await?).into_iter().last()
+                        if let Some(pkg_ident) = (repo.list_package_builds(&ident).await?)
+                            .into_iter()
+                            .next_back()
                         {
                             new_request.pkg.build = Some(pkg_ident.build().clone());
                             break;

@@ -345,7 +345,7 @@ async fn main() -> Result<()> {
             .wrap_err("get application name")?,
     )
     .iter()
-    .last()
+    .next_back()
     .ok_or_else(|| miette!("empty argv[0]?"))
     .wrap_err("get last component of argv[0])")?
     .to_owned();

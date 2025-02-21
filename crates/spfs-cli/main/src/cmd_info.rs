@@ -86,10 +86,10 @@ impl CmdInfo {
     // TODO: there are 2 other versions of this in cmd_layers and
     // cmd_platforms, might be possible to combine them
     /// Return a String based on the given digest and the --tags argument
-    async fn format_digest<'repo>(
+    async fn format_digest(
         &self,
         digest: spfs::encoding::Digest,
-        repo: &'repo spfs::storage::RepositoryHandle,
+        repo: &spfs::storage::RepositoryHandle,
     ) -> Result<String> {
         if self.tags {
             io::format_digest(digest, DigestFormat::ShortenedWithTags(repo)).await

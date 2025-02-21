@@ -388,9 +388,9 @@ pub(crate) async fn resolve_and_render_overlay_dirs(
 }
 
 /// Given a sequence of tags and digests, resolve to the set of underlying layers.
-pub async fn resolve_stack_to_layers<'repo>(
+pub async fn resolve_stack_to_layers(
     stack: &graph::Stack,
-    mut repo: Option<&'repo storage::RepositoryHandle>,
+    mut repo: Option<&storage::RepositoryHandle>,
 ) -> Result<Vec<graph::Layer>> {
     let owned_handle;
     let repo = match repo.take() {
