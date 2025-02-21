@@ -1126,19 +1126,19 @@ pub(crate) fn get_overlay_args<P: AsRef<Path>>(
     // the rightmost on the command line is the bottom layer, and the
     // leftmost is on the top). For more details see:
     // https://docs.kernel.org/filesystems/overlayfs.html#multiple-lower-layers
-    if cfg!(feature = "legacy-mount-options") {
-        args.push_str("lowerdir=");
-        for path in layer_dirs.iter().rev() {
-            args.push_str(&path.as_ref().to_string_lossy());
-            args.push(':');
-        }
-    } else {
+    if cfg!(feature = "new-mount-options") {
         for path in layer_dirs.iter().rev() {
             args.push_str("lowerdir+=");
             args.push_str(&path.as_ref().to_string_lossy());
             args.push(',');
         }
         args.push_str("lowerdir+=");
+    } else {
+        args.push_str("lowerdir=");
+        for path in layer_dirs.iter().rev() {
+            args.push_str(&path.as_ref().to_string_lossy());
+            args.push(':');
+        }
     }
     args.push_str(&rt.config.lower_dir.to_string_lossy());
 

@@ -18,11 +18,11 @@ default = []
 # If enabled, will create the "local" repository in a subdirectory
 # of the standard storage root, named "ci/pipeline_${CI_PIPELINE_ID}".
 gitlab-ci-local-repo-isolation = []
-# Use "mount" commands that are compatible with older centos7-era kernels that
-# do not support the "lowerdir+=" overlayfs options. "legacy-mount-options"
-# can run into path length limits when mounting many layers.
+# Use "mount" commands that leverage the "lowerdir+=" overlayfs option supported
+# by newer kernels. Older systems that do not support "new-mount-options" may
+# run into path length limits when mounting many layers.
 # https://github.com/spkenv/spk/issues/968
-legacy-mount-options = []
+new-mount-options = []
 sentry = ["dep:sentry"]
 server = ["hyper/server", "tokio-util/codec", "tokio-util/io-util"]
 "protobuf-src" = ["dep:protobuf-src"]
