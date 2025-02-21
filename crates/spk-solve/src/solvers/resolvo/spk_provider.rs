@@ -6,7 +6,6 @@ use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ops::Not;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use itertools::Itertools;
@@ -38,7 +37,6 @@ use spk_schema::ident_build::{Build, EmbeddedSource, EmbeddedSourcePackage};
 use spk_schema::ident_component::Component;
 use spk_schema::name::{OptNameBuf, PkgNameBuf};
 use spk_schema::prelude::{HasVersion, Named};
-use spk_schema::version::Version;
 use spk_schema::version_range::{DoubleEqualsVersion, Ranged, VersionFilter, parse_version_range};
 use spk_schema::{
     BuildIdent,
@@ -1448,106 +1446,130 @@ impl DependencyProvider for SpkProvider {
                 if let Build::Embedded(EmbeddedSource::Package(parent)) =
                     located_build_ident_with_component.ident.build()
                 {
-                    match actual_component {
-                        Component::Run => {
-                            // The Run component is the default "home" of
-                            // embedded packages, no dependency needed in this
-                            // case.
+                    let parent_ident: BuildIdent = match (**parent).clone().try_into() {
+                        Ok(ident) => ident,
+                        Err(err) => {
+                            let msg = self.pool.intern_string(format!(
+                                "failed to get valid parent ident for '{}': {err}",
+                                located_build_ident_with_component.ident
+                            ));
+                            return Dependencies::Unknown(msg);
                         }
-                        component => 'invalid_parent: {
-                            // XXX: Do we not have a convenient way to read the
-                            // parent package from an embedded stub ident?
-                            let Ok(pkg_name) = PkgNameBuf::from_str(&parent.ident.pkg_name) else {
-                                break 'invalid_parent;
-                            };
-                            let Some(version_str) = parent.ident.version_str.as_ref() else {
-                                break 'invalid_parent;
-                            };
-                            let Ok(version) = Version::from_str(version_str) else {
-                                break 'invalid_parent;
-                            };
-                            let Some(build_str) = parent.ident.build_str.as_ref() else {
-                                break 'invalid_parent;
-                            };
-                            let Ok(build) = Build::from_str(build_str) else {
-                                break 'invalid_parent;
-                            };
-                            let ident = BuildIdent::new(
-                                VersionIdent::new(pkg_name, version),
-                                build.clone(),
-                            );
-                            let Ok(parent) = repo.read_package(&ident).await else {
-                                break 'invalid_parent;
-                            };
-                            // Look through the components of the parent to see
-                            // if one (or more?) of them embeds this component.
-                            for parent_component in parent.components().iter() {
-                                parent_component
-                                    .embedded
-                                    .iter()
-                                    .filter(|embedded_package| {
-                                        embedded_package.pkg.name()
-                                            == located_build_ident_with_component.ident.name()
-                                            && embedded_package
-                                                .pkg
-                                                .target()
-                                                .as_ref()
-                                                .map(|version| {
-                                                    version
-                                                        == located_build_ident_with_component
-                                                            .ident
-                                                            .version()
-                                                })
-                                                .unwrap_or(true)
-                                            && embedded_package.components().contains(component)
-                                    })
-                                    .for_each(|_embedded_package| {
-                                        let dep_name = self.pool.intern_package_name(
-                                            ResolvoPackageName::PkgNameBufWithComponent(
-                                                PkgNameBufWithComponent {
-                                                    name: ident.name().to_owned(),
-                                                    component: SyntheticComponent::Actual(
-                                                        parent_component.name.clone(),
-                                                    ),
-                                                },
+                    };
+                    let parent = match repo.read_package(&parent_ident).await {
+                        Ok(spec) => spec,
+                        Err(err) => {
+                            let msg = self.pool.intern_string(format!(
+                                "failed to read parent package for '{}': {err}",
+                                located_build_ident_with_component.ident
+                            ));
+                            return Dependencies::Unknown(msg);
+                        }
+                    };
+                    // Look through the components of the parent to see
+                    // if one (or more?) of them embeds this component.
+                    let mut found = false;
+                    for parent_component in parent.components().iter() {
+                        parent_component
+                            .embedded
+                            .iter()
+                            .filter(|embedded_package| {
+                                embedded_package.pkg.name()
+                                    == located_build_ident_with_component.ident.name()
+                                    && embedded_package
+                                        .pkg
+                                        .target()
+                                        .as_ref()
+                                        .map(|version| {
+                                            version
+                                                == located_build_ident_with_component
+                                                    .ident
+                                                    .version()
+                                        })
+                                        .unwrap_or(true)
+                                    && embedded_package.components().contains(actual_component)
+                            })
+                            .for_each(|_embedded_package| {
+                                found = true;
+                                let dep_name = self.pool.intern_package_name(
+                                    ResolvoPackageName::PkgNameBufWithComponent(
+                                        PkgNameBufWithComponent {
+                                            name: parent_ident.name().to_owned(),
+                                            component: SyntheticComponent::Actual(
+                                                parent_component.name.clone(),
                                             ),
-                                        );
-                                        known_deps.requirements.push(
-                                            self.pool.intern_version_set(
-                                                dep_name,
-                                                RequestVS::SpkRequest(Request::Pkg(
-                                                    PkgRequest::new(
-                                                        RangeIdent {
-                                                            repository_name: Some(
-                                                                located_build_ident_with_component
-                                                                    .ident
-                                                                    .repository_name()
-                                                                    .to_owned(),
-                                                            ),
-                                                            name: ident.name().to_owned(),
-                                                            components: BTreeSet::from_iter([
-                                                                parent_component.name.clone(),
-                                                            ]),
-                                                            version: VersionFilter::single(
-                                                                DoubleEqualsVersion::version_range(
-                                                                    ident.version().clone(),
-                                                                ),
-                                                            ),
-                                                            build: Some(build.clone()),
-                                                        },
-                                                        RequestedBy::Embedded(
-                                                            located_build_ident_with_component
-                                                                .ident
-                                                                .target()
-                                                                .clone(),
+                                        },
+                                    ),
+                                );
+                                known_deps.requirements.push(
+                                    self.pool
+                                        .intern_version_set(
+                                            dep_name,
+                                            RequestVS::SpkRequest(Request::Pkg(PkgRequest::new(
+                                                RangeIdent {
+                                                    repository_name: Some(
+                                                        located_build_ident_with_component
+                                                            .ident
+                                                            .repository_name()
+                                                            .to_owned(),
+                                                    ),
+                                                    name: parent_ident.name().to_owned(),
+                                                    components: BTreeSet::from_iter([
+                                                        parent_component.name.clone(),
+                                                    ]),
+                                                    version: VersionFilter::single(
+                                                        DoubleEqualsVersion::version_range(
+                                                            parent_ident.version().clone(),
                                                         ),
                                                     ),
-                                                ))
-                                            ).into(),
-                                        );
-                                    });
-                            }
-                        }
+                                                    build: Some(parent_ident.build().clone()),
+                                                },
+                                                RequestedBy::Embedded(
+                                                    located_build_ident_with_component
+                                                        .ident
+                                                        .target()
+                                                        .clone(),
+                                                ),
+                                            ))),
+                                        )
+                                        .into(),
+                                );
+                            });
+                    }
+                    if !found {
+                        // In the event that no owning component was found,
+                        // this stub must still bring in at least one
+                        // component from the parent. By convention, bring
+                        // in the Run component of the parent.
+                        let dep_name = self.pool.intern_package_name(
+                            ResolvoPackageName::PkgNameBufWithComponent(PkgNameBufWithComponent {
+                                name: parent_ident.name().to_owned(),
+                                component: SyntheticComponent::Actual(Component::Run),
+                            }),
+                        );
+                        let located_parent = LocatedBuildIdentWithComponent {
+                            ident: parent_ident.clone().to_located(
+                                located_build_ident_with_component
+                                    .ident
+                                    .repository_name()
+                                    .to_owned(),
+                            ),
+                            // as_request_with_components does not make use
+                            // of the component field, assigning Base here
+                            // does not imply anything.
+                            component: SyntheticComponent::Base,
+                            requires_build_from_source: false,
+                        };
+                        known_deps.requirements.push(
+                            self.pool
+                                .intern_version_set(
+                                    dep_name,
+                                    RequestVS::SpkRequest(
+                                        located_parent.as_request_with_components([Component::Run]),
+                                    ),
+                                )
+                                .into(),
+                        );
                     }
                 }
                 for option in package.get_build_options() {
