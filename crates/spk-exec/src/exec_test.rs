@@ -23,10 +23,15 @@ fn solver() -> StepSolver {
 /// If two layers contribute files to the same subdirectory, the Manifest is
 /// expected to contain both files.
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
 async fn get_environment_filesystem_merges_directories(
     tmpdir: tempfile::TempDir,
+    // TODO: test with all solvers
     mut solver: StepSolver,
+    #[case] solver_to_run: &str,
 ) {
     let rt = spfs_runtime().await;
 
@@ -42,6 +47,7 @@ build:
     - mkdir "$PREFIX"/subdir
     - touch "$PREFIX"/subdir/one.txt
 "#,
+        solver_to_run
     );
 
     build_package!(
@@ -56,6 +62,7 @@ build:
     - mkdir "$PREFIX"/subdir
     - touch "$PREFIX"/subdir/two.txt
 "#,
+        solver_to_run
     );
 
     let formatter = DecisionFormatterBuilder::default()
