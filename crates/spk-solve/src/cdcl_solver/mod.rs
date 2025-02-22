@@ -11,7 +11,14 @@ use std::sync::Arc;
 
 use pkg_request_version_set::{SpkSolvable, SyntheticComponent};
 use spk_provider::SpkProvider;
-use spk_schema::ident::{InclusionPolicy, LocatedBuildIdent, PinPolicy, PkgRequest, RangeIdent};
+use spk_schema::ident::{
+    InclusionPolicy,
+    LocatedBuildIdent,
+    PinPolicy,
+    PkgRequest,
+    RangeIdent,
+    VarRequest,
+};
 use spk_schema::ident_component::Component;
 use spk_schema::prelude::{HasVersion, Named, Versioned};
 use spk_schema::version_range::VersionFilter;
@@ -63,6 +70,14 @@ impl AbstractSolver for Solver {
 
     fn add_request(&mut self, request: Request) {
         self.requests.push(request);
+    }
+
+    fn get_var_requests(&self) -> Vec<VarRequest> {
+        self.requests
+            .iter()
+            .filter_map(|r| r.var_ref())
+            .cloned()
+            .collect()
     }
 
     fn reset(&mut self) {
