@@ -7,6 +7,7 @@ use spk_schema::foundation::name::OptName;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::VarRequest;
 use spk_schema::option_map::HOST_OPTIONS;
+use spk_solve::Solver;
 
 #[rstest]
 #[case(&["hello:world"], &[("hello", "world")])]
@@ -37,12 +38,12 @@ fn test_option_flags_parsing(#[case] args: &[&str], #[case] expected: &[(&str, &
 }
 
 #[rstest]
-#[case::no_host_true(true)]
-#[case::no_host_false(false)]
 #[tokio::test]
-async fn test_get_solver_with_host_options(#[case] no_host: bool) {
+async fn test_get_solver_with_host_options(#[values(true, false)] no_host: bool) {
     // Test the get_solver() method adds the host options to the solver
     // correctly.
+
+    use std::collections::HashSet;
 
     let options_flags = crate::flags::Options {
         options: Vec::new(),
@@ -66,7 +67,10 @@ async fn test_get_solver_with_host_options(#[case] no_host: bool) {
     };
 
     let solver = solver_flags.get_solver(&options_flags).await.unwrap();
-    let initial_state = solver.get_initial_state();
+    let var_requests = solver
+        .get_var_requests()
+        .into_iter()
+        .collect::<HashSet<_>>();
 
     assert!(
         !HOST_OPTIONS.get().unwrap().is_empty(),
@@ -76,9 +80,9 @@ async fn test_get_solver_with_host_options(#[case] no_host: bool) {
     for (name, value) in HOST_OPTIONS.get().unwrap() {
         let var_request = VarRequest::new_with_value(name, value);
         if no_host {
-            assert!(!initial_state.contains_var_request(&var_request));
+            assert!(!var_requests.contains(&var_request));
         } else {
-            assert!(initial_state.contains_var_request(&var_request));
+            assert!(var_requests.contains(&var_request));
         }
     }
 }
