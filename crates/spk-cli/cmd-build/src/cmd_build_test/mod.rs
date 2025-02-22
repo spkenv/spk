@@ -26,8 +26,14 @@ struct Opt {
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
-async fn test_variant_options_contribute_to_build_hash(tmpdir: tempfile::TempDir) {
+async fn test_variant_options_contribute_to_build_hash(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
     // A var that appears in the variant list and doesn't appear in the
     // build.options list should still affect the build hash / produce a
     // unique build.
@@ -48,6 +54,7 @@ build:
   script:
     - "true"
 "#,
+        solver_to_run
     );
 
     let ident = version_ident!("three-variants/1.0.0");
@@ -64,8 +71,14 @@ build:
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
-async fn test_build_hash_not_affected_by_dependency_version(tmpdir: tempfile::TempDir) {
+async fn test_build_hash_not_affected_by_dependency_version(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
     // The same recipe should produce the same build hash even if there is a
     // change in its dependencies (at resolve time).
     let rt = spfs_runtime().await;
@@ -81,7 +94,8 @@ pkg: dependency/1.0.0
 build:
   script:
     - "true"
-"#
+"#,
+        solver_to_run
     );
 
     // Build a package that depends on "dependency".
@@ -98,6 +112,7 @@ build:
   script:
     - "true"
 "#,
+        solver_to_run
     );
 
     // Now build a newer version of the dependency.
@@ -112,10 +127,11 @@ build:
   script:
     - "true"
 "#,
+        solver_to_run
     );
 
     // And build the other package again.
-    build_package!(tmpdir, package_filename);
+    build_package!(tmpdir, package_filename, solver_to_run);
 
     // The second time building "package" we expect it to build something with
     // the _same_ build digest (e.g., the change in version of one of its
@@ -160,7 +176,6 @@ build:
   script:
     - "true"
 "#,
-        "--solver-to-run",
         solver_to_run
     );
 
@@ -185,7 +200,6 @@ install:
     - pkg: one
       fromBuildEnv: true
 "#,
-        "--solver-to-run",
         solver_to_run
     );
 
@@ -213,7 +227,6 @@ install:
     - pkg: two
       fromBuildEnv: true
 "#,
-        "--solver-to-run",
         solver_to_run
     );
 
@@ -221,8 +234,14 @@ install:
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
-async fn test_package_with_circular_dep_can_modify_files(tmpdir: tempfile::TempDir) {
+async fn test_package_with_circular_dep_can_modify_files(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
     // A package that depends on itself should be able to modify files
     // belonging to itself.
     let _rt = spfs_runtime().await;
@@ -237,7 +256,8 @@ build:
   script:
     - echo "1.0.0" > $PREFIX/a.txt
     - echo "1.0.0" > $PREFIX/z.txt
-"#
+"#,
+        solver_to_run
     );
 
     build_package!(
@@ -249,7 +269,8 @@ pkg: circ/1.0.0
 build:
   script:
     - echo "1.0.0" > $PREFIX/version.txt
-"#
+"#,
+        solver_to_run
     );
 
     // Force middle to pick up exactly 1.0.0 so for the multiple builds below
@@ -270,6 +291,7 @@ install:
   requirements:
     - pkg: circ/=1.0.0
 "#,
+        solver_to_run
     );
 
     // Attempt to build a newer version of circ, but now it depends on `middle`
@@ -294,6 +316,7 @@ build:
     rules:
       - allow: RecursiveBuild
 "#,
+        solver_to_run
     );
 
     for other_file in ["a", "z"] {
@@ -322,8 +345,9 @@ build:
     - echo "1.0.1" > $PREFIX/version.txt
     # try to modify a file belonging to 'other' too
     - echo "1.0.1" > $PREFIX/{other_file}.txt
-"#
+"#,
             ),
+            solver_to_run
         )
         .1
         .expect_err("Expected build to fail");
@@ -331,8 +355,14 @@ build:
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
-async fn test_package_with_circular_dep_can_build_major_version_change(tmpdir: tempfile::TempDir) {
+async fn test_package_with_circular_dep_can_build_major_version_change(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
     // A package that depends on itself should be able to build a new major
     // version of itself, as in something not compatible with the version
     // being brought in via the circular dependency.
@@ -347,7 +377,8 @@ pkg: circ/1.0.0
 build:
   script:
     - echo "1.0.0" > $PREFIX/version.txt
-"#
+"#,
+        solver_to_run
     );
 
     build_package!(
@@ -366,6 +397,7 @@ install:
     - pkg: circ
       fromBuildEnv: true
 "#,
+        solver_to_run
     );
 
     // Attempt to build a 2.0.0 version of circ, which shouldn't prevent
@@ -385,12 +417,19 @@ build:
     rules:
       - allow: RecursiveBuild
 "#,
+        solver_to_run
     );
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
-async fn test_package_with_circular_dep_collects_all_files(tmpdir: tempfile::TempDir) {
+async fn test_package_with_circular_dep_collects_all_files(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
     // Building a new version of a package that depends on itself should
     // produce a package containing all the expected files, even if the new
     // build creates files with the same content as the previous build.
@@ -407,7 +446,8 @@ build:
     - echo "1.0.0" > $PREFIX/version.txt
     - echo "hello world" > $PREFIX/hello.txt
     - echo "unchanged" > $PREFIX/unchanged.txt
-"#
+"#,
+        solver_to_run
     );
 
     build_package!(
@@ -426,6 +466,7 @@ install:
     - pkg: circ
       fromBuildEnv: true
 "#,
+        solver_to_run
     );
 
     // This build overwrites a file from the previous build, but it has the same
@@ -447,6 +488,7 @@ build:
     rules:
       - allow: RecursiveBuild
 "#,
+        solver_to_run
     );
 
     let build = rt
@@ -495,8 +537,14 @@ build:
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
-async fn test_package_with_circular_dep_does_not_collect_file_removals(tmpdir: tempfile::TempDir) {
+async fn test_package_with_circular_dep_does_not_collect_file_removals(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
     // Building a new version of a package that depends on itself should not
     // collect "negative files" (e.g., files that were removed in the new
     // build).
@@ -513,7 +561,8 @@ pkg: empty/1.0.0
 build:
   script:
     - mkdir $PREFIX/subdir
-"#
+"#,
+        solver_to_run
     );
 
     build_package!(
@@ -527,7 +576,8 @@ build:
     - echo "1.0.0" > $PREFIX/version.txt
     - mkdir -p $PREFIX/subdir/v1
     - echo "hello world" > $PREFIX/subdir/v1/hello.txt
-"#
+"#,
+        solver_to_run
     );
 
     // This build deletes a subdir that is owned by the previous build. It should
@@ -551,6 +601,7 @@ build:
     rules:
       - allow: RecursiveBuild
 "#,
+        solver_to_run
     );
 
     let build = rt
@@ -593,46 +644,51 @@ build:
     );
 }
 
-#[rstest]
-// cases not involving host options
-#[should_panic]
-#[case::empty_value_fails("varname", "", &["yes", "no"], true)]
-#[case::non_empty_value_succeeds("varname/yes", "", &["yes", "no"], true)]
-#[should_panic]
-#[case::non_empty_value_bad_value_fails("varname/what", "", &["yes", "no"], true)]
-// cases involving host options
-#[case::empty_value_for_host_option_succeeds("os", "", &["linux", "windows"], true)]
-#[case::non_empty_value_for_host_option_succeeds("os", "linux", &["linux", "windows"], true)]
-#[should_panic]
-#[case::empty_value_for_host_option_fails_if_host_options_disabled("os", "", &["linux", "windows"], false)]
-// this case verifies that the --no-host option is respected
-#[case::non_empty_value_for_host_option_good_value_succeeds_with_host_options_disabled("os", "beos", &["beos"], false)]
-#[should_panic]
-#[case::non_empty_value_for_host_option_bad_value_fails_with_host_options_disabled("os", "beos", &["linux", "windows"], false)]
-// this case passes because host options override default values, and the
-// provided host option value of "linux" is a valid choice.
-#[case::non_empty_value_for_host_option_bad_value_succeeds_with_host_options_enabled("os", "beos", &["linux", "windows"], true)]
-#[serial_test::serial(host_options)]
-#[tokio::test]
-async fn test_options_with_choices_and_empty_values(
-    tmpdir: tempfile::TempDir,
-    #[case] name: &'static str,
-    #[case] value: &'static str,
-    #[case] choices: &'static [&'static str],
-    #[case] host_options_enabled: bool,
-) {
-    let _rt = spfs_runtime().await;
+#[allow(clippy::too_many_arguments)]
+mod workaround_rstest_not_preserving_attrs {
+    use super::*;
 
-    // Force "os" host option to "linux" to make this test pass on any OS.
-    HOST_OPTIONS
-        .scoped_options(Ok(option_map! { "os" => "linux" }), async move {
-            let name_maybe_value = if value.is_empty() {
-                name.to_string()
-            } else {
-                format!("{name}/{value}")
-            };
-            let generated_spec = format!(
-                r#"
+    #[rstest]
+    // cases not involving host options
+    #[should_panic]
+    #[case::empty_value_fails("varname", "", &["yes", "no"], true)]
+    #[case::non_empty_value_succeeds("varname/yes", "", &["yes", "no"], true)]
+    #[should_panic]
+    #[case::non_empty_value_bad_value_fails("varname/what", "", &["yes", "no"], true)]
+    // cases involving host options
+    #[case::empty_value_for_host_option_succeeds("os", "", &["linux", "windows"], true)]
+    #[case::non_empty_value_for_host_option_succeeds("os", "linux", &["linux", "windows"], true)]
+    #[should_panic]
+    #[case::empty_value_for_host_option_fails_if_host_options_disabled("os", "", &["linux", "windows"], false)]
+    // this case verifies that the --no-host option is respected
+    #[case::non_empty_value_for_host_option_good_value_succeeds_with_host_options_disabled("os", "beos", &["beos"], false)]
+    #[should_panic]
+    #[case::non_empty_value_for_host_option_bad_value_fails_with_host_options_disabled("os", "beos", &["linux", "windows"], false)]
+    // this case passes because host options override default values, and the
+    // provided host option value of "linux" is a valid choice.
+    #[case::non_empty_value_for_host_option_bad_value_succeeds_with_host_options_enabled("os", "beos", &["linux", "windows"], true)]
+    #[tokio::test]
+    #[serial_test::serial(host_options)]
+    async fn test_options_with_choices_and_empty_values(
+        tmpdir: tempfile::TempDir,
+        #[case] name: &'static str,
+        #[case] value: &'static str,
+        #[case] choices: &'static [&'static str],
+        #[case] host_options_enabled: bool,
+        #[values("cli", "checks", "resolvo")] solver_to_run: &'static str,
+    ) {
+        let _rt = spfs_runtime().await;
+
+        // Force "os" host option to "linux" to make this test pass on any OS.
+        HOST_OPTIONS
+            .scoped_options(Ok(option_map! { "os" => "linux" }), async move {
+                let name_maybe_value = if value.is_empty() {
+                    name.to_string()
+                } else {
+                    format!("{name}/{value}")
+                };
+                let generated_spec = format!(
+                    r#"
 pkg: dummy/1.0.0
 api: v0/package
 build:
@@ -642,25 +698,35 @@ build:
     script:
         - "true"
 "#,
-                choices = choices.join(", ")
-            );
+                    choices = choices.join(", ")
+                );
 
-            if !host_options_enabled {
-                build_package!(tmpdir, "dummy.spk.yaml", generated_spec, "--no-host");
-            } else {
-                build_package!(tmpdir, "dummy.spk.yaml", generated_spec);
-            }
+                if !host_options_enabled {
+                    build_package!(
+                        tmpdir,
+                        "dummy.spk.yaml",
+                        generated_spec,
+                        solver_to_run,
+                        "--no-host"
+                    );
+                } else {
+                    build_package!(tmpdir, "dummy.spk.yaml", generated_spec, solver_to_run);
+                }
 
-            Ok::<_, ()>(())
-        })
-        .await
-        .unwrap();
+                Ok::<_, ()>(())
+            })
+            .await
+            .unwrap();
+    }
 }
 
 /// A package may contain files/directories with a leading dot
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
-async fn test_dot_files_are_collected(tmpdir: tempfile::TempDir) {
+async fn test_dot_files_are_collected(tmpdir: tempfile::TempDir, #[case] solver_to_run: &str) {
     let rt = spfs_runtime().await;
 
     build_package!(
@@ -680,6 +746,7 @@ build:
     - touch /spfs/.dot2/.dot
     - ln -s .dot2 /spfs/.dot3
 "#,
+        solver_to_run
     );
 
     let build = rt
@@ -733,8 +800,14 @@ build:
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
-async fn test_package_with_environment_ops_preserves_ops_in_recipe(tmpdir: tempfile::TempDir) {
+async fn test_package_with_environment_ops_preserves_ops_in_recipe(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
     let rt = spfs_runtime().await;
 
     build_package!(
@@ -750,7 +823,8 @@ install:
   environment:
     - set: FOO
       value: bar
-"#
+"#,
+        solver_to_run
     );
 
     let recipe = rt

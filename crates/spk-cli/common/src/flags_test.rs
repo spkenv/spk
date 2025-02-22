@@ -40,8 +40,15 @@ fn test_option_flags_parsing(#[case] args: &[&str], #[case] expected: &[(&str, &
 }
 
 #[rstest]
+#[case::cli(SolverToRun::Cli, SolverToShow::Cli)]
+#[case::cli(SolverToRun::Checks, SolverToShow::Checks)]
+#[case::cli(SolverToRun::Resolvo, SolverToShow::Resolvo)]
 #[tokio::test]
-async fn test_get_solver_with_host_options(#[values(true, false)] no_host: bool) {
+async fn test_get_solver_with_host_options(
+    #[case] solver_to_run: SolverToRun,
+    #[case] solver_to_show: SolverToShow,
+    #[values(true, false)] no_host: bool,
+) {
     // Test the get_solver() method adds the host options to the solver
     // correctly.
 
@@ -70,8 +77,8 @@ async fn test_get_solver_with_host_options(#[values(true, false)] no_host: bool)
             long_solves: Default::default(),
             max_frequent_errors: Default::default(),
             status_bar: Default::default(),
-            solver_to_run: SolverToRun::Cli,
-            solver_to_show: SolverToShow::Cli,
+            solver_to_run,
+            solver_to_show,
             show_search_size: Default::default(),
             compare_solvers: Default::default(),
             stop_on_block: Default::default(),
