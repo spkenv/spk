@@ -1134,6 +1134,14 @@ impl SolverTrait for Solver {
         self.initial_state_builders.push(request);
     }
 
+    fn get_var_requests(&self) -> Vec<VarRequest> {
+        self.get_initial_state()
+            .get_var_requests()
+            .iter()
+            .cloned()
+            .collect()
+    }
+
     fn reset(&mut self) {
         self.repos.truncate(0);
         self.initial_state_builders.truncate(0);

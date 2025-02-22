@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use enum_dispatch::enum_dispatch;
+use spk_schema::ident::VarRequest;
 use spk_schema::{OptionMap, Request};
 use spk_solve_solution::Solution;
 use spk_storage::RepositoryHandle;
@@ -29,6 +30,9 @@ pub trait Solver {
 
     /// Add a request to this solver.
     fn add_request(&mut self, request: Request);
+
+    /// Return the VarRequests added to the solver.
+    fn get_var_requests(&self) -> Vec<VarRequest>;
 
     /// Put this solver back into its default state
     fn reset(&mut self);
