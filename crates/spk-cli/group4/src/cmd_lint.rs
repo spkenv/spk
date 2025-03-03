@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use clap::Args;
 use colored::Colorize;
 use miette::Result;
-use spk_cli_common::{flags, CommandArgs, Run};
+use spk_cli_common::{CommandArgs, Run, flags};
 use spk_schema::{SpecTemplate, Template, TemplateExt};
 
 /// Validate spk yaml files

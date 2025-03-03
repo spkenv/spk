@@ -17,10 +17,10 @@ use tokio::io::AsyncReadExt;
 
 use super::{BlobSemaphorePermit, RenderType, Renderer};
 use crate::prelude::*;
-use crate::storage::fs::render_reporter::RenderBlobResult;
-use crate::storage::fs::RenderReporter;
 use crate::storage::LocalRepository;
-use crate::{get_config, graph, tracking, Error, OsError, Result};
+use crate::storage::fs::RenderReporter;
+use crate::storage::fs::render_reporter::RenderBlobResult;
+use crate::{Error, OsError, Result, get_config, graph, tracking};
 
 impl<Repo, Reporter> Renderer<'_, Repo, Reporter>
 where
@@ -291,7 +291,7 @@ where
                                         "symlink_metadata on payload path",
                                         payload_path.clone(),
                                         err,
-                                    ))
+                                    ));
                                 }
                                 Ok(metadata) => metadata,
                             };
@@ -361,7 +361,7 @@ where
                                                 "hard_link of payload to proxy path",
                                                 proxy_path,
                                                 err,
-                                            ))
+                                            ));
                                         }
                                     }
                                 } else {
@@ -440,7 +440,7 @@ where
                                                 "persist of blob proxy file",
                                                 proxy_path.to_owned(),
                                                 err.error,
-                                            ))
+                                            ));
                                         }
                                     }
                                 } else if !has_correct_mode {
@@ -518,14 +518,14 @@ where
                                     "hard_link of blob proxy to rendered path",
                                     PathBuf::from(entry.name()),
                                     err.into(),
-                                ))
+                                ));
                             }
                             _ => {
                                 return Err(Error::StorageWriteError(
                                     "hard_link of blob to rendered path",
                                     PathBuf::from(entry.name()),
                                     err.into(),
-                                ))
+                                ));
                             }
                         }
                     } else {

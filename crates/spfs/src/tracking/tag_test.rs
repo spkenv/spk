@@ -4,7 +4,7 @@
 
 use rstest::rstest;
 
-use super::{split_tag_spec, Tag, TagSpec};
+use super::{Tag, TagSpec, split_tag_spec};
 use crate::encoding;
 use crate::encoding::{Decodable, Encodable};
 

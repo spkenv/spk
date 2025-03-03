@@ -29,11 +29,11 @@ pub use problems::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{Error, Result, TagSet, Version, VERSION_SEP};
+use super::{Error, Result, TagSet, VERSION_SEP, Version};
 use crate::name::{OptNameBuf, PkgNameBuf};
 use crate::option_map::OptionMap;
 use crate::version_range::WildcardRange;
-use crate::{version, IsDefault};
+use crate::{IsDefault, version};
 
 #[cfg(test)]
 #[path = "./compat_test.rs"]
@@ -597,12 +597,12 @@ impl FromStr for Compat {
     type Err = super::Error;
 
     fn from_str(value: &str) -> super::Result<Self> {
+        use nom::IResult;
         use nom::branch::alt;
         use nom::bytes::complete::tag;
         use nom::combinator::{complete, map};
         use nom::multi::{fold_many0, many1, separated_list1};
         use nom::sequence::preceded;
-        use nom::IResult;
 
         fn compat_none(s: &str) -> IResult<&str, CompatRule> {
             map(tag(NONE_COMPAT_STR), |_| CompatRule::None)(s)

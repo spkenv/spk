@@ -3,14 +3,14 @@
 // https://github.com/spkenv/spk
 
 use std::os::windows::prelude::FileExt;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use dashmap::DashMap;
 use libc::c_void;
+use spfs::OsError;
 use spfs::prelude::*;
 use spfs::tracking::{Entry, EntryKind};
-use spfs::OsError;
 use tokio::io::AsyncReadExt;
 use windows::Win32::Foundation::{ERROR_SEEK_ON_DEVICE, STATUS_NOT_A_DIRECTORY};
 use windows::Win32::Security::Authorization::{

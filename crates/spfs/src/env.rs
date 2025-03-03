@@ -8,7 +8,7 @@
 use std::path::{Path, PathBuf};
 
 use super::runtime;
-use crate::{which, Error, Result};
+use crate::{Error, Result, which};
 
 pub const SPFS_DIR: &str = "/spfs";
 pub const SPFS_DIR_PREFIX: &str = "/spfs/";
@@ -194,7 +194,12 @@ impl<User> RuntimeConfigurator<User, NoMountNamespace> {
     /// Make this configurator for an existing runtime.
     ///
     /// The calling thread must already be operating in the provided runtime.
-    pub fn current_runtime(
+    ///
+    /// # Safety
+    ///
+    /// This function sets environment variables, see [`std::env::set_var`] for
+    /// more details on safety.
+    pub unsafe fn current_runtime(
         self,
         rt: &runtime::Runtime,
     ) -> Result<RuntimeConfigurator<User, ProcessIsInMountNamespace>> {
@@ -212,14 +217,22 @@ impl<User> RuntimeConfigurator<User, NoMountNamespace> {
             )));
         }
 
-        std::env::set_var("SPFS_RUNTIME", rt.name());
+        // Safety: the responsibility of the caller.
+        unsafe {
+            std::env::set_var("SPFS_RUNTIME", rt.name());
+        }
         Ok(RuntimeConfigurator::new(self.user, current_ns))
     }
 
     /// Move this process into the namespace of an existing runtime
     ///
     /// This function will fail if called from a process with multiple threads.
-    pub fn join_runtime(
+    ///
+    /// # Safety
+    ///
+    /// This function sets environment variables, see [`std::env::set_var`] for
+    /// more details on safety.
+    pub unsafe fn join_runtime(
         self,
         rt: &runtime::Runtime,
     ) -> Result<RuntimeConfigurator<User, ThreadIsInMountNamespace>> {
@@ -244,7 +257,7 @@ impl<User> RuntimeConfigurator<User, NoMountNamespace> {
                         source: Box::new(err),
                     }),
                     _ => Err(Error::RuntimeReadError(ns_path, err)),
-                }
+                };
             }
         };
 
@@ -258,7 +271,10 @@ impl<User> RuntimeConfigurator<User, NoMountNamespace> {
             });
         }
 
-        std::env::set_var("SPFS_RUNTIME", rt.name());
+        // Safety: the responsibility of the caller.
+        unsafe {
+            std::env::set_var("SPFS_RUNTIME", rt.name());
+        }
         // Safety: we've just entered an existing mount namespace
         let ns = unsafe { ThreadIsInMountNamespace::existing() }?;
         Ok(RuntimeConfigurator::new(self.user, ns))
@@ -347,7 +363,7 @@ where
     /// We privatize any existing /spfs mount, though because we are likely
     /// to replace it and don't want to affect any parent runtime.
     pub async fn remove_mount_propagation(&self) -> Result<()> {
-        use nix::mount::{mount, MsFlags};
+        use nix::mount::{MsFlags, mount};
 
         tracing::debug!("disable sharing of new mounts...");
 
@@ -395,10 +411,10 @@ where
     }
 
     pub fn mount_runtime(&self, config: &runtime::Config) -> Result<()> {
-        use nix::mount::{mount, MsFlags};
+        use nix::mount::{MsFlags, mount};
 
         let dir = match &config.runtime_dir {
-            Some(ref p) => p,
+            Some(p) => p,
             None => return Ok(()),
         };
 
@@ -424,7 +440,7 @@ where
 
     pub fn unmount_runtime(&self, config: &runtime::Config) -> Result<()> {
         let dir = match &config.runtime_dir {
-            Some(ref p) => p,
+            Some(p) => p,
             None => return Ok(()),
         };
 
@@ -614,9 +630,9 @@ where
                 Ok(status) if status.code() == Some(0) => {}
                 Ok(status) => {
                     return Err(Error::String(format!(
-                    "Failed to mount fuse filesystem, mount command exited with non-zero status {:?}",
-                    status.code()
-                )))
+                        "Failed to mount fuse filesystem, mount command exited with non-zero status {:?}",
+                        status.code()
+                    )));
                 }
             };
 
@@ -794,7 +810,7 @@ where
                 return Err(Error::RuntimeChangeToDurableError(format!(
                     "current upper_dir '{}' has invalid characters",
                     old_upper_dir.display()
-                )))
+                )));
             }
         };
         let dest_dir = match new_path.to_str() {
@@ -803,7 +819,7 @@ where
                 return Err(Error::RuntimeChangeToDurableError(format!(
                     "new upper_dir '{}' has invalid characters",
                     new_path.display()
-                )))
+                )));
             }
         };
 
@@ -813,7 +829,7 @@ where
             None => {
                 return Err(Error::RuntimeChangeToDurableError(
                     "rsync is not available on this host".to_string(),
-                ))
+                ));
             }
         };
 
@@ -894,7 +910,7 @@ where
                 std::path::Path::new(SPFS_DIR)
             }
             runtime::MountBackend::OverlayFsWithRenders | runtime::MountBackend::WinFsp => {
-                return Ok(())
+                return Ok(());
             }
         };
         tracing::debug!(%lazy, "unmounting existing fuse env @ {mount_path:?}...");
@@ -921,7 +937,7 @@ where
                 Err(err) => {
                     return Err(Error::String(format!(
                         "Failed to unmount FUSE filesystem: {err:?}"
-                    )))
+                    )));
                 }
                 Ok(out) if out.status.code() == Some(0) => continue,
                 Ok(out) => {
@@ -941,7 +957,7 @@ where
                                 "FUSE unmount returned non-zero exit status, {:?}: {}",
                                 out.status.code(),
                                 stderr.trim()
-                            )))
+                            )));
                         }
                     }
                 }

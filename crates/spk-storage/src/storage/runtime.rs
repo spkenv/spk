@@ -15,12 +15,12 @@ use spfs::prelude::*;
 use spk_schema::foundation::ident_build::parse_build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
-use spk_schema::foundation::version::{parse_version, Version};
+use spk_schema::foundation::version::{Version, parse_version};
 use spk_schema::ident_build::{Build, EmbeddedSource};
 use spk_schema::{BuildIdent, FromYaml, Package, Spec, SpecRecipe, VersionIdent};
 
-use super::repository::{PublishPolicy, Storage};
 use super::Repository;
+use super::repository::{PublishPolicy, Storage};
 use crate::{Error, Result};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -464,7 +464,7 @@ async fn get_all_filenames<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<Str
             return match err.kind() {
                 std::io::ErrorKind::NotFound => Ok(Default::default()),
                 _ => Err(Error::FileOpenError(path.as_ref().to_owned(), err)),
-            }
+            };
         }
         Ok(e) => e,
     };

@@ -14,7 +14,7 @@ use super::config::get_config;
 use crate::prelude::*;
 use crate::storage::fallback::FallbackProxy;
 use crate::storage::fs::{ManifestRenderPath, RenderSummary};
-use crate::{graph, runtime, storage, tracking, Error, Result};
+use crate::{Error, Result, graph, runtime, storage, tracking};
 
 #[cfg(test)]
 #[path = "./resolve_test.rs"]
@@ -442,7 +442,7 @@ where
                     "Cannot resolve object into a mountable filesystem layer: {:?}",
                     obj.kind()
                 )
-                .into())
+                .into());
             }
         }
     }

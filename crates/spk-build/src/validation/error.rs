@@ -46,7 +46,9 @@ pub enum Error {
     #[diagnostic(
         severity(warning),
         code(spk::build::validation::inherited_requirement),
-        help("This would need to be explicitly enabled in the package spec, which might have additional details")
+        help(
+            "This would need to be explicitly enabled in the package spec, which might have additional details"
+        )
     )]
     DownstreamBuildRequestDenied {
         /// The inherited request that should have been excluded
@@ -73,7 +75,9 @@ pub enum Error {
     #[diagnostic(
         severity(warning),
         code(spk::build::validation::inherited_requirement),
-        help("This would need to be explicitly enabled in the package spec, which might have additional details")
+        help(
+            "This would need to be explicitly enabled in the package spec, which might have additional details"
+        )
     )]
     DownstreamRuntimeRequestDenied {
         /// The inherited request that should have been excluded
@@ -92,7 +96,9 @@ pub enum Error {
     #[diagnostic(
         severity(warning),
         code(spk::build::validation::collect_all_files),
-        help("This would need to be explicitly enabled in the package spec, which might have additional details")
+        help(
+            "This would need to be explicitly enabled in the package spec, which might have additional details"
+        )
     )]
     CollectAllFilesDenied,
 
@@ -100,7 +106,9 @@ pub enum Error {
     #[diagnostic(
         severity(warning),
         code(spk::build::validation::alter_existing_files),
-        help("This would need to be explicitly enabled in the package spec, which might have additional details")
+        help(
+            "This would need to be explicitly enabled in the package spec, which might have additional details"
+        )
     )]
     AlterExistingFilesRequired { owner: String },
     #[error(
@@ -122,7 +130,9 @@ pub enum Error {
     #[diagnostic(
         severity(warning),
         code(spk::build::validation::collect_existing_files),
-        help("This would need to be explicitly enabled in the package spec, which might have additional details")
+        help(
+            "This would need to be explicitly enabled in the package spec, which might have additional details"
+        )
     )]
     CollectExistingFilesRequired { owner: String },
     #[error(
@@ -148,7 +158,9 @@ pub enum Error {
     #[diagnostic(
         severity(warning),
         code(spk::build::validation::recursive_build),
-        help("This would need to be explicitly enabled in the package spec, which might have additional details")
+        help(
+            "This would need to be explicitly enabled in the package spec, which might have additional details"
+        )
     )]
     RecursiveBuildRequired(spk_schema::foundation::name::PkgNameBuf),
     #[error("Description over character limit")]

@@ -11,7 +11,7 @@ use spk_schema_foundation::ident_ops::{TagPath, TagPathStrategy};
 use spk_schema_foundation::name::{PkgName, PkgNameBuf};
 use spk_schema_foundation::version::Version;
 
-use crate::{parsing, AnyIdent, AsVersionIdent, BuildIdent, Ident, Result, ToAnyIdentWithoutBuild};
+use crate::{AnyIdent, AsVersionIdent, BuildIdent, Ident, Result, ToAnyIdentWithoutBuild, parsing};
 
 /// Identifies a package name and number version.
 pub type VersionIdent = Ident<PkgNameBuf, Version>;

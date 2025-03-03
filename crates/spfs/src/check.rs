@@ -14,9 +14,9 @@ use tokio::sync::Semaphore;
 
 use crate::graph::AnnotationValue;
 use crate::prelude::*;
-use crate::sync::reporter::{SyncObjectResult, SyncPayloadResult};
 use crate::sync::SyncPolicy;
-use crate::{encoding, graph, storage, tracking, Error, Result};
+use crate::sync::reporter::{SyncObjectResult, SyncPayloadResult};
+use crate::{Error, Result, encoding, graph, storage, tracking};
 
 #[cfg(test)]
 #[path = "./check_test.rs"]

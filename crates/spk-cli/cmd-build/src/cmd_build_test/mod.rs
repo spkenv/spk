@@ -5,12 +5,12 @@
 use clap::Parser;
 use rstest::rstest;
 use spfs::storage::prelude::*;
+use spk_schema::RuntimeEnvironment;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::option_map;
 use spk_schema::ident::version_ident;
 use spk_schema::ident_component::Component;
 use spk_schema::option_map::HOST_OPTIONS;
-use spk_schema::RuntimeEnvironment;
 use spk_storage::fixtures::*;
 
 use super::Build;

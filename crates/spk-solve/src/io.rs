@@ -31,27 +31,17 @@ use spk_schema::foundation::format::{
 use spk_schema::prelude::*;
 use spk_solve_graph::{
     Change,
+    DUPLICATE_REQUESTS_COUNT,
     Decision,
     Graph,
     Node,
     Note,
-    State,
-    DUPLICATE_REQUESTS_COUNT,
     REQUESTS_FOR_SAME_PACKAGE_COUNT,
+    State,
 };
 
 use crate::solver::ErrorFreq;
-#[cfg(feature = "statsd")]
 use crate::{
-    get_metrics_client,
-    SPK_SOLUTION_PACKAGE_COUNT_METRIC,
-    SPK_SOLVER_INITIAL_REQUESTS_COUNT_METRIC,
-    SPK_SOLVER_RUN_COUNT_METRIC,
-    SPK_SOLVER_RUN_TIME_METRIC,
-    SPK_SOLVER_SOLUTION_SIZE_METRIC,
-};
-use crate::{
-    show_search_space_stats,
     Error,
     ResolverCallback,
     Result,
@@ -59,6 +49,16 @@ use crate::{
     Solver,
     SolverRuntime,
     StatusLine,
+    show_search_space_stats,
+};
+#[cfg(feature = "statsd")]
+use crate::{
+    SPK_SOLUTION_PACKAGE_COUNT_METRIC,
+    SPK_SOLVER_INITIAL_REQUESTS_COUNT_METRIC,
+    SPK_SOLVER_RUN_COUNT_METRIC,
+    SPK_SOLVER_RUN_TIME_METRIC,
+    SPK_SOLVER_SOLUTION_SIZE_METRIC,
+    get_metrics_client,
 };
 
 const STOP_ON_BLOCK_FLAG: &str = "--stop-on-block";
@@ -176,7 +176,10 @@ where
                 // show the issues and problem packages encountered up
                 // to this point to the user, which may help them see
                 // where the solve is bogged down.
-                return Err(Error::SolverInterrupted(format!("Solve is taking far too long, > {} secs.\nStopping. Please review the problems hit so far ...", self.settings.max_too_long_count * self.settings.too_long.as_secs())));
+                return Err(Error::SolverInterrupted(format!(
+                    "Solve is taking far too long, > {} secs.\nStopping. Please review the problems hit so far ...",
+                    self.settings.max_too_long_count * self.settings.too_long.as_secs()
+                )));
             }
 
             // The maximum number of increases hasn't been hit.
@@ -1411,7 +1414,10 @@ impl DecisionFormatter {
             let builds = "build".pluralize(total_builds);
             let steps = "step".pluralize(num_steps);
 
-            println!("{solver_kind}{padding}: {solved} in {seconds:.6} seconds, {num_steps} {steps} ({num_steps_back} back), {total_builds} {builds} at {:.3} builds/sec", total_builds as f64 / seconds);
+            println!(
+                "{solver_kind}{padding}: {solved} in {seconds:.6} seconds, {num_steps} {steps} ({num_steps_back} back), {total_builds} {builds} at {:.3} builds/sec",
+                total_builds as f64 / seconds
+            );
         }
     }
 
@@ -1489,7 +1495,9 @@ impl DecisionFormatter {
                         };
                         let name = solver_kind.cli_name();
 
-                        tracing::info!("The {solver_kind} solver found {solver_outcome}, but its output was disabled. To see its output, rerun the spk command with '--solver-to-show {name}' or `--solver-to-run {name}`" );
+                        tracing::info!(
+                            "The {solver_kind} solver found {solver_outcome}, but its output was disabled. To see its output, rerun the spk command with '--solver-to-show {name}' or `--solver-to-run {name}`"
+                        );
                     }
 
                     if self.settings.compare_solvers {
@@ -1785,10 +1793,11 @@ impl DecisionFormatter {
         data.insert(String::from("pkgs"), serde_json::json!(requests));
         data.insert(
             String::from("vars"),
-            serde_json::json!(vars
-                .iter()
-                .map(|v| format!("{}: {}", v.var, v.value.as_pinned().unwrap_or_default()))
-                .collect::<Vec<String>>()),
+            serde_json::json!(
+                vars.iter()
+                    .map(|v| format!("{}: {}", v.var, v.value.as_pinned().unwrap_or_default()))
+                    .collect::<Vec<String>>()
+            ),
         );
         data.insert(String::from("seconds"), serde_json::json!(seconds));
 
@@ -1902,8 +1911,8 @@ impl DecisionFormatter {
         let versions = "version".pluralize(num_vers);
         let num_builds = solver.get_number_of_incompatible_builds();
         let mut builds = "build".pluralize(num_builds);
-        let _ =
-            writeln!(out,
+        let _ = writeln!(
+            out,
             " Solver skipped {num_vers} incompatible {versions} (total of {num_builds} {builds})",
         );
 

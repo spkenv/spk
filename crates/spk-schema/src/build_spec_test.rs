@@ -3,7 +3,7 @@
 // https://github.com/spkenv/spk
 
 use rstest::rstest;
-use spk_schema_foundation::{option_map, pkg_name, FromYaml, IsDefault};
+use spk_schema_foundation::{FromYaml, IsDefault, option_map, pkg_name};
 
 use super::{AutoHostVars, BuildSpec};
 use crate::build_spec::UncheckedBuildSpec;

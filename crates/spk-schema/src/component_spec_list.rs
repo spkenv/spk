@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
 
 use super::ComponentSpec;
-use crate::foundation::ident_component::Component;
 use crate::ComponentFileMatchMode;
+use crate::foundation::ident_component::Component;
 
 #[cfg(test)]
 #[path = "./component_spec_list_test.rs"]

@@ -10,7 +10,7 @@ use spk_schema_foundation::spec_ops::HasVersion;
 
 use super::SpecTemplate;
 use crate::prelude::*;
-use crate::{recipe, Template};
+use crate::{Template, recipe};
 
 #[rstest]
 fn test_resolve_options_empty_options() {

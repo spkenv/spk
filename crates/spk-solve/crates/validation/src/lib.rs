@@ -8,5 +8,5 @@ mod validation;
 pub mod validators;
 
 pub use error::{Error, Result};
-pub use impossible_checks::{ImpossibleRequestsChecker, IMPOSSIBLE_CHECKS_TARGET};
-pub use validation::{default_validators, GetMergedRequest, ValidatorT, Validators};
+pub use impossible_checks::{IMPOSSIBLE_CHECKS_TARGET, ImpossibleRequestsChecker};
+pub use validation::{GetMergedRequest, ValidatorT, Validators, default_validators};

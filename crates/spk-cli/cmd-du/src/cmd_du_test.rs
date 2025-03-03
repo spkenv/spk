@@ -8,9 +8,9 @@ use std::sync::Mutex;
 use clap::Parser;
 use colored::Colorize;
 use itertools::Itertools;
+use spfs::RemoteAddress;
 use spfs::config::Remote;
 use spfs::encoding::EMPTY_DIGEST;
-use spfs::RemoteAddress;
 use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map;
@@ -510,12 +510,13 @@ async fn test_human_readable_flag() {
     opt.du.run().await.unwrap();
 
     let units = ["B", "Ki", "Mi", "Gi", "Ti"];
-    assert!(opt
-        .du
-        .output
-        .vec
-        .lock()
-        .unwrap()
-        .iter()
-        .any(|i| units.iter().any(|&u| i.contains(u))));
+    assert!(
+        opt.du
+            .output
+            .vec
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|i| units.iter().any(|&u| i.contains(u)))
+    );
 }

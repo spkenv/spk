@@ -4,7 +4,7 @@
 
 use rstest::rstest;
 
-use super::{parse_build, Build, SRC};
+use super::{Build, SRC, parse_build};
 use crate::ident_build::BuildId;
 
 #[rstest]

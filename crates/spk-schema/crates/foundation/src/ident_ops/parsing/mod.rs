@@ -11,21 +11,21 @@ use nom::combinator::{cut, eof, fail, opt, peek};
 use nom::error::{ContextError, FromExternalError, ParseError};
 use nom::sequence::{pair, preceded, terminated};
 use nom::{IResult, Parser};
-use nom_supreme::tag::complete::tag;
 use nom_supreme::tag::TagError;
+use nom_supreme::tag::complete::tag;
 use once_cell::sync::Lazy;
 
-use crate::ident_build::parsing::build;
 use crate::ident_build::Build;
-use crate::name::parsing::{is_legal_package_name_chr, known_repository_name, repository_name};
+use crate::ident_build::parsing::build;
 use crate::name::RepositoryName;
-use crate::version::parsing::version;
+use crate::name::parsing::{is_legal_package_name_chr, known_repository_name, repository_name};
 use crate::version::Version;
+use crate::version::parsing::version;
 
 mod ident;
 mod request;
 
-pub use ident::{ident_parts, ident_parts_with_components, IdentParts, IdentPartsBuf};
+pub use ident::{IdentParts, IdentPartsBuf, ident_parts, ident_parts_with_components};
 pub use request::{range_ident_pkg_name, request_pkg_name_and_version};
 
 pub static KNOWN_REPOSITORY_NAMES: Lazy<HashSet<&'static str>> = Lazy::new(|| {

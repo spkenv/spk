@@ -6,7 +6,7 @@ use std::convert::TryInto;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use spk_build::{source_package_path, BuildSource};
+use spk_build::{BuildSource, source_package_path};
 use spk_cli_common::Result;
 use spk_exec::resolve_runtime_layers;
 use spk_schema::foundation::ident_build::Build;

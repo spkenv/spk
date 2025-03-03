@@ -145,7 +145,18 @@ impl CmdEnter {
             .map_err(|err| {
                 spfs::Error::String(format!("Failed to establish async runtime: {err:?}"))
             })?;
-        let owned_runtime = rt.block_on(self.setup_runtime(config))?;
+
+        #[cfg(target_os = "windows")]
+        let setup_fut = { self.setup_runtime(config) };
+
+        #[cfg(not(target_os = "windows"))]
+        let setup_fut = {
+            // Safety: we attempt to keep the process single threaded, so
+            // setting environment variables is safe.
+            unsafe { self.setup_runtime(config) }
+        };
+
+        let owned_runtime = rt.block_on(setup_fut)?;
         // do not block forever on drop because of any stuck blocking tasks
         rt.shutdown_timeout(std::time::Duration::from_millis(250));
         if let Some(rt) = owned_runtime {
@@ -156,7 +167,13 @@ impl CmdEnter {
     }
 
     #[cfg(unix)]
-    pub async fn setup_runtime(
+    /// Setup the runtime.
+    ///
+    /// # Safety
+    ///
+    /// This function sets environment variables, see [`std::env::set_var`] for
+    /// more details on safety.
+    pub async unsafe fn setup_runtime(
         &mut self,
         config: &spfs::Config,
     ) -> Result<Option<spfs::runtime::OwnedRuntime>> {
@@ -175,13 +192,18 @@ impl CmdEnter {
                 return Err(spfs::Error::from("runtime is already durable").into());
             }
             let start_time = Instant::now();
-            let render_summary = spfs::change_to_durable_runtime(&mut runtime).await?;
-            self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64());
+            // Safety: the responsibility of the caller.
+            let render_summary = unsafe { spfs::change_to_durable_runtime(&mut runtime).await? };
+            // Safety: the responsibility of the caller.
+            unsafe {
+                self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64())
+            };
             tracing::info!("runtime remounted as durable");
             Ok(None)
         } else if self.exit.enabled {
+            // Safety: the responsibility of the caller.
             let in_namespace =
-                spfs::env::RuntimeConfigurator::default().current_runtime(&runtime)?;
+                unsafe { spfs::env::RuntimeConfigurator::default().current_runtime(&runtime)? };
             let with_root = in_namespace.become_root()?;
             const LAZY: bool = false;
             with_root.unmount_env(&runtime, LAZY).await?;
@@ -190,8 +212,12 @@ impl CmdEnter {
             Ok(None)
         } else if self.remount.enabled {
             let start_time = Instant::now();
-            let render_summary = spfs::reinitialize_runtime(&mut runtime).await?;
-            self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64());
+            // Safety: the responsibility of the caller.
+            let render_summary = unsafe { spfs::reinitialize_runtime(&mut runtime).await? };
+            // Safety: the responsibility of the caller.
+            unsafe {
+                self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64())
+            };
             Ok(None)
         } else {
             let mut owned = spfs::runtime::OwnedRuntime::upgrade_as_owner(runtime).await?;
@@ -204,7 +230,10 @@ impl CmdEnter {
 
             let start_time = Instant::now();
             let render_summary = spfs::initialize_runtime(&mut owned).await?;
-            self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64());
+            // Safety: the responsibility of the caller.
+            unsafe {
+                self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64())
+            };
 
             let mut monitor_stdin = match spfs::monitor::spawn_monitor_for_runtime(&owned) {
                 Err(err) => {
@@ -265,7 +294,10 @@ impl CmdEnter {
             }
 
             owned.ensure_startup_scripts(environment_overrides.as_slice())?;
-            std::env::set_var("SPFS_RUNTIME", owned.name());
+            // Safety: the responsibility of the caller.
+            unsafe {
+                std::env::set_var("SPFS_RUNTIME", owned.name());
+            }
 
             Ok(Some(owned))
         }
@@ -286,7 +318,11 @@ impl CmdEnter {
             let mut owned = spfs::runtime::OwnedRuntime::upgrade_as_owner(runtime).await?;
             let start_time = Instant::now();
             let render_summary = spfs::initialize_runtime(&mut owned).await?;
-            self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64());
+            // Safety: it is documented to be safe to set environment variables
+            // on Windows.
+            unsafe {
+                self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64());
+            }
 
             let mut environment_overrides = Cow::Borrowed(&self.enter.environment_override);
             if let Some(tmpdir) = &self.enter.tmpdir {
@@ -296,7 +332,11 @@ impl CmdEnter {
             }
 
             owned.ensure_startup_scripts(environment_overrides.as_slice())?;
-            std::env::set_var("SPFS_RUNTIME", owned.name());
+            // Safety: it is documented to be safe to set environment variables
+            // on Windows.
+            unsafe {
+                std::env::set_var("SPFS_RUNTIME", owned.name());
+            }
 
             Ok(Some(owned))
         }
@@ -332,14 +372,23 @@ impl CmdEnter {
     }
 
     #[cfg_attr(not(feature = "sentry"), allow(unused))]
-    fn report_render_summary(&self, render_summary: RenderSummary, render_time: f64) {
+    /// Report the render summary to sentry
+    ///
+    /// # Safety
+    ///
+    /// This function sets environment variables, see [`std::env::set_var`] for
+    /// more details on safety.
+    unsafe fn report_render_summary(&self, render_summary: RenderSummary, render_time: f64) {
         if self.enter.metrics_in_env {
             // The render time is put into environment variables for
             // other, non-spfs, programs to access. If this command
             // has been run from spfs-run, then the sync time will
             // already be in an environment variable called
             // SPFS_METRICS_SYNC_TIME_SECS as well.
-            std::env::set_var("SPFS_METRICS_RENDER_TIME_SECS", format!("{render_time}"));
+            // Safety: the responsibility of the caller.
+            unsafe {
+                std::env::set_var("SPFS_METRICS_RENDER_TIME_SECS", format!("{render_time}"));
+            }
         }
 
         #[cfg(feature = "sentry")]

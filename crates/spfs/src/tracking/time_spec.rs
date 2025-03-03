@@ -243,17 +243,21 @@ pub fn parse_duration<S: AsRef<str>>(source: S) -> Result<std::time::Duration> {
         })?;
 
     let duration = match suffix.as_str() {
-            "y" | "year" | "years" => std::time::Duration::from_secs(number * SECONDS_PER_YEAR),
-            "w" | "week" | "weeks" => std::time::Duration::from_secs(number * SECONDS_PER_WEEK),
-            "d" | "day" | "days" => std::time::Duration::from_secs(number * SECONDS_PER_DAY),
-            "h" | "hour" | "hours" => std::time::Duration::from_secs(number * SECONDS_PER_HOUR),
-            "m" | "minute" | "minutes" => std::time::Duration::from_secs(number * SECONDS_PER_MINUTE),
-            "s" | "second" | "seconds" => std::time::Duration::from_secs(number),
-            _ => return Err(Error::InvalidTimeSpec {
+        "y" | "year" | "years" => std::time::Duration::from_secs(number * SECONDS_PER_YEAR),
+        "w" | "week" | "weeks" => std::time::Duration::from_secs(number * SECONDS_PER_WEEK),
+        "d" | "day" | "days" => std::time::Duration::from_secs(number * SECONDS_PER_DAY),
+        "h" | "hour" | "hours" => std::time::Duration::from_secs(number * SECONDS_PER_HOUR),
+        "m" | "minute" | "minutes" => std::time::Duration::from_secs(number * SECONDS_PER_MINUTE),
+        "s" | "second" | "seconds" => std::time::Duration::from_secs(number),
+        _ => {
+            return Err(Error::InvalidTimeSpec {
                 given: source.to_string(),
-                reason: format!("Unknown time unit '{suffix}', expected one of: y(ears), w(eeks), d(ays), h(ours), m(inutes), s(econds)"),
-            })
-        };
+                reason: format!(
+                    "Unknown time unit '{suffix}', expected one of: y(ears), w(eeks), d(ays), h(ours), m(inutes), s(econds)"
+                ),
+            });
+        }
+    };
     Ok(duration)
 }
 

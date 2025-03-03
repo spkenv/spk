@@ -4,7 +4,7 @@
 
 use clap::Args;
 use miette::Result;
-use spk_cli_common::{flags, CommandArgs, Run};
+use spk_cli_common::{CommandArgs, Run, flags};
 
 /// Show the resolve process for a set of packages.
 #[derive(Args)]

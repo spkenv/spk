@@ -7,14 +7,14 @@ use std::sync::Arc;
 use clap::Args;
 use futures::TryFutureExt;
 use itertools::Itertools;
-use miette::{bail, miette, Context, IntoDiagnostic, Report, Result};
+use miette::{Context, IntoDiagnostic, Report, Result, bail, miette};
 use spk_build::{BinaryPackageBuilder, BuildSource};
-use spk_cli_common::{flags, spk_exe, BuildArtifact, BuildResult, CommandArgs, Run};
+use spk_cli_common::{BuildArtifact, BuildResult, CommandArgs, Run, flags, spk_exe};
+use spk_schema::OptionMap;
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::ident::{PkgRequest, RequestedBy};
 use spk_schema::option_map::HOST_OPTIONS;
 use spk_schema::prelude::*;
-use spk_schema::OptionMap;
 use spk_storage as storage;
 
 #[cfg(test)]
@@ -134,11 +134,18 @@ impl Run for MakeBinary {
                 let variant = match &variant_info.build_status {
                     flags::VariantBuildStatus::Enabled(variant) => variant,
                     flags::VariantBuildStatus::FilteredOut(mismatches) => {
-                        tracing::debug!("Skipping variant that was filtered out:\n{this_location} didn't match on {mismatches}", this_location = variant_info.location, mismatches = mismatches.keys().join(", "));
+                        tracing::debug!(
+                            "Skipping variant that was filtered out:\n{this_location} didn't match on {mismatches}",
+                            this_location = variant_info.location,
+                            mismatches = mismatches.keys().join(", ")
+                        );
                         continue;
                     }
                     flags::VariantBuildStatus::Duplicate(location) => {
-                        tracing::debug!("Skipping variant that was already built:\n{this_location} is a duplicate of {location}", this_location = variant_info.location);
+                        tracing::debug!(
+                            "Skipping variant that was already built:\n{this_location} is a duplicate of {location}",
+                            this_location = variant_info.location
+                        );
                         continue;
                     }
                 };

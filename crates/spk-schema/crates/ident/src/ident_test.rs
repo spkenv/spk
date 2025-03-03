@@ -8,7 +8,7 @@ use std::str::FromStr;
 
 use rstest::rstest;
 use spk_schema_foundation::ident_build::Build;
-use spk_schema_foundation::version::{parse_version, Version};
+use spk_schema_foundation::version::{Version, parse_version};
 use spk_schema_foundation::version_range::{CompatRange, VersionFilter, VersionRange};
 
 use crate::RangeIdent;

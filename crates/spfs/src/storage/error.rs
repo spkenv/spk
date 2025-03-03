@@ -23,9 +23,9 @@ pub enum OpenRepositoryError {
     #[error("Repository requires a newer version of spfs [version: {repo_version:?}]")]
     VersionIsTooNew { repo_version: semver::Version },
     #[error("Repository is for an older version of spfs [version: {repo_version:?}]")]
-    #[diagnostic(
-        help("If the repo is not shared, consider using `spfs migrate`, or contact your system administrator")
-    )]
+    #[diagnostic(help(
+        "If the repo is not shared, consider using `spfs migrate`, or contact your system administrator"
+    ))]
     VersionIsTooOld { repo_version: semver::Version },
 
     #[error("Invalid url query string")]

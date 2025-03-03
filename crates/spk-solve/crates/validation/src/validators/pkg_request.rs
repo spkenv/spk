@@ -37,7 +37,7 @@ impl ValidatorT for PkgRequestValidator {
                     IncompatibleReason::InternalError(format!(
                         "package '{name}' was not requested"
                     )),
-                ))
+                ));
             }
             Err(err) => {
                 return Ok(Compatibility::Incompatible(
@@ -45,7 +45,7 @@ impl ValidatorT for PkgRequestValidator {
                         "package '{name}' has an invalid request stack: {err}",
                         name = recipe.name()
                     )),
-                ))
+                ));
             }
         };
         Ok(request.is_version_applicable(recipe.version()))
@@ -69,7 +69,7 @@ impl ValidatorT for PkgRequestValidator {
                     IncompatibleReason::InternalError(format!(
                         "package '{name}' was not requested"
                     )),
-                ))
+                ));
             }
             Err(err) => {
                 return Ok(Compatibility::Incompatible(
@@ -77,7 +77,7 @@ impl ValidatorT for PkgRequestValidator {
                         "package '{name}' has an invalid request stack: {err}",
                         name = package.name()
                     )),
-                ))
+                ));
             }
         };
 

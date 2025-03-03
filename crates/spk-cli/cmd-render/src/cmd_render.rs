@@ -5,9 +5,9 @@
 use std::path::PathBuf;
 
 use clap::Args;
-use miette::{bail, Context, IntoDiagnostic, Result};
+use miette::{Context, IntoDiagnostic, Result, bail};
 use spfs::storage::fallback::FallbackProxy;
-use spk_cli_common::{build_required_packages, flags, CommandArgs, Run};
+use spk_cli_common::{CommandArgs, Run, build_required_packages, flags};
 use spk_exec::resolve_runtime_layers;
 
 /// Output the contents of an spk environment (/spfs) to a folder

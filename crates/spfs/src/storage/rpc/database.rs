@@ -9,7 +9,7 @@ use futures::{Stream, TryStreamExt};
 use proto::RpcResult;
 
 use crate::graph::{self, ObjectProto};
-use crate::{encoding, proto, Result};
+use crate::{Result, encoding, proto};
 
 #[async_trait::async_trait]
 impl graph::DatabaseView for super::RpcRepository {

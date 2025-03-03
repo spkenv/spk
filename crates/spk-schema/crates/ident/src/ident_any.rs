@@ -13,7 +13,7 @@ use spk_schema_foundation::name::{PkgName, PkgNameBuf, RepositoryNameBuf};
 use spk_schema_foundation::version::Version;
 
 use crate::ident_version::VersionIdent;
-use crate::{parsing, BuildIdent, Ident, LocatedBuildIdent, RangeIdent, Result};
+use crate::{BuildIdent, Ident, LocatedBuildIdent, RangeIdent, Result, parsing};
 
 #[cfg(test)]
 #[path = "./ident_any_test.rs"]

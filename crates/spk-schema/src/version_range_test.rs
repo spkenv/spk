@@ -7,10 +7,9 @@ use proptest::option::weighted;
 use proptest::prelude::*;
 use rstest::rstest;
 
-use super::{spec, Spec};
-use crate::foundation::version::{parse_version, CompatRule, TagSet, Version, VersionParts};
+use super::{Spec, spec};
+use crate::foundation::version::{CompatRule, TagSet, Version, VersionParts, parse_version};
 use crate::foundation::version_range::{
-    parse_version_range,
     CompatRange,
     DoubleEqualsVersion,
     DoubleNotEqualsVersion,
@@ -25,8 +24,9 @@ use crate::foundation::version_range::{
     SemverRange,
     VersionRange,
     WildcardRange,
+    parse_version_range,
 };
-use crate::{recipe, SpecRecipe};
+use crate::{SpecRecipe, recipe};
 
 #[rstest]
 fn test_parse_version_range_carat() {

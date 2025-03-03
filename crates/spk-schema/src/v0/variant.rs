@@ -13,8 +13,8 @@ use spk_schema_foundation::option_map::OptionMap;
 use spk_schema_foundation::version_range::{VersionFilter, VersionRange};
 use spk_schema_ident::{PkgRequest, RangeIdent, VarRequest};
 
-use super::variant_spec::VariantSpecEntryKey;
 use super::VariantSpec;
+use super::variant_spec::VariantSpecEntryKey;
 use crate::{Error, Opt, RequirementsList, Result};
 
 /// A simple build variant used by v0 recipes.

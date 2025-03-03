@@ -13,7 +13,7 @@ use futures::{Stream, StreamExt, TryFutureExt};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::graph::{DatabaseView, Object, ObjectProto};
-use crate::{encoding, graph, Error, Result};
+use crate::{Error, Result, encoding, graph};
 
 #[async_trait::async_trait]
 impl DatabaseView for super::FsRepository {

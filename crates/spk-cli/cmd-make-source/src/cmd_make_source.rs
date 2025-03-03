@@ -5,9 +5,9 @@
 use std::sync::Arc;
 
 use clap::Args;
-use miette::{bail, Context, Result};
+use miette::{Context, Result, bail};
 use spk_build::SourcePackageBuilder;
-use spk_cli_common::{flags, BuildArtifact, BuildResult, CommandArgs, Run};
+use spk_cli_common::{BuildArtifact, BuildResult, CommandArgs, Run, flags};
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::ident::LocatedBuildIdent;
 use spk_schema::{Package, Recipe};

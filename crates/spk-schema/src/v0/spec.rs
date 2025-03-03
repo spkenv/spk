@@ -10,6 +10,7 @@ use std::str::FromStr;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::ident_component::ComponentBTreeSet;
 use spk_schema_foundation::name::PkgNameBuf;
@@ -22,11 +23,10 @@ use spk_schema_foundation::version::{
     PackageNameProblem,
     VarOptionProblem,
 };
-use spk_schema_foundation::IsDefault;
 use spk_schema_ident::{AnyIdent, AsVersionIdent, BuildIdent, Ident, RangeIdent, VersionIdent};
 
-use super::variant_spec::VariantSpecEntryKey;
 use super::TestSpec;
+use super::variant_spec::VariantSpecEntryKey;
 use crate::build_spec::UncheckedBuildSpec;
 use crate::foundation::ident_build::Build;
 use crate::foundation::ident_component::Component;
@@ -36,13 +36,13 @@ use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, CompatRule, Compatibility, Version};
 use crate::foundation::version_range::Ranged;
 use crate::ident::{
-    is_false,
     PkgRequest,
     PreReleasePolicy,
     Request,
     RequestedBy,
     Satisfy,
     VarRequest,
+    is_false,
 };
 use crate::metadata::Meta;
 use crate::option::VarOpt;
@@ -637,7 +637,12 @@ impl Recipe for Spec<VersionIdent> {
                             match missing_build_requirements.entry(var.var.clone()) {
                                 std::collections::hash_map::Entry::Occupied(entry) => {
                                     if entry.get() != value {
-                                        return Err(Error::String(format!("Multiple conflicting downstream build requirements found for {}: {} and {}", var.var, entry.get(), value)));
+                                        return Err(Error::String(format!(
+                                            "Multiple conflicting downstream build requirements found for {}: {} and {}",
+                                            var.var,
+                                            entry.get(),
+                                            value
+                                        )));
                                     }
                                 }
                                 std::collections::hash_map::Entry::Vacant(vacant) => {
@@ -661,7 +666,12 @@ impl Recipe for Spec<VersionIdent> {
                             match missing_runtime_requirements.entry(var.var.clone()) {
                                 std::collections::hash_map::Entry::Occupied(entry) => {
                                     if entry.get().0 != value {
-                                        return Err(Error::String(format!("Multiple conflicting downstream runtime requirements found for {}: {} and {}", var.var, &entry.get().0, value)));
+                                        return Err(Error::String(format!(
+                                            "Multiple conflicting downstream runtime requirements found for {}: {} and {}",
+                                            var.var,
+                                            &entry.get().0,
+                                            value
+                                        )));
                                     }
                                 }
                                 std::collections::hash_map::Entry::Vacant(vacant) => {

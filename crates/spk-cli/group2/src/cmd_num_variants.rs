@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use clap::Args;
 use miette::{Result, WrapErr};
-use spk_cli_common::{flags, CommandArgs, Run};
+use spk_cli_common::{CommandArgs, Run, flags};
 use spk_schema::Recipe;
 
 /// Build a source package from a spec file.

@@ -10,8 +10,8 @@ use spk_schema_foundation::option_map::HOST_OPTIONS;
 use spk_schema_ident::{BuildIdent, InclusionPolicy, Request};
 
 use super::Platform;
-use crate::v0::Spec;
 use crate::Opt::Var;
+use crate::v0::Spec;
 use crate::{BuildEnv, Recipe};
 
 #[rstest]
@@ -72,7 +72,7 @@ fn test_platform_add_pkg_requirement(#[case] spec: &str) {
         .options
         .iter()
         .filter_map(|o| match o {
-            Var(varopt) => Some(varopt.var.clone()),
+            Var(var_opt) => Some(var_opt.var.clone()),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -97,16 +97,18 @@ fn test_platform_inheritance() {
         type Package = Spec<BuildIdent>;
 
         fn build_env(&self) -> Vec<Self::Package> {
-            vec![serde_yaml::from_str(
-                r#"
+            vec![
+                serde_yaml::from_str(
+                    r#"
                 api: package/v0
                 pkg: base/1.0.0/3TCOOP2W
                 install:
                   requirements:
                     - pkg: inherit-me
             "#,
-            )
-            .unwrap()]
+                )
+                .unwrap(),
+            ]
         }
 
         fn env_vars(&self) -> HashMap<String, String> {
@@ -148,8 +150,9 @@ fn test_platform_inheritance_with_override_and_removal() {
         type Package = Spec<BuildIdent>;
 
         fn build_env(&self) -> Vec<Self::Package> {
-            vec![serde_yaml::from_str(
-                r#"
+            vec![
+                serde_yaml::from_str(
+                    r#"
                 api: package/v0
                 pkg: base/1.0.0/3TCOOP2W
                 install:
@@ -158,8 +161,9 @@ fn test_platform_inheritance_with_override_and_removal() {
                     - pkg: inherit-me2/1.0.0
                     - pkg: inherit-me3/1.0.0
             "#,
-            )
-            .unwrap()]
+                )
+                .unwrap(),
+            ]
         }
 
         fn env_vars(&self) -> HashMap<String, String> {

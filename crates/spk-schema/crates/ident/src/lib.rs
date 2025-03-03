@@ -17,14 +17,13 @@ mod satisfy;
 
 pub use error::{Error, Result};
 pub use ident::{AsVersionIdent, Ident};
-pub use ident_any::{parse_ident, AnyIdent, ToAnyIdentWithoutBuild};
-pub use ident_build::{parse_build_ident, BuildIdent};
+pub use ident_any::{AnyIdent, ToAnyIdentWithoutBuild, parse_ident};
+pub use ident_build::{BuildIdent, parse_build_ident};
 pub use ident_located::{LocatedBuildIdent, LocatedVersionIdent};
-pub use ident_optversion::{parse_optversion_ident, OptVersionIdent};
-pub use ident_version::{parse_version_ident, VersionIdent};
-pub use range_ident::{parse_ident_range, parse_ident_range_list, RangeIdent};
+pub use ident_optversion::{OptVersionIdent, parse_optversion_ident};
+pub use ident_version::{VersionIdent, parse_version_ident};
+pub use range_ident::{RangeIdent, parse_ident_range, parse_ident_range_list};
 pub use request::{
-    is_false,
     InclusionPolicy,
     NameAndValue,
     PinPolicy,
@@ -34,6 +33,7 @@ pub use request::{
     Request,
     RequestedBy,
     VarRequest,
+    is_false,
 };
 pub use satisfy::Satisfy;
 

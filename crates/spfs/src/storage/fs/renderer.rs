@@ -19,14 +19,14 @@ use tokio::sync::Semaphore;
 
 use crate::prelude::*;
 use crate::runtime::makedirs_with_perms;
+use crate::storage::LocalRepository;
 use crate::storage::fs::{
     ManifestRenderPath,
     OpenFsRepository,
     RenderReporter,
     SilentRenderReporter,
 };
-use crate::storage::LocalRepository;
-use crate::{encoding, graph, tracking, Error, OsError, Result};
+use crate::{Error, OsError, Result, encoding, graph, tracking};
 
 #[cfg(test)]
 #[path = "./renderer_test.rs"]
@@ -135,7 +135,7 @@ impl OpenFsRepository {
                     "symlink_metadata on rendered dir path",
                     rendered_dirpath.clone(),
                     err,
-                ))
+                ));
             }
             Ok(metadata) => metadata,
         };
@@ -368,7 +368,7 @@ where
                         "rename on render",
                         rendered_dirpath,
                         err,
-                    ))
+                    ));
                 }
             },
         }

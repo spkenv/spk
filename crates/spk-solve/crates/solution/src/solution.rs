@@ -196,7 +196,11 @@ impl SolvedRequest {
             }
             PackageSource::BuildFromSource { .. } => {
                 // Packages that need building do not have layers yet.
-                return Err(Error::String(format!("Cannot bake, solution requires packages that need building - Request for: {}, Resolved to: {}", self.request.pkg, self.spec.ident())));
+                return Err(Error::String(format!(
+                    "Cannot bake, solution requires packages that need building - Request for: {}, Resolved to: {}",
+                    self.request.pkg,
+                    self.spec.ident()
+                )));
             }
             PackageSource::Repository {
                 repo: _,

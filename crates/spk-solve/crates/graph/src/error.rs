@@ -127,7 +127,12 @@ impl FormatError for Error {
                     .map(ToString::to_string)
                     .collect();
                 msg.push_str("\n * ");
-                let _ = write!(msg, "Package '{}' not found during the solve as required by: {}.\n   Please check the package name's spelling", request.pkg, requirers.join(", "));
+                let _ = write!(
+                    msg,
+                    "Package '{}' not found during the solve as required by: {}.\n   Please check the package name's spelling",
+                    request.pkg,
+                    requirers.join(", ")
+                );
             }
             err => {
                 msg.push_str("\n * ");

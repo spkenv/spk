@@ -7,9 +7,9 @@ use std::sync::Arc;
 
 use once_cell::sync::Lazy;
 use rstest::fixture;
+use spfs::Result;
 use spfs::config::Remote;
 use spfs::prelude::*;
-use spfs::Result;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::ident_ops::{
     NormalizedTagStrategy,
@@ -44,7 +44,10 @@ impl RuntimeLock {
 
 impl Drop for RuntimeLock {
     fn drop(&mut self) {
-        std::env::remove_var("SPFS_STORAGE_ROOT");
+        // Safety: this is unsafe.
+        unsafe {
+            std::env::remove_var("SPFS_STORAGE_ROOT");
+        }
         self.original_config
             .clone()
             .make_current()
@@ -208,7 +211,10 @@ where
     new_config.remote.clear();
 
     // update the config to use our temp dir for local storage
-    std::env::set_var("SPFS_STORAGE_ROOT", &storage_root);
+    // Safety: this is unsafe.
+    unsafe {
+        std::env::set_var("SPFS_STORAGE_ROOT", &storage_root);
+    }
     new_config.storage.root = storage_root;
 
     let config = new_config

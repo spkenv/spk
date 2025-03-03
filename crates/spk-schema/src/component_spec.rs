@@ -6,9 +6,9 @@ use std::convert::TryInto;
 
 use serde::{Deserialize, Serialize};
 
+use crate::Result;
 use crate::foundation::ident_component::Component;
 use crate::foundation::spec_ops::{ComponentOps, FileMatcher};
-use crate::Result;
 
 #[cfg(test)]
 #[path = "./component_spec_test.rs"]

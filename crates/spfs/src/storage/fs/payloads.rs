@@ -11,7 +11,7 @@ use futures::{Stream, StreamExt, TryFutureExt};
 use super::{FsRepository, OpenFsRepository};
 use crate::storage::prelude::*;
 use crate::tracking::BlobRead;
-use crate::{encoding, graph, Error, Result};
+use crate::{Error, Result, encoding, graph};
 
 #[async_trait::async_trait]
 impl crate::storage::PayloadStorage for FsRepository {

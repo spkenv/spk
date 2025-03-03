@@ -3,7 +3,7 @@
 // https://github.com/spkenv/spk
 
 use crate::tracking::EnvSpec;
-use crate::{runtime, Error, Result};
+use crate::{Error, Result, runtime};
 
 pub const SPFS_DIR: &str = "C:\\spfs";
 pub const SPFS_DIR_PREFIX: &str = "C:\\spfs";

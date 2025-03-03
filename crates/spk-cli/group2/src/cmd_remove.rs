@@ -8,7 +8,7 @@ use clap::Args;
 use colored::Colorize;
 use itertools::Itertools;
 use miette::{IntoDiagnostic, Result};
-use spk_cli_common::{flags, CommandArgs, Run};
+use spk_cli_common::{CommandArgs, Run, flags};
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::ident::parse_ident;
 use spk_schema::spec_ops::WithVersion;

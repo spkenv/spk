@@ -3,13 +3,13 @@
 // https://github.com/spkenv/spk
 
 use std::io::Write;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crossterm::cursor::{MoveTo, RestorePosition, SavePosition};
 use crossterm::style::Print;
 use crossterm::terminal::{self, Clear, ClearType, ScrollUp};
-use crossterm::{csi, queue, Command, QueueableCommand};
+use crossterm::{Command, QueueableCommand, csi, queue};
 
 use crate::{Error, Result};
 

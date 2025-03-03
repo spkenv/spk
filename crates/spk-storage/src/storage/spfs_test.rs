@@ -7,14 +7,14 @@ use std::str::FromStr;
 
 use rstest::rstest;
 use spfs::prelude::*;
+use spk_schema::BuildIdent;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::version::Version;
 use spk_schema::ident_ops::NormalizedTagStrategy;
-use spk_schema::BuildIdent;
 
 use super::SpfsRepository;
-use crate::storage::{CachePolicy, Repository};
 use crate::NameAndRepositoryWithTagStrategy;
+use crate::storage::{CachePolicy, Repository};
 
 #[rstest]
 fn test_repo_meta_tag_is_valid() {

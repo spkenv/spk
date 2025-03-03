@@ -11,7 +11,7 @@ use tokio_stream::StreamExt;
 
 use super::fs::{FsHashStore, RenderStore};
 use crate::tracking::{self, BlobRead};
-use crate::{encoding, graph, Error, Result};
+use crate::{Error, Result, encoding, graph};
 
 #[cfg(test)]
 #[path = "./repository_test.rs"]

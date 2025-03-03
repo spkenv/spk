@@ -4,8 +4,8 @@
 
 use clap::Args;
 use miette::Result;
-use spfs::prelude::*;
 use spfs::Error;
+use spfs::prelude::*;
 
 /// Output the contents of a blob to stdout
 #[derive(Debug, Args)]

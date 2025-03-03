@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::option_map::Stringified;
 use spk_schema_foundation::IsDefault;
+use spk_schema_foundation::option_map::Stringified;
 
 #[cfg(test)]
 #[path = "./environ_test.rs"]
@@ -341,26 +341,26 @@ impl<'de> Deserialize<'de> for EnvOp {
 
                 match self.op_and_var.take() {
                     Some((op, var)) => match op {
-                        OpKind::Prepend => Ok(EnvOp::Prepend(PrependEnv{
+                        OpKind::Prepend => Ok(EnvOp::Prepend(PrependEnv {
                             prepend: var.get_op(),
                             separator: self.separator.take(),
-                            value: value.unwrap_or_default()
+                            value: value.unwrap_or_default(),
                         })),
-                        OpKind::Append => Ok(EnvOp::Append(AppendEnv{
+                        OpKind::Append => Ok(EnvOp::Append(AppendEnv {
                             append: var.get_op(),
                             separator: self.separator.take(),
-                            value: value.unwrap_or_default()
+                            value: value.unwrap_or_default(),
                         })),
-                        OpKind::Set => Ok(EnvOp::Set(SetEnv{
+                        OpKind::Set => Ok(EnvOp::Set(SetEnv {
                             set: var.get_op(),
-                            value: value.unwrap_or_default()
+                            value: value.unwrap_or_default(),
                         })),
-                        OpKind::Comment => Ok(EnvOp::Comment(EnvComment{
-                            comment: var.get_op()
+                        OpKind::Comment => Ok(EnvOp::Comment(EnvComment {
+                            comment: var.get_op(),
                         })),
-                        OpKind::Priority => Ok(EnvOp::Priority(EnvPriority{
-                            priority: var.get_priority()
-                        }))
+                        OpKind::Priority => Ok(EnvOp::Priority(EnvPriority {
+                            priority: var.get_priority(),
+                        })),
                     },
                     None => Err(serde::de::Error::custom(format!(
                         "missing field to define operation and variable, expected one of {OP_NAMES:?}",

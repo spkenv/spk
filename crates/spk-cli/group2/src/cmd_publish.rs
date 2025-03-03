@@ -7,8 +7,8 @@ use std::sync::Arc;
 use clap::Args;
 use miette::Result;
 use spk_cli_common::{CommandArgs, PublishLabel, Publisher, Run};
-use spk_schema::ident_ops::{NormalizedTagStrategy, VerbatimTagStrategy};
 use spk_schema::AnyIdent;
+use spk_schema::ident_ops::{NormalizedTagStrategy, VerbatimTagStrategy};
 use spk_storage as storage;
 
 #[cfg(test)]

@@ -16,13 +16,15 @@ fn test_install_embedded_build_options() {
     )
     .unwrap();
 
-    assert!(serde_yaml::from_str::<EmbeddedPackagesList>(
-        r#"
+    assert!(
+        serde_yaml::from_str::<EmbeddedPackagesList>(
+            r#"
           - pkg: "embedded/1.0.0"
             build: {"script": "echo hello"}
         "#
-    )
-    .is_err());
+        )
+        .is_err()
+    );
 }
 
 #[rstest]

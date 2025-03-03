@@ -5,7 +5,7 @@
 use clap::Args;
 use miette::Result;
 use spfs_cli_common::Progress;
-use spk_cli_common::{flags, CommandArgs, Run};
+use spk_cli_common::{CommandArgs, Run, flags};
 
 /// Convert a package from an external packaging system for use in spk
 #[derive(Args)]

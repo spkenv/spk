@@ -12,13 +12,13 @@ pub mod __private {
 }
 
 pub use args::{
-    capture_if_relevant,
     AnnotationViewing,
     CommandName,
     Logging,
     Progress,
     Render,
     Sync,
+    capture_if_relevant,
 };
 #[cfg(feature = "sentry")]
 pub use args::{configure_sentry, shutdown_sentry};

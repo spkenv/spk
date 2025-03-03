@@ -8,8 +8,8 @@ use std::str::FromStr;
 use rstest::rstest;
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::option_map::OptionMap;
-use spk_schema_foundation::version::{Version, BINARY_STR};
-use spk_schema_ident::{parse_ident_range, PkgRequest, Request, RequestedBy};
+use spk_schema_foundation::version::{BINARY_STR, Version};
+use spk_schema_ident::{PkgRequest, Request, RequestedBy, parse_ident_range};
 
 use crate::{InstallSpec, Package, RequirementsList};
 

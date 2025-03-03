@@ -3,7 +3,7 @@
 // https://github.com/imageworks/spk
 
 use super::OptionMap;
-use crate::option_map::{OptNameBuf, HOST_OPTIONS};
+use crate::option_map::{HOST_OPTIONS, OptNameBuf};
 
 /// Option filter for matching against the options in an option map
 #[derive(Debug, Clone)]

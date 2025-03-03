@@ -13,7 +13,7 @@ use ring::digest::{Context, SHA256};
 use serde::Deserialize;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use super::{binary, Digest};
+use super::{Digest, binary};
 use crate::{Error, Result};
 
 #[cfg(test)]

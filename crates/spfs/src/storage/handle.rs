@@ -16,7 +16,7 @@ use super::tag::TagSpecAndTagStream;
 use super::{TagNamespace, TagNamespaceBuf, TagStorageMut};
 use crate::graph::ObjectProto;
 use crate::tracking::{self, BlobRead};
-use crate::{graph, Error, Result};
+use crate::{Error, Result, graph};
 
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]

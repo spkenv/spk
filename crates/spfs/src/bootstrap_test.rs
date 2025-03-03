@@ -72,7 +72,11 @@ async fn test_shell_initialization_startup_scripts(
 
     std::fs::write(tmp_startup_dir.join(startup_script), startup_cmd).unwrap();
 
-    std::env::set_var("SHELL", &shell_path);
+    // Safety: this is unsafe. serial_test is used to prevent multiple tests
+    // from changing the environment at the same time.
+    unsafe {
+        std::env::set_var("SHELL", &shell_path);
+    }
 
     match crate::Shell::find_best(None).unwrap() {
         #[cfg(unix)]
@@ -144,7 +148,11 @@ async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempf
         println!("{:?}", cmd.output().unwrap());
     }
 
-    std::env::set_var("SHELL", &shell_path);
+    // Safety: this is unsafe. serial_test is used to prevent multiple tests
+    // from changing the environment at the same time.
+    unsafe {
+        std::env::set_var("SHELL", &shell_path);
+    }
     let cmd = build_shell_initialized_command(&rt, None, "echo", Option::<OsString>::None).unwrap();
     let mut cmd = cmd.into_std();
     setenv(&mut cmd);
@@ -161,8 +169,12 @@ async fn test_find_alternate_bash(shell: &str, tmpdir: tempfile::TempDir) {
     init_logging();
     let original_path = std::env::var("PATH").unwrap_or_default();
     let original_shell = std::env::var("SHELL").unwrap_or_default();
-    std::env::set_var("PATH", tmpdir.path());
-    std::env::set_var("SHELL", shell);
+    // Safety: this is unsafe. serial_test is used to prevent multiple tests
+    // from changing the environment at the same time.
+    unsafe {
+        std::env::set_var("PATH", tmpdir.path());
+        std::env::set_var("SHELL", shell);
+    }
 
     let tmp_shell = tmpdir.path().join(shell);
     make_exe(&tmp_shell);
@@ -171,8 +183,11 @@ async fn test_find_alternate_bash(shell: &str, tmpdir: tempfile::TempDir) {
     let expected = tmp_shell.as_os_str().to_os_string();
     assert!(found.executable() == expected, "should find shell in PATH");
 
-    std::env::set_var("PATH", original_path);
-    std::env::set_var("SHELL", original_shell);
+    // Safety: this is unsafe.
+    unsafe {
+        std::env::set_var("PATH", original_path);
+        std::env::set_var("SHELL", original_shell);
+    }
 }
 
 #[cfg(unix)]

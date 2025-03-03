@@ -10,8 +10,8 @@ use spk_schema::{Package, Recipe};
 use spk_solve_graph::{GetMergedRequestResult, State};
 use spk_solve_solution::PackageSource;
 
-use crate::validators::*;
 use crate::Error;
+use crate::validators::*;
 
 #[cfg(test)]
 #[path = "./validation_test.rs"]

@@ -15,7 +15,6 @@ use spk_schema_foundation::version::Version;
 
 use crate::ident_version::VersionIdent;
 use crate::{
-    parsing,
     AnyIdent,
     Error,
     Ident,
@@ -23,6 +22,7 @@ use crate::{
     RangeIdent,
     Result,
     ToAnyIdentWithoutBuild,
+    parsing,
 };
 
 /// Identifies a specific package name, version and build

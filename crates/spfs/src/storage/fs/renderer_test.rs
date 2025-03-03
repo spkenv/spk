@@ -12,7 +12,7 @@ use crate::fixtures::*;
 use crate::graph::object::{DigestStrategy, EncodingFormat};
 use crate::storage::fs::{FsRepository, OpenFsRepository};
 use crate::storage::{RepositoryExt, RepositoryHandle};
-use crate::{tracking, Config};
+use crate::{Config, tracking};
 
 #[rstest(
     write_encoding_format => [EncodingFormat::Legacy, EncodingFormat::FlatBuffers],

@@ -13,7 +13,7 @@ use futures::Stream;
 use relative_path::RelativePath;
 use tar::{Archive, Builder};
 
-use crate::config::{pathbuf_deserialize_with_tilde_expansion, ToAddress};
+use crate::config::{ToAddress, pathbuf_deserialize_with_tilde_expansion};
 use crate::graph::ObjectProto;
 use crate::prelude::*;
 use crate::storage::fs::DURABLE_EDITS_DIR;
@@ -27,7 +27,7 @@ use crate::storage::{
     TagStorageMut,
 };
 use crate::tracking::BlobRead;
-use crate::{encoding, graph, storage, tracking, Error, Result};
+use crate::{Error, Result, encoding, graph, storage, tracking};
 
 /// Configuration for a tar repository
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]

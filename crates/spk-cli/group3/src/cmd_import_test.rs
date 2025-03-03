@@ -7,9 +7,9 @@ use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_cli_common::Run;
 use spk_schema::foundation::option_map;
 use spk_schema::ident_ops::NormalizedTagStrategy;
-use spk_schema::{recipe, Package};
-use spk_storage::fixtures::*;
+use spk_schema::{Package, recipe};
 use spk_storage::SpfsRepositoryHandle;
+use spk_storage::fixtures::*;
 
 #[rstest]
 #[tokio::test]

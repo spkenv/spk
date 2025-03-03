@@ -6,16 +6,16 @@ use clap::Parser;
 use futures::prelude::*;
 use relative_path::RelativePathBuf;
 use rstest::rstest;
+use spfs::RemoteAddress;
 use spfs::config::Remote;
 use spfs::prelude::*;
 use spfs::storage::EntryType;
-use spfs::RemoteAddress;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::ident_ops::VerbatimTagStrategy;
 use spk_schema::recipe;
 use spk_solve::spec;
-use spk_storage::fixtures::*;
 use spk_storage::RepositoryHandle;
+use spk_storage::fixtures::*;
 
 use super::{Remove, Run};
 

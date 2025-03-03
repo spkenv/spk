@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use clap::{Args, ValueHint};
 use colored::Colorize;
-use miette::{bail, Result};
-use spk_cli_common::{flags, CommandArgs, Run};
+use miette::{Result, bail};
+use spk_cli_common::{CommandArgs, Run, flags};
 use spk_schema::ident_ops::{NormalizedTagStrategy, VerbatimTagStrategy};
 use spk_storage as storage;
 use storage::SpfsRepositoryHandle;

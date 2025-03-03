@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use std::collections::{hash_map, HashMap, HashSet};
+use std::collections::{HashMap, HashSet, hash_map};
 use std::convert::{TryFrom, TryInto};
 use std::marker::PhantomData;
 use std::str::FromStr;
@@ -18,10 +18,10 @@ use serde::{Deserialize, Serialize};
 use spfs::prelude::{RepositoryExt as SpfsRepositoryExt, *};
 use spfs::storage::EntryType;
 use spfs::tracking::{self, Tag, TagSpec};
-use spk_schema::foundation::ident_build::{parse_build, Build};
+use spk_schema::foundation::ident_build::{Build, parse_build};
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
-use spk_schema::foundation::version::{parse_version, Version};
+use spk_schema::foundation::version::{Version, parse_version};
 use spk_schema::ident::{AsVersionIdent, ToAnyIdentWithoutBuild, VersionIdent};
 use spk_schema::ident_build::parsing::embedded_source_package;
 use spk_schema::ident_build::{EmbeddedSource, EmbeddedSourcePackage};
@@ -32,10 +32,10 @@ use spk_schema::{AnyIdent, BuildIdent, FromYaml, Package, Recipe, Spec, SpecReci
 use tokio::io::AsyncReadExt;
 use tokio::task::JoinSet;
 
-use super::repository::{PublishPolicy, Storage};
 use super::CachePolicy;
+use super::repository::{PublishPolicy, Storage};
 use crate::storage::repository::internal::RepositoryExt;
-use crate::{with_cache_policy, Error, Result};
+use crate::{Error, Result, with_cache_policy};
 
 #[cfg(test)]
 #[path = "./spfs_test.rs"]
@@ -45,21 +45,13 @@ const REPO_METADATA_TAG: &str = "spk/repo";
 const REPO_VERSION: &str = "1.0.0";
 
 macro_rules! verbatim_build_spec_tag_if_enabled {
-    ($self:expr, $output:ty, $ident:expr) => {{
-        verbatim_tag_if_enabled!($self, build_spec_tag, $output, $ident)
-    }};
-    ($self:expr, $ident:expr) => {{
-        verbatim_build_spec_tag_if_enabled!($self, _, $ident)
-    }};
+    ($self:expr, $output:ty, $ident:expr) => {{ verbatim_tag_if_enabled!($self, build_spec_tag, $output, $ident) }};
+    ($self:expr, $ident:expr) => {{ verbatim_build_spec_tag_if_enabled!($self, _, $ident) }};
 }
 
 macro_rules! verbatim_build_package_tag_if_enabled {
-    ($self:expr, $output:ty, $ident:expr) => {{
-        verbatim_tag_if_enabled!($self, build_package_tag, $output, $ident)
-    }};
-    ($self:expr, $ident:expr) => {{
-        verbatim_build_package_tag_if_enabled!($self, _, $ident)
-    }};
+    ($self:expr, $output:ty, $ident:expr) => {{ verbatim_tag_if_enabled!($self, build_package_tag, $output, $ident) }};
+    ($self:expr, $ident:expr) => {{ verbatim_build_package_tag_if_enabled!($self, _, $ident) }};
 }
 
 macro_rules! verbatim_tag_if_enabled {

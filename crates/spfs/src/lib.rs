@@ -39,11 +39,11 @@ pub mod tracking;
 // re-exported to make downstream implementations easier
 pub use async_trait::async_trait;
 pub use bootstrap::{
+    Shell,
+    ShellKind,
     build_command_for_runtime,
     build_interactive_shell_command,
     build_shell_initialized_command,
-    Shell,
-    ShellKind,
 };
 pub use check::Checker;
 pub use clean::Cleaner;
@@ -52,6 +52,7 @@ pub use diff::{diff, diff_runtime_changes, runtime_active_changes};
 pub use encoding::Digest;
 pub use error::{Error, OsError, OsErrorExt, Result};
 pub use resolve::{
+    RenderResult,
     compute_environment_manifest,
     compute_manifest,
     compute_object_manifest,
@@ -59,7 +60,6 @@ pub use resolve::{
     resolve_stack_to_layers_with_repo,
     which,
     which_spfs,
-    RenderResult,
 };
 pub use spfs_encoding as encoding;
 pub use status::{
@@ -77,11 +77,11 @@ pub use status::{
 pub use sync::Syncer;
 
 pub use self::config::{
-    get_config,
-    load_config,
-    open_repository,
     Config,
     RemoteAddress,
     RemoteConfig,
     Sentry,
+    get_config,
+    load_config,
+    open_repository,
 };

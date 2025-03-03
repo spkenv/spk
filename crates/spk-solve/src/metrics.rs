@@ -6,8 +6,8 @@ use std::str::FromStr;
 use std::time::{Duration, Instant};
 
 use once_cell::sync::Lazy;
-use statsd::client::Pipeline;
 use statsd::Client;
+use statsd::client::Pipeline;
 
 use crate::{Error, Result};
 
@@ -123,7 +123,9 @@ impl FromStr for StatsdFormat {
                     .map(ToString::to_string)
                     .collect::<Vec<String>>()
                     .join(", ");
-                Err(Error::String(format!("Unsupported statsd metric format: {input}. Please specify SPK_STATSD_FORMAT as one of: {valid_values}")))
+                Err(Error::String(format!(
+                    "Unsupported statsd metric format: {input}. Please specify SPK_STATSD_FORMAT as one of: {valid_values}"
+                )))
             }
         }
     }

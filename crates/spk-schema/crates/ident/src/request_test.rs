@@ -3,14 +3,14 @@
 // https://github.com/spkenv/spk
 
 use rstest::rstest;
+use spk_schema_foundation::FromYaml;
 use spk_schema_foundation::version::{
+    API_STR,
+    BINARY_STR,
     Compatibility,
     InclusionPolicyProblem,
     IncompatibleReason,
-    API_STR,
-    BINARY_STR,
 };
-use spk_schema_foundation::FromYaml;
 
 use super::{InclusionPolicy, PreReleasePolicy, Request};
 use crate::parse_build_ident;

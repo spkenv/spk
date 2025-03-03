@@ -11,7 +11,7 @@ use tonic::{Request, Response, Status};
 
 use crate::prelude::*;
 use crate::proto::payload_service_server::PayloadServiceServer;
-use crate::proto::{self, convert_digest, RpcResult};
+use crate::proto::{self, RpcResult, convert_digest};
 use crate::storage;
 
 /// The payload service is both a gRPC service AND an http server
@@ -231,7 +231,7 @@ async fn handle_download(
                             async_compression::tokio::bufread::BzEncoder::new(uncompressed_reader),
                         )),
                         accepted.to_owned(),
-                    )
+                    );
                 }
                 _ => continue,
             }

@@ -18,7 +18,7 @@ use crate::storage::tag::TagSpecAndTagStream;
 use crate::storage::{EntryType, LocalRepository, TagNamespace, TagNamespaceBuf, TagStorageMut};
 use crate::sync::reporter::SyncReporters;
 use crate::tracking::BlobRead;
-use crate::{encoding, graph, storage, tracking, Error, Result};
+use crate::{Error, Result, encoding, graph, storage, tracking};
 
 #[cfg(test)]
 #[path = "./repository_test.rs"]

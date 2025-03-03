@@ -4,18 +4,18 @@
 
 use std::convert::TryFrom;
 
+use nom::IResult;
 use nom::branch::alt;
 use nom::character::complete::{char, digit1};
 use nom::combinator::{cut, map, map_res, verify};
 use nom::error::{ContextError, FromExternalError, ParseError};
 use nom::multi::separated_list1;
 use nom::sequence::{pair, preceded, terminated};
-use nom::IResult;
-use nom_supreme::tag::complete::tag;
 use nom_supreme::tag::TagError;
+use nom_supreme::tag::complete::tag;
 
-use crate::version::parsing::{version, version_str};
 use crate::version::CompatRule;
+use crate::version::parsing::{version, version_str};
 use crate::version_range::{
     CompatRange,
     DoubleEqualsVersion,
