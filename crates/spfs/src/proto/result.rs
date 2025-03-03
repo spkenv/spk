@@ -60,92 +60,86 @@ macro_rules! rpc_result {
     };
 }
 
-use super::generated as gen;
+use super::generated as g;
 
 rpc_result!(
-    gen::LsTagsResponse,
-    gen::ls_tags_response::Result,
-    gen::ls_tags_response::EntryList
+    g::LsTagsResponse,
+    g::ls_tags_response::Result,
+    g::ls_tags_response::EntryList
 );
 rpc_result!(
-    gen::ResolveTagResponse,
-    gen::resolve_tag_response::Result,
-    gen::Tag
+    g::ResolveTagResponse,
+    g::resolve_tag_response::Result,
+    g::Tag
 );
 rpc_result!(
-    gen::FindTagsResponse,
-    gen::find_tags_response::Result,
-    gen::find_tags_response::TagList
+    g::FindTagsResponse,
+    g::find_tags_response::Result,
+    g::find_tags_response::TagList
 );
 rpc_result!(
-    gen::IterTagSpecsResponse,
-    gen::iter_tag_specs_response::Result,
-    gen::iter_tag_specs_response::TagSpecList
+    g::IterTagSpecsResponse,
+    g::iter_tag_specs_response::Result,
+    g::iter_tag_specs_response::TagSpecList
 );
 rpc_result!(
-    gen::ReadTagResponse,
-    gen::read_tag_response::Result,
-    gen::read_tag_response::TagList
+    g::ReadTagResponse,
+    g::read_tag_response::Result,
+    g::read_tag_response::TagList
 );
-rpc_result!(gen::InsertTagResponse, gen::insert_tag_response::Result);
+rpc_result!(g::InsertTagResponse, g::insert_tag_response::Result);
 rpc_result!(
-    gen::RemoveTagStreamResponse,
-    gen::remove_tag_stream_response::Result
+    g::RemoveTagStreamResponse,
+    g::remove_tag_stream_response::Result
 );
-rpc_result!(gen::RemoveTagResponse, gen::remove_tag_response::Result);
+rpc_result!(g::RemoveTagResponse, g::remove_tag_response::Result);
 
 rpc_result!(
-    gen::ReadObjectResponse,
-    gen::read_object_response::Result,
-    gen::Object
+    g::ReadObjectResponse,
+    g::read_object_response::Result,
+    g::Object
 );
 rpc_result!(
-    gen::FindDigestsResponse,
-    gen::find_digests_response::Result,
-    gen::Digest
+    g::FindDigestsResponse,
+    g::find_digests_response::Result,
+    g::Digest
 );
 rpc_result!(
-    gen::IterDigestsResponse,
-    gen::iter_digests_response::Result,
-    gen::Digest
+    g::IterDigestsResponse,
+    g::iter_digests_response::Result,
+    g::Digest
 );
 rpc_result!(
-    gen::IterObjectsResponse,
-    gen::iter_objects_response::Result,
-    gen::Object
+    g::IterObjectsResponse,
+    g::iter_objects_response::Result,
+    g::Object
 );
 rpc_result!(
-    gen::WalkObjectsResponse,
-    gen::walk_objects_response::Result,
-    gen::walk_objects_response::WalkObjectsItem
+    g::WalkObjectsResponse,
+    g::walk_objects_response::Result,
+    g::walk_objects_response::WalkObjectsItem
 );
-rpc_result!(gen::WriteObjectResponse, gen::write_object_response::Result);
+rpc_result!(g::WriteObjectResponse, g::write_object_response::Result);
+rpc_result!(g::RemoveObjectResponse, g::remove_object_response::Result);
 rpc_result!(
-    gen::RemoveObjectResponse,
-    gen::remove_object_response::Result
-);
-rpc_result!(
-    gen::RemoveObjectIfOlderThanResponse,
-    gen::remove_object_if_older_than_response::Result,
+    g::RemoveObjectIfOlderThanResponse,
+    g::remove_object_if_older_than_response::Result,
     bool
 );
 
 rpc_result!(
-    gen::WritePayloadResponse,
-    gen::write_payload_response::Result,
-    gen::write_payload_response::UploadOption
+    g::WritePayloadResponse,
+    g::write_payload_response::Result,
+    g::write_payload_response::UploadOption
 );
 rpc_result!(
-    gen::OpenPayloadResponse,
-    gen::open_payload_response::Result,
-    gen::open_payload_response::DownloadOption
+    g::OpenPayloadResponse,
+    g::open_payload_response::Result,
+    g::open_payload_response::DownloadOption
 );
+rpc_result!(g::RemovePayloadResponse, g::remove_payload_response::Result);
 rpc_result!(
-    gen::RemovePayloadResponse,
-    gen::remove_payload_response::Result
-);
-rpc_result!(
-    gen::write_payload_response::UploadResponse,
-    gen::write_payload_response::upload_response::Result,
-    gen::write_payload_response::upload_response::UploadResult
+    g::write_payload_response::UploadResponse,
+    g::write_payload_response::upload_response::Result,
+    g::write_payload_response::upload_response::UploadResult
 );
