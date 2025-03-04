@@ -163,7 +163,7 @@ impl std::fmt::Display for Variant {
         let pad = if f.alternate() { "" } else { "  " };
         f.write_str("options: ")?;
         self.options.fmt(f)?;
-        if self.requirements.len() > 0 {
+        if !self.requirements.is_empty() {
             f.write_fmt(format_args!("{br}additional requirements:{br}"))?;
             for r in self.requirements.iter() {
                 f.write_str(pad)?;
