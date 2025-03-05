@@ -130,6 +130,10 @@ impl Build {
         }
     }
 
+    pub fn is_buildid(&self) -> bool {
+        matches!(self, Build::BuildId(_))
+    }
+
     pub fn is_source(&self) -> bool {
         matches!(self, Build::Source)
     }
