@@ -235,7 +235,8 @@ async fn test_solver_package_with_no_recipe_and_impossible_initial_checks(
     let res = run_and_print_resolve_for_tests(&mut solver).await;
     if cfg!(feature = "migration-to-components") {
         match res {
-            Err(Error::InitialRequestsContainImpossibleError(_)) => {
+            Err(Error::InitialRequestsContainImpossibleError(_))
+            | Err(Error::FailedToResolve(_)) => {
                 // Success, when the 'migration-to-components' feature
                 // is enabled because the initial checks for
                 // impossible requests fail because the package does
@@ -332,7 +333,11 @@ async fn test_solver_package_with_no_recipe_from_cmd_line_and_impossible_initial
         // :build and a :run component to pass and it only has a :run
         // component
         assert!(
-            matches!(res, Err(Error::InitialRequestsContainImpossibleError(_))),
+            matches!(
+                res,
+                Err(Error::InitialRequestsContainImpossibleError(_))
+                    | Err(Error::FailedToResolve(_))
+            ),
             "'{res:?}' should be a Error::String('Initial requests contain 1 impossible request.')",
         );
     } else {

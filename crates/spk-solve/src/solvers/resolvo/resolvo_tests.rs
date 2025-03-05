@@ -8,6 +8,7 @@ use rstest::rstest;
 use spk_schema::prelude::HasVersion;
 use spk_schema::{Package, opt_name};
 use spk_solve_macros::{make_repo, request};
+use tap::TapFallible;
 
 use super::Solver;
 use crate::SolverMut;
@@ -101,7 +102,7 @@ async fn package_with_dependency() {
 
     let mut solver = Solver::new(vec![repo.into()], Cow::Borrowed(&[]));
     solver.add_request(request!("needs-dep/1.0.0"));
-    let solution = solver.solve().await.unwrap();
+    let solution = solver.solve().await.tap_err(|e| eprintln!("{e}")).unwrap();
     assert_eq!(solution.len(), 2);
 }
 
