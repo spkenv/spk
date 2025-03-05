@@ -67,6 +67,7 @@
     "builddir",
     "buildenv",
     "BUILDGST",
+    "buildid",
     "BUILDKEY",
     "buildroot",
     "buildvariabledescription",

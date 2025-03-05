@@ -69,7 +69,7 @@ use crate::SolverMut;
 // be a relationship between every component of a package and a "base"
 // component, to prevent a solve containing a mix of components from different
 // versions of the same package.
-#[derive(Clone, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) struct PkgNameBufWithComponent {
     pub(crate) name: PkgNameBuf,
     pub(crate) component: SyntheticComponent,
@@ -128,7 +128,10 @@ impl ResolvoPackageName {
                 None
             }
             ResolvoPackageName::PkgNameBufWithComponent(pkg_name) => {
-                let mut located_builds = Vec::new();
+                // Prevent duplicate solvables by using a set. Ties (same build
+                // but "requires_build_from_source" differs) are resolved with
+                // "requires_build_from_source" being true.
+                let mut located_builds = HashSet::new();
 
                 let root_pkg_request = provider.global_pkg_requests.get(&pkg_name.name);
 
@@ -201,23 +204,62 @@ impl ResolvoPackageName {
                                     // when a request for it is found it can act as a
                                     // surrogate that depends on all the individual
                                     // components.
-                                    [Component::All],
-                                ) {
-                                    if component != *pkg_name_component
-                                        && (provider.binary_only || !component.is_source())
                                     {
+                                        if !build.is_source() {
+                                            itertools::Either::Left([Component::All].into_iter())
+                                        } else {
+                                            // XXX: Unclear if this is the right
+                                            // approach but without this special
+                                            // case the Solution can incorrectly
+                                            // end up with a src build marked as
+                                            // requires_build_from_source for
+                                            // requests that are asking for
+                                            // :src.
+                                            itertools::Either::Right([].into_iter())
+                                        }
+                                    },
+                                ) {
+                                    let requires_build_from_source = build.is_source()
+                                        && (component != *pkg_name_component
+                                            || pkg_name_component.is_all());
+
+                                    if requires_build_from_source && provider.binary_only {
+                                        // Deny anything that requires build
+                                        // from source when binary_only is
+                                        // enabled.
                                         continue;
                                     }
 
-                                    located_builds.push(LocatedBuildIdentWithComponent {
+                                    if (!requires_build_from_source || !build.is_source())
+                                        && component != *pkg_name_component
+                                    {
+                                        // Deny components that don't match
+                                        // unless it is possible to build from
+                                        // source.
+                                        continue;
+                                    }
+
+                                    let new_entry = LocatedBuildIdentWithComponent {
                                         ident: located_build_ident.clone(),
                                         component: pkg_name.component.clone(),
-                                        requires_build_from_source: component
-                                            != *pkg_name_component,
-                                    });
+                                        requires_build_from_source,
+                                    };
+
+                                    if requires_build_from_source {
+                                        // _replace_ any existing entry, which
+                                        // might have
+                                        // requires_build_from_source == false,
+                                        // so it now is true.
+                                        located_builds.replace(new_entry);
+                                    } else {
+                                        // _insert_ to not overwrite any
+                                        // existing entry that might have
+                                        // requires_build_from_source == true.
+                                        located_builds.insert(new_entry);
+                                    }
                                 }
                             } else {
-                                located_builds.push(LocatedBuildIdentWithComponent {
+                                located_builds.insert(LocatedBuildIdentWithComponent {
                                     ident: located_build_ident,
                                     component: SyntheticComponent::Base,
                                     requires_build_from_source: false,
@@ -538,11 +580,11 @@ impl SpkProvider {
     fn pkg_request_to_known_dependencies(&self, pkg_request: &PkgRequest) -> KnownDependencies {
         let mut components = pkg_request.pkg.components.iter().peekable();
         let iter = if components.peek().is_some() {
-            itertools::Either::Right(components.cloned().map(SyntheticComponent::Actual))
+            itertools::Either::Right(components.cloned())
         } else {
             itertools::Either::Left(
                 // A request with no components is assumed to be a request for
-                // the run (or source) component.
+                // the default_for_run (or source) component.
                 if pkg_request
                     .pkg
                     .build
@@ -550,9 +592,9 @@ impl SpkProvider {
                     .map(|build| build.is_source())
                     .unwrap_or(false)
                 {
-                    std::iter::once(SyntheticComponent::Actual(Component::Source))
+                    std::iter::once(Component::Source)
                 } else {
-                    std::iter::once(SyntheticComponent::Actual(Component::Run))
+                    std::iter::once(Component::default_for_run())
                 },
             )
         };
@@ -566,12 +608,14 @@ impl SpkProvider {
                     .intern_package_name(ResolvoPackageName::PkgNameBufWithComponent(
                         PkgNameBufWithComponent {
                             name: pkg_request.pkg.name().to_owned(),
-                            component,
+                            component: SyntheticComponent::Actual(component.clone()),
                         },
                     ));
+            let mut pkg_request_with_component = pkg_request.clone();
+            pkg_request_with_component.pkg.components = BTreeSet::from_iter([component]);
             let dep_vs = self.pool.intern_version_set(
                 dep_name,
-                RequestVS::SpkRequest(Request::Pkg(pkg_request.clone())),
+                RequestVS::SpkRequest(Request::Pkg(pkg_request_with_component)),
             );
             match pkg_request.inclusion_policy {
                 spk_schema::ident::InclusionPolicy::Always => {
@@ -761,7 +805,7 @@ impl SpkProvider {
 
         // If neither build has a key, both packages failed to load?
         // Add debug assert to see if this ever happens.
-        debug_assert!(false, "builds without keys");
+        debug_assert!(false, "builds without keys {a:?} {b:?}");
 
         a.1.ident.cmp(&b.1.ident)
     }
@@ -885,6 +929,22 @@ impl DependencyProvider for SpkProvider {
                         // a candidate. Source builds that can't be built from
                         // source are filtered out in `get_candidates`.
                         if located_build_ident_with_component.requires_build_from_source {
+                            // However, building from source is not a suitable
+                            // candidate for a request for a specific component
+                            // of an existing build, such as when finding the
+                            // members of the :all component of a build.
+                            if pkg_request
+                                .pkg
+                                .build
+                                .as_ref()
+                                .is_some_and(|b| b.is_buildid())
+                            {
+                                if inverse {
+                                    selected.push(*candidate);
+                                }
+                                continue;
+                            }
+
                             if !inverse {
                                 selected.push(*candidate);
                             }
