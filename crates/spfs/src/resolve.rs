@@ -340,11 +340,11 @@ where
 
     // Note the layers we manufactured here via flattening so they will have a
     // strong reference in the runtime.
-    if !skip_runtime_save && runtime.status.flattened_layers != flattened_layers {
-        // If the additional layers has changed, then the runtime needs to be
-        // re-saved.
+    if runtime.status.flattened_layers != flattened_layers {
         runtime.status.flattened_layers = flattened_layers;
-        runtime.save_state_to_storage().await?;
+        if !skip_runtime_save {
+            runtime.save_state_to_storage().await?;
+        }
     }
 
     Ok(resolved_manifests)
