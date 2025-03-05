@@ -322,7 +322,16 @@ impl AbstractSolver for Solver {
 
 #[async_trait::async_trait]
 impl AbstractSolverMut for Solver {
-    fn add_request(&mut self, request: Request) {
+    fn add_request(&mut self, mut request: Request) {
+        if let Request::Pkg(request) = &mut request {
+            if request.pkg.components.is_empty() {
+                if request.pkg.is_source() {
+                    request.pkg.components.insert(Component::Source);
+                } else {
+                    request.pkg.components.insert(Component::default_for_run());
+                }
+            }
+        }
         self.requests.push(request);
     }
 
