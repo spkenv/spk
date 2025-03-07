@@ -1465,6 +1465,25 @@ impl FromStr for VersionFilter {
     }
 }
 
+impl<'de> serde::de::Deserialize<'de> for VersionFilter {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = String::deserialize(deserializer)?;
+        Self::from_str(&raw).map_err(serde::de::Error::custom)
+    }
+}
+
+impl serde::ser::Serialize for VersionFilter {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
 pub fn parse_version_range<S: AsRef<str>>(range: S) -> Result<VersionRange> {
     let mut filter = VersionFilter::from_str(range.as_ref())?;
 
