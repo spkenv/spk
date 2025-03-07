@@ -512,7 +512,7 @@ async fn test_build_var_pinning() {
         Request::Var(r) => assert_eq!(r.value.as_pinned(), Some("topvalue")),
         _ => panic!("expected var request"),
     }
-    let depreq = spec.runtime_requirements().get(1).unwrap().clone();
+    let depreq = spec.runtime_requirements()[1].clone();
     match depreq {
         Request::Var(r) => assert_eq!(r.value.as_pinned(), Some("depvalue")),
         _ => panic!("expected var request"),
