@@ -86,7 +86,7 @@ impl AutoHostVars {
                     distro_name = distro.clone();
                     match OptName::new(&distro_name) {
                         Ok(name) => {
-                            let mut var_opt = VarOpt::new(name.to_owned())?;
+                            let mut var_opt = VarOpt::new(name)?;
                             // Look for any configured compat rules for the
                             // distro
                             let config = get_config()?;
@@ -118,7 +118,7 @@ impl AutoHostVars {
                         "No distro name set by host. A {}= will be used instead.",
                         OptName::unknown_distro()
                     );
-                    settings.push(Opt::Var(VarOpt::new(OptName::unknown_distro().to_owned())?));
+                    settings.push(Opt::Var(VarOpt::new(OptName::unknown_distro())?));
                 }
             }
         }
