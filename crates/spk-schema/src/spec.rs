@@ -283,15 +283,27 @@ pub enum SpecRecipe {
     V0Package(super::v0::Spec<VersionIdent>),
     #[serde(rename = "v0/platform")]
     V0Platform(super::v0::Platform),
+    #[serde(rename = "v1/platform")]
+    V1Platform(super::v1::Platform),
+}
+
+macro_rules! each_variant {
+    ($self:ident, $bind:ident, $for_each:stmt) => {
+        each_variant!($self, $bind => { $for_each })
+    };
+    ($self:ident, $bind:ident => $for_each:tt) => {
+        match $self {
+            SpecRecipe::V0Package($bind) => $for_each,
+            SpecRecipe::V0Platform($bind) => $for_each,
+            SpecRecipe::V1Platform($bind) => $for_each,
+        }
+    };
 }
 
 impl SpecRecipe {
     /// Access the recipe's build options
     pub fn build_options(&self) -> Cow<'_, [Opt]> {
-        match self {
-            SpecRecipe::V0Package(r) => r.build_options(),
-            SpecRecipe::V0Platform(r) => r.build_options(),
-        }
+        each_variant!(self, r, r.build_options())
     }
 }
 
@@ -301,25 +313,21 @@ impl Recipe for SpecRecipe {
     type Test = SpecTest;
 
     fn ident(&self) -> &VersionIdent {
-        match self {
-            SpecRecipe::V0Package(r) => Recipe::ident(r),
-            SpecRecipe::V0Platform(r) => Recipe::ident(r),
-        }
+        each_variant!(self, r, Recipe::ident(r))
     }
 
     fn build_digest<V>(&self, variant: &V) -> Result<BuildId>
     where
         V: Variant,
     {
-        match self {
-            SpecRecipe::V0Package(r) => Recipe::build_digest(r, variant),
-            SpecRecipe::V0Platform(r) => Recipe::build_digest(r, variant),
-        }
+        each_variant!(self, r, Recipe::build_digest(r, variant))
     }
 
     fn default_variants(&self, options: &OptionMap) -> Cow<'_, Vec<Self::Variant>> {
-        match self {
-            SpecRecipe::V0Package(r) => Cow::Owned(
+        each_variant!(
+            self,
+            r,
+            Cow::Owned(
                 // use into_owned instead of iter().cloned() in case it's
                 // already an owned instance
                 #[allow(clippy::unnecessary_to_owned)]
@@ -328,63 +336,40 @@ impl Recipe for SpecRecipe {
                     .into_iter()
                     .map(SpecVariant::V0)
                     .collect(),
-            ),
-            SpecRecipe::V0Platform(r) => Cow::Owned(
-                // use into_owned instead of iter().cloned() in case it's
-                // already an owned instance
-                #[allow(clippy::unnecessary_to_owned)]
-                r.default_variants(options)
-                    .into_owned()
-                    .into_iter()
-                    .map(SpecVariant::V0)
-                    .collect(),
-            ),
-        }
+            )
+        )
     }
 
     fn resolve_options<V>(&self, variant: &V) -> Result<OptionMap>
     where
         V: Variant,
     {
-        match self {
-            SpecRecipe::V0Package(r) => r.resolve_options(variant),
-            SpecRecipe::V0Platform(r) => r.resolve_options(variant),
-        }
+        each_variant!(self, r, r.resolve_options(variant))
     }
 
     fn get_build_requirements<V>(&self, variant: &V) -> Result<Cow<'_, RequirementsList>>
     where
         V: Variant,
     {
-        match self {
-            SpecRecipe::V0Package(r) => r.get_build_requirements(variant),
-            SpecRecipe::V0Platform(r) => r.get_build_requirements(variant),
-        }
+        each_variant!(self, r, r.get_build_requirements(variant))
     }
 
     fn get_tests<V>(&self, stage: TestStage, variant: &V) -> Result<Vec<Self::Test>>
     where
         V: Variant,
     {
-        match self {
-            SpecRecipe::V0Package(r) => Ok(r
-                .get_tests(stage, variant)?
+        each_variant!(
+            self,
+            r,
+            Ok(r.get_tests(stage, variant)?
                 .into_iter()
                 .map(SpecTest::V0)
-                .collect()),
-            SpecRecipe::V0Platform(r) => Ok(r
-                .get_tests(stage, variant)?
-                .into_iter()
-                .map(SpecTest::V0)
-                .collect()),
-        }
+                .collect())
+        )
     }
 
     fn generate_source_build(&self, root: &Path) -> Result<Self::Output> {
-        match self {
-            SpecRecipe::V0Package(r) => r.generate_source_build(root).map(Spec::V0Package),
-            SpecRecipe::V0Platform(r) => r.generate_source_build(root).map(Spec::V0Package),
-        }
+        each_variant!(self, r, r.generate_source_build(root).map(Spec::V0Package))
     }
 
     fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
@@ -393,57 +378,40 @@ impl Recipe for SpecRecipe {
         E: BuildEnv<Package = P>,
         P: Package,
     {
-        match self {
-            SpecRecipe::V0Package(r) => r
-                .generate_binary_build(variant, build_env)
-                .map(Spec::V0Package),
-            SpecRecipe::V0Platform(r) => r
-                .generate_binary_build(variant, build_env)
-                .map(Spec::V0Package),
-        }
+        each_variant!(
+            self,
+            r,
+            r.generate_binary_build(variant, build_env)
+                .map(Spec::V0Package)
+        )
     }
 
     fn metadata(&self) -> &Meta {
-        match self {
-            SpecRecipe::V0Package(r) => r.metadata(),
-            SpecRecipe::V0Platform(r) => r.metadata(),
-        }
+        each_variant!(self, r, r.metadata())
     }
 }
 
 impl HasVersion for SpecRecipe {
     fn version(&self) -> &Version {
-        match self {
-            SpecRecipe::V0Package(r) => r.version(),
-            SpecRecipe::V0Platform(r) => r.version(),
-        }
+        each_variant!(self, r, r.version())
     }
 }
 
 impl Named for SpecRecipe {
     fn name(&self) -> &PkgName {
-        match self {
-            SpecRecipe::V0Package(r) => r.name(),
-            SpecRecipe::V0Platform(r) => r.name(),
-        }
+        each_variant!(self, r, r.name())
     }
 }
 
 impl RuntimeEnvironment for SpecRecipe {
     fn runtime_environment(&self) -> &[crate::EnvOp] {
-        match self {
-            SpecRecipe::V0Package(r) => r.runtime_environment(),
-            SpecRecipe::V0Platform(r) => r.runtime_environment(),
-        }
+        each_variant!(self, r, r.runtime_environment())
     }
 }
 
 impl Versioned for SpecRecipe {
     fn compat(&self) -> &Compat {
-        match self {
-            SpecRecipe::V0Package(spec) => spec.compat(),
-            SpecRecipe::V0Platform(spec) => spec.compat(),
-        }
+        each_variant!(self, spec, spec.compat())
     }
 }
 
