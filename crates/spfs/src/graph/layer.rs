@@ -6,7 +6,7 @@ use spfs_proto::LayerArgs;
 
 use super::object::HeaderBuilder;
 use super::{Annotation, AnnotationValue, ObjectKind};
-use crate::{encoding, Error, Result};
+use crate::{Error, Result, encoding};
 
 #[cfg(test)]
 #[path = "./layer_test.rs"]

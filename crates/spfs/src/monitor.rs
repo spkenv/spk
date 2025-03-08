@@ -5,14 +5,14 @@
 //! Functions related to the monitoring of an active spfs runtime
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use dashmap::DashSet;
-use tokio_retry::strategy::{jitter, ExponentialBackoff};
+use tokio_retry::strategy::{ExponentialBackoff, jitter};
 use tokio_retry::{Condition, RetryIf};
-use tokio_stream::wrappers::{IntervalStream, UnboundedReceiverStream};
 use tokio_stream::StreamExt;
+use tokio_stream::wrappers::{IntervalStream, UnboundedReceiverStream};
 
 use super::runtime;
 use crate::repeating_timeout::RepeatingTimeout;

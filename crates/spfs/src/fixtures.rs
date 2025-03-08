@@ -4,8 +4,8 @@
 
 use std::sync::Arc;
 
-use rand::distributions::{Alphanumeric, DistString};
 use rand::Rng;
+use rand::distributions::{Alphanumeric, DistString};
 use rstest::fixture;
 use tempfile::TempDir;
 

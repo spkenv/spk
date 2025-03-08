@@ -5,7 +5,7 @@
 use rstest::rstest;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::ident::build_ident;
-use spk_schema::{v0, GitSource, LocalSource, ScriptSource, SourceSpec, Spec, TarSource};
+use spk_schema::{GitSource, LocalSource, ScriptSource, SourceSpec, Spec, TarSource, v0};
 use spk_storage::fixtures::*;
 
 use super::{collect_sources, validate_source_changeset};

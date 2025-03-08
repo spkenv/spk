@@ -4,11 +4,11 @@
 
 use std::collections::{BTreeSet, HashSet};
 
+use nom::IResult;
 use nom::character::complete::char;
 use nom::combinator::{opt, recognize};
 use nom::error::{ContextError, FromExternalError, ParseError};
 use nom::sequence::preceded;
-use nom::IResult;
 use nom_supreme::tag::TagError;
 
 use super::{
@@ -19,8 +19,8 @@ use super::{
 };
 use crate::ident_build::parsing::build;
 use crate::ident_component::Component;
-use crate::name::parsing::package_name;
 use crate::name::RepositoryName;
+use crate::name::parsing::package_name;
 use crate::version::parsing::version_str;
 
 #[derive(Debug)]

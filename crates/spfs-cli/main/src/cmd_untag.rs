@@ -39,7 +39,9 @@ impl CmdUntag {
             tag = tag.with_version(0);
         }
         if !self.all && !has_version {
-            tracing::error!("You must specify one of --all, --latest or provide a tag with an explicit version number (eg: path/name~0)");
+            tracing::error!(
+                "You must specify one of --all, --latest or provide a tag with an explicit version number (eg: path/name~0)"
+            );
             return Ok(1);
         }
 

@@ -26,7 +26,7 @@ use tokio::sync::Semaphore;
 
 use crate::graph::AnnotationValue;
 use crate::prelude::*;
-use crate::{encoding, graph, storage, tracking, Error, Result};
+use crate::{Error, Result, encoding, graph, storage, tracking};
 
 /// The default limit for concurrent manifest sync operations
 /// per-syncer if not otherwise specified using
@@ -215,7 +215,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
             }
             // These are not objects in spfs, so they are not syncable
             tracking::EnvSpecItem::SpecFile(_) => {
-                return Ok(SyncEnvItemResult::Object(SyncObjectResult::Ignorable))
+                return Ok(SyncEnvItemResult::Object(SyncObjectResult::Ignorable));
             }
         };
         self.reporter.synced_env_item(&res);

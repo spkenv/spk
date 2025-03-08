@@ -10,26 +10,26 @@ use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::opt_name;
 use spk_schema::ident::{
-    build_ident,
-    parse_ident_range,
-    version_ident,
     PkgRequest,
     RangeIdent,
     Request,
     RequestedBy,
     VarRequest,
+    build_ident,
+    parse_ident_range,
+    version_ident,
 };
 use spk_schema::ident_build::{Build, BuildId, EmbeddedSource};
 use spk_schema::prelude::*;
 use spk_schema::{recipe, v0};
 use spk_solve_macros::{make_build, make_build_and_components, make_package, make_repo, request};
 use spk_solve_solution::PackageSource;
-use spk_storage::fixtures::*;
 use spk_storage::RepositoryHandle;
+use spk_storage::fixtures::*;
 
 use super::{ErrorDetails, Solver};
 use crate::io::DecisionFormatterBuilder;
-use crate::{option_map, spec, Error, Result};
+use crate::{Error, Result, option_map, spec};
 
 #[fixture]
 fn solver() -> Solver {
@@ -2597,10 +2597,15 @@ fn test_error_frequency_get_message_for_couldnotsatisfy_error_multiple() {
 
     match errors.get(&request.pkg.to_string()) {
         Some(error_freq) => {
-            assert!(error_freq.counter == 2, "error frequency counter for 2 occurrences of the same 'could not satisfy' error should be 2, not: {}", error_freq.counter );
-            assert!(error_freq.get_message(request.pkg.to_string()) != request.pkg.to_string(),
-            " error frequency get_message for a 'could not satisfy' error should be more than the error key not: {}",
-            error_freq.get_message(request.pkg.to_string())
+            assert!(
+                error_freq.counter == 2,
+                "error frequency counter for 2 occurrences of the same 'could not satisfy' error should be 2, not: {}",
+                error_freq.counter
+            );
+            assert!(
+                error_freq.get_message(request.pkg.to_string()) != request.pkg.to_string(),
+                " error frequency get_message for a 'could not satisfy' error should be more than the error key not: {}",
+                error_freq.get_message(request.pkg.to_string())
             )
         }
         None => panic!("error frequency for a 'could not satisfy error' was missing"),

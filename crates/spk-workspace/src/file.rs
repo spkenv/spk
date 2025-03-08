@@ -6,8 +6,8 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use bracoxide::tokenizer::TokenizationError;
 use bracoxide::OxidizationError;
+use bracoxide::tokenizer::TokenizationError;
 use serde::Deserialize;
 use spk_schema::foundation::FromYaml;
 use spk_schema::version::Version;
@@ -196,7 +196,7 @@ impl<'de> serde::de::Deserialize<'de> for TemplateConfig {
                         Err(err) => {
                             return Err(serde::de::Error::custom(format!(
                                 "invalid brace expansion in position {i}: {err:?}"
-                            )))
+                            )));
                         }
                     };
                     for version in expanded {

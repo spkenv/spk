@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use super::object::HeaderBuilder;
 use super::ObjectKind;
+use super::object::HeaderBuilder;
 use crate::encoding::Digest;
-use crate::{encoding, Result};
+use crate::{Result, encoding};
 
 /// Blobs represent an arbitrary chunk of binary data, usually a file.
 pub type Blob = super::FlatObject<spfs_proto::Blob<'static>>;

@@ -31,9 +31,9 @@ use crate::graph::object::Enum;
 use crate::graph::{Annotation, AnnotationValue, KeyAnnotationValuePair};
 use crate::prelude::*;
 use crate::runtime::LiveLayer;
-use crate::storage::fs::DURABLE_EDITS_DIR;
 use crate::storage::RepositoryHandle;
-use crate::{bootstrap, graph, storage, tracking, Error, Result};
+use crate::storage::fs::DURABLE_EDITS_DIR;
+use crate::{Error, Result, bootstrap, graph, storage, tracking};
 
 #[cfg(test)]
 #[path = "./storage_test.rs"]
@@ -662,7 +662,10 @@ impl Runtime {
                                 if !existing_file.exists() {
                                     // This file's mount will fail because of the earlier
                                     // directory extra mount over the file's parent directory.
-                                    return Err(Error::String(format!("Invalid extra mount order: the file mount, {}, will fail because its destination is hidden by the earlier dir mount, {}, please reorder these extra mounts", extra_mount, dir_mount )));
+                                    return Err(Error::String(format!(
+                                        "Invalid extra mount order: the file mount, {}, will fail because its destination is hidden by the earlier dir mount, {}, please reorder these extra mounts",
+                                        extra_mount, dir_mount
+                                    )));
                                 }
                             }
 
@@ -957,13 +960,13 @@ impl Storage {
                 Some(code) => {
                     return Err(Error::String(format!(
                         "spfs-clean --remove-durable returned non-zero exit status: {code}"
-                    )))
+                    )));
                 }
                 None => {
                     return Err(Error::String(
                         "spfs-clean --remove-durable failed unexpectedly with no return code"
                             .to_string(),
-                    ))
+                    ));
                 }
             }
         }

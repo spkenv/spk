@@ -3,7 +3,7 @@
 // https://github.com/spkenv/spk
 
 use crate::storage::fs::RenderSummary;
-use crate::{env, runtime, Error, Result};
+use crate::{Error, Result, env, runtime};
 
 /// Remount the given runtime as configured.
 pub async fn remount_runtime(_rt: &runtime::Runtime) -> Result<()> {
@@ -53,7 +53,7 @@ pub async fn initialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSumma
             return Err(Error::String(format!(
                 "This binary was not compiled with support for {}",
                 rt.config.mount_backend
-            )))
+            )));
         }
     }
     Ok(RenderSummary::default())

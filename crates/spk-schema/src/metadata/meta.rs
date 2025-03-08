@@ -63,7 +63,7 @@ impl Meta {
                     let json: serde_json::Value = match serde_json::from_reader(&*out.stdout) {
                         Ok(j) => j,
                         Err(e) => {
-                            return Err(Error::String(format!("Unable to read json output: {e}")))
+                            return Err(Error::String(format!("Unable to read json output: {e}")));
                         }
                     };
 

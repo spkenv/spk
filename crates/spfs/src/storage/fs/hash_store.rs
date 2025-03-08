@@ -17,7 +17,7 @@ use tokio::io::AsyncWriteExt;
 use crate::runtime::makedirs_with_perms;
 use crate::storage::{OpenRepositoryError, OpenRepositoryResult};
 use crate::tracking::BlobRead;
-use crate::{encoding, Error, OsError, Result};
+use crate::{Error, OsError, Result, encoding};
 
 #[cfg(test)]
 #[path = "./hash_store_test.rs"]
@@ -127,7 +127,7 @@ impl FsHashStore {
                             entry.path(),
                             err,
                         ))
-                    }))
+                    }));
                 }
             },
             Ok(subdir) => subdir,
@@ -166,7 +166,7 @@ impl FsHashStore {
     pub fn find(
         &self,
         search_criteria: crate::graph::DigestSearchCriteria,
-    ) -> impl Stream<Item = Result<encoding::Digest>> {
+    ) -> impl Stream<Item = Result<encoding::Digest>> + use<> {
         // Don't capture self inside try_stream.
         let root = self.root.clone();
 
@@ -197,7 +197,7 @@ impl FsHashStore {
         }
     }
 
-    pub fn iter(&self) -> impl Stream<Item = Result<encoding::Digest>> {
+    pub fn iter(&self) -> impl Stream<Item = Result<encoding::Digest>> + use<> {
         self.find(crate::graph::DigestSearchCriteria::All)
     }
 
@@ -441,7 +441,7 @@ impl FsHashStore {
                         dirpath.clone(),
                         err,
                     )),
-                }
+                };
             }
             Ok(mut read_dir) => {
                 let mut mapped = Vec::new();

@@ -7,7 +7,7 @@ use std::pin::Pin;
 use futures::Stream;
 
 use crate::tracking::BlobRead;
-use crate::{encoding, Result};
+use crate::{Result, encoding};
 
 #[cfg(test)]
 #[path = "payload_test.rs"]

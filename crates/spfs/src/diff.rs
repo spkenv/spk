@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use super::resolve::compute_manifest;
 use super::status::{active_runtime, compute_runtime_manifest};
-use crate::{tracking, Result};
+use crate::{Result, tracking};
 
 ///  Return the changes going from 'base' to 'top'.
 ///

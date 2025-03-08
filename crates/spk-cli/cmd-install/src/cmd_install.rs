@@ -9,11 +9,11 @@ use clap::Args;
 use colored::Colorize;
 use futures::TryFutureExt;
 use miette::{Context, IntoDiagnostic, Result};
-use spk_cli_common::{build_required_packages, current_env, flags, CommandArgs, Run};
+use spk_cli_common::{CommandArgs, Run, build_required_packages, current_env, flags};
 use spk_exec::setup_current_runtime;
+use spk_schema::Package;
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::spec_ops::Named;
-use spk_schema::Package;
 
 /// Install a package into the current environment
 #[derive(Args)]

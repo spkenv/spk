@@ -13,7 +13,7 @@ use spk_schema::{recipe, spec};
 use spk_solve_solution::PackageSource;
 
 use super::DecisionBuilder;
-use crate::{graph, Decision};
+use crate::{Decision, graph};
 
 #[rstest]
 fn test_resolve_build_same_result() {

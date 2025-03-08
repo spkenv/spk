@@ -7,23 +7,23 @@ use std::str::FromStr;
 
 use indexmap::set::IndexSet;
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident_component::ComponentBTreeSetBuf;
 use spk_schema_foundation::option_map::Stringified;
 use spk_schema_foundation::version::{Compat, IncompatibleReason, VarOptionProblem};
-use spk_schema_foundation::IsDefault;
 use spk_schema_ident::{NameAndValue, PinnableValue, RangeIdent};
 
 use crate::foundation::name::{OptName, OptNameBuf, PkgName, PkgNameBuf};
 use crate::foundation::version::{CompatRule, Compatibility};
 use crate::foundation::version_range::{Ranged, VersionRange};
 use crate::ident::{
-    parse_ident_range,
     InclusionPolicy,
     PkgRequest,
     PreReleasePolicy,
     Request,
     RequestedBy,
     VarRequest,
+    parse_ident_range,
 };
 use crate::{Error, Result};
 
@@ -238,7 +238,9 @@ impl<'de> Deserialize<'de> for Opt {
             {
                 let check_existing_default = |v: &OptVisitor| -> std::result::Result<(), A::Error> {
                     if v.default.is_some() {
-                        Err(serde::de::Error::custom("option cannot specify both the 'default' field and a default value in the form <name>/<default>"))
+                        Err(serde::de::Error::custom(
+                            "option cannot specify both the 'default' field and a default value in the form <name>/<default>",
+                        ))
                     } else {
                         Ok(())
                     }
@@ -306,7 +308,7 @@ impl<'de> Deserialize<'de> for Opt {
                         default: self.default.unwrap_or_default(),
                         value: self.value,
                     })),
-                    (None, Some(var)) =>Ok(Opt::Var(VarOpt {
+                    (None, Some(var)) => Ok(Opt::Var(VarOpt {
                         var,
                         choices: self.choices.unwrap_or_default(),
                         inheritance: self.inheritance.unwrap_or_default(),
@@ -316,10 +318,10 @@ impl<'de> Deserialize<'de> for Opt {
                         value: self.value,
                     })),
                     (Some(_), Some(_)) => Err(serde::de::Error::custom(
-                        "could not determine option type, it may only contain one of the `pkg` or `var` fields"
+                        "could not determine option type, it may only contain one of the `pkg` or `var` fields",
                     )),
                     (None, None) => Err(serde::de::Error::custom(
-                        "could not determine option type, it must include either a `pkg` or `var` field"
+                        "could not determine option type, it must include either a `pkg` or `var` field",
                     )),
                 }
             }
@@ -578,7 +580,7 @@ impl PkgOpt {
                     value: base.clone(),
                     option: self.pkg.clone(),
                     err: err.to_string(),
-                })
+                });
             }
             Ok(r) => r,
         };

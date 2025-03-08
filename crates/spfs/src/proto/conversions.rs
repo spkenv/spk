@@ -5,7 +5,7 @@
 use std::convert::{TryFrom, TryInto};
 use std::ops::Not;
 
-use crate::{encoding, graph, storage, tracking, Error, Result};
+use crate::{Error, Result, encoding, graph, storage, tracking};
 
 pub(crate) fn convert_to_datetime(
     source: Option<super::DateTime>,

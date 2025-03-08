@@ -44,5 +44,6 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
+serial_test = { workspace = true }
 tar = "0.4.30"
 tempfile = { workspace = true }

@@ -56,9 +56,11 @@ fn test_bindmount_validate_fail_not_under_parent(tmpdir: tempfile::TempDir) {
         dest: mountpoint,
     };
 
-    assert!(mount
-        .validate(PathBuf::from_str("/tmp/no/its/parent/").unwrap())
-        .is_err());
+    assert!(
+        mount
+            .validate(PathBuf::from_str("/tmp/no/its/parent/").unwrap())
+            .is_err()
+    );
 }
 
 #[rstest]

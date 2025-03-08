@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use proto::vfs_service_server::VfsService;
 use spfs::storage::FromConfig;
-use tonic::{async_trait, Request, Response, Status};
+use tonic::{Request, Response, Status, async_trait};
 use tracing::instrument;
 pub use winfsp::Result;
 
@@ -20,7 +20,7 @@ mod router;
 
 pub use handle::Handle;
 pub use mount::Mount;
-pub use router::{get_parent_pids, Router};
+pub use router::{Router, get_parent_pids};
 use winfsp::host::VolumeParams;
 
 /// Options to configure the WinFSP filesystem and

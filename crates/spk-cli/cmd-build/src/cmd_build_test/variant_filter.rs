@@ -4,8 +4,8 @@
 
 use clap::Parser;
 use rstest::rstest;
-use spk_cli_common::flags::VariantLocation;
 use spk_cli_common::BuildArtifact;
+use spk_cli_common::flags::VariantLocation;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::option_map;
 use spk_schema::opt_name;

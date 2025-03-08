@@ -108,9 +108,7 @@ pub enum PackageNameProblem {
         self_name: PkgNameBuf,
         other_name: PkgNameBuf,
     },
-    #[strum(
-        to_string = "version selectors are for different packages {self_name} != {other_name}"
-    )]
+    #[strum(to_string = "version selectors are for different packages {self_name} != {other_name}")]
     VersionSelector {
         self_name: PkgNameBuf,
         other_name: PkgNameBuf,

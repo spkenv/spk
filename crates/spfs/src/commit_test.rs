@@ -5,8 +5,8 @@
 use rstest::rstest;
 
 use super::Committer;
-use crate::fixtures::*;
 use crate::Error;
+use crate::fixtures::*;
 
 #[rstest]
 #[tokio::test]

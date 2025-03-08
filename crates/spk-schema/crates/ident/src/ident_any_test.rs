@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use rstest::rstest;
 
-use super::{parse_ident, AnyIdent};
+use super::{AnyIdent, parse_ident};
 
 #[rstest]
 #[case("package")]

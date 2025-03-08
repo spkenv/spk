@@ -10,7 +10,7 @@ use spk_schema::foundation::name::PkgName;
 use spk_schema::foundation::option_map;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::Compatibility;
-use spk_schema::{recipe, spec, BuildIdent, Package, Spec};
+use spk_schema::{BuildIdent, Package, Spec, recipe, spec};
 use spk_solve_macros::{make_build, make_repo};
 
 use super::{BuildIterator, PackageIterator, RepositoryPackageIterator, SortedBuildIterator};

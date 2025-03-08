@@ -4,7 +4,7 @@
 
 use spfs::tracking::Manifest;
 use spk_schema::validation::{FileAlteration, ValidationMatcher};
-use spk_schema::{v0, Package, ValidationRule};
+use spk_schema::{Package, ValidationRule, v0};
 use spk_solve::Solution;
 
 use crate::report::{BuildOutputReport, BuildReport, BuildSetupReport};

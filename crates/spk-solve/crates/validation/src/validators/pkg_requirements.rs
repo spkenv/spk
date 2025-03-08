@@ -10,8 +10,8 @@ use spk_schema::version::{
 };
 
 use super::prelude::*;
-use crate::validators::EmbeddedPackageValidator;
 use crate::ValidatorT;
+use crate::validators::EmbeddedPackageValidator;
 
 /// Validates that the pkg install requirements do not conflict with the existing resolve.
 #[derive(Clone, Copy)]
@@ -72,7 +72,7 @@ impl PkgRequirementsValidator {
                     IncompatibleReason::ConflictingRequirement(
                         ConflictingRequirementProblem::PkgRequirement(Box::new(incompatible)),
                     ),
-                ))
+                ));
             }
         };
 
@@ -90,7 +90,7 @@ impl PkgRequirementsValidator {
                 }
             },
             Err(spk_solve_graph::GetCurrentResolveError::PackageNotResolved(_)) => {
-                return Ok(Compatible)
+                return Ok(Compatible);
             }
         };
 

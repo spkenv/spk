@@ -34,6 +34,6 @@ pub use platform::{PlatformStorage, PlatformStorageExt};
 pub use proxy::{Config, ProxyRepository};
 pub use repository::{LocalRepository, Repository, RepositoryExt};
 pub use tag::{EntryType, TagStorage, TagStorageMut};
-pub use tag_namespace::{TagNamespace, TagNamespaceBuf, TAG_NAMESPACE_MARKER};
+pub use tag_namespace::{TAG_NAMESPACE_MARKER, TagNamespace, TagNamespaceBuf};
 
 pub use self::config::{FromConfig, FromUrl, OpenRepositoryResult};

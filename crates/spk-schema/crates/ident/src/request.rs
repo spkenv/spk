@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::format::{
     FormatBuild,
     FormatChangeOptions,
@@ -21,14 +22,14 @@ use spk_schema_foundation::ident_component::ComponentSet;
 use spk_schema_foundation::name::{OptName, OptNameBuf, PkgName};
 use spk_schema_foundation::option_map::Stringified;
 use spk_schema_foundation::version::{
+    API_STR,
+    BINARY_STR,
     CompatRule,
     Compatibility,
     InclusionPolicyProblem,
     IncompatibleReason,
     VarRequestProblem,
     Version,
-    API_STR,
-    BINARY_STR,
 };
 use spk_schema_foundation::version_range::{
     DoubleEqualsVersion,
@@ -37,7 +38,6 @@ use spk_schema_foundation::version_range::{
     RestrictMode,
     VersionFilter,
 };
-use spk_schema_foundation::IsDefault;
 use tap::Tap;
 
 use super::AnyIdent;
@@ -313,11 +313,15 @@ impl<'de> Deserialize<'de> for Request {
                 }
 
                 match (self.pkg, self.var) {
-                    (Some(pkg), None) if self.pin.as_ref().map(PinValue::is_some).unwrap_or_default() && !pkg.version.is_empty() => {
-                        Err(serde::de::Error::custom(
-                            format!("request for `{}` cannot specify a value `/{:#}` when `fromBuildEnv` is specified", pkg.name, pkg.version)
-                        ))
-                    },
+                    (Some(pkg), None)
+                        if self.pin.as_ref().map(PinValue::is_some).unwrap_or_default()
+                            && !pkg.version.is_empty() =>
+                    {
+                        Err(serde::de::Error::custom(format!(
+                            "request for `{}` cannot specify a value `/{:#}` when `fromBuildEnv` is specified",
+                            pkg.name, pkg.version
+                        )))
+                    }
                     (Some(pkg), None) => Ok(Request::Pkg(PkgRequest {
                         pkg,
                         prerelease_policy: self.prerelease_policy,
@@ -328,8 +332,13 @@ impl<'de> Deserialize<'de> for Request {
                         requested_by: Default::default(),
                     })),
                     (None, Some(var)) => {
-                        let mut value = self.pin.unwrap_or_default().into_var_pin(&var, self.value.take())?;
-                        if !value.is_pinned() && matches!(self.pin_policy, Some(PinPolicy::IfPresentInBuildEnv)) {
+                        let mut value = self
+                            .pin
+                            .unwrap_or_default()
+                            .into_var_pin(&var, self.value.take())?;
+                        if !value.is_pinned()
+                            && matches!(self.pin_policy, Some(PinPolicy::IfPresentInBuildEnv))
+                        {
                             value = PinnableValue::FromBuildEnvIfPresent;
                         }
                         Ok(Request::Var(VarRequest {
@@ -337,14 +346,13 @@ impl<'de> Deserialize<'de> for Request {
                             value,
                             description: self.description.clone(),
                         }))
-                    },
+                    }
                     (Some(_), Some(_)) => Err(serde::de::Error::custom(
-                        "could not determine request type, it may only contain one of the `pkg` or `var` fields"
+                        "could not determine request type, it may only contain one of the `pkg` or `var` fields",
                     )),
                     (None, None) => Err(serde::de::Error::custom(
-                        "could not determine request type, it must include either a `pkg` or `var` field"
-                    )
-                    ),
+                        "could not determine request type, it must include either a `pkg` or `var` field",
+                    )),
                 }
             }
         }
@@ -1206,21 +1214,17 @@ impl PinValue {
         E: serde::de::Error,
     {
         match (value, self) {
-            (Some(value), Self::True)  => {
-                Err(E::custom(
-                    format!("request for `{var}` cannot specify a value `/{value}` when `fromBuildEnv` is true")
-                ))
-            }
-            (None, Self::None) => Err(E::custom(
-                format!("request for `{var}` must specify a value (eg: {var}/<value>) when `fromBuildEnv` is false or omitted")
-            )),
-            (Some(value), Self::None) => {
-                Ok(PinnableValue::Pinned(Arc::from(value)))
-            }
+            (Some(value), Self::True) => Err(E::custom(format!(
+                "request for `{var}` cannot specify a value `/{value}` when `fromBuildEnv` is true"
+            ))),
+            (None, Self::None) => Err(E::custom(format!(
+                "request for `{var}` must specify a value (eg: {var}/<value>) when `fromBuildEnv` is false or omitted"
+            ))),
+            (Some(value), Self::None) => Ok(PinnableValue::Pinned(Arc::from(value))),
             (None, Self::True) => Ok(PinnableValue::FromBuildEnv),
             (_, Self::String(s)) => Err(E::custom(format!(
                 "`fromBuildEnv` for var request `{var}` must be a boolean, found `{s}`"
-            )))
+            ))),
         }
     }
 

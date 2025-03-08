@@ -10,7 +10,7 @@ use spfs_proto::ManifestArgs;
 use super::object::HeaderBuilder;
 use super::{Entry, ObjectKind, Tree};
 use crate::prelude::*;
-use crate::{encoding, tracking, Result};
+use crate::{Result, encoding, tracking};
 
 #[cfg(test)]
 #[path = "./manifest_test.rs"]

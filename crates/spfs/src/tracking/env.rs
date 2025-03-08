@@ -14,7 +14,7 @@ use serde::Deserialize;
 
 use super::tag::TagSpec;
 use crate::runtime::{LiveLayer, SpecApiVersion};
-use crate::{encoding, Error, Result};
+use crate::{Error, Result, encoding};
 
 #[cfg(test)]
 #[path = "./env_test.rs"]
@@ -74,7 +74,7 @@ impl SpecFile {
                 if !path_string.ends_with(SPFS_FILE_SUFFIX_YAML) {
                     return Err(Error::String(format!(
                         "Invalid: {path_string} does not have the spfs file suffix: {SPFS_FILE_SUFFIX_YAML}"
-        )));
+                    )));
                 }
                 path.to_path_buf()
             };
@@ -106,7 +106,7 @@ impl SpecFile {
                         return Err(Error::String(format!(
                             "Cannot have a live layer in the top-level root directory: {}",
                             filepath.display()
-                        )))
+                        )));
                     }
                 };
                 live_layer.set_parent_and_validate(parent.to_path_buf())?;

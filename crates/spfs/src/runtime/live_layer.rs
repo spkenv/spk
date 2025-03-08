@@ -97,7 +97,7 @@ impl LiveLayer {
                     let full_path = match parent.join(bm.src.clone()).canonicalize() {
                         Ok(abs_path) => abs_path.clone(),
                         Err(err) => {
-                            return Err(Error::InvalidPath(parent.join(bm.src.clone()), err))
+                            return Err(Error::InvalidPath(parent.join(bm.src.clone()), err));
                         }
                     };
 

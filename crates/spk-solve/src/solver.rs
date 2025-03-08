@@ -5,8 +5,8 @@
 use std::borrow::Cow;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::mem::take;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 use async_stream::stream;
@@ -20,9 +20,10 @@ use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{PkgRequest, Request, RequestedBy, Satisfy, VarRequest};
 use spk_schema::ident_build::EmbeddedSource;
 use spk_schema::version::{ComponentsMissingProblem, IncompatibleReason, IsSameReasonAs};
-use spk_schema::{try_recipe, BuildIdent, Deprecate, Package, Recipe, Spec, SpecRecipe};
+use spk_schema::{BuildIdent, Deprecate, Package, Recipe, Spec, SpecRecipe, try_recipe};
 use spk_solve_graph::{
     Change,
+    DEAD_STATE,
     Decision,
     Graph,
     Node,
@@ -33,7 +34,6 @@ use spk_solve_graph::{
     SkipPackageNote,
     State,
     StepBack,
-    DEAD_STATE,
 };
 use spk_solve_package_iterator::{
     BuildIterator,
@@ -45,11 +45,11 @@ use spk_solve_package_iterator::{
 use spk_solve_solution::{PackageSource, Solution};
 use spk_solve_validation::validators::BinaryOnlyValidator;
 use spk_solve_validation::{
-    default_validators,
+    IMPOSSIBLE_CHECKS_TARGET,
     ImpossibleRequestsChecker,
     ValidatorT,
     Validators,
-    IMPOSSIBLE_CHECKS_TARGET,
+    default_validators,
 };
 use spk_storage::RepositoryHandle;
 

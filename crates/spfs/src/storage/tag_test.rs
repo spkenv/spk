@@ -15,7 +15,7 @@ use crate::fixtures::*;
 #[cfg(unix)]
 use crate::storage::fs::FsRepository;
 use crate::storage::{EntryType, TagStorage};
-use crate::{encoding, tracking, Result};
+use crate::{Result, encoding, tracking};
 
 #[rstest]
 #[case::fs(tmprepo("fs"))]

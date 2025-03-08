@@ -5,9 +5,9 @@
 use rstest::rstest;
 use spk_schema::foundation::option_map;
 use spk_schema::ident_ops::NormalizedTagStrategy;
-use spk_schema::{recipe, Package};
+use spk_schema::{Package, recipe};
 use spk_storage::fixtures::*;
-use spk_storage::{export_package, SpfsRepositoryHandle};
+use spk_storage::{SpfsRepositoryHandle, export_package};
 
 use crate::{BinaryPackageBuilder, BuildSource};
 

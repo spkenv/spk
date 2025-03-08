@@ -8,15 +8,15 @@ use std::sync::{Arc, RwLock};
 use libc::c_void;
 use spfs::tracking::EnvSpec;
 use tracing::instrument;
-use windows::core::HRESULT;
 use windows::Win32::Foundation::{CloseHandle, ERROR_NO_MORE_FILES};
 use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot,
-    Process32Next,
     PROCESSENTRY32,
+    Process32Next,
     TH32CS_SNAPPROCESS,
 };
 use windows::Win32::System::Threading::GetCurrentProcessId;
+use windows::core::HRESULT;
 use winfsp::filesystem::{FileSystemContext, ModificationDescriptor};
 use winfsp_sys::FILE_ACCESS_RIGHTS;
 

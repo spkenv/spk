@@ -4,7 +4,7 @@
 
 use clap::Args;
 use miette::{Context, IntoDiagnostic, Result};
-use spk_cli_common::{flags, CommandArgs, Run};
+use spk_cli_common::{CommandArgs, Run, flags};
 use spk_schema::foundation::format::FormatOptionMap;
 use spk_schema::{SpecFileData, Template};
 

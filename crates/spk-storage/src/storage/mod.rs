@@ -13,12 +13,12 @@ pub use archive::export_package;
 pub use handle::RepositoryHandle;
 pub use mem::MemRepository;
 pub use repository::{CachePolicy, Repository, Storage};
-pub use runtime::{find_path_providers, pretty_print_filepath, RuntimeRepository};
+pub use runtime::{RuntimeRepository, find_path_providers, pretty_print_filepath};
 
 pub use self::spfs::{
-    local_repository,
-    remote_repository,
     NameAndRepositoryWithTagStrategy,
     SpfsRepository,
     SpfsRepositoryHandle,
+    local_repository,
+    remote_repository,
 };

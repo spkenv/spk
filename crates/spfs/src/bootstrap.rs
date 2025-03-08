@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use url::Url;
 
 use super::resolve::{which, which_spfs};
-use crate::{runtime, Error, Result};
+use crate::{Error, Result, runtime};
 
 #[cfg(test)]
 #[path = "./bootstrap_test.rs"]

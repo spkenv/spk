@@ -3953,6 +3953,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml 0.9.27",
+ "serial_test",
  "spdx",
  "spfs",
  "spk-exec",

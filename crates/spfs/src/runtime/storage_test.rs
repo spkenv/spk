@@ -17,7 +17,7 @@ use crate::graph::object::{DigestStrategy, EncodingFormat};
 use crate::graph::{AnnotationValue, Layer, Platform};
 use crate::runtime::{BindMount, KeyValuePair, LiveLayer, LiveLayerContents, SpecApiVersion};
 use crate::storage::prelude::DatabaseExt;
-use crate::{encoding, Config};
+use crate::{Config, encoding};
 
 #[rstest]
 fn test_config_serialization() {
@@ -49,10 +49,12 @@ async fn test_storage_create_runtime(tmpdir: tempfile::TempDir) {
 
     let durable = false;
     let live_layers = Vec::new();
-    assert!(storage
-        .create_named_runtime(runtime.name(), durable, live_layers)
-        .await
-        .is_err());
+    assert!(
+        storage
+            .create_named_runtime(runtime.name(), durable, live_layers)
+            .await
+            .is_err()
+    );
 }
 
 #[rstest(

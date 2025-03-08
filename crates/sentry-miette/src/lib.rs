@@ -4,9 +4,9 @@
 
 // TODO: this might be overkill for the integration changes we make/need
 
+use sentry::Hub;
 use sentry::protocol::Event;
 use sentry::types::Uuid;
-use sentry::Hub;
 
 /// Helper function to capture an miette error/report for sentry
 pub fn capture_miette(e: &miette::Error) -> Uuid {

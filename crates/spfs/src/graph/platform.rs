@@ -4,7 +4,7 @@
 
 use super::object::HeaderBuilder;
 use super::{ObjectKind, Stack};
-use crate::{encoding, Error, Result};
+use crate::{Error, Result, encoding};
 
 #[cfg(test)]
 #[path = "./platform_test.rs"]

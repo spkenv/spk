@@ -12,10 +12,10 @@ use std::sync::Arc;
 use enum_dispatch::enum_dispatch;
 use format_serde_error::SerdeError;
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::SerdeYamlError;
 use spk_schema_foundation::ident_build::{Build, BuildId};
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::option_map::OptFilter;
-use spk_schema_foundation::SerdeYamlError;
 use spk_schema_ident::{BuildIdent, VersionIdent};
 
 use crate::foundation::name::{PkgName, PkgNameBuf};
@@ -25,7 +25,6 @@ use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{PkgRequest, Request, Satisfy, VarRequest};
 use crate::metadata::Meta;
 use crate::{
-    v0,
     BuildEnv,
     Deprecate,
     DeprecateMut,
@@ -44,6 +43,7 @@ use crate::{
     Test,
     TestStage,
     Variant,
+    v0,
 };
 
 #[cfg(test)]
@@ -211,7 +211,7 @@ impl TemplateExt for SpecTemplate {
                 return Err(Error::InvalidYaml(SerdeError::new(
                     template,
                     SerdeYamlError(err),
-                )))
+                )));
             }
             Ok(v) => v,
         };
@@ -230,11 +230,7 @@ impl TemplateExt for SpecTemplate {
         let name_field = match api {
             Some(serde_yaml::Value::String(api)) => {
                 let field = api.split("/").nth(1).unwrap_or("pkg");
-                if field == "package" {
-                    "pkg"
-                } else {
-                    field
-                }
+                if field == "package" { "pkg" } else { field }
             }
             Some(_) => "pkg",
             None => "pkg",

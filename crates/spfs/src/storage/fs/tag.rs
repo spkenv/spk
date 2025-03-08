@@ -22,13 +22,13 @@ use tokio::io::{AsyncRead, AsyncSeek, AsyncWriteExt, ReadBuf};
 use super::{FsRepository, OpenFsRepository};
 use crate::storage::tag::{EntryType, TagSpecAndTagStream, TagStream};
 use crate::storage::{
+    TAG_NAMESPACE_MARKER,
     TagNamespace,
     TagNamespaceBuf,
     TagStorage,
     TagStorageMut,
-    TAG_NAMESPACE_MARKER,
 };
-use crate::{encoding, tracking, Error, OsError, OsErrorExt, Result};
+use crate::{Error, OsError, OsErrorExt, Result, encoding, tracking};
 
 const TAG_EXT: &str = "tag";
 
@@ -214,7 +214,7 @@ impl TagStorage for OpenFsRepository {
                             filepath,
                             err,
                         ))
-                    }))
+                    }));
                 }
             },
         };
@@ -226,7 +226,7 @@ impl TagStorage for OpenFsRepository {
                         "entry of tags path",
                         filepath.clone(),
                         err,
-                    )))
+                    )));
                 }
                 Ok(entry) => entry,
             };
@@ -367,7 +367,7 @@ impl TagStorage for OpenFsRepository {
             Ok(lock) => lock,
             Err(err) => match err.os_error() {
                 Some(libc::ENOENT) | Some(libc::ENOTDIR) => {
-                    return Err(Error::UnknownReference(tag.to_string()))
+                    return Err(Error::UnknownReference(tag.to_string()));
                 }
                 _ => return Err(err),
             },
@@ -383,7 +383,7 @@ impl TagStorage for OpenFsRepository {
                         filepath,
                         err,
                     ))
-                }
+                };
             }
         }
         // the lock file needs to be removed if the directory has any hope of being empty
@@ -412,7 +412,7 @@ impl TagStorage for OpenFsRepository {
                             "remove_dir on tag stream parent dir",
                             parent.to_owned(),
                             err,
-                        ))
+                        ));
                     }
                 },
             }
@@ -500,7 +500,7 @@ impl Stream for TagStreamIter {
                             "entry in tags stream",
                             self.root.clone(),
                             err.into(),
-                        ))))
+                        ))));
                     }
                     Some(Ok(entry)) => {
                         if !entry.file_type().is_file() {
@@ -745,7 +745,7 @@ impl Stream for TagIter {
                             Err(err) => {
                                 return Ready(Some(Err(Error::String(format!(
                                     "tag file contains invalid size index: {err}",
-                                )))))
+                                )))));
                             }
                         }
                         match Pin::new(&mut reader).start_seek(SeekFrom::Current(size)) {
@@ -798,7 +798,7 @@ impl Stream for TagIter {
                             Err(err) => {
                                 return Ready(Some(Err(Error::String(format!(
                                     "tag is too large to be loaded: {err}",
-                                )))))
+                                )))));
                             }
                         }
                         self.state = Some(ReadingTag {
@@ -845,7 +845,7 @@ impl Stream for TagIter {
                                                 "start_seek in ReadingTag",
                                                 self.filename.clone(),
                                                 err,
-                                            ))))
+                                            ))));
                                         }
                                         Ok(_) => self.state = Some(SeekingTag { reader, size }),
                                     }
@@ -866,7 +866,7 @@ fn tag_from_path<P: AsRef<Path>, R: AsRef<Path>>(path: P, root: R) -> Result<tra
     let filename = match path.file_stem() {
         Some(stem) => stem.to_owned(),
         None => {
-            return Err(format!("Path must end with '.{TAG_EXT}' to be considered a tag").into())
+            return Err(format!("Path must end with '.{TAG_EXT}' to be considered a tag").into());
         }
     };
     path.set_file_name(filename);
@@ -985,13 +985,17 @@ impl TagWorkingFile {
         }
         if let Err(err) = write_tags_to_path(&working, tags).await {
             if let Err(err) = tokio::fs::remove_file(&working).await {
-                tracing::warn!("failed to clean up tag working file after failing to write tags to path: {err}");
+                tracing::warn!(
+                    "failed to clean up tag working file after failing to write tags to path: {err}"
+                );
             }
             return Err(err);
         }
         if let Err(err) = tokio::fs::rename(&working, &self.original).await {
             if let Err(err) = tokio::fs::remove_file(&working).await {
-                tracing::warn!("failed to clean up tag working file after failing to finalize the working file: {err}");
+                tracing::warn!(
+                    "failed to clean up tag working file after failing to finalize the working file: {err}"
+                );
             }
             return Err(Error::StorageWriteError(
                 "rename of tag stream file",

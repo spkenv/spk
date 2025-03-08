@@ -12,7 +12,7 @@ use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::{opt_name, option_map};
 use spk_schema::ident::{PkgRequest, RangeIdent, Request};
-use spk_schema::{recipe, ComponentSpecList, FromYaml, OptionMap, Package, Recipe, SpecRecipe};
+use spk_schema::{ComponentSpecList, FromYaml, OptionMap, Package, Recipe, SpecRecipe, recipe};
 use spk_solve::Solution;
 use spk_storage::fixtures::*;
 use spk_storage::{self as storage, Repository};
@@ -739,9 +739,11 @@ async fn test_default_build_component() {
     let req = requirements.first().unwrap();
     match req {
         Request::Pkg(req) => {
-            assert_eq!(req.pkg.components, vec![Component::default_for_build()].into_iter().collect(),
-                       "a build request with no components should have the default build component ({}) injected automatically",
-                       Component::default_for_build()
+            assert_eq!(
+                req.pkg.components,
+                vec![Component::default_for_build()].into_iter().collect(),
+                "a build request with no components should have the default build component ({}) injected automatically",
+                Component::default_for_build()
             );
         }
         _ => panic!("expected pkg request"),
@@ -993,10 +995,15 @@ async fn test_variable_substitution_in_build_env(tmpdir: tempfile::TempDir) {
 
 #[rstest]
 #[tokio::test]
+#[serial_test::serial(env)] // env manipulation must be reliable
 async fn test_dependant_variable_substitution_in_startup_files(tmpdir: tempfile::TempDir) {
     let rt = spfs_runtime().await;
 
-    std::env::set_var("TEST", "This is a test");
+    // Safety: this is unsafe. serial_test is used to prevent multiple tests
+    // from changing the environment at the same time.
+    unsafe {
+        std::env::set_var("TEST", "This is a test");
+    }
 
     let recipe = recipe!(
         {

@@ -127,7 +127,7 @@ impl PackageIterator for RepositoryPackageIterator {
                     return Box::new(RepositoryPackageIterator::new(
                         self.package_name.clone(),
                         self.repos.clone(),
-                    ))
+                    ));
                 }
                 Err(err) => {
                     // we wanted to save the clone from causing this
@@ -616,7 +616,7 @@ impl SortedBuildIterator {
         // ordered names and values worth including.
         self.builds.make_contiguous().sort_by_cached_key(|hm| {
             // Pull an arbitrary spec out from the hashmap
-            let spec = &hm.iter().next().expect("non-empty hashmap").1 .0;
+            let spec = &hm.iter().next().expect("non-empty hashmap").1.0;
             SortedBuildIterator::make_option_values_build_key(
                 spec,
                 &ordered_names,

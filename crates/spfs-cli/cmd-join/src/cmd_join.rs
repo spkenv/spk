@@ -6,7 +6,7 @@ use std::ffi::OsString;
 
 use clap::{ArgGroup, Parser};
 use futures::StreamExt;
-use miette::{bail, miette, Context, Result};
+use miette::{Context, Result, bail, miette};
 use spfs::Error;
 use spfs_cli_common as cli;
 use spfs_cli_common::CommandName;
@@ -100,9 +100,22 @@ impl CmdJoin {
         const ATTEMPTS_PER_SECOND: u128 = 1000u128 / TIME_TO_WAIT_BETWEEN_ATTEMPTS.as_millis();
         loop {
             try_counter += 1;
-            // Allow: this is only a unit struct on Windows.
-            #[allow(clippy::default_constructed_unit_structs)]
-            match spfs::env::RuntimeConfigurator::default().join_runtime(&spfs_runtime) {
+
+            #[cfg(target_os = "windows")]
+            let rt = {
+                // Allow: this is only a unit struct on Windows.
+                #[allow(clippy::default_constructed_unit_structs)]
+                spfs::env::RuntimeConfigurator::default().join_runtime(&spfs_runtime)
+            };
+
+            #[cfg(not(target_os = "windows"))]
+            let rt = {
+                // Safety: we attempt to make the process single threaded, so
+                // setting environment variables is safe.
+                unsafe { spfs::env::RuntimeConfigurator::default().join_runtime(&spfs_runtime) }
+            };
+
+            match rt {
                 Err(spfs::Error::String(err)) if err.contains("single-threaded") => {
                     // Anecdotally it takes one retry to succeed; don't start
                     // to log anything until it is taking longer than usual.

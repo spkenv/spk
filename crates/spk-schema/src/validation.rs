@@ -4,8 +4,8 @@
 
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::name::{PkgName, PkgNameBuf};
 use spk_schema_foundation::IsDefault;
+use spk_schema_foundation::name::{PkgName, PkgNameBuf};
 
 #[cfg(test)]
 #[path = "./validation_test.rs"]

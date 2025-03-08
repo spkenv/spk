@@ -23,7 +23,6 @@ pub use live_layer::{BindMount, LiveLayer, LiveLayerContents};
 pub use overlayfs::is_removed_entry;
 pub use spec_api_version::SpecApiVersion;
 pub use storage::{
-    makedirs_with_perms,
     Author,
     Config,
     Data,
@@ -33,9 +32,10 @@ pub use storage::{
     MountBackend,
     OwnedRuntime,
     Runtime,
+    STARTUP_FILES_LOCATION,
     Status,
     Storage,
-    STARTUP_FILES_LOCATION,
+    makedirs_with_perms,
 };
 #[cfg(windows)]
 pub use winfsp::is_removed_entry;

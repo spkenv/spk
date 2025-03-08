@@ -15,7 +15,7 @@ use tokio_stream::StreamExt;
 
 use crate::graph::DEFAULT_SPFS_ANNOTATION_LAYER_MAX_STRING_VALUE_SIZE;
 use crate::storage::{TagNamespaceBuf, TagStorageMut};
-use crate::{graph, runtime, storage, tracking, Error, Result};
+use crate::{Error, Result, graph, runtime, storage, tracking};
 
 #[cfg(test)]
 #[path = "./config_test.rs"]

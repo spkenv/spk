@@ -12,7 +12,7 @@ use crate::proto::payload_service_client::PayloadServiceClient;
 use crate::proto::repository_client::RepositoryClient;
 use crate::proto::tag_service_client::TagServiceClient;
 use crate::storage::{OpenRepositoryError, OpenRepositoryResult, TagNamespace, TagNamespaceBuf};
-use crate::{proto, storage, Result};
+use crate::{Result, proto, storage};
 
 /// Configures an rpc repository connection
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]

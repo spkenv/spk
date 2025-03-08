@@ -6,9 +6,9 @@ use std::collections::HashSet;
 use std::fmt::Write;
 
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::name::{OptName, PkgName};
 use spk_schema_foundation::version::{Compatibility, IncompatibleReason};
-use spk_schema_foundation::IsDefault;
 use spk_schema_ident::{BuildIdent, PinPolicy};
 
 use crate::foundation::option_map::OptionMap;
@@ -71,12 +71,18 @@ impl RequirementsList {
             }
             match (existing, &request) {
                 (Request::Pkg(existing), Request::Pkg(request)) => {
-                    if let incompatible @ Compatibility::Incompatible(_) = existing.restrict(request) {
-                        return Err(Error::String(format!("Cannot insert requirement: {incompatible}")))
+                    if let incompatible @ Compatibility::Incompatible(_) =
+                        existing.restrict(request)
+                    {
+                        return Err(Error::String(format!(
+                            "Cannot insert requirement: {incompatible}"
+                        )));
                     }
                 }
                 (existing, _) => {
-                    return Err(Error::String(format!("Cannot insert requirement: one already exists and only pkg requests can be merged: {existing} + {request}")))
+                    return Err(Error::String(format!(
+                        "Cannot insert requirement: one already exists and only pkg requests can be merged: {existing} + {request}"
+                    )));
                 }
             }
             return Ok(());

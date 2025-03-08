@@ -13,7 +13,7 @@ use spfs_encoding as encoding;
 use crate::graph::ObjectProto;
 use crate::storage::prelude::*;
 use crate::tracking::BlobRead;
-use crate::{graph, Error, Result};
+use crate::{Error, Result, graph};
 
 /// PinnedRepository wraps an existing implementation,
 /// limiting tag read operations to a point in time. In this setup,

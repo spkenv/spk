@@ -18,8 +18,8 @@ use spk_solve::solution::{
     PackageSolveData,
     PackageSource,
     PackagesToSolveData,
-    Solution,
     SPK_SOLVE_EXTRA_DATA_KEY,
+    Solution,
 };
 use spk_solve::validation::IMPOSSIBLE_CHECKS_TARGET;
 use spk_storage as storage;
@@ -295,7 +295,13 @@ fn remove_ansi_escapes(message: String) -> String {
     message
 }
 
-pub fn configure_logging(verbosity: u8) -> Result<()> {
+/// Configure logging with the specified verbosity.
+///
+/// # Safety
+///
+/// This function sets environment variables, see [`std::env::set_var`] for
+/// more details on safety.
+pub unsafe fn configure_logging(verbosity: u8) -> Result<()> {
     use tracing_subscriber::layer::SubscriberExt;
     // NOTE: If you change these, please update docs/ref/logging.md
     let mut directives = match verbosity {
@@ -325,7 +331,10 @@ pub fn configure_logging(verbosity: u8) -> Result<()> {
             directives = format!("{directives},{overrides}");
         }
     }
-    std::env::set_var("SPK_LOG", &directives);
+    // Safety: the responsibility of the caller.
+    unsafe {
+        std::env::set_var("SPK_LOG", &directives);
+    }
     if let Ok(overrides) = std::env::var("RUST_LOG") {
         // we also allow a full override via the RUST_LOG variable for debugging
         directives = overrides;
@@ -333,7 +342,10 @@ pub fn configure_logging(verbosity: u8) -> Result<()> {
     // this is not ideal, because it can propagate annoyingly into
     // created environments, but without it the spfs logging configuration
     // takes over in its current setup/state.
-    std::env::set_var("RUST_LOG", &directives);
+    // Safety: the responsibility of the caller.
+    unsafe {
+        std::env::set_var("RUST_LOG", &directives);
+    }
     let env_filter = tracing_subscriber::filter::EnvFilter::new(directives);
     let stderr_log = tracing_subscriber::fmt::layer()
         .with_target(verbosity > 2)

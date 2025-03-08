@@ -6,8 +6,8 @@ use std::collections::hash_map::{DefaultHasher, Entry};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use async_stream::stream;
 use colored::Colorize;
@@ -163,8 +163,10 @@ impl FormatChange for Change {
                                     // We can use their PackageSource data to find what
                                     // requested them.
                                     PackageSource::BuildFromSource { recipe } => {
-                                        vec![RequestedBy::PackageVersion(recipe.ident().clone())
-                                            .to_string()]
+                                        vec![
+                                            RequestedBy::PackageVersion(recipe.ident().clone())
+                                                .to_string(),
+                                        ]
                                     }
                                     PackageSource::Embedded { parent, .. } => {
                                         vec![RequestedBy::Embedded(parent.clone()).to_string()]

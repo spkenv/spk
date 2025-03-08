@@ -206,7 +206,7 @@ impl GitSource {
                 code => {
                     return Err(Error::String(format!(
                         "git command failed with exit code {code:?}"
-                    )))
+                    )));
                 }
             }
         }
@@ -253,7 +253,7 @@ impl TarSource {
                 code => {
                     return Err(Error::String(format!(
                         "wget command failed with exit code {code:?}"
-                    )))
+                    )));
                 }
             }
         } else {
@@ -335,7 +335,7 @@ impl ScriptSource {
             None => {
                 return Err(Error::String(
                     "failed to get stdin handle for bash".to_string(),
-                ))
+                ));
             }
         };
         if let Err(err) = stdin.write_all(self.script.join("\n").as_bytes()) {

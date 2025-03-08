@@ -7,7 +7,7 @@ use std::pin::Pin;
 use futures::stream::Stream;
 use tokio_stream::StreamExt;
 
-use crate::{encoding, graph, Result};
+use crate::{Result, encoding, graph};
 
 #[cfg(test)]
 #[path = "./manifest_test.rs"]

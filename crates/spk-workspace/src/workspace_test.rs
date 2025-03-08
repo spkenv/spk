@@ -197,12 +197,16 @@ fn test_workspace_find_by_version(tmpdir: tempfile::TempDir) {
         res,
         super::FindPackageTemplateResult::MultipleTemplateFiles(_),
     ) {
-        panic!("should fail to find template when there was no version given and multiple exist in the workspace, got {res:#?}");
+        panic!(
+            "should fail to find template when there was no version given and multiple exist in the workspace, got {res:#?}"
+        );
     };
 
     let res = workspace.find_package_template("my-package/1");
     let super::FindPackageTemplateResult::Found(found) = res else {
-        panic!("should find template when multiple exist but an unambiguous version is given, got {res:#?}");
+        panic!(
+            "should find template when multiple exist but an unambiguous version is given, got {res:#?}"
+        );
     };
     assert!(
         found.config.versions.contains(&v1),

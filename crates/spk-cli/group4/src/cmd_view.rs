@@ -9,14 +9,14 @@ use std::sync::Arc;
 use clap::Args;
 use colored::Colorize;
 use futures::{StreamExt, TryStreamExt};
-use miette::{bail, Context, IntoDiagnostic, Result};
+use miette::{Context, IntoDiagnostic, Result, bail};
 use serde::Serialize;
+use spfs::Digest;
 use spfs::find_path::ObjectPathEntry;
 use spfs::graph::{HasKind, ObjectKind};
 use spfs::io::Pluralize;
-use spfs::Digest;
 use spk_cli_common::with_version_and_build_set::WithVersionSet;
-use spk_cli_common::{current_env, flags, CommandArgs, DefaultVersionStrategy, Run};
+use spk_cli_common::{CommandArgs, DefaultVersionStrategy, Run, current_env, flags};
 use spk_schema::foundation::format::{FormatChangeOptions, FormatRequest};
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::spec_ops::Named;
@@ -33,8 +33,8 @@ use spk_schema::{
     Variant,
     VersionIdent,
 };
-use spk_solve::solution::{get_spfs_layers_to_packages, LayerPackageAndComponents};
 use spk_solve::Recipe;
+use spk_solve::solution::{LayerPackageAndComponents, get_spfs_layers_to_packages};
 use spk_storage;
 use strum::{Display, EnumString, IntoEnumIterator, VariantNames};
 
@@ -549,7 +549,10 @@ impl View {
                                     Ok(package_spec) => {
                                         let result = self.print_build_spec(package_spec);
                                         let number = builds.len();
-                                        tracing::info!("No version recipe exists. But found {number} {}. Output a build spec instead.", "build".pluralize(number));
+                                        tracing::info!(
+                                            "No version recipe exists. But found {number} {}. Output a build spec instead.",
+                                            "build".pluralize(number)
+                                        );
                                         return result;
                                     }
                                     Err(err) => {

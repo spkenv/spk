@@ -4,8 +4,8 @@
 
 use spk_schema_foundation::option_map::OptionMap;
 
-use crate::variant::Override;
 use crate::Variant;
+use crate::variant::Override;
 
 /// A trait that implements [`Variant`] but also provides a reference to the
 /// variant that should be used when calculating the build digest.

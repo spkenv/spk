@@ -3,9 +3,9 @@
 // https://github.com/spkenv/spk
 
 use rstest::rstest;
+use spk_schema::Package;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::ident::AsVersionIdent;
-use spk_schema::Package;
 use spk_solve::{recipe, spec};
 use spk_storage::fixtures::*;
 

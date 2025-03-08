@@ -6,10 +6,10 @@ use clap::Args;
 use futures::TryFutureExt;
 use miette::IntoDiagnostic;
 use serde::Serialize;
-use spk_cli_common::{current_env, flags, CommandArgs, Run};
-use spk_schema::ident::RequestedBy;
+use spk_cli_common::{CommandArgs, Run, current_env, flags};
 use spk_schema::Package;
-use spk_solve::solution::{get_spfs_layers_to_packages, LayerPackageAndComponents, PackageSource};
+use spk_schema::ident::RequestedBy;
+use spk_solve::solution::{LayerPackageAndComponents, PackageSource, get_spfs_layers_to_packages};
 
 #[cfg(test)]
 #[path = "./cmd_bake_test.rs"]

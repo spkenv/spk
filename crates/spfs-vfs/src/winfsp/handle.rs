@@ -3,8 +3,8 @@
 // https://github.com/spkenv/spk
 
 use std::pin::Pin;
-use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
 
 use spfs::tracking::{BlobRead, Entry};
 

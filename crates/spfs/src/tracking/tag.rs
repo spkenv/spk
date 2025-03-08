@@ -8,7 +8,7 @@ use chrono::prelude::*;
 use serde::Deserialize;
 
 use crate::encoding::prelude::*;
-use crate::{encoding, Error, Result};
+use crate::{Error, Result, encoding};
 
 #[cfg(test)]
 #[path = "./tag_test.rs"]

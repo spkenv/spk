@@ -4,8 +4,8 @@
 
 use std::io::{BufRead, Cursor, Read, Seek, Write};
 
-use rand::distributions::{Alphanumeric, DistString};
 use rand::Rng;
+use rand::distributions::{Alphanumeric, DistString};
 use rstest::rstest;
 
 use super::{consume_header, read_int, read_string, write_header, write_int, write_string};

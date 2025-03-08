@@ -11,8 +11,8 @@ use std::os::unix::ffi::OsStrExt;
 use std::os::unix::prelude::FileExt;
 #[cfg(feature = "fuse-backend-abi-7-31")]
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime};
 
 use dashmap::DashMap;
@@ -28,11 +28,11 @@ use fuser::{
     ReplyOpen,
     Request,
 };
+use spfs::OsError;
 use spfs::prelude::*;
 #[cfg(feature = "fuse-backend-abi-7-31")]
 use spfs::tracking::BlobRead;
 use spfs::tracking::{Entry, EntryKind, EnvSpec, Manifest};
-use spfs::OsError;
 use tokio::io::AsyncReadExt;
 
 use crate::Error;

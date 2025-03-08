@@ -13,10 +13,10 @@ use std::sync::Arc;
 
 use arc_swap::ArcSwap;
 
+use super::FsHashStore;
 use super::hash_store::PROXY_DIRNAME;
 use super::migrations::{MigrationError, MigrationResult};
-use super::FsHashStore;
-use crate::config::{pathbuf_deserialize_with_tilde_expansion, ToAddress};
+use crate::config::{ToAddress, pathbuf_deserialize_with_tilde_expansion};
 use crate::runtime::makedirs_with_perms;
 use crate::storage::prelude::*;
 use crate::storage::{
@@ -558,7 +558,7 @@ pub async fn read_last_migration_version<P: AsRef<Path>>(
                     "read_to_string on last migration version",
                     version_file,
                     err,
-                ))
+                ));
             }
         },
     };

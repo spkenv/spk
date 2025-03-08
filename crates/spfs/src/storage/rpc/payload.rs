@@ -10,7 +10,7 @@ use prost::Message;
 
 use crate::proto::{self, RpcResult};
 use crate::tracking::BlobRead;
-use crate::{encoding, storage, Error, Result};
+use crate::{Error, Result, encoding, storage};
 
 #[async_trait::async_trait]
 impl storage::PayloadStorage for super::RpcRepository {

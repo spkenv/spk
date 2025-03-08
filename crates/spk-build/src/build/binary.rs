@@ -13,10 +13,10 @@ use relative_path::RelativePathBuf;
 use spfs::prelude::*;
 use spfs::tracking::DiffMode;
 use spk_exec::{
+    ConflictingPackagePair,
     pull_resolved_runtime_layers,
     resolve_runtime_layers,
     solution_to_resolved_runtime_layers,
-    ConflictingPackagePair,
 };
 use spk_schema::foundation::env::data_path;
 use spk_schema::foundation::format::FormatIdent;
@@ -662,12 +662,12 @@ where
             Some(code) => {
                 return Err(BuildError::new_error(format_args!(
                     "Build script returned non-zero exit status: {code}"
-                )))
+                )));
             }
             None => {
                 return Err(BuildError::new_error(format_args!(
                     "Build script failed unexpectedly"
-                )))
+                )));
             }
         }
 

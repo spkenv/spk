@@ -9,14 +9,14 @@ use std::str::FromStr;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use spk_config::get_config;
+use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::name::PkgName;
-use spk_schema_foundation::option_map::{OptionMap, Stringified, HOST_OPTIONS};
+use spk_schema_foundation::option_map::{HOST_OPTIONS, OptionMap, Stringified};
 use spk_schema_foundation::version::Compat;
-use spk_schema_foundation::IsDefault;
 use strum::Display;
 
-use super::{v0, Opt, ValidationSpec};
+use super::{Opt, ValidationSpec, v0};
 use crate::name::{OptName, OptNameBuf};
 use crate::option::{PkgOpt, VarOpt};
 use crate::{Error, Result, Variant};
@@ -103,9 +103,11 @@ impl AutoHostVars {
                         }
                         Err(err) => {
                             fallback_name = OptNameBuf::new_lossy(&distro_name);
-                            tracing::warn!("Reported distro id ({}) is not a valid var option name: {err}. A {} var will be used instead.",
-                                           distro_name.to_string(),
-                                           fallback_name);
+                            tracing::warn!(
+                                "Reported distro id ({}) is not a valid var option name: {err}. A {} var will be used instead.",
+                                distro_name.to_string(),
+                                fallback_name
+                            );
 
                             settings.push(Opt::Var(VarOpt::new(&fallback_name)?));
                         }

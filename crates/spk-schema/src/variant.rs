@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use std::fmt::Write;
 
 use spk_schema_foundation::format::FormatOptionMap;
-use spk_schema_foundation::option_map::{OptionMap, HOST_OPTIONS};
+use spk_schema_foundation::option_map::{HOST_OPTIONS, OptionMap};
 
 use crate::{RequirementsList, Result};
 

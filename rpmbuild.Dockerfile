@@ -9,7 +9,7 @@ RUN yum install -y \
 
 RUN ln -s cmake3 /usr/bin/cmake
 # install rustup for the cargo tool and compile toolchain
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh /dev/stdin -y --default-toolchain=1.82.0
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh /dev/stdin -y --default-toolchain=1.85.0
 ENV PATH="${PATH}:/root/.cargo/bin"
 # install protobuf compiler (protoc command)
 ENV PB_REL="https://github.com/protocolbuffers/protobuf/releases"

@@ -21,7 +21,7 @@ mod filters;
 mod format;
 
 pub use error::{Error, Result};
-pub use filters::{get_host_options_filters, OptFilter};
+pub use filters::{OptFilter, get_host_options_filters};
 
 #[cfg(test)]
 #[path = "./option_map_test.rs"]

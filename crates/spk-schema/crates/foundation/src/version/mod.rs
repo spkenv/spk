@@ -15,7 +15,8 @@ use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 
 pub use compat::{
-    parse_compat,
+    API_STR,
+    BINARY_STR,
     BuildIdProblem,
     CommaSeparated,
     Compat,
@@ -37,8 +38,7 @@ pub use compat::{
     VersionNotDifferentProblem,
     VersionNotEqualProblem,
     VersionRangeProblem,
-    API_STR,
-    BINARY_STR,
+    parse_compat,
 };
 pub use error::{Error, Result};
 use itertools::Itertools;
@@ -188,7 +188,7 @@ pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> Result<TagSet> {
             ("", _) | (_, "") => {
                 return Err(InvalidVersionError::new_error(format!(
                     "Version tag segment must be of the form <name>.<int>, got [{tag}]"
-                )))
+                )));
             }
             _ => {
                 if tag_set.tags.contains_key(name) {
@@ -204,7 +204,7 @@ pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> Result<TagSet> {
                     Err(_) => {
                         return Err(InvalidVersionError::new_error(format!(
                             "Version tag segment must be of the form <name>.<int>, got [{tag}]"
-                        )))
+                        )));
                     }
                 }
             }
@@ -485,21 +485,9 @@ impl Version {
                 .iter_for_storage()
                 .map(|p| p.to_string())
                 .join(VERSION_SEP),
-            {
-                if self.pre.is_empty() {
-                    ""
-                } else {
-                    "-"
-                }
-            },
+            { if self.pre.is_empty() { "" } else { "-" } },
             self.pre,
-            {
-                if self.post.is_empty() {
-                    ""
-                } else {
-                    "+"
-                }
-            },
+            { if self.post.is_empty() { "" } else { "+" } },
             self.post,
         )
     }
@@ -659,7 +647,7 @@ pub fn parse_version<S: AsRef<str>>(version: S) -> Result<Version> {
             Err(_) => {
                 return Err(InvalidVersionError::new_error(format!(
                     "Version must be a sequence of integers, got '{p}' in position {i} [{version}]"
-                )))
+                )));
             }
         }
     }

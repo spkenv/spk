@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use clap::builder::TypedValueParser;
 use clap::Parser;
+use clap::builder::TypedValueParser;
 use miette::{Context, Result};
 use spfs::prelude::*;
 use spfs::storage::fallback::FallbackProxy;
-use spfs::{graph, Error, RenderResult};
+use spfs::{Error, RenderResult, graph};
 use spfs_cli_common as cli;
 use spfs_cli_common::CommandName;
 use strum::VariantNames;

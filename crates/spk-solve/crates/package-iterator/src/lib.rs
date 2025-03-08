@@ -9,11 +9,11 @@ mod promotion_patterns;
 
 pub use error::{Error, Result};
 pub use package_iterator::{
+    BUILD_SORT_TARGET,
     BuildIterator,
     EmptyBuildIterator,
     PackageIterator,
     RepositoryPackageIterator,
     SortedBuildIterator,
-    BUILD_SORT_TARGET,
 };
 pub use promotion_patterns::PromotionPatterns;

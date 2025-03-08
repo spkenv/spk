@@ -6,12 +6,12 @@ use std::borrow::Cow;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident_build::{Build, BuildId};
 use spk_schema_foundation::name::PkgName;
-use spk_schema_foundation::option_map::{OptionMap, Stringified, HOST_OPTIONS};
+use spk_schema_foundation::option_map::{HOST_OPTIONS, OptionMap, Stringified};
 use spk_schema_foundation::spec_ops::{HasVersion, Named, Versioned};
 use spk_schema_foundation::version::Version;
-use spk_schema_foundation::IsDefault;
 use spk_schema_ident::{
     BuildIdent,
     InclusionPolicy,

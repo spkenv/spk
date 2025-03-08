@@ -6,7 +6,7 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Data, DeriveInput, Fields};
+use syn::{Data, DeriveInput, Fields, parse_macro_input};
 
 #[proc_macro_derive(IsDefault)]
 pub fn derive_is_default(input: TokenStream) -> TokenStream {

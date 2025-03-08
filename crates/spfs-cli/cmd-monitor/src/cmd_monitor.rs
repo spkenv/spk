@@ -14,7 +14,7 @@ use spfs_cli_common as cli;
 use spfs_cli_common::CommandName;
 use tokio::io::AsyncReadExt;
 #[cfg(unix)]
-use tokio::signal::unix::{signal, SignalKind};
+use tokio::signal::unix::{SignalKind, signal};
 use tokio::time::timeout;
 
 fn main() -> Result<()> {

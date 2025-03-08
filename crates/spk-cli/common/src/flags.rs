@@ -9,12 +9,12 @@ use std::convert::From;
 use std::sync::Arc;
 
 use clap::{Args, ValueEnum, ValueHint};
-use miette::{bail, miette, Context, IntoDiagnostic, Result};
+use miette::{Context, IntoDiagnostic, Result, bail, miette};
 use solve::{
+    DEFAULT_SOLVER_RUN_FILE_PREFIX,
     DecisionFormatter,
     DecisionFormatterBuilder,
     MultiSolverKind,
-    DEFAULT_SOLVER_RUN_FILE_PREFIX,
 };
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::ident_build::Build;
@@ -23,7 +23,6 @@ use spk_schema::foundation::name::OptName;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::CompatRule;
 use spk_schema::ident::{
-    parse_ident,
     AnyIdent,
     AsVersionIdent,
     PkgRequest,
@@ -31,16 +30,17 @@ use spk_schema::ident::{
     Request,
     RequestedBy,
     VarRequest,
+    parse_ident,
 };
 use spk_schema::option_map::HOST_OPTIONS;
 use spk_schema::{Recipe, SpecFileData, SpecRecipe, Template, TestStage, VariantExt};
 #[cfg(feature = "statsd")]
-use spk_solve::{get_metrics_client, SPK_RUN_TIME_METRIC};
+use spk_solve::{SPK_RUN_TIME_METRIC, get_metrics_client};
 use spk_workspace::FindPackageTemplateResult;
 pub use variant::{Variant, VariantBuildStatus, VariantLocation};
 use {spk_solve as solve, spk_storage as storage};
 
-use crate::parsing::{stage_specifier, VariantIndex};
+use crate::parsing::{VariantIndex, stage_specifier};
 use crate::{CommandArgs, Error};
 
 #[cfg(test)]
@@ -386,8 +386,8 @@ impl Requests {
                     }
                     _ => {
                         bail!(
-                        "Unsupported stage '{stage}', can only be empty or 'source' in this context"
-                    );
+                            "Unsupported stage '{stage}', can only be empty or 'source' in this context"
+                        );
                     }
                 }
             }

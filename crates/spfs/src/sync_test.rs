@@ -11,7 +11,7 @@ use super::Syncer;
 use crate::config::Config;
 use crate::fixtures::*;
 use crate::prelude::*;
-use crate::{encoding, storage, tracking, Error};
+use crate::{Error, encoding, storage, tracking};
 
 #[rstest]
 #[tokio::test]

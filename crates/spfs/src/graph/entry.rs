@@ -7,7 +7,7 @@ use std::io::BufRead;
 use encoding::prelude::*;
 use spfs_proto::EntryArgs;
 
-use crate::{encoding, tracking, Result};
+use crate::{Result, encoding, tracking};
 
 #[cfg(test)]
 #[path = "./entry_test.rs"]

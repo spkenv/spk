@@ -5,8 +5,8 @@
 use rstest::rstest;
 
 use super::{Config, Remote, RemoteConfig, RepositoryConfig};
-use crate::storage::prelude::*;
 use crate::storage::RepositoryHandle;
+use crate::storage::prelude::*;
 use crate::{get_config, load_config};
 
 #[rstest]
@@ -188,7 +188,11 @@ fn test_config_env_overrides<F: Fn(&Config) -> R, R: ToString>(
             // Set each variable name to a unique value
             let value = ulid::Ulid::new().to_string();
             let orig = std::env::var_os(var);
-            std::env::set_var(var, &value);
+            // Safety: this is unsafe. serial_test is used to prevent multiple
+            // tests from changing the environment at the same time.
+            unsafe {
+                std::env::set_var(var, &value);
+            }
             (value, orig)
         })
         .collect::<Vec<_>>();
@@ -197,7 +201,12 @@ fn test_config_env_overrides<F: Fn(&Config) -> R, R: ToString>(
         .map(|&var| {
             let orig = std::env::var_os(var);
             if orig.is_some() {
-                std::env::remove_var(var);
+                // Safety: this is unsafe. serial_test is used to prevent
+                // multiple tests from changing the environment at the same
+                // time.
+                unsafe {
+                    std::env::remove_var(var);
+                }
             }
             (var, orig)
         })
@@ -206,13 +215,19 @@ fn test_config_env_overrides<F: Fn(&Config) -> R, R: ToString>(
     // Restore env
     for (var, orig) in cleared_vars.iter() {
         if let Some(orig) = orig {
-            std::env::set_var(var, orig)
+            // Safety: this is unsafe. serial_test is used to prevent multiple
+            // tests from changing the environment at the same time.
+            unsafe { std::env::set_var(var, orig) }
         }
     }
     for (var, (_, orig)) in env_vars_to_set.iter().zip(generated_values.iter()) {
-        match orig {
-            Some(orig) => std::env::set_var(var, orig),
-            None => std::env::remove_var(var),
+        // Safety: this is unsafe. serial_test is used to prevent multiple tests
+        // from changing the environment at the same time.
+        unsafe {
+            match orig {
+                Some(orig) => std::env::set_var(var, orig),
+                None => std::env::remove_var(var),
+            }
         }
     }
     let config = config.unwrap();

@@ -13,8 +13,8 @@ use spk_schema::foundation::version::Version;
 use spk_schema::{BuildIdent, Spec, SpecRecipe, VersionIdent};
 use tokio::sync::RwLock;
 
-use super::repository::{PublishPolicy, Storage};
 use super::Repository;
+use super::repository::{PublishPolicy, Storage};
 use crate::{Error, Result};
 
 type ComponentMap = HashMap<Component, spfs::encoding::Digest>;

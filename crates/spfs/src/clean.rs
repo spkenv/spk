@@ -21,7 +21,7 @@ use crate::io::Pluralize;
 use crate::prelude::*;
 use crate::runtime::makedirs_with_perms;
 use crate::storage::fs::OpenFsRepository;
-use crate::{encoding, graph, storage, tracking, Digest, Error, Result};
+use crate::{Digest, Error, Result, encoding, graph, storage, tracking};
 
 #[cfg(test)]
 #[path = "./clean_test.rs"]

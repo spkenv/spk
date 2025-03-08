@@ -13,7 +13,7 @@ use tokio::time::sleep;
 use super::{Cleaner, TracingCleanReporter};
 use crate::encoding::prelude::*;
 use crate::fixtures::*;
-use crate::{storage, tracking, Error};
+use crate::{Error, storage, tracking};
 
 #[rstest]
 #[tokio::test]

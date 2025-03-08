@@ -12,7 +12,7 @@ use tonic::{Request, Response, Status};
 
 use crate::prelude::*;
 use crate::proto::tag_service_server::TagServiceServer;
-use crate::proto::{self, convert_digest, RpcResult};
+use crate::proto::{self, RpcResult, convert_digest};
 use crate::storage::{self, TagNamespace};
 
 fn string_to_namespace(namespace: &String) -> Option<&TagNamespace> {

@@ -9,10 +9,10 @@ use clap::Args;
 use miette::{Context, Result};
 use spk_build::BuildSource;
 use spk_cli_common::flags::VariantBuildStatus;
-use spk_cli_common::{flags, CommandArgs, Run};
+use spk_cli_common::{CommandArgs, Run, flags};
 use spk_schema::foundation::format::FormatOptionMap;
 use spk_schema::foundation::ident_build::Build;
-use spk_schema::foundation::option_map::{OptionMap, HOST_OPTIONS};
+use spk_schema::foundation::option_map::{HOST_OPTIONS, OptionMap};
 use spk_schema::prelude::*;
 use spk_schema::{Recipe, Request, TestStage};
 

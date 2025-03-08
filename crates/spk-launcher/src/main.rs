@@ -15,16 +15,16 @@ use std::os::windows::fs::{symlink_dir, symlink_file};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use miette::{bail, miette, Context, IntoDiagnostic, Result};
+use miette::{Context, IntoDiagnostic, Result, bail, miette};
 #[cfg(unix)]
-use nix::unistd::execv;
+use nix::unistd::{execv, execve};
+use spfs::OsError;
 use spfs::encoding::Digest;
 use spfs::prelude::*;
+use spfs::storage::RepositoryHandle;
 use spfs::storage::fallback::FallbackProxy;
 use spfs::storage::fs::OpenFsRepository;
-use spfs::storage::RepositoryHandle;
 use spfs::tracking::EnvSpec;
-use spfs::OsError;
 
 const DEV_SHM: &str = "/dev/shm";
 const ORIGIN: &str = "origin";
@@ -300,23 +300,43 @@ impl<'a> Dynamic<'a> {
                         )
                     })?;
 
-                std::env::set_var(self.bin_var(), &bin_path);
                 #[cfg(unix)]
-                execv(
-                    &CString::new(bin_path.into_vec())
-                        .into_diagnostic()
-                        .wrap_err_with(|| {
-                            format!(
-                                "convert {} bin path to CString",
-                                self.spfs_tag_prefix().to_string_lossy()
-                            )
-                        })?,
-                    args.as_slice(),
-                )
-                .into_diagnostic()
-                .wrap_err("process replaced")?;
+                {
+                    let bin_var = self.bin_var();
+                    let new_env = std::env::vars_os()
+                        .filter(|(key, _)| *key != bin_var)
+                        .map(|(key, value)| {
+                            format!("{}={}", key.to_string_lossy(), value.to_string_lossy())
+                        })
+                        .chain(std::iter::once(format!(
+                            "{}={}",
+                            bin_var.to_string_lossy(),
+                            bin_path.to_string_lossy()
+                        )))
+                        .map(CString::new)
+                        .collect::<Result<Vec<_>, _>>()
+                        .into_diagnostic()?;
+                    execve(
+                        &CString::new(bin_path.into_vec())
+                            .into_diagnostic()
+                            .wrap_err_with(|| {
+                                format!(
+                                    "convert {} bin path to CString",
+                                    self.spfs_tag_prefix().to_string_lossy()
+                                )
+                            })?,
+                        args.as_slice(),
+                        new_env.as_slice(),
+                    )
+                    .into_diagnostic()
+                    .wrap_err("process replaced")?;
+                }
                 #[cfg(windows)]
                 {
+                    // Safety: this is documented as safe on Windows.
+                    unsafe {
+                        std::env::set_var(self.bin_var(), &bin_path);
+                    }
                     let bin = bin_path.to_string_lossy();
                     let args = args
                         .iter()

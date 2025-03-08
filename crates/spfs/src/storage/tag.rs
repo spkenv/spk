@@ -10,9 +10,9 @@ use futures::Stream;
 use relative_path::RelativePath;
 use tokio_stream::StreamExt;
 
-use super::{TagNamespace, TagNamespaceBuf, TAG_NAMESPACE_MARKER};
+use super::{TAG_NAMESPACE_MARKER, TagNamespace, TagNamespaceBuf};
 use crate::prelude::*;
-use crate::{encoding, tracking, Error, Result};
+use crate::{Error, Result, encoding, tracking};
 
 pub(crate) type TagStream = Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>;
 pub(crate) type TagSpecAndTagStream = (tracking::TagSpec, TagStream);
