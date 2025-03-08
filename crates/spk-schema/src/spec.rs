@@ -220,6 +220,7 @@ impl TemplateExt for SpecTemplate {
 
         if api.is_none() {
             tracing::warn!(
+                spec_file = %file_path.to_string_lossy(),
                 "Spec file is missing the 'api' field, this may be an error in the future"
             );
             tracing::warn!(
