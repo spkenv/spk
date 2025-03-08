@@ -57,6 +57,8 @@ hyper = { version = "0.14.16", features = ["client"] }
 indicatif = { workspace = true }
 itertools = { workspace = true }
 libc = { workspace = true }
+linux-raw-sys = "0.8.0"
+linux-syscall = "1.0.0"
 miette = { workspace = true }
 nix = { workspace = true, features = ["fs"] }
 nonempty = "0.8.1"

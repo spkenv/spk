@@ -141,6 +141,10 @@ domain = "my-company.com"
 #   dynamic file system entries to runtime processes
 #
 backend = "OverlayFsWithRenders"
+# The "mount" command will be used to mount overlayfs layers when false.
+# Direct system calls will be used when true. Defaults to false.
+# This option may be removed in the future and behave as if set to "true".
+use_mount_syscalls = false
 # The named remotes that can be used by the runtime
 # file systems to find object data (if possible)
 #
