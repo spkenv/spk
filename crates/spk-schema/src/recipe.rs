@@ -23,6 +23,19 @@ pub trait BuildEnv {
     fn env_vars(&self) -> HashMap<String, String>;
 }
 
+/// An empty build environment implementation, primarily used in testing
+impl BuildEnv for () {
+    type Package = crate::Spec;
+
+    fn build_env(&self) -> Vec<Self::Package> {
+        Vec::new()
+    }
+
+    fn env_vars(&self) -> HashMap<String, String> {
+        HashMap::default()
+    }
+}
+
 /// Can be used to build a package.
 #[enum_dispatch::enum_dispatch]
 pub trait Recipe:
