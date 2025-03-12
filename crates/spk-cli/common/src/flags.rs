@@ -372,11 +372,18 @@ impl Requests {
         repos: &[Arc<storage::RepositoryHandle>],
     ) -> Result<Vec<AnyIdent>> {
         let mut idents = Vec::new();
-        let mut workspace = self.workspace.load_or_default()?;
+        let mut workspace = None;
         for package in packages {
             if package.contains('@') {
+                if workspace.is_none() {
+                    workspace = Some(self.workspace.load_or_default()?);
+                }
+                let Some(ws) = workspace.as_mut() else {
+                    unreachable!();
+                };
+
                 let (recipe, _, stage, _) =
-                    parse_stage_specifier(package, options, &mut workspace, repos).await?;
+                    parse_stage_specifier(package, options, ws, repos).await?;
 
                 match stage {
                     TestStage::Sources => {
@@ -394,8 +401,14 @@ impl Requests {
 
             let path = std::path::Path::new(package);
             if path.is_file() {
-                let workspace = self.workspace.load_or_default()?;
-                let configured = workspace.find_package_template(package).must_be_found();
+                if workspace.is_none() {
+                    workspace = Some(self.workspace.load_or_default()?);
+                }
+                let Some(ws) = workspace.as_ref() else {
+                    unreachable!();
+                };
+
+                let configured = ws.find_package_template(package).must_be_found();
                 let rendered_data = configured.template.render(options)?;
                 let recipe = rendered_data.into_recipe().wrap_err_with(|| {
                     format!(
@@ -448,7 +461,7 @@ impl Requests {
         let override_options = options.get_options()?;
         let mut templating_options = override_options.clone();
         let mut extra_options = OptionMap::default();
-        let mut workspace = self.workspace.load_or_default()?;
+        let mut workspace = None;
 
         // From the positional REQUESTS arg
         for r in requests.into_iter() {
@@ -456,10 +469,17 @@ impl Requests {
 
             // Is it a filepath to a package requests yaml file?
             if r.ends_with(".spk.yaml") {
+                if workspace.is_none() {
+                    workspace = Some(self.workspace.load_or_default()?);
+                }
+                let Some(ws) = workspace.as_mut() else {
+                    unreachable!();
+                };
+
                 let (spec, filename) = find_package_recipe_from_workspace_or_repo(
                     Some(&r),
                     &templating_options,
-                    &mut workspace,
+                    ws,
                     repos,
                 )
                 .await
@@ -508,7 +528,7 @@ impl Requests {
         &self,
         request: &str,
         options: &OptionMap,
-        workspace: &mut spk_workspace::Workspace,
+        workspace: &mut Option<spk_workspace::Workspace>,
         repos: &[Arc<storage::RepositoryHandle>],
     ) -> Result<Vec<Request>> {
         // Parses a command line request into one or more requests.
@@ -516,8 +536,15 @@ impl Requests {
         let mut out = Vec::<Request>::new();
 
         if request.contains('@') {
+            if workspace.is_none() {
+                *workspace = Some(self.workspace.load_or_default()?);
+            }
+            let Some(ws) = workspace.as_mut() else {
+                unreachable!();
+            };
+
             let (recipe, _, stage, build_variant) =
-                parse_stage_specifier(request, options, workspace, repos)
+                parse_stage_specifier(request, options, ws, repos)
                     .await
                     .wrap_err_with(|| {
                         format!("parsing {request} as a filename with stage specifier")
