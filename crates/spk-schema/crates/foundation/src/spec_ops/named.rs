@@ -8,9 +8,9 @@ use crate::name::PkgName;
 
 /// Some item that has an associated package name
 #[enum_dispatch::enum_dispatch]
-pub trait Named {
+pub trait Named<N: AsRef<str> + ?Sized = PkgName> {
     /// The name of the associated package
-    fn name(&self) -> &PkgName;
+    fn name(&self) -> &N;
 }
 
 impl<T: Named> Named for Arc<T> {
