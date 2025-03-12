@@ -23,7 +23,7 @@ mod workspace_test;
 /// can be used to determine the number and order of
 /// packages to be built in order to efficiently satisfy
 /// and entire set of requirements for an environment.
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Workspace {
     /// Spec templates available in this workspace.
     ///
@@ -142,10 +142,15 @@ impl Workspace {
         &self,
         file: &std::path::Path,
     ) -> Vec<&ConfiguredTemplate> {
+        // Attempt to canonicalize `file` using the same function that the
+        // workspace uses as it locates files, to have a chance of matching
+        // one of the entries in the workspace by comparing to its
+        // `file_path()`.
+        let file_path = dunce::canonicalize(file).unwrap_or_else(|_| file.to_owned());
         self.templates
             .values()
             .flat_map(|templates| templates.iter())
-            .filter(|t| t.template.file_path() == file)
+            .filter(|t| t.template.file_path() == file_path)
             .collect()
     }
 

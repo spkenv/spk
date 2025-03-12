@@ -705,8 +705,19 @@ impl Workspace {
             | Err(spk_workspace::error::FromPathError::LoadWorkspaceFileError(
                 spk_workspace::error::LoadWorkspaceFileError::WorkspaceNotFound(_),
             )) => {
-                tracing::debug!("Using virtual workspace in current dir");
-                spk_workspace::Workspace::builder()
+                let mut builder = spk_workspace::Workspace::builder();
+
+                if self.workspace.is_dir() {
+                    tracing::debug!(
+                        "Using virtual workspace in {d}",
+                        d = self.workspace.to_string_lossy()
+                    );
+                    builder = builder.with_root(&self.workspace);
+                } else {
+                    tracing::debug!("Using virtual workspace in current dir");
+                }
+
+                builder
                     .with_glob_pattern("*.spk.yaml")?
                     .build()
                     .into_diagnostic()

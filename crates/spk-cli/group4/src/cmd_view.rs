@@ -38,6 +38,10 @@ use spk_solve::solution::{LayerPackageAndComponents, get_spfs_layers_to_packages
 use spk_storage;
 use strum::{Display, EnumString, IntoEnumIterator, VariantNames};
 
+#[cfg(test)]
+#[path = "./cmd_view_test.rs"]
+mod cmd_view_test;
+
 /// Constants for the valid output formats
 #[derive(Default, Display, EnumString, VariantNames, Clone)]
 #[strum(serialize_all = "lowercase")]

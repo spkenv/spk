@@ -17,6 +17,7 @@ sentry = ["spk-solve/sentry"]
 
 [dependencies]
 bracoxide = { workspace = true }
+dunce = { workspace = true }
 format_serde_error = { workspace = true }
 glob = { workspace = true }
 itertools = { workspace = true }
