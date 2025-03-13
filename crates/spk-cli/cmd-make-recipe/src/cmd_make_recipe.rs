@@ -51,7 +51,7 @@ impl Run for MakeRecipe {
             None => workspace.default_package_template(),
             Some(p) => workspace.find_package_template(p),
         }
-        .must_be_found();
+        .wrap_err("did not find recipe template")?;
 
         if let Some(name) = configured.template.name() {
             tracing::info!("rendering template for {name}");

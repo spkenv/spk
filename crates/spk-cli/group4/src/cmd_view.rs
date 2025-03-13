@@ -236,7 +236,7 @@ impl View {
             None => workspace.default_package_template(),
             Some(name) => workspace.find_package_template(name),
         }
-        .must_be_found();
+        .wrap_err("did not find recipe template")?;
         let rendered_data = configured.template.render(options)?;
         let recipe = rendered_data.into_recipe().wrap_err_with(|| {
             format!(
