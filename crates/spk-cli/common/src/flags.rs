@@ -395,7 +395,10 @@ impl Requests {
             let path = std::path::Path::new(package);
             if path.is_file() {
                 let workspace = self.workspace.load_or_default()?;
-                let configured = workspace.find_package_template(package).must_be_found();
+                let configured = workspace
+                    .find_package_template(package)
+                    .must_be_found()
+                    .map_err(|_| miette!("did not find package template"))?;
                 let rendered_data = configured.template.render(options)?;
                 let recipe = rendered_data.into_recipe().wrap_err_with(|| {
                     format!(
@@ -854,11 +857,9 @@ where
     };
     let configured = match from_workspace {
         FindPackageTemplateResult::Found(template) => template,
-        res @ FindPackageTemplateResult::MultipleTemplateFiles(_) => {
-            // must_be_found() will exit the program when called on MultipleTemplateFiles
-            res.must_be_found();
-            unreachable!()
-        }
+        res @ FindPackageTemplateResult::MultipleTemplateFiles(_) => res
+            .must_be_found()
+            .map_err(|_| miette!("did not find package template"))?,
         FindPackageTemplateResult::NoTemplateFiles | FindPackageTemplateResult::NotFound(..) => {
             // If couldn't find a template file, maybe there's an
             // existing package/version that's been published

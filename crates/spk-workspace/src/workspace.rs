@@ -221,15 +221,15 @@ pub enum FindPackageTemplateResult<'a> {
 }
 
 impl<'a> FindPackageTemplateResult<'a> {
-    ///True if a template file was found
+    /// True if a template file was found
     pub fn is_found(&self) -> bool {
         matches!(self, Self::Found { .. })
     }
 
-    /// Prints error messages and exits if no template file was found
-    pub fn must_be_found(self) -> &'a ConfiguredTemplate {
+    /// Logs error messages and returns Err if no template file was found
+    pub fn must_be_found(self) -> std::result::Result<&'a ConfiguredTemplate, ()> {
         match self {
-            Self::Found(template) => return template,
+            Self::Found(template) => return Ok(template),
             Self::MultipleTemplateFiles(templates) => {
                 let mut here = std::env::current_dir().unwrap_or_default();
                 here = here.canonicalize().unwrap_or(here);
@@ -262,6 +262,6 @@ impl<'a> FindPackageTemplateResult<'a> {
                 tracing::error!("Spec file not found for '{request}', or the file does not exist");
             }
         }
-        std::process::exit(1);
+        Err(())
     }
 }

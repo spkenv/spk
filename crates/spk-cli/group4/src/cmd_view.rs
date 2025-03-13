@@ -9,7 +9,7 @@ use std::sync::Arc;
 use clap::Args;
 use colored::Colorize;
 use futures::{StreamExt, TryStreamExt};
-use miette::{Context, IntoDiagnostic, Result, bail};
+use miette::{Context, IntoDiagnostic, Result, bail, miette};
 use serde::Serialize;
 use spfs::Digest;
 use spfs::find_path::ObjectPathEntry;
@@ -236,7 +236,8 @@ impl View {
             None => workspace.default_package_template(),
             Some(name) => workspace.find_package_template(name),
         }
-        .must_be_found();
+        .must_be_found()
+        .map_err(|_| miette!("did not find package template"))?;
         let rendered_data = configured.template.render(options)?;
         let recipe = rendered_data.into_recipe().wrap_err_with(|| {
             format!(
