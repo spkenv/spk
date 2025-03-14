@@ -4083,6 +4083,7 @@ dependencies = [
  "futures",
  "itertools 0.12.1",
  "miette",
+ "rstest 0.25.0",
  "serde",
  "serde_json",
  "serde_yaml 0.9.27",
@@ -4093,8 +4094,10 @@ dependencies = [
  "spk-storage",
  "spk-workspace",
  "strum",
+ "tempfile",
  "tokio",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -4660,6 +4663,7 @@ name = "spk-workspace"
 version = "0.42.0"
 dependencies = [
  "bracoxide",
+ "dunce",
  "format_serde_error",
  "glob",
  "itertools 0.12.1",
