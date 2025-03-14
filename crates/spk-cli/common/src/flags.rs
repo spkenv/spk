@@ -36,7 +36,7 @@ use spk_schema::option_map::HOST_OPTIONS;
 use spk_schema::{Recipe, SpecFileData, SpecRecipe, Template, TestStage, VariantExt};
 #[cfg(feature = "statsd")]
 use spk_solve::{SPK_RUN_TIME_METRIC, get_metrics_client};
-use spk_workspace::FindPackageTemplateError;
+use spk_workspace::{FindOrLoadPackageTemplateError, FindPackageTemplateError};
 pub use variant::{Variant, VariantBuildStatus, VariantLocation};
 use {spk_solve as solve, spk_storage as storage};
 
@@ -394,9 +394,9 @@ impl Requests {
 
             let path = std::path::Path::new(package);
             if path.is_file() {
-                let workspace = self.workspace.load_or_default()?;
+                let mut workspace = self.workspace.load_or_default()?;
                 let configured = workspace
-                    .find_package_template(package)
+                    .find_or_load_package_template(package)
                     .wrap_err("did not find recipe template")?;
                 let rendered_data = configured.template.render(options)?;
                 let recipe = rendered_data.into_recipe().wrap_err_with(|| {
@@ -851,16 +851,23 @@ where
     S: AsRef<str>,
 {
     let from_workspace = match package_name {
-        None => workspace.default_package_template(),
-        Some(package_name) => workspace.find_package_template(package_name),
+        Some(package_name) => workspace.find_or_load_package_template(package_name),
+        None => workspace.default_package_template().map_err(From::from),
     };
     let configured = match from_workspace {
         Ok(template) => template,
-        res @ Err(FindPackageTemplateError::MultipleTemplates(_)) => {
-            res.wrap_err("did not find package template")?
+        res @ Err(FindOrLoadPackageTemplateError::FindPackageTemplateError(
+            FindPackageTemplateError::MultipleTemplates(_),
+        ))
+        | res @ Err(FindOrLoadPackageTemplateError::BuildError(_)) => {
+            res.wrap_err("did not find recipe template")?
         }
-        res @ Err(FindPackageTemplateError::NoTemplateFiles)
-        | res @ Err(FindPackageTemplateError::NotFound(..)) => {
+        res @ Err(FindOrLoadPackageTemplateError::FindPackageTemplateError(
+            FindPackageTemplateError::NoTemplateFiles,
+        ))
+        | res @ Err(FindOrLoadPackageTemplateError::FindPackageTemplateError(
+            FindPackageTemplateError::NotFound(..),
+        )) => {
             drop(res); // promise that we don't hold data from the workspace anymore
 
             // If couldn't find a template file, maybe there's an

@@ -9,7 +9,7 @@ use spk_schema::name::{PkgName, PkgNameBuf};
 use spk_schema::version_range::{LowestSpecifiedRange, Ranged};
 use spk_schema::{SpecTemplate, Template, TemplateExt};
 
-use crate::error;
+use crate::error::{self, BuildError};
 
 #[cfg(test)]
 #[path = "workspace_test.rs"]
@@ -71,6 +71,32 @@ impl Workspace {
         };
 
         Ok(template)
+    }
+
+    /// Find a package template by name or filepath.
+    ///
+    /// If there is no existing template loaded for the provided argument
+    /// but it is a valid file path then load it into the workspace.
+    pub fn find_or_load_package_template<S>(
+        &mut self,
+        package: S,
+    ) -> Result<&ConfiguredTemplate, FindOrLoadPackageTemplateError>
+    where
+        S: AsRef<str>,
+    {
+        if let Err(FindPackageTemplateError::NotFound(_)) =
+            self.find_package_template(package.as_ref())
+        {
+            if std::fs::exists(package.as_ref()).ok().unwrap_or_default() {
+                self.load_template_file(package.as_ref())?;
+            }
+        }
+        // NOTE: it would be preferable not to run this function twice and instead return
+        // the value of the first call when it succeeds but doing so results in the
+        // inability to take a mutable reference of self for the loading logic above.
+        // This appears to be a limitation of the compiler so maybe it can be reworked
+        // in the future
+        self.find_package_template(package).map_err(From::from)
     }
 
     /// Find a package template file for the requested package, if any.
@@ -205,6 +231,25 @@ impl Workspace {
             Ok(by_name.last_mut().expect("just pushed something"))
         }
     }
+}
+
+/// Possible errors from the [`Workspace::find_or_load_package_template`] function.
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[diagnostic(
+    url(
+        "https://spkenv.dev/error_codes#{}",
+        self.code().unwrap_or_else(|| Box::new("spk::generic"))
+    )
+)]
+pub enum FindOrLoadPackageTemplateError {
+    /// The template could not be found
+    #[error(transparent)]
+    #[diagnostic(forward(0))]
+    FindPackageTemplateError(#[from] FindPackageTemplateError),
+    /// The template file could not be loaded or had errors
+    #[error(transparent)]
+    #[diagnostic(forward(0))]
+    BuildError(#[from] BuildError),
 }
 
 /// The result of the [`Workspace::find_package_template`] function.
