@@ -4,7 +4,6 @@
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::Arguments;
-use std::pin::Pin;
 use std::sync::Arc;
 
 use async_stream::try_stream;
@@ -13,21 +12,29 @@ use colored::Colorize;
 use futures::{Stream, TryStreamExt};
 use itertools::Itertools;
 use miette::Result;
-use spfs::Digest;
-use spfs::graph::object::Enum;
-use spfs::prelude::*;
-use spfs::tracking::Entry;
 use spk_cli_common::{CommandArgs, Run, flags};
-use spk_schema::ident::{AsVersionIdent, parse_ident};
+use spk_schema::ident::parse_ident_range;
 use spk_schema::ident_build::Build;
 use spk_schema::ident_component::Component;
-use spk_schema::name::{PkgName, PkgNameBuf};
+use spk_schema::ident_ops::parsing::{KNOWN_REPOSITORY_NAMES, repo_name_from_ident};
+use spk_schema::name::PkgNameBuf;
 use spk_schema::version::Version;
-use spk_schema::{BuildIdent, Deprecate, Package, Spec};
+use spk_schema::{Deprecate, Package};
+use spk_storage;
+use spk_storage::walker::{RepoWalkerBuilder, RepoWalkerItem};
 
-use crate::entry_du::{DiskUsage, EntryDiskUsage, LEVEL_SEPARATOR};
+use crate::entry_du::{EntryDiskUsage, LEVEL_SEPARATOR};
 
+// Number of characters disk size outputs are padded too
 const WIDTH: usize = 12;
+
+// Request and query path related constants
+const COMPONENTS_MARKER: &str = "/:";
+const COMPONENTS_SEPARATOR: &str = ":";
+const REPO_INDEX: usize = 0;
+const NAME_INDEX: usize = 1;
+const VERSION_INDEX: usize = 2;
+const BUILD_INDEX: usize = 3;
 
 #[cfg(test)]
 #[path = "./cmd_du_test.rs"]
@@ -119,14 +126,6 @@ impl PackageDiskUsage {
             None
         }
     }
-
-    /// Returns true if the input is a subset of the absolute path.
-    fn is_subset(&self, input: &[&str]) -> bool {
-        let flatten_path = self.flatten_path();
-        input
-            .iter()
-            .all(|item| flatten_path.contains(&item.to_string()))
-    }
 }
 
 /// Return the disk usage of a package
@@ -135,8 +134,12 @@ pub struct Du<Output: Default = Console> {
     #[clap(flatten)]
     pub repos: flags::Repositories,
 
-    /// The path starting from repo name to calculate the disk usage
-    #[clap(name = "REPO/PKG/VERSION/...")]
+    /// Starting path to calculate the disk usage for. Can be
+    /// either in path format,
+    /// i.e. REPO/PKG/VERSION/BUILD/:COMPONENTS/dir/to/file, or
+    /// package request format,
+    /// i.e. REPO/PKG:COMPONENTS/VERSION/BUILD/dir/to/file
+    #[clap(name = "REPO/PKG/VERSION/BUILD/:COMPONENTS/dir/to/file")]
     pub path: String,
 
     /// Count sizes many times if hard linked
@@ -169,11 +172,44 @@ impl<T: Output> Run for Du<T> {
     type Output = i32;
 
     async fn run(&mut self) -> Result<Self::Output> {
-        let input_depth = self.path.split(LEVEL_SEPARATOR).collect_vec().len();
+        // Work out what the user is looking to limit the du too
+        let (repo_name, package_path, file_path) = self.extract_names_and_path()?;
+
+        let mut input_depth = self.path.split(LEVEL_SEPARATOR).collect_vec().len();
+        if repo_name.is_none() {
+            // Plus one for the missing repo level
+            input_depth += 1;
+        }
+        if package_path.is_some()
+            && !self.path.contains(COMPONENTS_MARKER)
+            && self.path.contains(COMPONENTS_SEPARATOR)
+        {
+            // Components count as an extra level for the package
+            // request format, but not the path format.
+            input_depth += 1;
+        }
+
+        if let Some(ref rn) = repo_name {
+            // There was a repo name given in the search path so
+            // ensure that one is enabled and others are not
+            tracing::debug!("Found repo name is du term: {rn}");
+            self.repos.enable_repo = vec![rn.clone()];
+            if rn == "local" {
+                tracing::debug!("Limiting du to local repo");
+                self.repos.local_repo_only = true;
+            } else {
+                tracing::debug!("Excluding local repo");
+                self.repos.no_local_repo = true;
+            }
+        }
+        let repos = self.repos.get_repos_for_non_destructive_operation().await?;
+
         if self.summarize {
-            self.print_grouped_entries(input_depth).await?;
+            self.print_grouped_entries(&repos, input_depth, package_path, file_path)
+                .await?;
         } else {
-            self.print_all_entries(input_depth).await?;
+            self.print_all_entries(&repos, input_depth, package_path, file_path)
+                .await?;
         }
         Ok(0)
     }
@@ -186,6 +222,119 @@ impl<T: Output> CommandArgs for Du<T> {
 }
 
 impl<T: Output> Du<T> {
+    // Examine the command line path argument and work out what it
+    // represents. It could be a repo or package identifier, in either
+    // package request or du components path format, with or without a
+    // sub-component file path.
+    //
+    // Returns a tuple of a repo name, a package/request string, and a file path.
+    //
+    // TODO: maybe move to the spk library with du_walk, perhaps as a
+    // parser in future.
+    fn extract_names_and_path(
+        &mut self,
+    ) -> Result<(Option<String>, Option<String>, Option<String>)> {
+        // Remove trailing /'s to simplify the path
+        let trimmed_path = self.path.trim_end_matches("/");
+
+        let (repository_name, package_path, file_path) =
+            if KNOWN_REPOSITORY_NAMES.contains(trimmed_path) {
+                // This is just a known repo name, it could also be a
+                // package name, which is unlikely and ambiguous, so
+                // treat it as a repo name.
+                (Some(trimmed_path.to_string()), None, None)
+            } else {
+                match parse_ident_range(trimmed_path) {
+                    Ok(mut pkg) => {
+                        // It was in the package request format:
+                        // repo/package:components/version/build/file/path/bits
+                        let repo_name = pkg.repository_name.clone().map(|rn| rn.to_string());
+                        pkg.repository_name = None;
+
+                        (repo_name, Some(pkg.to_string()), None)
+                    }
+                    Err(e) => {
+                        // It might be in path format,
+                        // repo/package/version/build/:components/file/path,
+                        // if it has a components section
+                        if trimmed_path.contains(COMPONENTS_MARKER) {
+                            // This has a components section in one of the path sub-directories.
+                            // It is in the du path form, e.g.:
+                            //    repo/pkg/version/build/:components/...
+                            let parts: Vec<_> =
+                                trimmed_path.split(&LEVEL_SEPARATOR.to_string()).collect();
+
+                            // We checked for /: in the path before splitting it up
+                            // so the unwrap should not fail.
+                            let index = parts.iter().position(|&p| p.starts_with(":")).unwrap();
+
+                            // The path will include at least pkg/ver/build/:run
+                            // but it might not start with a repo name, or have
+                            // a file path after the components section. Rearrange
+                            // it into a package ident/request form to make it
+                            // easier to check via the ident parser.
+                            let possible_ident =
+                                if KNOWN_REPOSITORY_NAMES.contains(&parts[REPO_INDEX]) {
+                                    // This starts with a known repo
+                                    let pkg_name_and_components =
+                                        format!("{}{}", parts[NAME_INDEX], parts[index]);
+                                    [
+                                        parts[REPO_INDEX],
+                                        &pkg_name_and_components,
+                                        parts[VERSION_INDEX],
+                                        parts[BUILD_INDEX],
+                                    ]
+                                    .join(&LEVEL_SEPARATOR.to_string())
+                                } else {
+                                    // This doesn't start with a known repo
+                                    let pkg_name_and_components =
+                                        format!("{}{}", parts[REPO_INDEX], parts[index]);
+                                    [
+                                        &pkg_name_and_components,
+                                        parts[VERSION_INDEX],
+                                        parts[BUILD_INDEX],
+                                    ]
+                                    .join(&LEVEL_SEPARATOR.to_string())
+                                };
+
+                            // Extract the repo name, if any, and parse the
+                            // rest as a package ident.
+                            let (rest, repository_name) =
+                                match repo_name_from_ident::<nom_supreme::error::ErrorTree<_>>(
+                                    &possible_ident,
+                                    &KNOWN_REPOSITORY_NAMES,
+                                ) {
+                                    Ok((rest, rn)) => (rest.to_string(), rn),
+                                    Err(_e) => (possible_ident.clone(), None),
+                                };
+                            let repo_name = repository_name.map(|rn| rn.to_string());
+
+                            let ident = parse_ident_range(rest)?;
+
+                            // All the pieces beyond the /: components
+                            // section treated as a file path inside
+                            // the package build (under the components).
+                            let file_path = if index + 1 < parts.len() {
+                                Some(parts[index + 1..].join(&LEVEL_SEPARATOR.to_string()))
+                            } else {
+                                None
+                            };
+
+                            (repo_name, Some(ident.to_string()), file_path)
+                        } else {
+                            // This doesn't parse as a request, so it's
+                            // probably in path form, but it doesn't
+                            // have a /:components section, so that's
+                            // an error.
+                            return Err(e.into());
+                        }
+                    }
+                }
+            };
+
+        Ok((repository_name, package_path, file_path))
+    }
+
     fn human_readable(&self, size: u64) -> String {
         if self.human_readable {
             spfs::io::format_size(size)
@@ -203,10 +352,17 @@ impl<T: Output> Du<T> {
         }
     }
 
-    async fn print_all_entries(&self, input_depth: usize) -> Result<()> {
+    async fn print_all_entries(
+        &self,
+        repos: &Vec<(String, spk_storage::RepositoryHandle)>,
+        input_depth: usize,
+        package_path: Option<String>,
+        file_path: Option<String>,
+    ) -> Result<()> {
         let mut total_size = 0;
         let mut visited_digests = HashSet::new();
-        let mut walked = self.walk();
+
+        let mut walked = self.du_walk(repos, package_path, file_path);
         while let Some(du) = walked.try_next().await? {
             let abs_path = du.flatten_path();
             if input_depth > abs_path.len() {
@@ -238,11 +394,18 @@ impl<T: Output> Du<T> {
         Ok(())
     }
 
-    async fn print_grouped_entries(&self, input_depth: usize) -> Result<()> {
+    async fn print_grouped_entries(
+        &self,
+        repos: &Vec<(String, spk_storage::RepositoryHandle)>,
+        input_depth: usize,
+        package_path: Option<String>,
+        file_path: Option<String>,
+    ) -> Result<()> {
         let mut total_size = 0;
         let mut visited_digests = HashSet::new();
         let mut grouped_entries: HashMap<String, (u64, &str)> = HashMap::new();
-        let mut walked = self.walk();
+
+        let mut walked = self.du_walk(repos, package_path, file_path);
         while let Some(du) = walked.try_next().await? {
             let deprecate = if du.deprecated { "DEPRECATED" } else { "" };
             let partial_path = match du.generate_partial_path(input_depth) {
@@ -253,7 +416,9 @@ impl<T: Output> Du<T> {
             let entry_size = if visited_digests.insert(*du.entry.digest()) || self.count_links {
                 du.entry.size()
             } else {
-                0 // 0 because we don't need to calculate sizes if its a duplicate or count_links is not enabled.
+                // Set to 0 because we don't need to calculate sizes
+                // if it is a duplicate or count_links is not enabled.
+                0
             };
 
             // If the partial path does not exist and grouped_entries is not empty,
@@ -289,258 +454,70 @@ impl<T: Output> Du<T> {
         Ok(())
     }
 
-    fn walk(&self) -> impl Stream<Item = Result<PackageDiskUsage>> + '_ {
-        let mut input_path_in_parts: Vec<_> = self.path.split(LEVEL_SEPARATOR).rev().collect();
-
-        input_path_in_parts.retain(|c| !c.is_empty());
-
-        let mut input_to_eval = input_path_in_parts.clone();
-
-        Box::pin(try_stream! {
-            let repos = self.repos.get_repos_for_non_destructive_operation().await?;
-            let input_repo = input_to_eval.pop();
-            for (repo_index, (repo_name, repo)) in repos.iter().enumerate() {
-                let matched_repo_name = match input_repo {
-                    Some(input_repo) => {
-                        if repo_name == input_repo {
-                            repo_name
-                        } else {
-                            continue
-                        }
-                    }
-                    None => repo_name
-                };
-
-                let mut packages = self.walk_packages(input_to_eval.pop(), repo_index);
-                while let Some(pkg) = packages.try_next().await? {
-                    let package_du = PackageDiskUsage::new(pkg, matched_repo_name.clone());
-                    let mut versions = self.walk_versions(&package_du.pkg, repo_index, input_to_eval.pop());
-                    while let Some(version) = versions.try_next().await? {
-                        let mut pkg_du_with_version = package_du.clone();
-                        pkg_du_with_version.version = version;
-                        let pkg_with_version = format!("{}/{}", pkg_du_with_version.pkg, &pkg_du_with_version.version);
-                        let mut specs = self.walk_specs(&pkg_with_version, repo_index, input_to_eval.pop());
-                        while let Some(spec_res) = specs.try_next().await? {
-                            let spec = match spec_res {
-                                Some(s) => s,
-                                None => continue
-                            };
-
-                            let mut pkg_du_with_build = pkg_du_with_version.clone();
-                            pkg_du_with_build.build = spec.ident().build().clone();
-                            pkg_du_with_build.deprecated = spec.is_deprecated();
-                            let mut components = self.walk_components(spec.ident(), repo_index, input_to_eval.pop());
-                            while let Some(component_res) = components.try_next().await? {
-                                let (component, digest) = match component_res {
-                                    Some((c,d)) => (c,d),
-                                    None => continue
-                                };
-
-                                let mut pkg_du_with_component = pkg_du_with_build.clone();
-                                pkg_du_with_component.component = component;
-
-                                let spk_storage::RepositoryHandle::SPFS(repo) = repo else { continue; };
-
-                                let mut item = repo.read_object(digest).await?;
-                                let mut items_to_process: Vec<spfs::graph::Object> = vec![item];
-                                while !items_to_process.is_empty() {
-                                    let mut next_iter_objects: Vec<spfs::graph::Object> = Vec::new();
-                                    for object in items_to_process.iter() {
-                                        match object.to_enum() {
-                                            Enum::Platform(object) => {
-                                                for digest in object.iter_bottom_up() {
-                                                    item = repo.read_object(*digest).await?;
-                                                    next_iter_objects.push(item);
-                                                }
-                                            }
-                                            Enum::Layer(object) => {
-                                                let manifest_digest = match object.manifest() {
-                                                    None => continue,
-                                                    Some(d) => d,
-                                                };
-                                                item = repo.read_object(*manifest_digest).await?;
-                                                next_iter_objects.push(item);
-                                                // TODO: what about annotation data stored in a blob,
-                                                // that kind of data isn't counted here?
-                                            }
-                                            Enum::Manifest(object) => {
-                                                let tracking_manifest = object.to_tracking_manifest();
-                                                let root_entry = tracking_manifest.take_root();
-                                                let mut walked_entries = root_entry.walk();
-                                                while let Some(disk_usage) = walked_entries.try_next().await? {
-                                                    let mut pkg_du_with_entry = pkg_du_with_component.clone();
-                                                    pkg_du_with_entry.entry = disk_usage;
-
-                                                    if pkg_du_with_entry.is_subset(&input_path_in_parts) {
-                                                        yield pkg_du_with_entry
-                                                    }
-                                                }
-                                            }
-                                            Enum::Blob(_) => self.output.warn(format_args!("Blob object cannot have disk usage generated")),
-                                        }
-                                    }
-                                    items_to_process = std::mem::take(&mut next_iter_objects);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        })
-    }
-
-    fn walk_packages<'a>(
+    // TODO: move to the spk library so other things can use it?
+    fn du_walk<'a>(
         &'a self,
-        input: Option<&'a str>,
-        repo_index: usize,
-    ) -> impl Stream<Item = Result<PkgNameBuf>> + 'a {
+        repos: &'a Vec<(String, spk_storage::RepositoryHandle)>,
+        package_path: Option<String>,
+        file_path: Option<String>,
+    ) -> impl Stream<Item = Result<PackageDiskUsage>> + 'a {
         Box::pin(try_stream! {
-            let repos = self.repos.get_repos_for_non_destructive_operation().await?;
-            let (_, repo) = repos.get(repo_index).unwrap();
-            for package in repo.list_packages().await? {
-                match input {
-                    Some(input_pkg) => {
-                        if package == input_pkg {
-                            yield package
-                        }
+            let mut repo_walker_builder = RepoWalkerBuilder::new(repos);
+            let repo_walker = repo_walker_builder
+                .try_with_package_equals(&package_path)?
+                .with_report_on_versions(true)
+                .with_report_on_builds(true)
+                .with_report_src_builds(true)
+                .with_report_deprecated_builds(self.deprecated)
+                .with_report_embedded_builds(false)
+                .with_report_on_components(true)
+                .with_report_on_files(true)
+                .with_file_path(file_path)
+                .with_continue_on_error(true)
+                .build();
+
+            let mut traversal = repo_walker.walk();
+
+            let mut current_repo_name = "";
+            let mut pkg_name = Arc::new(PkgNameBuf::try_from("place-holder-package-name").unwrap());
+            let mut version = Arc::from(Version::new(0, 0, 0));
+            let mut build = Build::Source;
+            let mut component_name = Component::Run;
+            let mut is_deprecated = false;
+
+            while let Some(item) = traversal.try_next().await? {
+                match item {
+                    RepoWalkerItem::Package(package) => {
+                        current_repo_name = package.repo_name;
+                        pkg_name = package.name;
                     }
-                    None => yield package
-                }
-            }
-        })
-    }
-
-    fn walk_versions<'a>(
-        &'a self,
-        pkg: &'a PkgName,
-        repo_index: usize,
-        input: Option<&'a str>,
-    ) -> impl Stream<Item = Result<Arc<Version>>> + 'a {
-        Box::pin(try_stream! {
-            let repos = self.repos.get_repos_for_non_destructive_operation().await?;
-            let (_, repo) = repos.get(repo_index).unwrap();
-
-            for version in repo.list_package_versions(pkg).await?.iter().rev() {
-                match input {
-                    Some(input_version) => {
-                        if version.to_string() == input_version {
-                            yield version.to_owned()
-                        }
+                    RepoWalkerItem::Version(version_item) => {
+                        version = Arc::from(version_item.ident.version().clone());
                     }
-                    None => yield version.to_owned()
-                }
-            }
-        })
-    }
-
-    fn walk_specs<'a>(
-        &'a self,
-        pkg_with_version: &'a str,
-        repo_index: usize,
-        input: Option<&'a str>,
-    ) -> impl Stream<Item = Result<Option<Arc<Spec>>>> + 'a {
-        Box::pin(try_stream! {
-            let pkg_ident = parse_ident(pkg_with_version)?;
-            let repos = self.repos.get_repos_for_non_destructive_operation().await?;
-            let (_, repo) = repos.get(repo_index).unwrap();
-
-            match repo.list_package_builds(pkg_ident.as_version_ident()).await {
-                Ok(builds) => {
-                    for build in builds.iter().sorted_by_key(|k| *k) {
-                        if build.is_embedded() {
-                            continue;
-                        }
-                        let spec = repo.read_package(build).await?;
-                        if !self.deprecated && spec.is_deprecated() {
-                            continue;
-                        }
-                        match input {
-                            Some(input_build) => {
-                                if spec.ident().build().to_string() == input_build {
-                                    yield Some(spec)
-                                }
-                            }
-                            None => yield Some(spec)
-                        }
+                    RepoWalkerItem::Build(build_item) => {
+                        build = build_item.spec.ident().build().clone();
+                        is_deprecated = build_item.spec.is_deprecated();
                     }
-                },
-                Err(e) => {
-                    self.output.warn(format_args!("{e}"));
-                    yield None
-                }
-            }
-        })
-    }
+                    RepoWalkerItem::Component(component) => {
+                        component_name = component.name;
+                    },
+                    RepoWalkerItem::File(file) => {
+                        let disk_usage = EntryDiskUsage::new(
+                            file.path_pieces.clone(),
+                            file.entry.size(),
+                            file.entry.object,
+                        );
 
-    fn walk_components<'a>(
-        &'a self,
-        ident: &'a BuildIdent,
-        repo_index: usize,
-        input: Option<&'a str>,
-    ) -> impl Stream<Item = Result<Option<(Component, Digest)>>> + 'a {
-        Box::pin(try_stream! {
-            let repos = self.repos.get_repos_for_non_destructive_operation().await?;
-            let (_, repo) = repos.get(repo_index).unwrap();
+                        let mut du = PackageDiskUsage::new((*pkg_name).clone(), current_repo_name.to_string());
+                        du.version = version.clone();
+                        du.build = build.clone();
+                        du.component = component_name.clone();
+                        du.entry = disk_usage;
+                        du.deprecated = is_deprecated;
 
-            match repo.read_components(ident).await {
-                Ok(c) => {
-                    for (component, digest) in c.iter().sorted_by_key(|(k, _)| *k) {
-                        match input {
-                            Some(input_component) => {
-                                if input_component.contains(&component.to_string()) {
-                                    yield Some((component.clone(), *digest))
-                                }
-                            }
-                            None => yield Some((component.clone(), *digest))
-                        }
-                    }
-                },
-                Err(e) => {
-                    self.output.warn(format_args!("{e}"));
-                    yield None
-                }
-            };
-        })
-    }
-}
-
-impl DiskUsage for Entry {
-    fn walk(&self) -> Pin<Box<dyn Stream<Item = Result<EntryDiskUsage>> + Send + Sync + '_>> {
-        fn walk_nested_entries(
-            root_entry: &Entry,
-            parent_paths: Vec<Arc<str>>,
-        ) -> Pin<Box<dyn Stream<Item = Result<EntryDiskUsage>> + Send + Sync + '_>> {
-            Box::pin(try_stream! {
-                for (path, entry) in root_entry.entries.iter() {
-
-                    // Update path
-                    let mut updated_paths = parent_paths.clone();
-                    updated_paths.push(Arc::from(path.as_str()));
-
-                    // Base case. We can start traversing back up.
-                    if entry.kind.is_blob() {
-                        yield EntryDiskUsage::new(
-                                updated_paths.clone(),
-                                entry.size(),
-                                entry.object,
-                            )
-                    }
-
-                    // We need to walk deeper if more child entries exists.
-                    if !entry.entries.is_empty() {
-                        for await du in walk_nested_entries(entry, updated_paths) {
-                            yield du?;
-                        }
-                    }
-                }
-            })
-        }
-
-        Box::pin(try_stream! {
-            // Sets up the initial paths before recursively walking all child entries.
-            for (path, entry) in self.entries.iter().sorted_by_key(|(k, _)| *k) {
-                for await du in walk_nested_entries(entry, vec![Arc::from(path.as_str())]) {
-                    yield du?;
+                        yield du
+                    },
+                    _ => {}
                 }
             }
         })
