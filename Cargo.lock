@@ -4659,6 +4659,7 @@ name = "spk-storage"
 version = "0.44.0"
 dependencies = [
  "arc-swap",
+ "async-stream",
  "async-trait",
  "colored",
  "dashmap",
@@ -4672,6 +4673,7 @@ dependencies = [
  "itertools 0.14.0",
  "miette",
  "nom",
+ "nom-supreme",
  "once_cell",
  "paste",
  "regex",

@@ -19,6 +19,7 @@ migration-to-components = ["spk-schema/migration-to-components"]
 [dependencies]
 arc-swap = { workspace = true }
 async-trait = { workspace = true }
+async-stream = { workspace = true }
 colored = { workspace = true }
 dashmap = { workspace = true }
 data-encoding = "2.3.0"
@@ -34,6 +35,7 @@ indexmap = { workspace = true }
 itertools = { workspace = true }
 miette = { workspace = true }
 nom = { workspace = true }
+nom-supreme = { workspace = true }
 once_cell = { workspace = true }
 paste = { workspace = true }
 regex = { workspace = true }
