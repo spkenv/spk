@@ -13,7 +13,7 @@ use miette::{Context, Result};
 use spk_cli_common::configure_sentry;
 use spk_cli_common::{CommandArgs, Error, Run, configure_logging};
 use spk_cli_group1::{cmd_bake, cmd_completion, cmd_deprecate, cmd_undeprecate};
-use spk_cli_group2::{cmd_ls, cmd_new, cmd_num_variants, cmd_publish, cmd_remove};
+use spk_cli_group2::{cmd_ls, cmd_new, cmd_num_variants, cmd_publish, cmd_remove, cmd_stats};
 use spk_cli_group3::{cmd_export, cmd_import};
 use spk_cli_group4::{cmd_lint, cmd_search, cmd_version, cmd_view};
 use spk_cmd_build::cmd_build;
@@ -170,6 +170,7 @@ pub enum Command {
     Render(cmd_render::Render),
     Repo(cmd_repo::Repo),
     Search(cmd_search::Search),
+    Stats(cmd_stats::Stats),
     Test(cmd_test::CmdTest),
     Undeprecate(cmd_undeprecate::Undeprecate),
     Version(cmd_version::Version),
@@ -209,6 +210,7 @@ impl Run for Command {
             Command::Render(cmd) => cmd.run().await,
             Command::Repo(cmd) => cmd.run().await,
             Command::Search(cmd) => cmd.run().await,
+            Command::Stats(cmd) => cmd.run().await,
             Command::Test(cmd) => cmd.run().await,
             Command::Undeprecate(cmd) => cmd.run().await,
             Command::Version(cmd) => cmd.run().await,
@@ -244,6 +246,7 @@ impl CommandArgs for Command {
             Command::Render(cmd) => cmd.get_positional_args(),
             Command::Repo(cmd) => cmd.get_positional_args(),
             Command::Search(cmd) => cmd.get_positional_args(),
+            Command::Stats(cmd) => cmd.get_positional_args(),
             Command::Test(cmd) => cmd.get_positional_args(),
             Command::Undeprecate(cmd) => cmd.get_positional_args(),
             Command::Version(cmd) => cmd.get_positional_args(),

@@ -7,3 +7,4 @@ pub mod cmd_new;
 pub mod cmd_num_variants;
 pub mod cmd_publish;
 pub mod cmd_remove;
+pub mod cmd_stats;
