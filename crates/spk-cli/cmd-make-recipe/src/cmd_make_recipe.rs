@@ -3,7 +3,7 @@
 // https://github.com/spkenv/spk
 
 use clap::Args;
-use miette::{Context, IntoDiagnostic, Result, miette};
+use miette::{Context, IntoDiagnostic, Result};
 use spk_cli_common::{CommandArgs, Run, flags};
 use spk_schema::foundation::format::FormatOptionMap;
 use spk_schema::{SpecFileData, Template};
@@ -51,8 +51,7 @@ impl Run for MakeRecipe {
             None => workspace.default_package_template(),
             Some(p) => workspace.find_package_template(p),
         }
-        .must_be_found()
-        .map_err(|_| miette!("did not find package template"))?;
+        .wrap_err("did not find recipe template")?;
 
         if let Some(name) = configured.template.name() {
             tracing::info!("rendering template for {name}");

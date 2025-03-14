@@ -36,7 +36,7 @@ use spk_schema::option_map::HOST_OPTIONS;
 use spk_schema::{Recipe, SpecFileData, SpecRecipe, Template, TestStage, VariantExt};
 #[cfg(feature = "statsd")]
 use spk_solve::{SPK_RUN_TIME_METRIC, get_metrics_client};
-use spk_workspace::FindPackageTemplateResult;
+use spk_workspace::FindPackageTemplateError;
 pub use variant::{Variant, VariantBuildStatus, VariantLocation};
 use {spk_solve as solve, spk_storage as storage};
 
@@ -397,8 +397,7 @@ impl Requests {
                 let workspace = self.workspace.load_or_default()?;
                 let configured = workspace
                     .find_package_template(package)
-                    .must_be_found()
-                    .map_err(|_| miette!("did not find package template"))?;
+                    .wrap_err("did not find recipe template")?;
                 let rendered_data = configured.template.render(options)?;
                 let recipe = rendered_data.into_recipe().wrap_err_with(|| {
                     format!(
@@ -856,11 +855,14 @@ where
         Some(package_name) => workspace.find_package_template(package_name),
     };
     let configured = match from_workspace {
-        FindPackageTemplateResult::Found(template) => template,
-        res @ FindPackageTemplateResult::MultipleTemplateFiles(_) => res
-            .must_be_found()
-            .map_err(|_| miette!("did not find package template"))?,
-        FindPackageTemplateResult::NoTemplateFiles | FindPackageTemplateResult::NotFound(..) => {
+        Ok(template) => template,
+        res @ Err(FindPackageTemplateError::MultipleTemplates(_)) => {
+            res.wrap_err("did not find package template")?
+        }
+        res @ Err(FindPackageTemplateError::NoTemplateFiles)
+        | res @ Err(FindPackageTemplateError::NotFound(..)) => {
+            drop(res); // promise that we don't hold data from the workspace anymore
+
             // If couldn't find a template file, maybe there's an
             // existing package/version that's been published
             match package_name.map(AsRef::as_ref) {

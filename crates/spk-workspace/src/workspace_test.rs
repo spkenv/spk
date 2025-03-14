@@ -59,10 +59,7 @@ fn test_config_specialization(tmpdir: tempfile::TempDir) {
         .build()
         .unwrap();
 
-    let super::FindPackageTemplateResult::Found(found) = workspace.find_package_template("pkg-a")
-    else {
-        panic!("should find template for 'pkg-a'");
-    };
+    let found = workspace.find_package_template("pkg-a").unwrap();
     assert!(
         found.config.versions.contains(&v1),
         "config specialization should apply based on workspace file order, got: {:?}",
@@ -71,15 +68,13 @@ fn test_config_specialization(tmpdir: tempfile::TempDir) {
 }
 
 #[rstest]
-#[case(
-    "default request with one spec",
+#[case::default_request_with_one_spec(
     &[("my-package.spk.yaml", "my-package/1.0.0")],
     "",
     "my-package.spk.yaml"
 )]
 #[should_panic]
-#[case(
-    "default request fails with multiple specs",
+#[case::default_request_fails_with_multiple_specs(
     &[
         ("my-package.spk.yaml", "my-package/1.0.0"),
         ("my-other-package.spk.yaml", "my-other-package/1.0.0"),
@@ -87,8 +82,7 @@ fn test_config_specialization(tmpdir: tempfile::TempDir) {
     "",
     ""
 )]
-#[case(
-    "request by name",
+#[case::request_by_name(
     &[
         ("my-package.spk.yaml", "my-package/1.0.0"),
         ("my-other-package.spk.yaml", "my-other-package/1.0.0"),
@@ -97,8 +91,7 @@ fn test_config_specialization(tmpdir: tempfile::TempDir) {
     "my-package.spk.yaml"
 )]
 #[should_panic]
-#[case(
-    "request by name fails with multiple specs",
+#[case::request_by_name_fails_with_multiple_specs(
     &[
         ("my-package1.spk.yaml", "my-package/1.0.0"),
         ("my-package2.spk.yaml", "my-package/2.0.0"),
@@ -108,7 +101,6 @@ fn test_config_specialization(tmpdir: tempfile::TempDir) {
 )]
 fn test_workspace_find_template(
     tmpdir: tempfile::TempDir,
-    #[case] case_name: &str,
     #[case] templates: &[(&str, &str)],
     #[case] request: &str,
     #[case] expected: &str,
@@ -136,10 +128,7 @@ fn test_workspace_find_template(
         workspace.find_package_template(request)
     };
 
-    let super::FindPackageTemplateResult::Found(result) = result else {
-        panic!("Expected a found result, got {result:?} [{case_name}]");
-    };
-
+    let result = result.expect("should be found");
     assert_eq!(
         result
             .template
@@ -195,19 +184,16 @@ fn test_workspace_find_by_version(tmpdir: tempfile::TempDir) {
     let res = workspace.find_package_template("my-package");
     if !matches!(
         res,
-        super::FindPackageTemplateResult::MultipleTemplateFiles(_),
+        Err(super::FindPackageTemplateError::MultipleTemplates(_))
     ) {
         panic!(
             "should fail to find template when there was no version given and multiple exist in the workspace, got {res:#?}"
         );
     };
 
-    let res = workspace.find_package_template("my-package/1");
-    let super::FindPackageTemplateResult::Found(found) = res else {
-        panic!(
-            "should find template when multiple exist but an unambiguous version is given, got {res:#?}"
-        );
-    };
+    let found = workspace
+        .find_package_template("my-package/1")
+        .expect("should find template when multiple exist but an unambiguous version is given");
     assert!(
         found.config.versions.contains(&v1),
         "should select the requested version, got: {:?}",
