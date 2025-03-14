@@ -127,8 +127,8 @@ impl Run for View {
     async fn run(&mut self) -> Result<Self::Output> {
         if self.variants || self.variants_with_tests {
             let options = self.options.get_options()?;
-            let workspace = self.requests.workspace.load_or_default()?;
-            return self.print_variants_info(&options, &workspace, self.variants_with_tests);
+            let mut workspace = self.requests.workspace.load_or_default()?;
+            return self.print_variants_info(&options, &mut workspace, self.variants_with_tests);
         }
 
         let package = match (&self.package, &self.filepath, &self.pkg) {
@@ -229,12 +229,12 @@ impl View {
     fn print_variants_info(
         &self,
         options: &OptionMap,
-        workspace: &spk_workspace::Workspace,
+        workspace: &mut spk_workspace::Workspace,
         show_variants_with_tests: bool,
     ) -> Result<i32> {
         let configured = match self.package.as_ref() {
-            None => workspace.default_package_template(),
-            Some(name) => workspace.find_package_template(name),
+            Some(name) => workspace.find_or_load_package_template(name),
+            None => workspace.default_package_template().map_err(From::from),
         }
         .wrap_err("did not find recipe template")?;
         let rendered_data = configured.template.render(options)?;
