@@ -18,9 +18,14 @@ use once_cell::sync::Lazy;
 use crate::ident_build::Build;
 use crate::ident_build::parsing::build;
 use crate::name::RepositoryName;
-use crate::name::parsing::{is_legal_package_name_chr, known_repository_name, repository_name};
+use crate::name::parsing::{
+    is_legal_package_name_chr,
+    known_repository_name,
+    package_name,
+    repository_name,
+};
 use crate::version::Version;
-use crate::version::parsing::version;
+use crate::version::parsing::{version, version_str};
 
 mod ident;
 mod request;
@@ -141,6 +146,37 @@ where
             )),
         ),
     ))
+}
+
+/// Expect a repository name in the context of an identity.
+///
+/// This parser expects that the repository name is followed by
+/// a '/' within the input, and fails if the input is more likely
+/// to be a package name, even if it might be a valid repository
+/// name.
+///
+/// This function is generic over the type of package-like and
+/// version-like expression that is expected.
+pub fn repo_name_from_ident<'a, 'b, E>(
+    input: &'b str,
+    known_repositories: &'a HashSet<&str>,
+) -> IResult<&'b str, Option<&'b RepositoryName>, E>
+where
+    E: ParseError<&'b str>
+        + ContextError<&'b str>
+        + FromExternalError<&'b str, crate::ident_build::Error>
+        + FromExternalError<&'b str, crate::version::Error>
+        + FromExternalError<&'b str, std::num::ParseIntError>
+        + TagError<&'b str, &'static str>,
+{
+    let (input, repository_name) = opt(repo_name_in_ident(
+        known_repositories,
+        package_name,
+        version_str,
+        version_and_build,
+    ))(input)?;
+
+    Ok((input, repository_name))
 }
 
 /// Parse a version and optional build in the context of an identity string.
