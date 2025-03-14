@@ -9,7 +9,7 @@ use spk_schema::name::{PkgName, PkgNameBuf};
 use spk_schema::version_range::{LowestSpecifiedRange, Ranged};
 use spk_schema::{SpecTemplate, Template, TemplateExt};
 
-use crate::error;
+use crate::error::{self, BuildError};
 
 #[cfg(test)]
 #[path = "workspace_test.rs"]
@@ -32,7 +32,7 @@ pub struct Workspace {
     pub(crate) templates: HashMap<PkgNameBuf, Vec<ConfiguredTemplate>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ConfiguredTemplate {
     pub template: SpecTemplate,
     pub config: crate::file::TemplateConfig,
@@ -62,21 +62,47 @@ impl Workspace {
         // that find_package_recipe_from_template_or_repo() can operate
         // correctly.
         let Some((_name, template)) = iter.next() else {
-            return FindPackageTemplateResult::NoTemplateFiles;
+            return Err(FindPackageTemplateError::NoTemplateFiles);
         };
 
         if iter.next().is_some() {
-            let all = self.templates.values().flatten().collect();
-            return FindPackageTemplateResult::MultipleTemplateFiles(all);
+            let all = self.templates.values().flatten().cloned().collect();
+            return Err(FindPackageTemplateError::MultipleTemplates(all));
         };
 
-        FindPackageTemplateResult::Found(template)
+        Ok(template)
+    }
+
+    /// Find a package template by name or filepath.
+    ///
+    /// If there is no existing template loaded for the provided argument
+    /// but it is a valid file path then load it into the workspace.
+    pub fn find_or_load_package_template<S>(
+        &mut self,
+        package: S,
+    ) -> Result<&ConfiguredTemplate, FindOrLoadPackageTemplateError>
+    where
+        S: AsRef<str>,
+    {
+        if let Err(FindPackageTemplateError::NotFound(_)) =
+            self.find_package_template(package.as_ref())
+        {
+            if std::fs::exists(package.as_ref()).ok().unwrap_or_default() {
+                self.load_template_file(package.as_ref())?;
+            }
+        }
+        // NOTE: it would be preferable not to run this function twice and instead return
+        // the value of the first call when it succeeds but doing so results in the
+        // inability to take a mutable reference of self for the loading logic above.
+        // This appears to be a limitation of the compiler so maybe it can be reworked
+        // in the future
+        self.find_package_template(package).map_err(From::from)
     }
 
     /// Find a package template file for the requested package, if any.
     ///
     /// A package name, name with version, or filename can be provided.
-    pub fn find_package_template<S>(&self, package: S) -> FindPackageTemplateResult
+    pub fn find_package_template<S>(&self, package: S) -> FindPackageTemplateResult<'_>
     where
         S: AsRef<str>,
     {
@@ -100,12 +126,14 @@ impl Workspace {
         };
 
         if found.is_empty() {
-            return FindPackageTemplateResult::NotFound(package.to_owned());
+            return Err(FindPackageTemplateError::NotFound(package.to_owned()));
         }
         if found.len() > 1 {
-            return FindPackageTemplateResult::MultipleTemplateFiles(found);
+            return Err(FindPackageTemplateError::MultipleTemplates(
+                found.into_iter().cloned().collect(),
+            ));
         }
-        FindPackageTemplateResult::Found(found[0])
+        Ok(found[0])
     }
 
     /// Like [`Self::find_package_template`], but further filters by package version.
@@ -205,63 +233,81 @@ impl Workspace {
     }
 }
 
+/// Possible errors from the [`Workspace::find_or_load_package_template`] function.
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[diagnostic(
+    url(
+        "https://spkenv.dev/error_codes#{}",
+        self.code().unwrap_or_else(|| Box::new("spk::generic"))
+    )
+)]
+pub enum FindOrLoadPackageTemplateError {
+    /// The template could not be found
+    #[error(transparent)]
+    #[diagnostic(forward(0))]
+    FindPackageTemplateError(#[from] FindPackageTemplateError),
+    /// The template file could not be loaded or had errors
+    #[error(transparent)]
+    #[diagnostic(forward(0))]
+    BuildError(#[from] BuildError),
+}
+
 /// The result of the [`Workspace::find_package_template`] function.
-#[derive(Debug)]
-pub enum FindPackageTemplateResult<'a> {
-    /// A non-ambiguous package template file was found
-    Found(&'a ConfiguredTemplate),
+pub type FindPackageTemplateResult<'workspace> =
+    Result<&'workspace ConfiguredTemplate, FindPackageTemplateError>;
+
+/// Possible errors for [`Workspace::find_package_template`] and related functions.
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[diagnostic(
+    url(
+        "https://spkenv.dev/error_codes#{}",
+        self.code().unwrap_or_else(|| Box::new("spk::generic"))
+    )
+)]
+pub enum FindPackageTemplateError {
     /// No package was specifically requested, and there are multiple
     /// files in the current repository.
-    MultipleTemplateFiles(Vec<&'a ConfiguredTemplate>),
+    #[error("Multiple package specs in current workspace:\n{}", self.formatted_packages_list())]
+    #[diagnostic(help = "ensure that you specify a package name, file path or version")]
+    MultipleTemplates(Vec<ConfiguredTemplate>),
     /// No package was specifically requested, and there no template
     /// files in the current repository.
+    #[error("No package specs found in current workspace")]
+    #[diagnostic(help = "please specify a spec file path")]
     NoTemplateFiles,
     /// The template file was not found
+    #[error("Spec file not found for '{0}', or the file does not exist")]
     NotFound(String),
 }
 
-impl<'a> FindPackageTemplateResult<'a> {
-    ///True if a template file was found
-    pub fn is_found(&self) -> bool {
-        matches!(self, Self::Found { .. })
-    }
-
-    /// Prints error messages and exits if no template file was found
-    pub fn must_be_found(self) -> &'a ConfiguredTemplate {
-        match self {
-            Self::Found(template) => return template,
-            Self::MultipleTemplateFiles(templates) => {
-                let mut here = std::env::current_dir().unwrap_or_default();
-                here = here.canonicalize().unwrap_or(here);
-                tracing::error!("Multiple package specs in current workspace:");
-                for configured in templates {
-                    // attempt to strip the current working directory from each path
-                    // because in most cases it was loaded from the active workspace
-                    // and the additional path prefix is just noise
-                    let path = configured.template.file_path();
-                    let path = path.strip_prefix(&here).unwrap_or(path).to_string_lossy();
-                    let mut versions = configured
-                        .config
-                        .versions
-                        .iter()
-                        .map(ToString::to_string)
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    if versions.is_empty() {
-                        versions.push_str("<any>");
-                    }
-                    tracing::error!(" - {path} versions=[{versions}]",);
-                }
-                tracing::error!(" > ensure that you specify a package name, file path or version");
+impl FindPackageTemplateError {
+    /// Generates a list-formatted, one-per-line string of the available templates
+    /// when the error contains such information. Eg for [`FindPackageTemplateError::MultipleTemplates`].
+    fn formatted_packages_list(&self) -> String {
+        let Self::MultipleTemplates(templates) = self else {
+            return String::new();
+        };
+        let mut lines = Vec::with_capacity(templates.len());
+        let mut here = std::env::current_dir().unwrap_or_default();
+        here = here.canonicalize().unwrap_or(here);
+        for configured in templates {
+            // attempt to strip the current working directory from each path
+            // because in most cases it was loaded from the active workspace
+            // and the additional path prefix is just noise
+            let path = configured.template.file_path();
+            let path = path.strip_prefix(&here).unwrap_or(path).to_string_lossy();
+            let mut versions = configured
+                .config
+                .versions
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(", ");
+            if versions.is_empty() {
+                versions.push_str("<any>");
             }
-            Self::NoTemplateFiles => {
-                tracing::error!("No package specs found in current workspace");
-                tracing::error!(" > please specify a filepath");
-            }
-            Self::NotFound(request) => {
-                tracing::error!("Spec file not found for '{request}', or the file does not exist");
-            }
+            lines.push(format!(" - {path} versions=[{versions}]"));
         }
-        std::process::exit(1);
+        lines.join("\n")
     }
 }
