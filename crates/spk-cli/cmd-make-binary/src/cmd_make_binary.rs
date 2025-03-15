@@ -26,7 +26,7 @@ mod cmd_make_binary_test;
 #[clap(visible_aliases = &["mkbinary", "mkbin", "mkb"])]
 pub struct MakeBinary {
     #[clap(flatten)]
-    pub repos: flags::Repositories,
+    pub solver: flags::Solver,
     #[clap(flatten)]
     pub options: flags::Options,
     #[clap(flatten)]
@@ -53,9 +53,6 @@ pub struct MakeBinary {
     /// Build only the specified variants
     #[clap(flatten)]
     pub variant: flags::Variant,
-
-    #[clap(flatten)]
-    pub formatter_settings: flags::DecisionFormatterSettings,
 
     /// Allow dependencies of the package being built to have a dependency on
     /// this package.
@@ -93,7 +90,7 @@ impl Run for MakeBinary {
         let (_runtime, local, repos) = tokio::try_join!(
             self.runtime.ensure_active_runtime(&["make-binary", "mkbinary", "mkbin", "mkb"]),
             storage::local_repository().map_ok(storage::RepositoryHandle::from).map_err(miette::Error::from),
-            async { self.repos.get_repos_for_non_destructive_operation().await }
+            async { self.solver.repos.get_repos_for_non_destructive_operation().await }
         )?;
         let repos = repos
             .into_iter()
@@ -164,7 +161,8 @@ impl Run for MakeBinary {
 
                 // Always show the solution packages for the solves
                 let mut fmt_builder = self
-                    .formatter_settings
+                    .solver
+                    .decision_formatter_settings
                     .get_formatter_builder(self.verbose)?;
                 let src_formatter = fmt_builder
                     .with_solution(true)
@@ -175,12 +173,14 @@ impl Run for MakeBinary {
                     .with_header("Build Resolver ")
                     .build();
 
-                let mut builder = BinaryPackageBuilder::from_recipe((*recipe).clone());
+                let solver = self.solver.get_solver(&self.options).await?;
+                let mut builder =
+                    BinaryPackageBuilder::from_recipe_with_solver((*recipe).clone(), solver);
                 builder
                     .with_repositories(repos.iter().cloned())
                     .set_interactive(self.interactive)
-                    .with_source_resolver(&src_formatter)
-                    .with_build_resolver(&build_formatter)
+                    .with_source_formatter(src_formatter)
+                    .with_build_formatter(build_formatter)
                     .with_allow_circular_dependencies(self.allow_circular_dependencies);
 
                 if self.here {

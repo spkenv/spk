@@ -35,30 +35,35 @@ console = { workspace = true }
 crossterm = "0.28.1"
 ctrlc = "3.2"
 dyn-clone = { workspace = true }
+enum_dispatch = { workspace = true }
 futures = { workspace = true }
 itertools = { workspace = true }
-once_cell = { workspace = true }
-priority-queue = "1.2"
+miette = { workspace = true }
 num-bigint = "0.4.3"
 num-format = { version = "0.4.4", features = ["with-num-bigint"] }
-serde_json = { workspace = true }
+once_cell = { workspace = true }
+priority-queue = "1.2"
+resolvo = { workspace = true, features = ["tokio"] }
 sentry = { workspace = true, optional = true }
+serde_json = { workspace = true }
 signal-hook = "0.3"
 spfs = { workspace = true }
 spk-config = { workspace = true }
+spk-schema = { workspace = true }
 spk-solve-graph = { workspace = true }
 spk-solve-package-iterator = { workspace = true }
 spk-solve-solution = { workspace = true }
 spk-solve-validation = { workspace = true }
-spk-schema = { workspace = true }
 spk-storage = { workspace = true }
 statsd = { version = "0.15.0", optional = true }
+strum = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }
-miette = { workspace = true }
+variantly = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
 spk-solve-macros = { workspace = true }
 strip-ansi-escapes = { workspace = true }
+tap = { workspace = true }

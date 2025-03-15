@@ -25,6 +25,7 @@ async fn basic_environment_generation(
     tmpdir: tempfile::TempDir,
     #[case] env_spec: &str,
     #[case] expected: &str,
+    #[values("cli", "checks", "resolvo")] solver_to_run: &str,
 ) {
     let rt = spfs_runtime().await;
 
@@ -43,6 +44,7 @@ install:
         {env_spec}
         "#
         ),
+        solver_to_run
     );
 
     let mut result = result.expect("Expected build to succeed");

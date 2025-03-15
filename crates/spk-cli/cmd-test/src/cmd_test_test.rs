@@ -18,8 +18,11 @@ struct TestOpt {
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
-async fn test_all_test_stages_succeed(tmpdir: tempfile::TempDir) {
+async fn test_all_test_stages_succeed(tmpdir: tempfile::TempDir, #[case] solver_to_run: &str) {
     // A var that appears in the variant list and doesn't appear in the
     // build.options list should still affect the build hash / produce a
     // unique build.
@@ -44,7 +47,8 @@ tests:
   - stage: install
     script:
       - "true"
-"#
+"#,
+        solver_to_run
     );
 
     let mut opt = TestOpt::try_parse_from([
@@ -60,8 +64,14 @@ tests:
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
-async fn test_install_test_picks_same_digest_as_build(tmpdir: tempfile::TempDir) {
+async fn test_install_test_picks_same_digest_as_build(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
     let _rt = spfs_runtime().await;
 
     build_package!(
@@ -72,7 +82,8 @@ pkg: a-pkg-with-no-version-specified/1.0.0
 build:
   script:
     - "true"
-"#
+"#,
+        solver_to_run
     );
 
     let filename_str = build_package!(
@@ -90,7 +101,8 @@ tests:
   - stage: install
     script:
       - "true"
-"#
+"#,
+        solver_to_run
     );
 
     let mut opt = TestOpt::try_parse_from([
@@ -112,9 +124,13 @@ tests:
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
 async fn test_install_test_picks_same_digest_as_build_with_new_dep_in_variant(
     tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
 ) {
     let _rt = spfs_runtime().await;
 
@@ -126,7 +142,8 @@ pkg: dep-a/1.2.3
 build:
   script:
     - "true"
-"#
+"#,
+        solver_to_run
     );
 
     build_package!(
@@ -137,7 +154,8 @@ pkg: dep-b/1.2.3
 build:
   script:
     - "true"
-"#
+"#,
+        solver_to_run
     );
 
     // Note that "dep-b" is introduced as a new dependency in the variant.
@@ -158,7 +176,8 @@ tests:
   - stage: install
     script:
       - "true"
-"#
+"#,
+        solver_to_run
     );
 
     let mut opt = TestOpt::try_parse_from([
@@ -180,9 +199,13 @@ tests:
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
 async fn test_install_test_picks_same_digest_as_build_with_new_dep_in_variant_plus_command_line_overrides(
     tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
 ) {
     let _rt = spfs_runtime().await;
 
@@ -194,7 +217,8 @@ pkg: dep-a/1.2.5
 build:
   script:
     - "true"
-"#
+"#,
+        solver_to_run
     );
 
     build_package!(
@@ -205,7 +229,8 @@ pkg: dep-b/1.2.3
 build:
   script:
     - "true"
-"#
+"#,
+        solver_to_run
     );
 
     let filename_str = build_package!(
@@ -226,6 +251,7 @@ tests:
     script:
       - "true"
 "#,
+        solver_to_run,
         // Extra build options specified here.
         "--opt",
         "dep-a=1.2.4"
@@ -253,9 +279,13 @@ tests:
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
 async fn test_install_test_picks_same_digest_as_build_with_circular_dependencies(
     tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
 ) {
     let _rt = spfs_runtime().await;
 
@@ -268,7 +298,8 @@ pkg: some-other/1.2.0
 build:
   script:
     - "true"
-"#
+"#,
+        solver_to_run
     );
 
     build_package!(
@@ -285,7 +316,8 @@ install:
   requirements:
     - pkg: some-other
       fromBuildEnv: true
-"#
+"#,
+        solver_to_run
     );
 
     build_package!(
@@ -305,7 +337,8 @@ install:
       fromBuildEnv: true
     - pkg: some-other
       fromBuildEnv: true
-"#
+"#,
+        solver_to_run
     );
 
     let filename_str = build_package!(
@@ -333,6 +366,7 @@ tests:
     script:
       - "true"
 "#,
+        solver_to_run
     );
 
     let mut opt = TestOpt::try_parse_from([
@@ -354,8 +388,14 @@ tests:
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
-async fn test_selectors_with_component_names_match_correctly(tmpdir: tempfile::TempDir) {
+async fn test_selectors_with_component_names_match_correctly(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
     let _rt = spfs_runtime().await;
 
     let _ = build_package!(
@@ -376,7 +416,8 @@ install:
     - name: comp2
       files:
         - comp2
-"#
+"#,
+        solver_to_run
     );
 
     // This package is expected to pass both tests.
@@ -404,7 +445,8 @@ tests:
       - { "base:comp2": "1.0.0" }
     script:
       - test -f "$PREFIX"/comp2
-"#
+"#,
+        solver_to_run
     );
 
     let mut opt = TestOpt::try_parse_from([
@@ -442,7 +484,8 @@ tests:
       # If the whole test run fails we know that this selector matched as
       # expected.
       - test -f "$PREFIX"/comp2
-"#
+"#,
+        solver_to_run
     );
 
     let mut opt = TestOpt::try_parse_from([
@@ -480,7 +523,8 @@ tests:
       # If the whole test run fails we know that this selector matched as
       # expected.
       - test -f "$PREFIX"/comp1
-"#
+"#,
+        solver_to_run
     );
 
     let mut opt = TestOpt::try_parse_from([
