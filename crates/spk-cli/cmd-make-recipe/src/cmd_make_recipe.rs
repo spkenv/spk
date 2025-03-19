@@ -45,13 +45,13 @@ impl Run for MakeRecipe {
 
     async fn run(&mut self) -> Result<Self::Output> {
         let options = self.options.get_options()?;
-        let workspace = self.workspace.load_or_default()?;
+        let mut workspace = self.workspace.load_or_default()?;
 
         let configured = match self.package.as_ref() {
-            None => workspace.default_package_template(),
-            Some(p) => workspace.find_package_template(p),
+            Some(p) => workspace.find_or_load_package_template(p),
+            None => workspace.default_package_template().map_err(From::from),
         }
-        .must_be_found();
+        .wrap_err("did not find recipe template")?;
 
         if let Some(name) = configured.template.name() {
             tracing::info!("rendering template for {name}");

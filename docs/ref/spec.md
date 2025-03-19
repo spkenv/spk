@@ -27,7 +27,7 @@ The root package spec defines which fields can and should exist at the top level
 | ----------- | -------------- | ---------------------------------------------------------------------- |
 | description | _str_          | (Optional) A concise, one sentence description of the package          |
 | homepage    | _str_          | (Optional) URL where the package lives                                 |
-| license     | _str_          | (Optional) Package license. If not specified, defaults to _Unlicensed_ |
+| license     | _str_          | (Optional) Package license. If not specified, defaults to _Unlicensed_ |
 | labels      | _Map[str,str]_ | (Optional) A storage for arbitrary key-value data                      |
 
 ## SourceSpec

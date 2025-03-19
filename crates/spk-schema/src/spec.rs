@@ -137,7 +137,7 @@ macro_rules! spec {
 
 /// A generic, structured data object that can be turned into a recipe
 /// when provided with the necessary option values
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SpecTemplate {
     name: Option<PkgNameBuf>,
     versions: HashSet<Version>,
