@@ -1050,22 +1050,6 @@ impl Solver {
             || self.impossible_checks.use_in_build_keys
     }
 
-    /// Adds requests for all build requirements
-    pub fn configure_for_build_environment<T: Recipe>(&mut self, recipe: &T) -> Result<()> {
-        let state = self.get_initial_state();
-
-        let build_options = recipe.resolve_options(state.get_option_map())?;
-        for req in recipe
-            .get_build_requirements(&build_options)?
-            .iter()
-            .cloned()
-        {
-            self.add_request(req)
-        }
-
-        Ok(())
-    }
-
     /// Adds requests for all build requirements and solves
     pub async fn solve_build_environment(&mut self, recipe: &SpecRecipe) -> Result<Solution> {
         self.configure_for_build_environment(recipe)?;
@@ -1106,6 +1090,10 @@ impl Solver {
 impl AbstractSolver for Solver {
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+
+    fn get_options(&self) -> Cow<'_, OptionMap> {
+        Cow::Owned(self.get_initial_state().get_option_map().clone())
     }
 
     fn get_pkg_requests(&self) -> Vec<PkgRequest> {

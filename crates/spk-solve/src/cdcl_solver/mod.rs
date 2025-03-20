@@ -299,6 +299,10 @@ impl AbstractSolver for Solver {
         self
     }
 
+    fn get_options(&self) -> Cow<'_, OptionMap> {
+        Cow::Borrowed(&self.options)
+    }
+
     fn get_pkg_requests(&self) -> Vec<PkgRequest> {
         self.requests
             .iter()

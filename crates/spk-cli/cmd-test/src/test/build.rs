@@ -117,8 +117,8 @@ where
         for repo in self.repos.iter().cloned() {
             solver.add_repository(repo);
         }
-        // TODO
-        // solver.configure_for_build_environment(&self.recipe)?;
+        // Configure solver for build environment.
+        solver.configure_for_build_environment(&self.recipe)?;
         for request in self.additional_requirements.drain(..) {
             solver.add_request(request)
         }
