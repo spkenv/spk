@@ -306,6 +306,10 @@ impl Solver {
 }
 
 impl SolverTrait for Solver {
+    fn get_options(&self) -> Cow<'_, OptionMap> {
+        Cow::Borrowed(&self.options)
+    }
+
     fn get_pkg_requests(&self) -> Vec<PkgRequest> {
         self.requests
             .iter()

@@ -541,3 +541,58 @@ tests:
         .await
         .expect_err("the test run should fail, otherwise the selectors aren't working properly");
 }
+
+#[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
+#[tokio::test]
+async fn build_stage_test_env_includes_build_deps(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
+    let _rt = spfs_runtime().await;
+
+    let _ = build_package!(
+        tmpdir,
+        "base.spk.yaml",
+        br#"
+pkg: base/1.0.0
+build:
+  script:
+    - touch "$PREFIX"/base
+"#,
+        solver_to_run
+    );
+
+    let filename_str = build_package!(
+        tmpdir,
+        "simple1.spk.yaml",
+        br#"
+pkg: simple1/1.0.0
+build:
+  options:
+    - pkg: base
+  script:
+    - "true"
+
+tests:
+  - stage: build
+    script:
+      # simple's build options should exist in a build stage test environment.
+      - test -f "$PREFIX"/base
+"#,
+        solver_to_run
+    );
+
+    let mut opt = TestOpt::try_parse_from([
+        "test",
+        // Don't exec a new process to move into a new runtime, this confuses
+        // coverage testing.
+        "--no-runtime",
+        "--disable-repo=origin",
+        filename_str,
+    ])
+    .unwrap();
+    opt.test.run().await.unwrap();
+}
