@@ -32,15 +32,12 @@ pub struct CmdTest {
     #[clap(flatten)]
     pub runtime: flags::Runtime,
     #[clap(flatten)]
-    pub repos: flags::Repositories,
+    pub solver: flags::Solver,
     #[clap(flatten)]
     pub workspace: flags::Workspace,
 
     #[clap(short, long, global = true, action = clap::ArgAction::Count)]
     pub verbose: u8,
-
-    #[clap(flatten)]
-    pub formatter_settings: flags::DecisionFormatterSettings,
 
     /// Test in the current directory, instead of the source package
     ///
@@ -69,7 +66,7 @@ impl Run for CmdTest {
         let options = self.options.get_options()?;
         let (_runtime, repos) = tokio::try_join!(
             self.runtime.ensure_active_runtime(&["test"]),
-            self.repos.get_repos_for_non_destructive_operation()
+            self.solver.repos.get_repos_for_non_destructive_operation()
         )?;
         let repos = repos
             .into_iter()
@@ -158,7 +155,8 @@ impl Run for CmdTest {
                     );
                     for (index, test) in selected.into_iter().enumerate() {
                         let mut builder = self
-                            .formatter_settings
+                            .solver
+                            .decision_formatter_settings
                             .get_formatter_builder(self.verbose)?;
                         let src_formatter = builder.with_header("Source Resolver ").build();
                         let build_src_formatter =
@@ -169,22 +167,32 @@ impl Run for CmdTest {
 
                         let mut tester: Box<dyn Tester> = match stage {
                             TestStage::Sources => {
-                                let mut tester =
-                                    PackageSourceTester::new((*recipe).clone(), test.script());
+                                let solver = self.solver.get_solver(&self.options).await?;
+
+                                let mut tester = PackageSourceTester::new(
+                                    (*recipe).clone(),
+                                    test.script(),
+                                    solver,
+                                );
 
                                 tester
                                     .with_options(variant.options().into_owned())
                                     .with_repositories(repos.iter().cloned())
                                     .with_requirements(test.additional_requirements())
                                     .with_source(source.clone())
-                                    .watch_environment_resolve(&src_formatter);
+                                    .watch_environment_formatter(src_formatter);
 
                                 Box::new(tester)
                             }
 
                             TestStage::Build => {
-                                let mut tester =
-                                    PackageBuildTester::new((*recipe).clone(), test.script());
+                                let solver = self.solver.get_solver(&self.options).await?;
+
+                                let mut tester = PackageBuildTester::new(
+                                    (*recipe).clone(),
+                                    test.script(),
+                                    solver,
+                                );
 
                                 tester
                                     .with_options(variant.options().into_owned())
@@ -208,17 +216,20 @@ impl Run for CmdTest {
                                             },
                                         ),
                                     )
-                                    .with_source_resolver(&build_src_formatter)
-                                    .with_build_resolver(&build_formatter);
+                                    .with_source_formatter(build_src_formatter)
+                                    .with_build_formatter(build_formatter);
 
                                 Box::new(tester)
                             }
 
                             TestStage::Install => {
+                                let solver = self.solver.get_solver(&self.options).await?;
+
                                 let mut tester = PackageInstallTester::new(
                                     (*recipe).clone(),
                                     test.script(),
                                     &variant,
+                                    solver,
                                 );
 
                                 tester
@@ -227,7 +238,7 @@ impl Run for CmdTest {
                                     .with_requirements(test.additional_requirements())
                                     .with_requirements(options_reqs.clone())
                                     .with_source(source.clone())
-                                    .watch_environment_resolve(&install_formatter);
+                                    .watch_environment_formatter(install_formatter);
 
                                 Box::new(tester)
                             }
