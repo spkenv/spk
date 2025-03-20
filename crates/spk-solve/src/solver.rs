@@ -3,11 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use enum_dispatch::enum_dispatch;
 use spk_schema::ident::{PkgRequest, VarRequest};
-use spk_schema::{OptionMap, Request};
+use spk_schema::{OptionMap, Recipe, Request};
 use spk_solve_solution::Solution;
 use spk_storage::RepositoryHandle;
 use variantly::Variantly;
@@ -29,6 +30,12 @@ pub enum SolverImpl {
 pub trait Solver {
     fn as_any(&self) -> &dyn std::any::Any;
 
+    /// Return the options that the solver is currently configured with.
+    ///
+    /// These are the options that have been set via
+    /// [`AbstractSolverMut::update_options`].
+    fn get_options(&self) -> Cow<'_, OptionMap>;
+
     /// Return the PkgRequests added to the solver.
     fn get_pkg_requests(&self) -> Vec<PkgRequest>;
 
@@ -41,9 +48,25 @@ pub trait Solver {
 
 #[async_trait::async_trait]
 #[enum_dispatch]
-pub trait SolverMut {
+pub trait SolverMut: Solver {
     /// Add a request to this solver.
     fn add_request(&mut self, request: Request);
+
+    /// Adds requests for all build requirements of the given recipe.
+    fn configure_for_build_environment<T: Recipe>(&mut self, recipe: &T) -> Result<()> {
+        let options = self.get_options();
+
+        let build_options = recipe.resolve_options(&*options)?;
+        for req in recipe
+            .get_build_requirements(&build_options)?
+            .iter()
+            .cloned()
+        {
+            self.add_request(req)
+        }
+
+        Ok(())
+    }
 
     /// Put this solver back into its default state
     fn reset(&mut self);
@@ -93,6 +116,10 @@ where
         T::as_any(self)
     }
 
+    fn get_options(&self) -> Cow<'_, OptionMap> {
+        T::get_options(self)
+    }
+
     fn get_pkg_requests(&self) -> Vec<PkgRequest> {
         T::get_pkg_requests(self)
     }
@@ -112,6 +139,10 @@ where
 {
     fn as_any(&self) -> &dyn std::any::Any {
         T::as_any(self)
+    }
+
+    fn get_options(&self) -> Cow<'_, OptionMap> {
+        T::get_options(self)
     }
 
     fn get_pkg_requests(&self) -> Vec<PkgRequest> {
