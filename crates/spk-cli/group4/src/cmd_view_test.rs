@@ -75,6 +75,47 @@ api: v0/package
 
 #[rstest]
 #[tokio::test]
+async fn view_on_filename_and_default_workspace_and_garbage_file(tmpdir: tempfile::TempDir) {
+    init_logging();
+
+    let full_name = tmpdir.path().join("package.spk.yaml");
+
+    let mut file = File::create(&full_name).unwrap();
+    file.write_all(
+        r#"
+pkg: test/1.0.0
+api: v0/package
+"#
+        .as_bytes(),
+    )
+    .unwrap();
+
+    let mut file = File::create(tmpdir.path().join("garbage.spk.yaml")).unwrap();
+    file.write_all(
+        r#"
+this isn't a recipe file
+"#
+        .as_bytes(),
+    )
+    .unwrap();
+
+    let mut opt = Opt::try_parse_from([
+        "view",
+        "-vvv",
+        "--workspace",
+        &tmpdir.path().to_string_lossy(),
+        // A straight `spk info package.spk.yaml` fails with "Failed to parse
+        // request" and/or "yaml was expected to contain a list of requests"
+        // but using the `--variants` flag still does something expected.
+        "--variants",
+        &full_name.to_string_lossy(),
+    ])
+    .unwrap();
+    opt.view.run().await.unwrap();
+}
+
+#[rstest]
+#[tokio::test]
 async fn view_on_filename_in_sibling_dir_and_default_workspace(
     #[from(tmpdir)] tmpdir1: tempfile::TempDir,
     #[from(tmpdir)] tmpdir2: tempfile::TempDir,

@@ -97,7 +97,15 @@ impl WorkspaceBuilder {
     pub fn build(self) -> Result<super::Workspace, error::BuildError> {
         let mut workspace = super::Workspace::default();
         for (file, config) in self.spec_files {
-            workspace.load_template_file_with_config(file, config)?;
+            match workspace.load_template_file_with_config(&file, config) {
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::warn!(
+                        file = file.to_string_lossy().to_string(),
+                        "ignoring template file: {e}"
+                    );
+                }
+            }
         }
         Ok(workspace)
     }

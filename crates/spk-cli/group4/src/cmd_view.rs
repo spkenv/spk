@@ -127,7 +127,11 @@ impl Run for View {
     async fn run(&mut self) -> Result<Self::Output> {
         if self.variants || self.variants_with_tests {
             let options = self.options.get_options()?;
-            let mut workspace = self.requests.workspace.load_or_default()?;
+            let mut workspace = self
+                .requests
+                .workspace
+                .load_or_default()
+                .wrap_err("loading workspace")?;
             return self.print_variants_info(&options, &mut workspace, self.variants_with_tests);
         }
 
