@@ -723,6 +723,7 @@ impl Workspace {
                     .with_glob_pattern("*.spk.yaml")?
                     .build()
                     .into_diagnostic()
+                    .wrap_err("loading *.spk.yaml")
             }
             Err(err) => Err(err.into()),
         }
