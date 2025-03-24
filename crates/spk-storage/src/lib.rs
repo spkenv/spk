@@ -10,7 +10,7 @@ pub use error::{Error, Result};
 pub use storage::{
     CachePolicy,
     MemRepository,
-    NameAndRepositoryWithTagStrategy,
+    NameAndRepository,
     Repository,
     RepositoryHandle,
     RuntimeRepository,

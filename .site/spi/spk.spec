@@ -36,7 +36,7 @@ export SPDEV_CONFIG_FILE=.site/spi/.spdev.yaml
 dev toolchain install
 source ~/.bashrc
 # Include `--all` to also build spk-launcher
-dev env -- cargo build --release --features "migration-to-components,sentry,spfs/protobuf-src,statsd,fuse-backend-rhel-7-6,legacy-spk-version-tags,legacy-spk-version-tags-for-writes" --all
+dev env -- cargo build --release --features "migration-to-components,sentry,spfs/protobuf-src,statsd,fuse-backend-rhel-7-6,legacy-spk-version-tags" --all
 
 %install
 mkdir -p %{buildroot}/usr/local/bin

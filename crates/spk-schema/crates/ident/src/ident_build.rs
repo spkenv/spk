@@ -8,7 +8,7 @@ use std::str::FromStr;
 use relative_path::RelativePathBuf;
 use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::ident_ops::parsing::IdentPartsBuf;
-use spk_schema_foundation::ident_ops::{MetadataPath, TagPath, TagPathStrategy};
+use spk_schema_foundation::ident_ops::{MetadataPath, TagPath};
 use spk_schema_foundation::name::{PkgName, PkgNameBuf, RepositoryNameBuf};
 use spk_schema_foundation::spec_ops::prelude::*;
 use spk_schema_foundation::version::Version;
@@ -176,10 +176,16 @@ impl TryFrom<&IdentPartsBuf> for BuildIdent {
 }
 
 impl TagPath for BuildIdent {
-    fn tag_path<S: TagPathStrategy>(&self) -> RelativePathBuf {
+    fn tag_path(&self) -> RelativePathBuf {
         RelativePathBuf::from(self.name().as_str())
-            .join(self.version().tag_path::<S>())
-            .join(self.build().tag_path::<S>())
+            .join(self.version().tag_path())
+            .join(self.build().tag_path())
+    }
+
+    fn verbatim_tag_path(&self) -> RelativePathBuf {
+        RelativePathBuf::from(self.name().as_str())
+            .join(self.version().verbatim_tag_path())
+            .join(self.build().verbatim_tag_path())
     }
 }
 

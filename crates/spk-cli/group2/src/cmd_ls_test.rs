@@ -10,7 +10,6 @@ use spfs::config::Remote;
 use spfs::prelude::*;
 use spfs::storage::EntryType;
 use spk_schema::foundation::ident_component::Component;
-use spk_schema::ident_ops::VerbatimTagStrategy;
 use spk_schema::name::OptName;
 use spk_schema::recipe;
 use spk_solve::option_map::HOST_OPTIONS;
@@ -631,7 +630,7 @@ async fn test_ls_shows_partially_deprecated_version() {
 /// list the package.
 #[tokio::test]
 async fn test_ls_succeeds_for_package_saved_with_legacy_version_tag() {
-    let mut rt = spfs_runtime_with_tag_strategy::<VerbatimTagStrategy>().await;
+    let mut rt = spfs_runtime().await;
     let remote_repo = spfsrepo().await;
 
     rt.add_remote_repo(
@@ -657,7 +656,7 @@ async fn test_ls_succeeds_for_package_saved_with_legacy_version_tag() {
 
     // Confirm that the tag was created with the legacy version tag strategy.
     match &*rt.tmprepo {
-        RepositoryHandle::SPFSWithVerbatimTags(spfs) => {
+        RepositoryHandle::SPFS(spfs) => {
             assert!(
                 spfs.ls_tags(&RelativePathBuf::from("spk/spec/my-local-pkg"))
                     .filter(|tag| {
@@ -669,7 +668,7 @@ async fn test_ls_succeeds_for_package_saved_with_legacy_version_tag() {
                 "expected \"1.0.0\" tag to be found"
             );
         }
-        _ => panic!("expected SPFSWithVerbatimTags"),
+        _ => panic!("expected SPFS"),
     }
 
     let mut opt = Opt::try_parse_from([

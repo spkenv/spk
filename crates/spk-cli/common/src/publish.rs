@@ -199,7 +199,7 @@ impl Publisher {
         };
 
         for build in builds.iter() {
-            use storage::RepositoryHandle::{SPFS, SPFSWithVerbatimTags};
+            use storage::RepositoryHandle::SPFS;
 
             if build.is_source() && self.skip_source_packages {
                 tracing::info!("skipping source package: {}", build.format_ident());
@@ -223,11 +223,6 @@ impl Publisher {
             );
             let syncer = match (&*self.from, &*self.to) {
                 (SPFS(src), SPFS(dest)) => spfs::Syncer::new(src, dest),
-                (SPFS(src), SPFSWithVerbatimTags(dest)) => spfs::Syncer::new(src, dest),
-                (SPFSWithVerbatimTags(src), SPFS(dest)) => spfs::Syncer::new(src, dest),
-                (SPFSWithVerbatimTags(src), SPFSWithVerbatimTags(dest)) => {
-                    spfs::Syncer::new(src, dest)
-                }
                 _ => {
                     return Err(Error::String(
                         "Source and destination must both be spfs repositories".into(),

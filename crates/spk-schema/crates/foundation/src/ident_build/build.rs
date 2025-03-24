@@ -12,7 +12,7 @@ use thiserror::Error;
 use super::BuildId;
 use crate::ident_component::{Component, Components};
 use crate::ident_ops::parsing::IdentPartsBuf;
-use crate::ident_ops::{MetadataPath, TagPath, TagPathStrategy};
+use crate::ident_ops::{MetadataPath, TagPath};
 
 #[cfg(test)]
 #[path = "./build_test.rs"]
@@ -153,7 +153,14 @@ impl MetadataPath for Build {
 }
 
 impl TagPath for Build {
-    fn tag_path<S: TagPathStrategy>(&self) -> RelativePathBuf {
+    fn tag_path(&self) -> RelativePathBuf {
+        self.metadata_path()
+    }
+
+    fn verbatim_tag_path(&self) -> RelativePathBuf {
+        // No difference between verbatim and non-verbatim for builds, which
+        // don't hold a version number (except for embedded, where it doesn't
+        // matter(?)).
         self.metadata_path()
     }
 }

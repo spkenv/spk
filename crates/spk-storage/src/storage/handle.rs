@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use spk_schema::ident_ops::{NormalizedTagStrategy, VerbatimTagStrategy};
 use spk_schema::{Spec, SpecRecipe};
 
 use super::Repository;
@@ -12,8 +11,7 @@ type Handle = dyn Repository<Recipe = SpecRecipe, Package = Spec>;
 #[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[allow(clippy::large_enum_variant)]
 pub enum RepositoryHandle {
-    SPFS(super::SpfsRepository<NormalizedTagStrategy>),
-    SPFSWithVerbatimTags(super::SpfsRepository<VerbatimTagStrategy>),
+    SPFS(super::SpfsRepository),
     Mem(super::MemRepository<SpecRecipe>),
     Runtime(super::RuntimeRepository),
 }
@@ -33,7 +31,7 @@ impl RepositoryHandle {
     }
 
     pub fn is_spfs(&self) -> bool {
-        matches!(self, Self::SPFS(_) | Self::SPFSWithVerbatimTags(_))
+        matches!(self, Self::SPFS(_))
     }
 
     pub fn is_mem(&self) -> bool {
@@ -47,7 +45,6 @@ impl RepositoryHandle {
     pub fn to_repo(self) -> Box<Handle> {
         match self {
             Self::SPFS(repo) => Box::new(repo),
-            Self::SPFSWithVerbatimTags(repo) => Box::new(repo),
             Self::Mem(repo) => Box::new(repo),
             Self::Runtime(repo) => Box::new(repo),
         }
@@ -60,7 +57,6 @@ impl std::ops::Deref for RepositoryHandle {
     fn deref(&self) -> &Self::Target {
         match self {
             RepositoryHandle::SPFS(repo) => repo,
-            RepositoryHandle::SPFSWithVerbatimTags(repo) => repo,
             RepositoryHandle::Mem(repo) => repo,
             RepositoryHandle::Runtime(repo) => repo,
         }
@@ -71,22 +67,15 @@ impl std::ops::DerefMut for RepositoryHandle {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
             RepositoryHandle::SPFS(repo) => repo,
-            RepositoryHandle::SPFSWithVerbatimTags(repo) => repo,
             RepositoryHandle::Mem(repo) => repo,
             RepositoryHandle::Runtime(repo) => repo,
         }
     }
 }
 
-impl From<super::SpfsRepository<NormalizedTagStrategy>> for RepositoryHandle {
-    fn from(repo: super::SpfsRepository<NormalizedTagStrategy>) -> Self {
+impl From<super::SpfsRepository> for RepositoryHandle {
+    fn from(repo: super::SpfsRepository) -> Self {
         RepositoryHandle::SPFS(repo)
-    }
-}
-
-impl From<super::SpfsRepository<VerbatimTagStrategy>> for RepositoryHandle {
-    fn from(repo: super::SpfsRepository<VerbatimTagStrategy>) -> Self {
-        RepositoryHandle::SPFSWithVerbatimTags(repo)
     }
 }
 

@@ -12,9 +12,6 @@ description = { workspace = true }
 [lints]
 workspace = true
 
-[features]
-legacy-spk-version-tags-for-writes = []
-
 [dependencies]
 miette = { workspace = true, features = ["fancy"] }
 async-trait = { workspace = true }

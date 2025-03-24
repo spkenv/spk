@@ -34,6 +34,7 @@ indexmap = { workspace = true }
 itertools = { workspace = true }
 nom = { workspace = true }
 once_cell = { workspace = true }
+paste = { workspace = true }
 regex = { workspace = true }
 relative-path = { workspace = true }
 ring = { workspace = true }

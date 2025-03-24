@@ -16,7 +16,7 @@ pub use repository::{CachePolicy, Repository, Storage};
 pub use runtime::{RuntimeRepository, find_path_providers, pretty_print_filepath};
 
 pub use self::spfs::{
-    NameAndRepositoryWithTagStrategy,
+    NameAndRepository,
     SpfsRepository,
     SpfsRepositoryHandle,
     local_repository,
