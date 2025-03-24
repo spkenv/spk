@@ -4,7 +4,7 @@ summary: Write package spec files for creating packages.
 weight: 20
 ---
 
-The package specification (spec) file is a yaml or json file which follows the structure detailed below. See the [Package Spec Schema]({{< ref "../ref/spec" >}}) for a more complete set of available fields.
+The package specification (spec) file is a yaml or json file which follows the structure detailed below. See the [Package Spec Schema]({{< ref "../ref/api/v0/package" >}}) for a more complete set of available fields.
 
 ### Name and Version
 
@@ -251,7 +251,7 @@ Build requirements can also be updated in the command line: `spk install --save 
 
 #### Validation
 
-The spk build system performs a number of validations against the package created during a build. These validators can be overridden and further refined using the `validation` portion of the build spec. See [validation rules]({{< ref "../ref/spec" >}}#validationspec)
+The spk build system performs a number of validations against the package created during a build. These validators can be overridden and further refined using the `validation` portion of the build spec. See [validation rules]({{< ref "../ref/api/v0/package" >}}#validationspec)
 
 ### Install Configuration
 
