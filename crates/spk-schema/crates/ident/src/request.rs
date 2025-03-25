@@ -39,6 +39,7 @@ use spk_schema_foundation::version_range::{
     VersionFilter,
 };
 use tap::Tap;
+use variantly::Variantly;
 
 use super::AnyIdent;
 use crate::{BuildIdent, Error, RangeIdent, Result, Satisfy, VersionIdent};
@@ -176,7 +177,7 @@ impl<'de> Deserialize<'de> for PinPolicy {
 }
 
 /// Represents a constraint added to a resolved environment.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Variantly)]
 #[serde(untagged)]
 pub enum Request {
     Pkg(PkgRequest),
@@ -189,28 +190,6 @@ impl Request {
         match self {
             Request::Var(r) => &r.var,
             Request::Pkg(r) => r.pkg.name.as_opt_name(),
-        }
-    }
-
-    pub fn is_pkg(&self) -> bool {
-        matches!(self, Self::Pkg(_))
-    }
-
-    pub fn into_pkg(self) -> Option<PkgRequest> {
-        match self {
-            Self::Pkg(p) => Some(p),
-            _ => None,
-        }
-    }
-
-    pub fn is_var(&self) -> bool {
-        matches!(self, Self::Var(_))
-    }
-
-    pub fn into_var(self) -> Option<VarRequest> {
-        match self {
-            Self::Var(v) => Some(v),
-            _ => None,
         }
     }
 }

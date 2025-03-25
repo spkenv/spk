@@ -6,14 +6,25 @@ use rstest::rstest;
 use spk_schema::foundation::option_map;
 use spk_schema::ident_ops::NormalizedTagStrategy;
 use spk_schema::{Package, recipe};
+use spk_solve::SolverImpl;
 use spk_storage::fixtures::*;
 use spk_storage::{SpfsRepositoryHandle, export_package};
 
 use crate::{BinaryPackageBuilder, BuildSource};
 
+fn og_solver() -> SolverImpl {
+    SolverImpl::Og(spk_solve::Solver::default())
+}
+
+fn cdcl_solver() -> SolverImpl {
+    SolverImpl::Cdcl(spk_solve::cdcl_solver::Solver::default())
+}
+
 #[rstest]
+#[case::og(og_solver())]
+#[case::cdcl(cdcl_solver())]
 #[tokio::test]
-async fn test_archive_create_parents() {
+async fn test_archive_create_parents(#[case] solver: SolverImpl) {
     let rt = spfs_runtime().await;
     let spec = recipe!(
         {
@@ -22,7 +33,7 @@ async fn test_archive_create_parents() {
         }
     );
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
-    let (spec, _) = BinaryPackageBuilder::from_recipe(spec)
+    let (spec, _) = BinaryPackageBuilder::from_recipe_with_solver(spec, solver)
         .with_source(BuildSource::LocalPath(".".into()))
         .build_and_publish(option_map! {}, &*rt.tmprepo)
         .await

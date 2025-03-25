@@ -33,8 +33,8 @@ use spk_schema::{
     Variant,
     VersionIdent,
 };
-use spk_solve::Recipe;
 use spk_solve::solution::{LayerPackageAndComponents, get_spfs_layers_to_packages};
+use spk_solve::{AbstractSolver, AbstractSolverMut, Recipe};
 use spk_storage;
 use strum::{Display, EnumString, IntoEnumIterator, VariantNames};
 
@@ -88,9 +88,6 @@ pub struct View {
     /// Format to output package data in
     #[clap(short = 'f', long)]
     pub format: Option<OutputFormat>,
-
-    #[clap(flatten)]
-    pub formatter_settings: flags::DecisionFormatterSettings,
 
     /// Explicitly get info on a filepath
     #[clap(short = 'F', long)]
@@ -606,7 +603,7 @@ impl View {
     async fn get_package_versions(
         &self,
         name: &PkgNameBuf,
-        repos: &Vec<std::sync::Arc<spk_solve::RepositoryHandle>>,
+        repos: &[std::sync::Arc<spk_solve::RepositoryHandle>],
     ) -> Result<Vec<Version>> {
         let mut versions = Vec::new();
         for repo in repos {
@@ -648,37 +645,42 @@ impl View {
             _ => bail!("Not a package request: {request:?}"),
         };
 
-        let mut runtime = solver.run();
-
-        let formatter = self.formatter_settings.get_formatter(self.verbose)?;
-
-        let result = formatter.run_and_print_decisions(&mut runtime).await;
-        let solution = match result {
-            Ok((s, _)) => s,
-            Err(err) => {
-                println!("{}", err.to_string().red());
-                match self.verbose {
-                    0 => eprintln!("{}", "try '--verbose' for more info".yellow().dimmed(),),
-                    v if v < 2 => {
-                        eprintln!("{}", "try '-vv' for even more info".yellow().dimmed(),)
-                    }
-                    _v => {
-                        let graph = runtime.graph();
-                        let graph = graph.read().await;
-                        // Iter much?
-                        let mut graph_walk = graph.walk();
-                        let walk_iter = graph_walk.iter().map(Ok);
-                        let mut decision_iter = formatter.formatted_decisions_iter(walk_iter);
-                        let iter = decision_iter.iter();
-                        tokio::pin!(iter);
-                        while let Some(line) = iter.try_next().await? {
-                            println!("{line}");
+        let solution = if let Some(solver) = solver.as_any().downcast_ref::<spk_solve::Solver>() {
+            let mut runtime = solver.run();
+            let formatter = self
+                .solver
+                .decision_formatter_settings
+                .get_formatter(self.verbose)?;
+            let result = formatter.run_and_print_decisions(&mut runtime).await;
+            match result {
+                Ok((s, _)) => s,
+                Err(err) => {
+                    println!("{}", err.to_string().red());
+                    match self.verbose {
+                        0 => eprintln!("{}", "try '--verbose' for more info".yellow().dimmed(),),
+                        v if v < 2 => {
+                            eprintln!("{}", "try '-vv' for even more info".yellow().dimmed(),)
+                        }
+                        _v => {
+                            let graph = runtime.graph();
+                            let graph = graph.read().await;
+                            // Iter much?
+                            let mut graph_walk = graph.walk();
+                            let walk_iter = graph_walk.iter().map(Ok);
+                            let mut decision_iter = formatter.formatted_decisions_iter(walk_iter);
+                            let iter = decision_iter.iter();
+                            tokio::pin!(iter);
+                            while let Some(line) = iter.try_next().await? {
+                                println!("{line}");
+                            }
                         }
                     }
-                }
 
-                return Ok(1);
+                    return Ok(1);
+                }
             }
+        } else {
+            solver.solve().await?
         };
 
         for item in solution.items() {
