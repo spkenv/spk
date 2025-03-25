@@ -11,10 +11,10 @@ use spk_schema::{AnyIdent, BuildIdent, VersionIdent};
 use variantly::Variantly;
 
 use super::{Repository, SpfsRepository};
-use crate::{Error, NameAndRepository, Result, SpfsRepositoryHandle};
+use crate::{Error, NameAndRepository, Result};
 
 pub async fn export_package(
-    source_repos: &[SpfsRepositoryHandle<'_>],
+    source_repos: &[&SpfsRepository],
     pkg: impl AsRef<AnyIdent>,
     filename: impl AsRef<Path>,
 ) -> Result<()> {
@@ -150,7 +150,7 @@ pub async fn export_package(
 
 async fn copy_any(
     pkg: AnyIdent,
-    src_repo: &SpfsRepositoryHandle<'_>,
+    src_repo: &SpfsRepository,
     dst_repo: &SpfsRepository,
 ) -> Result<()> {
     match pkg.into_inner() {
@@ -163,7 +163,7 @@ async fn copy_any(
 
 async fn copy_recipe(
     pkg: &VersionIdent,
-    src_repo: &SpfsRepositoryHandle<'_>,
+    src_repo: &SpfsRepository,
     dst_repo: &SpfsRepository,
 ) -> Result<()> {
     let spec = src_repo.read_recipe(pkg).await?;
@@ -174,13 +174,13 @@ async fn copy_recipe(
 
 async fn copy_package(
     pkg: &BuildIdent,
-    src_repo: &SpfsRepositoryHandle<'_>,
+    src_repo: &SpfsRepository,
     dst_repo: &SpfsRepository,
 ) -> Result<()> {
     let spec = src_repo.read_package(pkg).await?;
     let components = src_repo.read_components(pkg).await?;
     tracing::info!(%pkg, "exporting");
-    let syncer = spfs::Syncer::new(src_repo.spfs_repository_handle(), dst_repo)
+    let syncer = spfs::Syncer::new(src_repo, dst_repo)
         .with_reporter(spfs::sync::reporter::SyncReporters::console());
     let desired = components.iter().map(|i| *i.1).collect();
     syncer.sync_env(desired).await?;

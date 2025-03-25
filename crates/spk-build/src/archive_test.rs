@@ -5,8 +5,8 @@
 use rstest::rstest;
 use spk_schema::foundation::option_map;
 use spk_schema::{Package, recipe};
+use spk_storage::export_package;
 use spk_storage::fixtures::*;
-use spk_storage::{SpfsRepositoryHandle, export_package};
 
 use crate::{BinaryPackageBuilder, BuildSource};
 
@@ -28,7 +28,7 @@ async fn test_archive_create_parents() {
         .unwrap();
     let filename = rt.tmpdir.path().join("deep/nested/path/archive.spk");
     let repo = match &*rt.tmprepo {
-        spk_solve::RepositoryHandle::SPFS(repo) => SpfsRepositoryHandle::Normalized(repo),
+        spk_solve::RepositoryHandle::SPFS(repo) => repo,
         spk_solve::RepositoryHandle::Mem(_) | spk_solve::RepositoryHandle::Runtime(_) => {
             panic!("only spfs repositories are supported")
         }

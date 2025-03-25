@@ -9,7 +9,6 @@ use colored::Colorize;
 use miette::{Result, bail};
 use spk_cli_common::{CommandArgs, Run, flags};
 use spk_storage as storage;
-use storage::SpfsRepositoryHandle;
 
 #[cfg(test)]
 #[path = "./cmd_export_test.rs"]
@@ -52,7 +51,7 @@ impl Run for Export {
         let repos = repo_handles
             .iter()
             .map(|repo| match &**repo {
-                storage::RepositoryHandle::SPFS(repo) => Ok(SpfsRepositoryHandle::Normalized(repo)),
+                storage::RepositoryHandle::SPFS(repo) => Ok(repo),
                 storage::RepositoryHandle::Mem(_) | storage::RepositoryHandle::Runtime(_) => {
                     bail!("Only spfs repositories are supported")
                 }

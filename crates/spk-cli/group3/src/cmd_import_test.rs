@@ -7,7 +7,6 @@ use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_cli_common::Run;
 use spk_schema::foundation::option_map;
 use spk_schema::{Package, recipe};
-use spk_storage::SpfsRepositoryHandle;
 use spk_storage::fixtures::*;
 
 #[rstest]
@@ -31,7 +30,7 @@ async fn test_archive_io() {
     let filename = rt.tmpdir.path().join("archive.spk");
     filename.ensure();
     let repo = match &*rt.tmprepo {
-        spk_solve::RepositoryHandle::SPFS(repo) => SpfsRepositoryHandle::Normalized(repo),
+        spk_solve::RepositoryHandle::SPFS(repo) => repo,
         spk_solve::RepositoryHandle::Mem(_) | spk_solve::RepositoryHandle::Runtime(_) => {
             panic!("only spfs repositories are supported")
         }

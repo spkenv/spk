@@ -15,7 +15,6 @@ pub use storage::{
     RepositoryHandle,
     RuntimeRepository,
     SpfsRepository,
-    SpfsRepositoryHandle,
     Storage,
     export_package,
     find_path_providers,

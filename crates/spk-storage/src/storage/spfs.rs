@@ -1308,28 +1308,6 @@ impl StoredPackage {
     }
 }
 
-pub enum SpfsRepositoryHandle<'a> {
-    Normalized(&'a SpfsRepository),
-}
-
-impl SpfsRepositoryHandle<'_> {
-    pub fn spfs_repository_handle(&self) -> &spfs::prelude::RepositoryHandle {
-        match self {
-            Self::Normalized(repo) => &repo.inner,
-        }
-    }
-}
-
-impl std::ops::Deref for SpfsRepositoryHandle<'_> {
-    type Target = dyn crate::storage::Repository<Recipe = SpecRecipe, Package = Spec>;
-
-    fn deref(&self) -> &Self::Target {
-        match self {
-            Self::Normalized(repo) => *repo,
-        }
-    }
-}
-
 /// Return the local packages repository used for development.
 pub async fn local_repository() -> Result<SpfsRepository> {
     let config = spfs::get_config()?;
