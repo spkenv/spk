@@ -7,10 +7,4 @@ pub mod parsing;
 mod tag_path;
 
 pub use metadata_path::MetadataPath;
-pub use tag_path::{
-    NormalizedTagStrategy,
-    TagPath,
-    TagPathStrategy,
-    TagPathStrategyType,
-    VerbatimTagStrategy,
-};
+pub use tag_path::TagPath;

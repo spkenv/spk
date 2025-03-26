@@ -8,7 +8,7 @@ use std::str::FromStr;
 use relative_path::RelativePathBuf;
 use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::ident_ops::parsing::IdentPartsBuf;
-use spk_schema_foundation::ident_ops::{MetadataPath, TagPath, TagPathStrategy};
+use spk_schema_foundation::ident_ops::{MetadataPath, TagPath};
 use spk_schema_foundation::name::{PkgName, PkgNameBuf, RepositoryNameBuf};
 use spk_schema_foundation::version::Version;
 
@@ -142,17 +142,31 @@ impl MetadataPath for AnyIdent {
 }
 
 impl TagPath for AnyIdent {
-    fn tag_path<S: TagPathStrategy>(&self) -> RelativePathBuf {
+    fn tag_path(&self) -> RelativePathBuf {
         let path = RelativePathBuf::from(self.name().as_str());
         match self.build() {
-            Some(build) => path
-                .join(self.version().tag_path::<S>())
-                .join(build.tag_path::<S>()),
+            Some(build) => path.join(self.version().tag_path()).join(build.tag_path()),
             None => {
                 if self.version().is_zero() {
                     path
                 } else {
-                    path.join(self.version().tag_path::<S>())
+                    path.join(self.version().tag_path())
+                }
+            }
+        }
+    }
+
+    fn verbatim_tag_path(&self) -> RelativePathBuf {
+        let path = RelativePathBuf::from(self.name().as_str());
+        match self.build() {
+            Some(build) => path
+                .join(self.version().verbatim_tag_path())
+                .join(build.verbatim_tag_path()),
+            None => {
+                if self.version().is_zero() {
+                    path
+                } else {
+                    path.join(self.version().verbatim_tag_path())
                 }
             }
         }

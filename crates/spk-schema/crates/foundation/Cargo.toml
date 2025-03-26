@@ -34,7 +34,7 @@ itertools = { workspace = true }
 nom = { workspace = true }
 nom-supreme = { workspace = true }
 once_cell = { workspace = true }
-paste = "1.0"
+paste = { workspace = true }
 parsedbuf = { workspace = true }
 rand = { workspace = true }
 relative-path = { workspace = true }

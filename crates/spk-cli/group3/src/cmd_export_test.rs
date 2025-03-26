@@ -6,9 +6,7 @@ use rstest::rstest;
 use spfs::prelude::*;
 use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_schema::foundation::option_map;
-use spk_schema::ident_ops::NormalizedTagStrategy;
 use spk_schema::{Package, recipe};
-use spk_storage::SpfsRepositoryHandle;
 use spk_storage::fixtures::*;
 
 #[rstest]
@@ -55,14 +53,14 @@ async fn test_export_works_with_missing_builds() {
                 .unwrap();
                 spfs.remove_tag_stream(&tag).await.unwrap();
             }
-            SpfsRepositoryHandle::Normalized(spfs)
+            spfs
         }
         _ => panic!("only implemented for spfs repos"),
     };
 
     let filename = rt.tmpdir.path().join("archive.spk");
     filename.ensure();
-    spk_storage::export_package::<NormalizedTagStrategy>(
+    spk_storage::export_package(
         &[repo],
         red_spec
             .ident()

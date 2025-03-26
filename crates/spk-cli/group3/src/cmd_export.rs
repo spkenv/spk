@@ -8,9 +8,7 @@ use clap::{Args, ValueHint};
 use colored::Colorize;
 use miette::{Result, bail};
 use spk_cli_common::{CommandArgs, Run, flags};
-use spk_schema::ident_ops::{NormalizedTagStrategy, VerbatimTagStrategy};
 use spk_storage as storage;
-use storage::SpfsRepositoryHandle;
 
 #[cfg(test)]
 #[path = "./cmd_export_test.rs"]
@@ -36,15 +34,6 @@ pub struct Export {
     /// The file to export into (Defaults to the name and version of the package)
     #[arg(value_hint = ValueHint::FilePath, value_name = "FILE")]
     pub filename: Option<std::path::PathBuf>,
-
-    /// Turn on exporting packages using legacy version tags.
-    ///
-    /// This is enabled by default if built with the
-    /// `legacy-spk-version-tags-for-writes` feature flag. It is only needed if
-    /// writing to a repository that may be read by older versions of spk that
-    /// do not implement version tag normalization.
-    #[clap(long, hide = true, default_value_t = cfg!(feature = "legacy-spk-version-tags-for-writes"))]
-    pub legacy_spk_version_tags_for_writes: bool,
 }
 
 #[async_trait::async_trait]
@@ -62,10 +51,7 @@ impl Run for Export {
         let repos = repo_handles
             .iter()
             .map(|repo| match &**repo {
-                storage::RepositoryHandle::SPFS(repo) => Ok(SpfsRepositoryHandle::Normalized(repo)),
-                storage::RepositoryHandle::SPFSWithVerbatimTags(repo) => {
-                    Ok(SpfsRepositoryHandle::Verbatim(repo))
-                }
+                storage::RepositoryHandle::SPFS(repo) => Ok(repo),
                 storage::RepositoryHandle::Mem(_) | storage::RepositoryHandle::Runtime(_) => {
                     bail!("Only spfs repositories are supported")
                 }
@@ -86,12 +72,7 @@ impl Run for Export {
         let filename = self.filename.clone().unwrap_or_else(|| {
             std::path::PathBuf::from(format!("{}_{}{build}.spk", pkg.name(), pkg.version()))
         });
-        let res = if self.legacy_spk_version_tags_for_writes {
-            storage::export_package::<VerbatimTagStrategy>(repos.as_slice(), &pkg, &filename).await
-        } else {
-            storage::export_package::<NormalizedTagStrategy>(repos.as_slice(), &pkg, &filename)
-                .await
-        };
+        let res = storage::export_package(repos.as_slice(), &pkg, &filename).await;
         if let Err(spk_storage::Error::PackageNotFound(_)) = res {
             tracing::warn!("Ensure that you are specifying at least a package and");
             tracing::warn!("version number when exporting from the local repository");

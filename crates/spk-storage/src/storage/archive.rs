@@ -7,21 +7,17 @@ use std::path::Path;
 
 use itertools::{Itertools, Position};
 use spk_schema::ident::AsVersionIdent;
-use spk_schema::ident_ops::TagPathStrategy;
 use spk_schema::{AnyIdent, BuildIdent, VersionIdent};
 use variantly::Variantly;
 
 use super::{Repository, SpfsRepository};
-use crate::{Error, NameAndRepositoryWithTagStrategy, Result, SpfsRepositoryHandle};
+use crate::{Error, NameAndRepository, Result};
 
-pub async fn export_package<S>(
-    source_repos: &[SpfsRepositoryHandle<'_>],
+pub async fn export_package(
+    source_repos: &[&SpfsRepository],
     pkg: impl AsRef<AnyIdent>,
     filename: impl AsRef<Path>,
-) -> Result<()>
-where
-    S: TagPathStrategy + Send + Sync,
-{
+) -> Result<()> {
     let pkg = pkg.as_ref();
     // Make filename absolute as spfs::runtime::makedirs_with_perms does not handle
     // relative paths properly.
@@ -54,11 +50,10 @@ where
     // durable runtime upperdir edits.
     tar_repo.remove_durable_dir().await?;
 
-    let target_repo =
-        super::SpfsRepository::try_from(NameAndRepositoryWithTagStrategy::<_, _, S>::new(
-            "archive",
-            spfs::storage::RepositoryHandle::from(tar_repo),
-        ))?;
+    let target_repo = super::SpfsRepository::try_from(NameAndRepository::new(
+        "archive",
+        spfs::storage::RepositoryHandle::from(tar_repo),
+    ))?;
 
     // these are sorted to ensure that the recipe is published
     // before any build - it's only an error in testing, but still best practice
@@ -153,14 +148,11 @@ where
     Ok(())
 }
 
-async fn copy_any<S2>(
+async fn copy_any(
     pkg: AnyIdent,
-    src_repo: &SpfsRepositoryHandle<'_>,
-    dst_repo: &SpfsRepository<S2>,
-) -> Result<()>
-where
-    S2: TagPathStrategy + Send + Sync,
-{
+    src_repo: &SpfsRepository,
+    dst_repo: &SpfsRepository,
+) -> Result<()> {
     match pkg.into_inner() {
         (base, None) => copy_recipe(&base, src_repo, dst_repo).await,
         (base, Some(build)) => {
@@ -169,32 +161,26 @@ where
     }
 }
 
-async fn copy_recipe<S2>(
+async fn copy_recipe(
     pkg: &VersionIdent,
-    src_repo: &SpfsRepositoryHandle<'_>,
-    dst_repo: &SpfsRepository<S2>,
-) -> Result<()>
-where
-    S2: TagPathStrategy + Send + Sync,
-{
+    src_repo: &SpfsRepository,
+    dst_repo: &SpfsRepository,
+) -> Result<()> {
     let spec = src_repo.read_recipe(pkg).await?;
     tracing::info!(%pkg, "exporting");
     dst_repo.publish_recipe(&spec).await?;
     Ok(())
 }
 
-async fn copy_package<S2>(
+async fn copy_package(
     pkg: &BuildIdent,
-    src_repo: &SpfsRepositoryHandle<'_>,
-    dst_repo: &SpfsRepository<S2>,
-) -> Result<()>
-where
-    S2: TagPathStrategy + Send + Sync,
-{
+    src_repo: &SpfsRepository,
+    dst_repo: &SpfsRepository,
+) -> Result<()> {
     let spec = src_repo.read_package(pkg).await?;
     let components = src_repo.read_components(pkg).await?;
     tracing::info!(%pkg, "exporting");
-    let syncer = spfs::Syncer::new(src_repo.spfs_repository_handle(), dst_repo)
+    let syncer = spfs::Syncer::new(src_repo, dst_repo)
         .with_reporter(spfs::sync::reporter::SyncReporters::console());
     let desired = components.iter().map(|i| *i.1).collect();
     syncer.sync_env(desired).await?;

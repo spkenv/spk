@@ -10,12 +10,11 @@ pub use error::{Error, Result};
 pub use storage::{
     CachePolicy,
     MemRepository,
-    NameAndRepositoryWithTagStrategy,
+    NameAndRepository,
     Repository,
     RepositoryHandle,
     RuntimeRepository,
     SpfsRepository,
-    SpfsRepositoryHandle,
     Storage,
     export_package,
     find_path_providers,

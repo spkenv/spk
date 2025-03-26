@@ -15,10 +15,6 @@ use spk_schema::spec_ops::WithVersion;
 use spk_schema::{BuildIdent, VersionIdent};
 use spk_storage as storage;
 
-#[cfg(test)]
-#[path = "./cmd_remove_test.rs"]
-mod cmd_remove_test;
-
 /// Remove a package from a repository
 #[derive(Args)]
 #[clap(visible_alias = "rm")]

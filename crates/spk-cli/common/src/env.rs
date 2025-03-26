@@ -11,7 +11,6 @@ use std::sync::Arc;
 use miette::{Context, IntoDiagnostic, Result};
 use once_cell::sync::Lazy;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
-use spk_schema::ident_ops::NormalizedTagStrategy;
 use spk_schema::{Package, VersionIdent};
 use spk_solve::package_iterator::BUILD_SORT_TARGET;
 use spk_solve::solution::{
@@ -140,11 +139,7 @@ pub async fn current_env() -> crate::Result<Solution> {
                     // TODO: this code is repeated in few places in spk-cli
                     let r = match name.as_str() {
                         "local" => Arc::new(storage::local_repository().await?.into()),
-                        name => Arc::new(
-                            storage::remote_repository::<_, NormalizedTagStrategy>(name)
-                                .await?
-                                .into(),
-                        ),
+                        name => Arc::new(storage::remote_repository(name).await?.into()),
                     };
                     // Store it, so we don't recreate it for any
                     // further resolved packages that came from the

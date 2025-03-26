@@ -21,10 +21,6 @@ required-features = ["cli"]
 [features]
 default = ["cli"]
 legacy-spk-version-tags = ["spk-storage/legacy-spk-version-tags"]
-legacy-spk-version-tags-for-writes = [
-    "spk-cli-group2/legacy-spk-version-tags-for-writes",
-    "spk-cli-group3/legacy-spk-version-tags-for-writes",
-]
 migration-to-components = [
     "spk-schema/migration-to-components",
     "spk-solve/migration-to-components",

@@ -4636,6 +4636,7 @@ dependencies = [
  "miette",
  "nom",
  "once_cell",
+ "paste",
  "regex",
  "relative-path",
  "ring",

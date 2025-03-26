@@ -48,7 +48,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
 
 use self::parts_iter::{MinimumPartsPartIter, NormalizedPartsIter};
-use crate::ident_ops::{MetadataPath, TagPath, TagPathStrategy};
+use crate::ident_ops::{MetadataPath, TagPath};
 use crate::name::validate_tag_name;
 
 #[cfg(test)]
@@ -500,20 +500,32 @@ impl MetadataPath for Version {
 }
 
 impl TagPath for Version {
-    fn tag_path<S: TagPathStrategy>(&self) -> RelativePathBuf {
+    fn tag_path(&self) -> RelativePathBuf {
         RelativePathBuf::from(format!(
             "{base}{pre_sep}{pre}{post_sep}{post}",
-            base = if S::strategy_type().is_normalized() {
-                self.parts
-                    .iter_for_storage()
-                    .map(|p| p.to_string())
-                    .join(VERSION_SEP)
-            } else {
-                self.parts
-                    .iter_for_display(1)
-                    .map(|p| p.to_string())
-                    .join(VERSION_SEP)
-            },
+            base = self
+                .parts
+                .iter_for_storage()
+                .map(|p| p.to_string())
+                .join(VERSION_SEP),
+            pre_sep = if self.pre.is_empty() { "" } else { "-" },
+            pre = self.pre,
+            // the "+" character is not a valid spfs tag character,
+            // so we 'encode' it with two dots, which is not a valid sequence
+            // for spk package names
+            post_sep = if self.post.is_empty() { "" } else { ".." },
+            post = self.post,
+        ))
+    }
+
+    fn verbatim_tag_path(&self) -> RelativePathBuf {
+        RelativePathBuf::from(format!(
+            "{base}{pre_sep}{pre}{post_sep}{post}",
+            base = self
+                .parts
+                .iter_for_display(1)
+                .map(|p| p.to_string())
+                .join(VERSION_SEP),
             pre_sep = if self.pre.is_empty() { "" } else { "-" },
             pre = self.pre,
             // the "+" character is not a valid spfs tag character,
