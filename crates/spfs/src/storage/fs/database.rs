@@ -82,12 +82,12 @@ impl graph::DatabaseExt for super::MaybeOpenFsRepository {
 #[async_trait::async_trait]
 impl DatabaseView for super::OpenFsRepository {
     async fn has_object(&self, digest: encoding::Digest) -> bool {
-        let filepath = self.fs_impl.objects.build_digest_path(&digest);
+        let filepath = self.objects.build_digest_path(&digest);
         tokio::fs::symlink_metadata(filepath).await.is_ok()
     }
 
     async fn read_object(&self, digest: encoding::Digest) -> Result<graph::Object> {
-        let filepath = self.fs_impl.objects.build_digest_path(&digest);
+        let filepath = self.objects.build_digest_path(&digest);
         let mut file =
             tokio::io::BufReader::new(tokio::fs::File::open(&filepath).await.map_err(|err| {
                 match err.kind() {
@@ -109,7 +109,7 @@ impl DatabaseView for super::OpenFsRepository {
         &self,
         search_criteria: graph::DigestSearchCriteria,
     ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
-        Box::pin(self.fs_impl.objects.find(search_criteria))
+        Box::pin(self.objects.find(search_criteria))
     }
 
     fn iter_objects(&self) -> graph::DatabaseIterator<'_> {
@@ -124,14 +124,14 @@ impl DatabaseView for super::OpenFsRepository {
         &self,
         partial: &encoding::PartialDigest,
     ) -> Result<encoding::Digest> {
-        self.fs_impl.objects.resolve_full_digest(partial).await
+        self.objects.resolve_full_digest(partial).await
     }
 }
 
 #[async_trait::async_trait]
 impl graph::Database for super::OpenFsRepository {
     async fn remove_object(&self, digest: encoding::Digest) -> crate::Result<()> {
-        let filepath = self.fs_impl.objects.build_digest_path(&digest);
+        let filepath = self.objects.build_digest_path(&digest);
 
         // this might fail but we don't consider that fatal just yet
         #[cfg(unix)]
@@ -156,7 +156,7 @@ impl graph::Database for super::OpenFsRepository {
         older_than: DateTime<Utc>,
         digest: encoding::Digest,
     ) -> crate::Result<bool> {
-        let filepath = self.fs_impl.objects.build_digest_path(&digest);
+        let filepath = self.objects.build_digest_path(&digest);
 
         // this might fail but we don't consider that fatal just yet
         #[cfg(unix)]
@@ -203,7 +203,7 @@ impl graph::Database for super::OpenFsRepository {
 impl graph::DatabaseExt for super::OpenFsRepository {
     async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
         let digest = obj.digest()?;
-        let filepath = self.fs_impl.objects.build_digest_path(&digest);
+        let filepath = self.objects.build_digest_path(&digest);
         if filepath.exists() {
             tracing::trace!(%digest, kind=%std::any::type_name::<T>(), "object already exists");
             return Ok(());
@@ -214,8 +214,8 @@ impl graph::DatabaseExt for super::OpenFsRepository {
         // other processes don't try to read our incomplete
         // object from the database
         let uuid = uuid::Uuid::new_v4().to_string();
-        let working_file = self.fs_impl.objects.workdir().join(uuid);
-        self.fs_impl.objects.ensure_base_dir(&working_file)?;
+        let working_file = self.objects.workdir().join(uuid);
+        self.objects.ensure_base_dir(&working_file)?;
         let mut encoded = Vec::new();
         obj.encode(&mut encoded)?;
         let mut writer = tokio::io::BufWriter::new(
@@ -258,7 +258,7 @@ impl graph::DatabaseExt for super::OpenFsRepository {
         }
         #[cfg(unix)]
         {
-            let perms = std::fs::Permissions::from_mode(self.fs_impl.objects.file_permissions);
+            let perms = std::fs::Permissions::from_mode(self.objects.file_permissions);
             if let Err(err) = tokio::fs::set_permissions(&working_file, perms).await {
                 let _ = tokio::fs::remove_file(&working_file).await;
                 return Err(Error::StorageWriteError(
@@ -268,7 +268,7 @@ impl graph::DatabaseExt for super::OpenFsRepository {
                 ));
             }
         }
-        self.fs_impl.objects.ensure_base_dir(&filepath)?;
+        self.objects.ensure_base_dir(&filepath)?;
         match tokio::fs::rename(&working_file, &filepath).await {
             Ok(_) => Ok(()),
             Err(err) => {

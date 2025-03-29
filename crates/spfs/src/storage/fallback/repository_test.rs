@@ -36,7 +36,7 @@ async fn test_proxy_payload_repair(tmpdir: tempfile::TempDir) {
         .unwrap();
 
     // Delete the payload file from the primary repo.
-    let payload_path = primary.fs_impl.payloads.build_digest_path(&digest);
+    let payload_path = primary.payloads.build_digest_path(&digest);
     tokio::fs::remove_file(payload_path).await.unwrap();
 
     // Loading the payload from the primary should fail.

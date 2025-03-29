@@ -387,12 +387,12 @@ impl Address for FallbackProxy {
 impl LocalRepository for FallbackProxy {
     #[inline]
     fn payloads(&self) -> &FsHashStore {
-        self.primary.fs_impl.payloads()
+        self.primary.payloads()
     }
 
     #[inline]
     fn render_store(&self) -> Result<&RenderStore> {
-        self.primary.fs_impl.render_store()
+        self.primary.render_store()
     }
 }
 

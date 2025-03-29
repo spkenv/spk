@@ -189,6 +189,15 @@ pub struct FsRepository<FS> {
     pub(crate) fs_impl: Arc<FS>,
 }
 
+impl<FS> std::ops::Deref for FsRepository<FS> {
+    type Target = FS;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.fs_impl
+    }
+}
+
 #[async_trait::async_trait]
 impl<FS> FsRepositoryOps for FsRepository<FS>
 where

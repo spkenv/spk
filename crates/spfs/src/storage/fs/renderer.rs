@@ -49,14 +49,14 @@ pub enum RenderType {
 
 impl OpenFsRepository {
     fn get_render_storage(&self) -> Result<&crate::storage::fs::FsHashStore> {
-        match &self.fs_impl.renders {
+        match &self.renders {
             Some(render_store) => Ok(&render_store.renders),
             None => Err(Error::NoRenderStorage(self.address().into_owned())),
         }
     }
 
     pub async fn has_rendered_manifest(&self, digest: encoding::Digest) -> bool {
-        let renders = match &self.fs_impl.renders {
+        let renders = match &self.renders {
             Some(render_store) => &render_store.renders,
             None => return false,
         };
@@ -84,7 +84,7 @@ impl OpenFsRepository {
 
     /// Remove the identified render from this storage.
     pub async fn remove_rendered_manifest(&self, digest: crate::encoding::Digest) -> Result<()> {
-        let renders = match &self.fs_impl.renders {
+        let renders = match &self.renders {
             Some(render_store) => &render_store.renders,
             None => return Ok(()),
         };
@@ -123,7 +123,7 @@ impl OpenFsRepository {
         older_than: DateTime<Utc>,
         digest: encoding::Digest,
     ) -> Result<bool> {
-        let renders = match &self.fs_impl.renders {
+        let renders = match &self.renders {
             Some(render_store) => &render_store.renders,
             None => return Ok(false),
         };

@@ -487,7 +487,7 @@ async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
         .await
         .unwrap();
 
-    let files = list_files(fs_repo.fs_impl.objects.root());
+    let files = list_files(fs_repo.objects.root());
     assert!(!files.is_empty(), "should have stored data");
 
     let cleaner = Cleaner::new(&tmprepo).with_reporter(TracingCleanReporter);
@@ -497,7 +497,7 @@ async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
         .expect("failed to clean repo");
     println!("{result:#?}");
 
-    let files = list_files(fs_repo.fs_impl.renders.as_ref().unwrap().renders.root());
+    let files = list_files(fs_repo.renders.as_ref().unwrap().renders.root());
     assert_eq!(
         files,
         Vec::<String>::new(),
