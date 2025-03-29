@@ -3,6 +3,7 @@
 // https://github.com/spkenv/spk
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use crate::{Result, graph};
 
@@ -13,6 +14,16 @@ pub trait ManifestRenderPath {
 }
 
 impl<T> ManifestRenderPath for &T
+where
+    T: ManifestRenderPath,
+{
+    #[inline]
+    fn manifest_render_path(&self, manifest: &graph::Manifest) -> Result<PathBuf> {
+        T::manifest_render_path(self, manifest)
+    }
+}
+
+impl<T> ManifestRenderPath for Arc<T>
 where
     T: ManifestRenderPath,
 {
