@@ -156,7 +156,7 @@ impl MaybeOpenFsRepository {
 
 impl OpenFsRepository {
     fn tags_root_in_namespace(&self, namespace: Option<&TagNamespace>) -> PathBuf {
-        let mut tags_root = self.fs_impl.root().join("tags");
+        let mut tags_root = self.root().join("tags");
         if let Some(tag_namespace) = namespace {
             for component in tag_namespace.as_rel_path().components() {
                 // Assuming the tag namespace is only made up of `Normal`
