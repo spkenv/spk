@@ -183,15 +183,16 @@ pub enum Request {
     Var(VarRequest<PinnableValue>),
 }
 
-impl Request {
-    /// Return the canonical name of this request."""
-    pub fn name(&self) -> &OptName {
+impl spk_schema_foundation::spec_ops::Named<OptName> for Request {
+    fn name(&self) -> &OptName {
         match self {
             Request::Var(r) => &r.var,
             Request::Pkg(r) => r.pkg.name.as_opt_name(),
         }
     }
+}
 
+impl Request {
     pub fn is_pkg(&self) -> bool {
         matches!(self, Self::Pkg(_))
     }
@@ -1129,10 +1130,25 @@ pub fn is_false(value: &bool) -> bool {
 /// A deserializable name and optional value where
 /// the value it identified by its position following
 /// a forward slash (eg: `/<value>`)
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct NameAndValue<Name = OptNameBuf>(pub Name, pub Option<String>)
 where
     Name: FromStr,
     <Name as FromStr>::Err: std::fmt::Display;
+
+impl<Name> std::str::FromStr for NameAndValue<Name>
+where
+    Name: FromStr,
+    <Name as FromStr>::Err: std::fmt::Display,
+{
+    type Err = Name::Err;
+
+    fn from_str(v: &str) -> std::result::Result<Self, Self::Err> {
+        let mut parts = v.splitn(2, '/');
+        let name = parts.next().unwrap().parse()?;
+        Ok(Self(name, parts.next().map(String::from)))
+    }
+}
 
 impl<'de, Name> Deserialize<'de> for NameAndValue<Name>
 where
@@ -1153,7 +1169,7 @@ where
             Name: FromStr,
             <Name as FromStr>::Err: std::fmt::Display,
         {
-            type Value = (Name, Option<String>);
+            type Value = NameAndValue<Name>;
 
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 f.write_str("a var name an optional value (eg, `my-var`, `my-var/value`)")
@@ -1163,19 +1179,28 @@ where
             where
                 E: serde::de::Error,
             {
-                let mut parts = v.splitn(2, '/');
-                let name = parts
-                    .next()
-                    .unwrap()
-                    .parse()
-                    .map_err(serde::de::Error::custom)?;
-                Ok((name, parts.next().map(String::from)))
+                NameAndValue::from_str(v).map_err(serde::de::Error::custom)
             }
         }
 
-        deserializer
-            .deserialize_str(NameAndValueVisitor::<Name>(PhantomData))
-            .map(|(n, v)| NameAndValue(n, v))
+        deserializer.deserialize_str(NameAndValueVisitor::<Name>(PhantomData))
+    }
+}
+
+impl<Name> serde::ser::Serialize for NameAndValue<Name>
+where
+    Name: FromStr + std::fmt::Display,
+    <Name as FromStr>::Err: std::fmt::Display,
+{
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let out = match &self.1 {
+            Some(v) => format!("{}/{v}", self.0),
+            None => self.0.to_string(),
+        };
+        serializer.serialize_str(&out)
     }
 }
 
