@@ -31,10 +31,13 @@ pub use renderer::{
     RenderType,
     Renderer,
 };
+#[cfg(test)]
+pub use repository::MaybeOpenFsRepositoryImpl;
 pub use repository::{
     Config,
     DURABLE_EDITS_DIR,
-    FsRepository,
+    FsRepositoryOps,
+    MaybeOpenFsRepository,
     OpenFsRepository,
     Params,
     RenderStore,
