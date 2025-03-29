@@ -1052,6 +1052,7 @@ const OVERLAY_ARGS_INDEX: &str = "index";
 const OVERLAY_ARGS_INDEX_ON: &str = "index=on";
 const OVERLAY_ARGS_METACOPY: &str = "metacopy";
 const OVERLAY_ARGS_METACOPY_ON: &str = "metacopy=on";
+pub(crate) const OVERLAY_ARGS_LOWERDIR_APPEND: &str = "lowerdir+";
 
 /// A struct for holding the options that will be included
 /// in the overlayfs mount command when mounting an environment.
@@ -1059,6 +1060,8 @@ const OVERLAY_ARGS_METACOPY_ON: &str = "metacopy=on";
 pub(crate) struct OverlayMountOptions {
     /// Specifies that the overlay file system is mounted as read-only
     pub read_only: bool,
+    /// The lowerdir+ mount option will be used to append layers when true.
+    pub lowerdir_append: bool,
     /// When true, inodes are indexed in the mount so that
     /// files which share the same inode (hardlinks) are broken
     /// in the final mount and changes to one file don't affect
@@ -1089,9 +1092,20 @@ impl OverlayMountOptions {
     fn new(rt: &runtime::Runtime) -> Self {
         Self {
             read_only: !rt.status.editable,
+            lowerdir_append: true,
             break_hardlinks: true,
             metadata_copy_up: true,
         }
+    }
+
+    /// Update state variables to match the features supported by the current overlay version.
+    fn query(mut self) -> Self {
+        let params = runtime::overlayfs::overlayfs_available_options();
+        if self.lowerdir_append && !params.contains(OVERLAY_ARGS_LOWERDIR_APPEND) {
+            self.lowerdir_append = false;
+        }
+
+        self
     }
 
     /// Return the options that should be included in the mount request.
@@ -1130,7 +1144,7 @@ pub(crate) fn get_overlay_args<P: AsRef<Path>>(
     // Allocate a large buffer up front to avoid resizing/copying.
     let mut args = String::with_capacity(4096);
 
-    let mount_options = OverlayMountOptions::new(rt);
+    let mount_options = OverlayMountOptions::new(rt).query();
     for option in mount_options.to_options() {
         args.push_str(option);
         args.push(',');
@@ -1142,19 +1156,19 @@ pub(crate) fn get_overlay_args<P: AsRef<Path>>(
     // the rightmost on the command line is the bottom layer, and the
     // leftmost is on the top). For more details see:
     // https://docs.kernel.org/filesystems/overlayfs.html#multiple-lower-layers
-    if cfg!(feature = "legacy-mount-options") {
-        args.push_str("lowerdir=");
-        for path in layer_dirs.iter().rev() {
-            args.push_str(&path.as_ref().to_string_lossy());
-            args.push(':');
-        }
-    } else {
+    if mount_options.lowerdir_append {
         for path in layer_dirs.iter().rev() {
             args.push_str("lowerdir+=");
             args.push_str(&path.as_ref().to_string_lossy());
             args.push(',');
         }
         args.push_str("lowerdir+=");
+    } else {
+        args.push_str("lowerdir=");
+        for path in layer_dirs.iter().rev() {
+            args.push_str(&path.as_ref().to_string_lossy());
+            args.push(':');
+        }
     }
     args.push_str(&rt.config.lower_dir.to_string_lossy());
 
