@@ -28,7 +28,7 @@ nix = { workspace = true, features = ["process"] }
 spfs-vfs = { workspace = true, features = ["winfsp-backend"] }
 spfs = { workspace = true, features = ["winfsp-backend"] }
 spfs-cli-common = { workspace = true }
-tokio = { version = "1.43", features = ["rt"] }
+tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }
 tonic = { workspace = true }
 tower = { workspace = true }

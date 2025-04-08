@@ -25,6 +25,6 @@ miette = { workspace = true, features = ["fancy"] }
 nix = { workspace = true }
 spfs = { workspace = true }
 spfs-cli-common = { workspace = true }
-tokio = { version = "1.43", features = ["rt", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
 tracing = { workspace = true }
 url = "2.2"
