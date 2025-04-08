@@ -81,7 +81,7 @@ jobs:
           debug = false
           EOF
       - name: Run sccache-cache
-        uses: mozilla-actions/sccache-action@v0.0.3
+        uses: mozilla-actions/sccache-action@v0.0.9
         # Use the same FEATURES in these different steps to avoid recompiling
         # as much as possible. Consider using a separate workflow with its own
         # cache if there is a need to test building with a different set of
