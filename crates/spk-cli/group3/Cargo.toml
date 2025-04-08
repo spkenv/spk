@@ -24,7 +24,7 @@ spk-storage = { workspace = true }
 spk-schema = { workspace = true }
 spfs-cli-common = { workspace = true }
 tracing = { workspace = true }
-tokio = "1.20"
+tokio = "1.43"
 
 [dev-dependencies]
 tar = "0.4.3"

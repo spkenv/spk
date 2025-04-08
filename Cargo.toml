@@ -146,7 +146,7 @@ strum = { version = "0.26.3", features = ["derive"] }
 tap = "1.0"
 tempfile = "3.3"
 thiserror = "1.0"
-tokio = { version = "1.39", features = ["rt"] }
+tokio = { version = "1.43", features = ["rt"] }
 tokio-retry = "0.3.0"
 tonic = "0.11"
 tonic-build = "0.11"

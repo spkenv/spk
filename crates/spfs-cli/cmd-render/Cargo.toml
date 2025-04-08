@@ -28,5 +28,5 @@ serde_json = { workspace = true }
 spfs = { workspace = true }
 spfs-cli-common = { workspace = true }
 strum = { workspace = true, features = ["derive"] }
-tokio = { version = "1.20", features = ["rt", "rt-multi-thread"] }
+tokio = { version = "1.43", features = ["rt", "rt-multi-thread"] }
 tracing = { workspace = true }

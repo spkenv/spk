@@ -76,7 +76,7 @@ spfs-proto = { path = "../spfs-proto", features = ["serde"] }
 strum = { workspace = true, features = ["derive"] }
 tar = "0.4.30"
 tempfile = { workspace = true }
-tokio = { version = "1.20", features = [
+tokio = { version = "1.43", features = [
     "fs",
     "io-util",
     "io-std",

@@ -35,7 +35,7 @@ spk-schema = { workspace = true }
 spk-storage = { workspace = true }
 thiserror = { workspace = true }
 miette = { workspace = true }
-tokio = { version = "1.20", features = ["rt"] }
+tokio = { version = "1.43", features = ["rt"] }
 tracing = "0.1.35"
 
 [dev-dependencies]
