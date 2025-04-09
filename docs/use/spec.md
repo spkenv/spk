@@ -4,7 +4,7 @@ summary: Write package spec files for creating packages.
 weight: 20
 ---
 
-The package specification (spec) file is a yaml or json file which follows the structure detailed below. See the [Package Spec Schema]({{< ref "../ref/spec" >}}) for a more complete set of available fields.
+The package specification (spec) file is a yaml or json file which follows the structure detailed below. See the [Package Spec Schema]({{< ref "../ref/api/v0/package" >}}) for a more complete set of available fields.
 
 ### Name and Version
 
@@ -203,7 +203,7 @@ build:
 
 The build script is bash code which builds your package. The script is responsible for installing your software into the `/spfs` directory.
 
-spk assumes that your installed files will be layed out similarly to the unix standard filesystem hierarchy. Most build systems can be configured with a **prefix**-type argument like the cmake example above which will handle this for you. If you are create python code, spk works just like an python virtual environment, and your code can be pip-installed using the /spfs/bin/pip that is included in the spk python packages or by manually copying to the appropriate `/spfs/lib/python<version>/site-packages` folder.
+spk assumes that your installed files will be laid out similarly to the unix standard filesystem hierarchy. Most build systems can be configured with a **prefix**-type argument like the cmake example above which will handle this for you. If you are create python code, spk works just like an python virtual environment, and your code can be pip-installed using the /spfs/bin/pip that is included in the spk python packages or by manually copying to the appropriate `/spfs/lib/python<version>/site-packages` folder.
 
 {{% notice tip %}}
 If your build script is getting long or feels obstructive in your spec file, you can also create a build.sh script in your source tree which will be run if no build script is specified.
@@ -251,11 +251,15 @@ Build requirements can also be updated in the command line: `spk install --save 
 
 #### Validation
 
-The spk build system performs a number of validations against the package created during a build. These validators can be overridden and further refined using the `validation` portion of the build spec. See [validation rules]({{< ref "../ref/spec" >}}#validationspec)
+The spk build system performs a number of validations against the package created during a build. These validators can be overridden and further refined using the `validation` portion of the build spec. See [validation rules]({{< ref "../ref/api/v0/package" >}}#validationspec)
 
 ### Install Configuration
 
 The install configuration specifies the environment that your package needs when it is installed or included in an spk environment.
+
+{{% notice info %}}
+Packages that only provide opinions/constraints on an environment, but no actual dependencies or content, are considered 'platform' packages. SPK provides a native spec for this use case, see {{< ref "./platforms" >}}.
+{{% /notice %}}
 
 #### Environment Variables
 
@@ -412,85 +416,6 @@ install:
       build:
         options:
           - { var: abi, static: cp27m }
-```
-
-#### Platform Package Specs
-
-Platforms are a convenience for writing the package spec for
-"meta-packages" used to specify versions of a set of packages. They
-are used to constrain builds of other packages and do not contain
-usable programs, libraries or code themselves.
-
-A typical platform package has an empty build options list, and one or
-more install requirements, all in `IfAlreadyPresent` mode. These
-install requirements describe the versions of dependencies that target
-compatibility with some application execution environment, like a
-DCC.
-
-A platform spec reduces the amount of boilerplate needed to set up a
-platform package compared to using the v0/package recipe format. A
-platform spec will be filled in with appropriate defaults
-automatically for a platform.
-
-The platform spec also provides a way to inherit package requirements
-from another package, such as another platform. This allows platforms
-to be based on other platforms without respecifying the same
-requirements, e.g. a DCC specific platform can pull in the
-requirements in a company or site specific platform. The expectation
-is that a platform would only inherit from other platforms, but that
-is not strictly required.
-
-When a platform is built, it produces an ordinary v0/package just like
-a "normal" v0/package spec would do, and it is treated like any other
-package for use by downstream consumers. All its requirements will
-always be `IfAlreadyPresent` ones.
-
-An example platform spec:
-
-```yaml
-platform: company-platform
-api: v0/platform
-requirements:
-  - pkg: gcc/9.3.1
-  - pkg: python/3.9
-  - pkg: imath/3
-```
-
-The `platform:` fields provides the name of the platform package. The
-`api:` field indicates this is a platform spec.
-
-The `requirements` field contains the list of requirements in the
-platform. These will have `IfAlreadyPresent` added to them
-automatically, it does not need to be specified for them.
-
-An example platform spec that inherits from the 'company-platform' and makes adjustments of its own:
-
-```yaml
-platform: dcc-platform
-base: company-platform
-api: v0/platform
-requirements:
-  add:
-    - pkg: python: 3.7
-  remove:
-    - pkg: imath
-```
-
-The `base:` field indicates which platform this platform spec is based on (inherits the requirements from).
-
-Specifying a requirement directly with `- ` is the same as specifying it with `add:`, but is a shorthand for convenience.
-
-The `add:` and `remove:` entries indicate changes to the requirements inherited from the base platform. `add:` means "add or replace". `remove:` means remove entirely. `remove:` will work on components of packages, if they are specified, as well as full packages. Removing requirement is done before adding when determining the platform's final requirements.
-
-This is another way of specifying the same `dcc-platform` without basing it on the `company-platform`:
-
-```yaml
-platform: dcc-platform
-api: v0/platform
-requirements:
-  - pkg: gcc/9.3.1
-  - pkg: python/3.7
-  - pkg: some-package/1.2.3
 ```
 
 ### Testing
