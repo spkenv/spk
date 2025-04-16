@@ -7,14 +7,14 @@ use colored::Colorize;
 use miette::Result;
 use spfs::io::{self, DigestFormat};
 use spfs::prelude::*;
+use spfs_cli_common as cli;
 use tokio_stream::StreamExt;
 
 /// List all tags in an spfs repository
 #[derive(Debug, Args)]
 pub struct CmdTags {
-    /// Show layers from remote repository instead of the local one
-    #[clap(long, short)]
-    remote: Option<String>,
+    #[clap(flatten)]
+    pub(crate) repos: cli::Repositories,
 
     /// Also show the target digest of each tag
     #[clap(long)]
@@ -27,7 +27,8 @@ pub struct CmdTags {
 
 impl CmdTags {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
-        let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
+        let repo =
+            spfs::config::open_repository_from_string(config, self.repos.remote.as_ref()).await?;
 
         let mut tag_streams = repo.iter_tags();
         while let Some((tag_spec, tag)) = tag_streams.try_next().await? {

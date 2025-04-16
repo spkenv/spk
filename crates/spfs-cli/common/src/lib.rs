@@ -14,9 +14,11 @@ pub mod __private {
 pub use args::{
     AnnotationViewing,
     CommandName,
+    HasRepositoryArgs,
     Logging,
     Progress,
     Render,
+    Repositories,
     Sync,
     capture_if_relevant,
 };
