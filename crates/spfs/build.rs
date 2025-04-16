@@ -4,7 +4,9 @@
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(feature = "protobuf-src")]
-    std::env::set_var("PROTOC", protobuf_src::protoc());
+    unsafe {
+        std::env::set_var("PROTOC", protobuf_src::protoc());
+    }
     tonic_build::configure().bytes(["buffer"]).compile(
         &[
             "src/proto/defs/database.proto",
