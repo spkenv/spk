@@ -7,6 +7,7 @@ use clap::Args;
 use miette::Result;
 #[cfg(unix)]
 use procfs::Current;
+use spfs_cli_common as cli;
 use tokio_stream::StreamExt;
 
 use super::cmd_runtime_remove::is_monitor_running;
@@ -14,9 +15,8 @@ use super::cmd_runtime_remove::is_monitor_running;
 /// Find and remove runtimes from the repository based on a pruning strategy
 #[derive(Debug, Args)]
 pub struct CmdRuntimePrune {
-    /// Prune a runtime in a remote or alternate repository
-    #[clap(short, long)]
-    remote: Option<String>,
+    #[clap(flatten)]
+    pub(crate) repos: cli::Repositories,
 
     /// Remove the runtime even if it's owned by someone else
     #[clap(long)]
@@ -39,7 +39,7 @@ pub struct CmdRuntimePrune {
 
 impl CmdRuntimePrune {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
-        let runtime_storage = match &self.remote {
+        let runtime_storage = match &self.repos.remote {
             Some(remote) => {
                 let repo = config.get_remote(remote).await?;
                 spfs::runtime::Storage::new(repo)?

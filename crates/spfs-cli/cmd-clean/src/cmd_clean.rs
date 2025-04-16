@@ -4,13 +4,13 @@
 
 use std::collections::HashSet;
 use std::num::NonZero;
+use std::sync::Arc;
 
 use chrono::prelude::*;
 use clap::Parser;
 use colored::Colorize;
 use miette::Result;
-use spfs_cli_common as cli;
-use spfs_cli_common::CommandName;
+use spfs_cli_common::{self as cli, CommandName, HasRepositoryArgs};
 
 cli::main!(CmdClean);
 
@@ -27,9 +27,8 @@ pub struct CmdClean {
     #[clap(flatten)]
     pub logging: cli::Logging,
 
-    /// Trigger the clean operation on a remote repository
-    #[clap(short, long, group = "repo_data")]
-    remote: Option<String>,
+    #[clap(flatten)]
+    repos: cli::Repositories,
 
     /// Remove the durable upper path component of the named runtime.
     /// If given, this will be the only thing removed.
@@ -120,6 +119,24 @@ pub struct CmdClean {
     max_discover_concurrency: usize,
 }
 
+impl HasRepositoryArgs for CmdClean {
+    fn configure_repositories_from_args(
+        &self,
+        config: Arc<spfs::Config>,
+    ) -> Result<Arc<spfs::Config>> {
+        let result = if let Some(repo_path) = &self.repos.add_proxy_repo {
+            match config.add_proxy_repo_over_origin(repo_path) {
+                Ok(c) => c,
+                Err(e) => return Err(e.into()),
+            }
+        } else {
+            config
+        };
+
+        Ok(result)
+    }
+}
+
 impl CommandName for CmdClean {
     fn command_name(&self) -> &'static str {
         "clean"
@@ -129,7 +146,7 @@ impl CommandName for CmdClean {
 impl CmdClean {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let mut repo =
-            spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
+            spfs::config::open_repository_from_string(config, self.repos.remote.as_ref()).await?;
         tracing::debug!("spfs clean command called");
 
         // It would be destructive to run clean on a repo while only

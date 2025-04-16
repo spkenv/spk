@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::sync::Arc;
+
 use clap::{Parser, Subcommand};
 use miette::Result;
 use spfs::{Error, OsErrorExt};
@@ -39,8 +41,7 @@ mod cmd_untag;
 mod cmd_version;
 mod cmd_write;
 
-use spfs_cli_common as cli;
-use spfs_cli_common::CommandName;
+use spfs_cli_common::{self as cli, CommandName, HasRepositoryArgs};
 
 cli::main!(Opt);
 
@@ -96,6 +97,57 @@ pub enum Command {
 
     #[clap(external_subcommand)]
     External(Vec<String>),
+}
+
+// Helper function for commands that have repository options
+fn add_proxy_repo_to_config(
+    repo_path: &Option<std::path::PathBuf>,
+    config: Arc<spfs::Config>,
+) -> Result<Arc<spfs::Config>> {
+    let result = if let Some(path) = repo_path {
+        match config.add_proxy_repo_over_origin(path) {
+            Ok(c) => c,
+            Err(e) => return Err(e.into()),
+        }
+    } else {
+        config
+    };
+
+    Ok(result)
+}
+
+impl HasRepositoryArgs for Opt {
+    fn configure_repositories_from_args(
+        &self,
+        config: Arc<spfs::Config>,
+    ) -> Result<Arc<spfs::Config>> {
+        match &self.cmd {
+            Command::Check(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
+            Command::Commit(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
+            Command::Info(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
+            Command::Layers(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
+            Command::Log(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
+            Command::Ls(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
+            Command::LsTags(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
+            Command::Platforms(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
+            Command::Pull(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
+            Command::Push(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
+            Command::Read(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
+            Command::Run(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
+            Command::Runtime(cmd) => {
+                add_proxy_repo_to_config(cmd.command.add_proxy_repo_arg(), config)
+            }
+            Command::Search(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
+            #[cfg(feature = "server")]
+            Command::Server(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
+            Command::Shell(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
+            Command::Tag(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
+            Command::Tags(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
+            Command::Untag(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
+            Command::Write(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
+            _ => Ok(config),
+        }
+    }
 }
 
 impl CommandName for Opt {

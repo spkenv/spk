@@ -9,13 +9,13 @@ use futures::StreamExt;
 use miette::Result;
 use spfs::prelude::*;
 use spfs::{self};
+use spfs_cli_common as cli;
 
 /// Log the history of a given tag over time
 #[derive(Debug, Args)]
 pub struct CmdLog {
-    /// Load the tag from remote repository instead of the local one
-    #[clap(long, short)]
-    remote: Option<String>,
+    #[clap(flatten)]
+    pub(crate) repos: cli::Repositories,
 
     /// The tag to show history of
     tag: String,
@@ -23,7 +23,8 @@ pub struct CmdLog {
 
 impl CmdLog {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
-        let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
+        let repo =
+            spfs::config::open_repository_from_string(config, self.repos.remote.as_ref()).await?;
 
         let tag = spfs::tracking::TagSpec::parse(&self.tag)?;
         let mut tag_stream = repo.read_tag(&tag).await?.enumerate();

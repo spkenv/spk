@@ -15,9 +15,8 @@ pub struct CmdServer {
     #[clap(flatten)]
     pub logging: cli::Logging,
 
-    /// Serve a configured remote repository instead of the local one
-    #[clap(long, short)]
-    remote: Option<String>,
+    #[clap(flatten)]
+    pub(crate) repos: cli::Repositories,
 
     /// The external root url that clients can use to connect to this server
     #[clap(long = "payloads-root", default_value = "http://localhost")]
@@ -37,7 +36,8 @@ pub struct CmdServer {
 
 impl CmdServer {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
-        let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
+        let repo =
+            spfs::config::open_repository_from_string(config, self.repos.remote.as_ref()).await?;
         let repo = std::sync::Arc::new(repo);
 
         let payload_service =

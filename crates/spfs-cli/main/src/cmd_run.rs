@@ -119,6 +119,9 @@ pub struct CmdRun {
     #[clap(flatten)]
     pub logging: cli::Logging,
 
+    #[clap(flatten)]
+    pub(crate) repos: cli::Repositories,
+
     /// Mount the spfs filesystem in edit mode.
     ///
     /// Editable runtimes are created by default if REF is empty or not given.

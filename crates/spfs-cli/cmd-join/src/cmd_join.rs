@@ -8,8 +8,7 @@ use clap::{ArgGroup, Parser};
 use futures::StreamExt;
 use miette::{Context, Result, bail, miette};
 use spfs::Error;
-use spfs_cli_common as cli;
-use spfs_cli_common::CommandName;
+use spfs_cli_common::{self as cli, CommandName, HasRepositoryArgs};
 
 cli::main!(CmdJoin, sentry = false, sync = true);
 
@@ -37,6 +36,8 @@ pub struct CmdJoin {
     #[arg(last = true)]
     command: Vec<OsString>,
 }
+
+impl HasRepositoryArgs for CmdJoin {}
 
 impl CommandName for CmdJoin {
     fn command_name(&self) -> &'static str {

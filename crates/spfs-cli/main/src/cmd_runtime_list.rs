@@ -6,14 +6,14 @@ use clap::Args;
 use futures::StreamExt;
 use miette::Result;
 use spfs::monitor::find_processes_and_mount_namespaces;
+use spfs_cli_common as cli;
 
 /// List runtime information from the repository
 #[derive(Debug, Args)]
 #[clap(visible_alias = "ls")]
 pub struct CmdRuntimeList {
-    /// List runtimes in a remote or alternate repository
-    #[clap(short, long)]
-    remote: Option<String>,
+    #[clap(flatten)]
+    pub(crate) repos: cli::Repositories,
 
     /// Only print the name of each runtime, no additional data
     #[clap(short, long)]
@@ -22,7 +22,7 @@ pub struct CmdRuntimeList {
 
 impl CmdRuntimeList {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
-        let runtime_storage = match &self.remote {
+        let runtime_storage = match &self.repos.remote {
             Some(remote) => {
                 let repo = config.get_remote(remote).await?;
                 spfs::runtime::Storage::new(repo)?

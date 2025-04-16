@@ -7,6 +7,7 @@ use std::pin::Pin;
 
 use chrono::{DateTime, Utc};
 use futures::Stream;
+use futures::stream::select_all;
 use relative_path::RelativePath;
 
 use crate::config::ToAddress;
@@ -255,7 +256,11 @@ impl TagStorage for ProxyRepository {
         namespace: Option<&TagNamespace>,
         path: &RelativePath,
     ) -> Pin<Box<dyn Stream<Item = Result<EntryType>> + Send>> {
-        self.primary.ls_tags_in_namespace(namespace, path)
+        let mut streams = vec![self.primary.ls_tags_in_namespace(namespace, path)];
+        for repo in self.secondary.iter() {
+            streams.push(repo.ls_tags_in_namespace(namespace, path))
+        }
+        Box::pin(select_all(streams))
     }
 
     fn find_tags_in_namespace(
@@ -263,14 +268,22 @@ impl TagStorage for ProxyRepository {
         namespace: Option<&TagNamespace>,
         digest: &encoding::Digest,
     ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>> {
-        self.primary.find_tags_in_namespace(namespace, digest)
+        let mut streams = vec![self.primary.find_tags_in_namespace(namespace, digest)];
+        for repo in self.secondary.iter() {
+            streams.push(repo.find_tags_in_namespace(namespace, digest))
+        }
+        Box::pin(select_all(streams))
     }
 
     fn iter_tag_streams_in_namespace(
         &self,
         namespace: Option<&TagNamespace>,
     ) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
-        self.primary.iter_tag_streams_in_namespace(namespace)
+        let mut streams = vec![self.primary.iter_tag_streams_in_namespace(namespace)];
+        for repo in self.secondary.iter() {
+            streams.push(repo.iter_tag_streams_in_namespace(namespace))
+        }
+        Box::pin(select_all(streams))
     }
 
     async fn read_tag_in_namespace(

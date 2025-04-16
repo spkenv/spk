@@ -7,13 +7,13 @@ use colored::Colorize;
 use futures::TryStreamExt;
 use miette::Result;
 use number_prefix::NumberPrefix;
+use spfs_cli_common as cli;
 
 /// Check a repositories internal integrity
 #[derive(Debug, Args)]
 pub struct CmdCheck {
-    /// Trigger the check operation on a remote repository instead of the local one
-    #[clap(short, long)]
-    remote: Option<String>,
+    #[clap(flatten)]
+    pub(crate) repos: cli::Repositories,
 
     /// The maximum number of tag streams that can be read and processed at once
     #[clap(long, default_value_t = spfs::Checker::DEFAULT_MAX_TAG_STREAM_CONCURRENCY)]
@@ -34,14 +34,16 @@ pub struct CmdCheck {
 
 impl CmdCheck {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
-        let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
+        let repo =
+            spfs::config::open_repository_from_string(config, self.repos.remote.as_ref()).await?;
 
         let pull_from = match self.pull.take() {
-            Some(name @ Some(_)) if name == self.remote => {
+            Some(name @ Some(_)) if name == self.repos.remote => {
                 miette::bail!("Cannot --pull from same repo as --remote");
             }
             Some(None)
                 if self
+                    .repos
                     .remote
                     .as_ref()
                     .map(|r| r == "origin")
