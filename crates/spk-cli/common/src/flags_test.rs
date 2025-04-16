@@ -57,6 +57,7 @@ async fn test_get_solver_with_host_options(#[case] no_host: bool) {
             disable_repo: Default::default(),
             when: None,
             legacy_spk_version_tags: false,
+            wrap_origin: None,
         },
         allow_builds: false,
         check_impossible_initial: false,

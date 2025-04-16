@@ -25,6 +25,10 @@ const DEFAULT_USER_STORAGE: &str = "spfs";
 const FALLBACK_STORAGE_ROOT: &str = "/tmp/spfs";
 const LOCAL_STORAGE_NAME: &str = "<local storage>";
 
+const ORIGIN_REPO_NAME: &str = "origin";
+const PRIMARY_REPO_NAME: &str = "outerrepo";
+const SECONDARY_REPO_NAME: &str = "remoteorigin";
+
 fn default_fuse_worker_threads() -> NonZeroUsize {
     let num_cpu = num_cpus::get();
     // typically fuse does not need a huge number of threads
@@ -679,6 +683,52 @@ impl Config {
             addrs.push(addr);
         }
         addrs
+    }
+
+    pub fn add_proxy_repo_over_origin(
+        &self,
+        repo_path: &std::path::PathBuf,
+    ) -> Result<Arc<Config>> {
+        let mut new_config = (*self).clone();
+
+        // The original origin repo, will be renamed below
+        let remote_origin = match new_config.remote.get(ORIGIN_REPO_NAME) {
+            Some(origin) => Remote::Address(RemoteAddress {
+                address: origin.to_address()?,
+            }),
+            None => {
+                return Err(Error::UnknownRemoteName(ORIGIN_REPO_NAME.to_string()));
+            }
+        };
+
+        // The new repo, from the given path, e.g. the per job/shot one
+        let jobrepo = Remote::Address(RemoteAddress {
+            address: url::Url::parse(&format!("file:{}?create=true", repo_path.display()))
+                .map_err(|e| Error::InvalidRemoteUrl(e.into()))?,
+        });
+
+        // The new proxy repo that covers the two repos above and replaces
+        // the origin repo for spfs interactions.
+        let proxy_origin: Remote = Remote::Address(RemoteAddress {
+            address: url::Url::parse(&format!(
+                "proxy:?primary={PRIMARY_REPO_NAME}&secondary[0]={SECONDARY_REPO_NAME}"
+            ))
+            .map_err(|e| Error::InvalidRemoteUrl(e.into()))?,
+        });
+
+        new_config
+            .remote
+            .insert(PRIMARY_REPO_NAME.to_string(), jobrepo);
+        new_config
+            .remote
+            .insert(SECONDARY_REPO_NAME.to_string(), remote_origin);
+
+        new_config
+            .remote
+            .insert(ORIGIN_REPO_NAME.to_string(), proxy_origin);
+
+        // Update the current spfs config in memory and return the new config
+        new_config.make_current()
     }
 }
 

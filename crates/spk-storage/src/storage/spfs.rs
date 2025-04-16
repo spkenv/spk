@@ -1340,3 +1340,15 @@ pub async fn remote_repository<S: AsRef<str>>(name: S) -> Result<SpfsRepository>
         legacy_spk_version_tags: cfg!(feature = "legacy-spk-version-tags"),
     })
 }
+
+// Helper to inject a given filesystem path into the current spfs
+// config as a proxy wrapper repo around the existing origin repo.
+//
+// NOTE: this changes the current spfs config returned by spfs::get_config()
+pub fn inject_path_repo_into_spfs_config(repo_path: &std::path::PathBuf) -> Result<()> {
+    let spfs_config = spfs::get_config()?;
+
+    spfs_config.add_proxy_repo_over_origin(repo_path)?;
+
+    Ok(())
+}
