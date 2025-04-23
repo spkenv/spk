@@ -23,6 +23,7 @@ mod spec;
 mod template;
 mod test;
 pub mod v0;
+pub mod v1;
 pub mod validation;
 pub mod variant;
 

@@ -6,11 +6,11 @@ use std::sync::Arc;
 
 use crate::name::PkgName;
 
-/// Some item that has an associated package name
+/// Some item that has an associated name
 #[enum_dispatch::enum_dispatch]
-pub trait Named {
-    /// The name of the associated package
-    fn name(&self) -> &PkgName;
+pub trait Named<N: AsRef<str> + ?Sized = PkgName> {
+    /// The associated name of this item
+    fn name(&self) -> &N;
 }
 
 impl<T: Named> Named for Arc<T> {
