@@ -7,7 +7,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     unsafe {
         std::env::set_var("PROTOC", protobuf_src::protoc());
     }
-    tonic_build::configure().bytes(["buffer"]).compile(
+    tonic_build::configure().bytes(["buffer"]).compile_protos(
         &[
             "src/proto/defs/database.proto",
             "src/proto/defs/repository.proto",

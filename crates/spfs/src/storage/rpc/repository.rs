@@ -82,7 +82,7 @@ pub struct RpcRepository {
     pub(super) tag_client: TagServiceClient<tonic::transport::Channel>,
     pub(super) db_client: DatabaseServiceClient<tonic::transport::Channel>,
     pub(super) payload_client: PayloadServiceClient<tonic::transport::Channel>,
-    pub(super) http_client: hyper::Client<hyper::client::HttpConnector, hyper::Body>,
+    pub(super) http_client: hyper::client::conn::http1::Builder,
     /// the namespace to use for tag resolution. If set, then this is treated
     /// as "chroot" of the real tag root.
     tag_namespace: Option<TagNamespaceBuf>,
@@ -142,7 +142,7 @@ impl RpcRepository {
             tag_client,
             db_client,
             payload_client,
-            http_client: hyper::Client::new(),
+            http_client: hyper::client::conn::http1::Builder::new(),
             tag_namespace: config.params.tag_namespace,
         })
     }
