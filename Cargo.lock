@@ -511,6 +511,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "cfg_aliases"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
+
+[[package]]
 name = "chrono"
 version = "0.4.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -878,7 +884,7 @@ version = "3.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "82e95fbd621905b854affdc67943b043a0fbb6ed7385fd5a25650d19a8a6cfdf"
 dependencies = [
- "nix",
+ "nix 0.27.1",
  "windows-sys 0.48.0",
 ]
 
@@ -2103,6 +2109,18 @@ checksum = "2eb04e9c688eff1c89d72b407f168cf79bb9e867a9d3323ed6c01519eb9cc053"
 dependencies = [
  "bitflags 2.4.1",
  "cfg-if",
+ "libc",
+]
+
+[[package]]
+name = "nix"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71e2746dc3a24dd78b3cfcb7be93368c6de9963d30f43a6a73998a9cf4b17b46"
+dependencies = [
+ "bitflags 2.4.1",
+ "cfg-if",
+ "cfg_aliases",
  "libc",
 ]
 
@@ -3624,7 +3642,7 @@ dependencies = [
  "itertools 0.12.1",
  "libc",
  "miette",
- "nix",
+ "nix 0.29.0",
  "nonempty",
  "num_cpus",
  "once_cell",
@@ -3713,7 +3731,7 @@ version = "0.42.0"
 dependencies = [
  "clap 4.5.0",
  "miette",
- "nix",
+ "nix 0.29.0",
  "spfs",
  "spfs-cli-common",
  "tokio",
@@ -3730,7 +3748,7 @@ dependencies = [
  "fuser",
  "libc",
  "miette",
- "nix",
+ "nix 0.29.0",
  "spfs",
  "spfs-cli-common",
  "spfs-vfs",
@@ -3766,7 +3784,7 @@ dependencies = [
  "itertools 0.10.5",
  "libc",
  "miette",
- "nix",
+ "nix 0.29.0",
  "number_prefix",
  "procfs",
  "relative-path",
@@ -3792,7 +3810,7 @@ version = "0.42.0"
 dependencies = [
  "clap 4.5.0",
  "miette",
- "nix",
+ "nix 0.29.0",
  "spfs",
  "spfs-cli-common",
  "tokio",
@@ -3824,7 +3842,7 @@ dependencies = [
  "dashmap",
  "libc",
  "miette",
- "nix",
+ "nix 0.29.0",
  "spfs",
  "spfs-cli-common",
  "spfs-vfs",
@@ -3879,7 +3897,7 @@ dependencies = [
  "futures-core",
  "libc",
  "miette",
- "nix",
+ "nix 0.29.0",
  "prost",
  "protobuf-src",
  "spfs",
@@ -3972,7 +3990,7 @@ dependencies = [
  "futures",
  "glob",
  "miette",
- "nix",
+ "nix 0.29.0",
  "nom",
  "nom-supreme",
  "once_cell",
@@ -4177,7 +4195,7 @@ dependencies = [
  "async-trait",
  "clap 4.5.0",
  "miette",
- "nix",
+ "nix 0.29.0",
  "spfs",
  "spfs-cli-common",
  "spk-cli-common",
@@ -4361,7 +4379,7 @@ name = "spk-launcher"
 version = "0.42.0"
 dependencies = [
  "miette",
- "nix",
+ "nix 0.29.0",
  "spfs",
  "tempfile",
  "tokio",

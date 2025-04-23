@@ -470,7 +470,7 @@ where
                         committed_path.as_path(),
                         Some(target_dir_fd),
                         std::path::Path::new(entry.name()),
-                        nix::unistd::LinkatFlags::NoSymlinkFollow,
+                        nix::fcntl::AtFlags::AT_SYMLINK_FOLLOW,
                     ) {
                         match err {
                             nix::errno::Errno::ENOENT if retry_count < 3 => {
@@ -549,7 +549,7 @@ where
                     tokio::task::spawn_blocking(move || -> std::io::Result<tokio::fs::File> {
                         // create with open permissions, as they will be set to the proper mode in the future
                         let fd = nix::fcntl::openat(
-                            target_dir_fd,
+                            Some(target_dir_fd),
                             name.as_str(),
                             OFlag::O_RDWR | OFlag::O_CREAT | OFlag::O_TRUNC,
                             Mode::all(),
@@ -605,12 +605,12 @@ where
         // leave the permissions open for now, so that
         // the structure inside can be generated without
         // privileged access
-        match nix::sys::stat::mkdirat(dir_fd.as_raw_fd(), name.as_str(), Mode::all()) {
+        match nix::sys::stat::mkdirat(Some(dir_fd.as_raw_fd()), name.as_str(), Mode::all()) {
             Ok(_) | Err(nix::errno::Errno::EEXIST) => {}
             Err(err) => return Err(err.into()),
         }
         let fd = nix::fcntl::openat(
-            dir_fd.as_raw_fd(),
+            Some(dir_fd.as_raw_fd()),
             name.as_str(),
             OFlag::O_DIRECTORY | OFlag::O_RDONLY,
             Mode::all(),
