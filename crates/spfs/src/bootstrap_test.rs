@@ -12,19 +12,15 @@ use crate::fixtures::*;
 use crate::resolve::which;
 use crate::runtime;
 
-#[rstest(
-    shell,
-    startup_script,
-    startup_cmd,
-    case("bash", "test.sh", "echo hi; export TEST_VALUE='spfs-test-value'"),
-    case("tcsh", "test.csh", "echo hi; setenv TEST_VALUE 'spfs-test-value'")
-)]
+#[rstest]
+#[case::bash("bash", "test.sh", "echo hi; export TEST_VALUE='spfs-test-value'")]
+#[case::tcsh("tcsh", "test.csh", "echo hi; setenv TEST_VALUE 'spfs-test-value'")]
 #[tokio::test]
 #[serial_test::serial(env)] // env and config manipulation must be reliable
 async fn test_shell_initialization_startup_scripts(
-    shell: &str,
-    startup_script: &str,
-    startup_cmd: &str,
+    #[case] shell: &str,
+    #[case] startup_script: &str,
+    #[case] startup_cmd: &str,
     tmpdir: tempfile::TempDir,
 ) {
     init_logging();
@@ -103,10 +99,15 @@ async fn test_shell_initialization_startup_scripts(
     assert!(out.stdout.ends_with("spfs-test-value\n".as_bytes()));
 }
 
-#[rstest(shell, case("bash"), case("tcsh"))]
+#[rstest]
+#[case::bash("bash")]
+#[case::tcsh("tcsh")]
 #[tokio::test]
 #[serial_test::serial(env)] // env and config manipulation must be reliable
-async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempfile::TempDir) {
+async fn test_shell_initialization_no_startup_scripts(
+    #[case] shell: &str,
+    tmpdir: tempfile::TempDir,
+) {
     init_logging();
     let shell_path = match which(shell) {
         Some(path) => path,
@@ -162,10 +163,12 @@ async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempf
 }
 
 #[cfg(unix)]
-#[rstest(shell, case("bash"), case("tcsh"))]
+#[rstest]
+#[case::bash("bash")]
+#[case::tcsh("tcsh")]
 #[tokio::test]
 #[serial_test::serial(env)] // env manipulation must be reliable
-async fn test_find_alternate_bash(shell: &str, tmpdir: tempfile::TempDir) {
+async fn test_find_alternate_bash(#[case] shell: &str, tmpdir: tempfile::TempDir) {
     init_logging();
     let original_path = std::env::var("PATH").unwrap_or_default();
     let original_shell = std::env::var("SHELL").unwrap_or_default();
