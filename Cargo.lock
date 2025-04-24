@@ -3157,9 +3157,9 @@ dependencies = [
  "reqwest",
  "sentry-backtrace",
  "sentry-contexts",
- "sentry-core 0.34.0",
+ "sentry-core",
  "sentry-panic",
- "sentry-tracing 0.34.0",
+ "sentry-tracing",
  "tokio",
  "ureq",
 ]
@@ -3173,7 +3173,7 @@ dependencies = [
  "backtrace",
  "once_cell",
  "regex",
- "sentry-core 0.34.0",
+ "sentry-core",
 ]
 
 [[package]]
@@ -3186,21 +3186,8 @@ dependencies = [
  "libc",
  "os_info",
  "rustc_version",
- "sentry-core 0.34.0",
+ "sentry-core",
  "uname",
-]
-
-[[package]]
-name = "sentry-core"
-version = "0.32.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1189f68d7e7e102ef7171adf75f83a59607fafd1a5eecc9dc06c026ff3bdec4"
-dependencies = [
- "once_cell",
- "rand",
- "sentry-types 0.32.2",
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -3211,7 +3198,7 @@ checksum = "161283cfe8e99c8f6f236a402b9ccf726b201f365988b5bb637ebca0abbd4a30"
 dependencies = [
  "once_cell",
  "rand",
- "sentry-types 0.34.0",
+ "sentry-types",
  "serde",
  "serde_json",
 ]
@@ -3232,18 +3219,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc74f229c7186dd971a9491ffcbe7883544aa064d1589bd30b83fb856cd22d63"
 dependencies = [
  "sentry-backtrace",
- "sentry-core 0.34.0",
-]
-
-[[package]]
-name = "sentry-tracing"
-version = "0.32.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3012699a9957d7f97047fd75d116e22d120668327db6e7c59824582e16e791b2"
-dependencies = [
- "sentry-core 0.32.2",
- "tracing-core",
- "tracing-subscriber",
+ "sentry-core",
 ]
 
 [[package]]
@@ -3253,26 +3229,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd3c5faf2103cd01eeda779ea439b68c4ee15adcdb16600836e97feafab362ec"
 dependencies = [
  "sentry-backtrace",
- "sentry-core 0.34.0",
+ "sentry-core",
  "tracing-core",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "sentry-types"
-version = "0.32.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7173fd594569091f68a7c37a886e202f4d0c1db1e1fa1d18a051ba695b2e2ec"
-dependencies = [
- "debugid",
- "hex",
- "rand",
- "serde",
- "serde_json",
- "thiserror",
- "time",
- "url",
- "uuid 1.5.0",
 ]
 
 [[package]]
@@ -3645,7 +3604,7 @@ dependencies = [
  "once_cell",
  "sentry",
  "sentry-miette",
- "sentry-tracing 0.32.2",
+ "sentry-tracing",
  "serde_json",
  "serde_yaml 0.9.27",
  "spfs",
@@ -3928,7 +3887,7 @@ dependencies = [
  "once_cell",
  "rstest",
  "sentry",
- "sentry-tracing 0.32.2",
+ "sentry-tracing",
  "serde_json",
  "serde_yaml 0.9.27",
  "spfs",
