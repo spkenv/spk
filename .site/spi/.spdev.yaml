@@ -6,7 +6,7 @@ release_notes: |
 
 toolchain:
   - kind: Rust
-    toolchain: 1.85.0
+    toolchain: 1.86.0
     additional_toolchains:
       - nightly
   - kind: Shell
