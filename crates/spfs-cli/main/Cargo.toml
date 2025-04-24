@@ -38,7 +38,7 @@ dunce = { workspace = true }
 futures = { workspace = true }
 hyper = { workspace = true, optional = true, features = ["http1"] }
 hyper-util = { workspace = true, optional = true }
-itertools = "0.10.3"
+itertools = { workspace = true }
 libc = { workspace = true }
 miette = { workspace = true, features = ["fancy"] }
 nix = { workspace = true, features = ["signal"] }
