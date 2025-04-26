@@ -60,7 +60,7 @@ pub struct Ls<Output: Default = Console> {
     components: bool,
 
     /// Recursively list all package versions and builds
-    #[clap(long)]
+    #[clap(long, short = 'R')]
     recursive: bool,
 
     /// Show the deprecated packages
