@@ -8,7 +8,18 @@ mod storage;
 
 pub use error::{Error, Result};
 pub use storage::{
-    CachePolicy, MemRepository, NameAndRepository, Repository, RepositoryHandle, RuntimeRepository,
-    SpfsRepository, Storage, export_package, find_path_providers,
-    inject_path_repo_into_spfs_config, local_repository, pretty_print_filepath, remote_repository,
+    CachePolicy,
+    MemRepository,
+    NameAndRepository,
+    Repository,
+    RepositoryHandle,
+    RuntimeRepository,
+    SpfsRepository,
+    Storage,
+    export_package,
+    find_path_providers,
+    inject_path_repo_into_spfs_config,
+    local_repository,
+    pretty_print_filepath,
+    remote_repository,
 };

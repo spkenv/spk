@@ -3,7 +3,7 @@
 // https://github.com/spkenv/spk
 
 use std::num::{NonZeroU64, NonZeroUsize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 use derive_builder::Builder;
@@ -685,10 +685,7 @@ impl Config {
         addrs
     }
 
-    pub fn add_proxy_repo_over_origin(
-        &self,
-        repo_path: &std::path::PathBuf,
-    ) -> Result<Arc<Config>> {
+    pub fn add_proxy_repo_over_origin(&self, repo_path: &Path) -> Result<Arc<Config>> {
         let mut new_config = (*self).clone();
 
         // The original origin repo, will be renamed below
@@ -704,7 +701,7 @@ impl Config {
         // The new repo, from the given path, e.g. the per job/shot one
         let jobrepo = Remote::Address(RemoteAddress {
             address: url::Url::parse(&format!("file:{}?create=true", repo_path.display()))
-                .map_err(|e| Error::InvalidRemoteUrl(e.into()))?,
+                .map_err(Error::InvalidRemoteUrl)?,
         });
 
         // The new proxy repo that covers the two repos above and replaces
@@ -713,7 +710,7 @@ impl Config {
             address: url::Url::parse(&format!(
                 "proxy:?primary={PRIMARY_REPO_NAME}&secondary[0]={SECONDARY_REPO_NAME}"
             ))
-            .map_err(|e| Error::InvalidRemoteUrl(e.into()))?,
+            .map_err(Error::InvalidRemoteUrl)?,
         });
 
         new_config
