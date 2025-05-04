@@ -30,6 +30,7 @@ use fuser::{
 };
 use spfs::OsError;
 use spfs::prelude::*;
+use spfs::storage::LocalRepository;
 #[cfg(feature = "fuse-backend-abi-7-31")]
 use spfs::tracking::BlobRead;
 use spfs::tracking::{Entry, EntryKind, EnvSpec, Manifest};
@@ -381,7 +382,7 @@ impl Filesystem {
                         reply.error(libc::ENOENT);
                         return;
                     };
-                    let payload_path = fs_repo.payloads.build_digest_path(digest);
+                    let payload_path = fs_repo.payloads().build_digest_path(digest);
                     match std::fs::OpenOptions::new().read(true).open(payload_path) {
                         Ok(file) => {
                             handle = Some(Handle::BlobFile { entry, file });

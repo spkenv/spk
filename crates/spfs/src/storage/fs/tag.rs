@@ -10,6 +10,7 @@ use std::mem::size_of;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::Poll;
 
 use close_err::Closable;
@@ -19,7 +20,7 @@ use futures::{Future, Stream, StreamExt, TryFutureExt};
 use relative_path::RelativePath;
 use tokio::io::{AsyncRead, AsyncSeek, AsyncWriteExt, ReadBuf};
 
-use super::{FsRepository, OpenFsRepository};
+use super::{MaybeOpenFsRepository, OpenFsRepository};
 use crate::storage::tag::{EntryType, TagSpecAndTagStream, TagStream};
 use crate::storage::{
     TAG_NAMESPACE_MARKER,
@@ -33,10 +34,10 @@ use crate::{Error, OsError, OsErrorExt, Result, encoding, tracking};
 const TAG_EXT: &str = "tag";
 
 #[async_trait::async_trait]
-impl TagStorage for FsRepository {
+impl TagStorage for MaybeOpenFsRepository {
     #[inline]
     fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
-        Self::get_tag_namespace(self)
+        self.fs_impl.get_tag_namespace()
     }
 
     fn ls_tags_in_namespace(
@@ -130,7 +131,7 @@ impl TagStorage for FsRepository {
     }
 }
 
-impl FsRepository {
+impl MaybeOpenFsRepository {
     /// Forcefully remove any lock file for the identified tag.
     ///
     /// # Safety
@@ -194,7 +195,7 @@ impl OpenFsRepository {
 impl TagStorage for OpenFsRepository {
     #[inline]
     fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
-        Self::get_tag_namespace(self)
+        self.fs_impl.get_tag_namespace()
     }
 
     fn ls_tags_in_namespace(
@@ -447,12 +448,12 @@ impl TagStorage for OpenFsRepository {
     }
 }
 
-impl TagStorageMut for FsRepository {
+impl TagStorageMut for MaybeOpenFsRepository {
     fn try_set_tag_namespace(
         &mut self,
         tag_namespace: Option<TagNamespaceBuf>,
     ) -> Result<Option<TagNamespaceBuf>> {
-        Ok(Self::set_tag_namespace(self, tag_namespace))
+        Ok(Arc::make_mut(&mut self.fs_impl).set_tag_namespace(tag_namespace))
     }
 }
 
