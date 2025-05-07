@@ -17,9 +17,11 @@ use spk_schema::ident::{
     PinPolicy,
     PkgRequest,
     RangeIdent,
+    RequestedBy,
     VarRequest,
 };
 use spk_schema::ident_component::Component;
+use spk_schema::name::PkgNameBuf;
 use spk_schema::prelude::{HasVersion, Named, Versioned};
 use spk_schema::version_range::VersionFilter;
 use spk_schema::{OptionMap, Package, Request};
@@ -286,8 +288,57 @@ impl Solver {
                 }
             }));
         }
+
+        // At this point, almost all the pieces of the solution are in
+        // place, but the pkg_requests have the wrong requested by
+        // data. This is updated in two passe.
+        //
+        // First pass: take the runtime requirements (dependency
+        // requests) of each resolved package, and get the package
+        // name of each requirement, and use that name as key to map
+        // to a set that the resolved package's ident is added into.
+        // This makes sets of builds that requested each of the
+        // package names.
+        let mut names_to_requesters: HashMap<PkgNameBuf, BTreeSet<RequestedBy>> = HashMap::new();
+        for (_pkg_request, package, _source) in solution_adds.iter() {
+            for request in package.runtime_requirements().iter() {
+                if let Request::Pkg(pkg_req) = request {
+                    let name = pkg_req.pkg.name();
+                    let entry = names_to_requesters.entry(name.into()).or_default();
+                    entry.insert(RequestedBy::PackageBuild(package.ident().clone()));
+                }
+            }
+        }
+        // Second pass: go through each package request in the
+        // solution and look up its package name in the "name to
+        // requesters" mapping, produced above, to get its set of
+        // requester. Using the set, update each package request by
+        // adding everything in the set to the package request as
+        // something that requested it. If no set was found during the
+        // look up, and the resolved package isn't embedded, assumes
+        // the request was made "from the command line".
+        let mut updated_solution_adds = Vec::with_capacity(solution_adds.len());
+        for (mut pkg_request, package, source) in solution_adds {
+            let name = pkg_request.pkg.name();
+            if let Some(requesters) = names_to_requesters.get(name) {
+                for requester in requesters {
+                    pkg_request.add_requester(requester.clone());
+                }
+                if let PackageSource::Embedded { ref parent, .. } = source {
+                    // Embedded case to match the other solver's output
+                    pkg_request.add_requester(RequestedBy::Embedded(parent.clone()));
+                }
+            } else if let PackageSource::Embedded { ref parent, .. } = source {
+                pkg_request.add_requester(RequestedBy::Embedded(parent.clone()));
+            } else {
+                pkg_request.add_requester(RequestedBy::CommandLine);
+            }
+
+            updated_solution_adds.push((pkg_request, package, source))
+        }
+
         let mut solution = Solution::new(solution_options);
-        for (pkg_request, package, source) in solution_adds {
+        for (pkg_request, package, source) in updated_solution_adds {
             solution.add(pkg_request, package, source);
         }
         Ok(solution)
