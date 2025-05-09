@@ -541,6 +541,7 @@
     "proptest",
     "prost",
     "proto",
+    "protos",
     "protobuf",
     "protoc",
     "proxydir",

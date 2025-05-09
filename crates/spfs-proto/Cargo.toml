@@ -28,4 +28,4 @@ flatc-rust = "0.2"
 
 [dev-dependencies]
 ring = { workspace = true }
-rstest = { version = "0.15.0", default-features = false }
+rstest = { workspace = true }

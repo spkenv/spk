@@ -842,7 +842,7 @@ impl fuser::Filesystem for Session {
         });
     }
 
-    fn getattr(&mut self, _req: &Request<'_>, ino: u64, reply: fuser::ReplyAttr) {
+    fn getattr(&mut self, _req: &Request<'_>, ino: u64, _fh: Option<u64>, reply: fuser::ReplyAttr) {
         let session = Arc::clone(&self.inner);
         tokio::task::spawn(async move {
             let fs = unwrap!(reply, session.get_fs().await);

@@ -19,7 +19,7 @@ pub enum TempRepo {
         grpc_join_handle: Option<tokio::task::JoinHandle<()>>,
         http_join_handle: Option<tokio::task::JoinHandle<()>>,
         grpc_shutdown: std::sync::mpsc::Sender<()>,
-        http_shutdown: std::sync::mpsc::Sender<()>,
+        http_shutdown: tokio::sync::oneshot::Sender<()>,
         tmpdir: TempDir,
     },
 }
@@ -65,18 +65,12 @@ impl std::ops::Deref for TempRepo {
 
 impl Drop for TempRepo {
     fn drop(&mut self) {
-        if let Self::Rpc {
-            grpc_shutdown,
-            http_shutdown,
-            ..
-        } = self
-        {
+        if let Self::Rpc { grpc_shutdown, .. } = self {
             grpc_shutdown
                 .send(())
                 .expect("failed to send grpc server shutdown signal");
-            http_shutdown
-                .send(())
-                .expect("failed to send http server shutdown signal");
+            // let the http shutdown channel drop naturally which will
+            // close it and cause the receiving end to get an error
         }
     }
 }
@@ -158,14 +152,14 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
                     .unwrap(),
             ));
             let listen: std::net::SocketAddr = "127.0.0.1:0".parse().unwrap();
-            let http_listener = std::net::TcpListener::bind(listen).unwrap();
+            let http_listener = tokio::net::TcpListener::bind(listen).await.unwrap();
             let local_http_addr = http_listener.local_addr().unwrap();
             let payload_service = spfs::server::PayloadService::new(
                 repo.clone(),
                 format!("http://{local_http_addr}").parse().unwrap(),
             );
             let (grpc_shutdown, grpc_shutdown_recv) = std::sync::mpsc::channel::<()>();
-            let (http_shutdown, http_shutdown_recv) = std::sync::mpsc::channel::<()>();
+            let (http_shutdown, mut http_shutdown_recv) = tokio::sync::oneshot::channel::<()>();
             let grpc_listener = tokio::net::TcpListener::bind(listen).await.unwrap();
             let local_grpc_addr = grpc_listener.local_addr().unwrap();
             let incoming = tokio_stream::wrappers::TcpListenerStream::new(grpc_listener);
@@ -188,27 +182,36 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
             tracing::debug!("test rpc server listening: {local_grpc_addr}");
             let grpc_join_handle =
                 tokio::task::spawn(async move { grpc_future.await.expect("test server failed") });
-            let http_server = {
-                hyper::Server::from_tcp(http_listener).unwrap().serve(
-                    hyper::service::make_service_fn(move |_| {
-                        let s = payload_service.clone();
-                        async move { Ok::<_, std::convert::Infallible>(s) }
-                    }),
-                )
-            };
-            let http_future = http_server.with_graceful_shutdown(async {
-                // use a blocking task to avoid locking up the whole server
-                // with this very synchronous channel recv process
-                tokio::task::spawn_blocking(move || {
-                    http_shutdown_recv
-                        .recv()
-                        .expect("failed to get http server shutdown signal");
-                })
-                .await
-                .unwrap()
+            let http_join_handle = tokio::task::spawn(async move {
+                loop {
+                    let conn = tokio::select! {
+                        conn = http_listener.accept() => conn,
+                        _ = &mut http_shutdown_recv => {
+                            break;
+                        }
+                    };
+                    let stream = match conn {
+                        Ok((stream, _)) => {
+                            tracing::debug!("Accepted connection from {:?}", stream.peer_addr());
+                            stream
+                        }
+                        Err(err) => {
+                            tracing::error!("Error accepting connection: {:?}", err);
+                            continue;
+                        }
+                    };
+                    let io = hyper_util::rt::TokioIo::new(stream);
+                    let service = payload_service.clone();
+                    tokio::task::spawn(async move {
+                        if let Err(err) = hyper::server::conn::http1::Builder::new()
+                            .serve_connection(io, service)
+                            .await
+                        {
+                            tracing::error!("Error serving connection: {:?}", err);
+                        }
+                    });
+                }
             });
-            let http_join_handle =
-                tokio::task::spawn(async move { http_future.await.expect("http server failed") });
             let url = format!("http2://{local_grpc_addr}").parse().unwrap();
             tracing::debug!("Connected to rpc test repo: {url}");
             let repo = spfs::storage::rpc::RpcRepository::from_url(&url)

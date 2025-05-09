@@ -39,8 +39,8 @@ fn test_write_read_header() {
     assert_eq!(remaining, "");
 }
 
-#[rstest(value, case(0), case(1), case(45), case(600))]
-fn test_read_write_int(value: i64) {
+#[rstest]
+fn test_read_write_int(#[values(0, 1, 45, 600)] value: i64) {
     let mut stream = Cursor::new(Vec::<u8>::new());
     write_int(&mut stream, value).unwrap();
     stream.write_all(b"postfix").unwrap();
