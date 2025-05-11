@@ -20,18 +20,19 @@ migration-to-components = ["spk-schema/migration-to-components"]
 arc-swap = { workspace = true }
 async-trait = { workspace = true }
 colored = { workspace = true }
-dashmap = "5.4.0"
+dashmap = { workspace = true }
 data-encoding = "2.3.0"
 enum_dispatch = { workspace = true }
 format_serde_error = { workspace = true, default-features = false, features = [
-    "serde_yaml",
     "colored",
+    "serde_yaml",
 ] }
 futures = { workspace = true }
 glob = { workspace = true }
 ignore = "0.4.18"
 indexmap = { workspace = true }
 itertools = { workspace = true }
+miette = { workspace = true }
 nom = { workspace = true }
 once_cell = { workspace = true }
 paste = { workspace = true }
@@ -39,17 +40,16 @@ regex = { workspace = true }
 relative-path = { workspace = true }
 ring = { workspace = true }
 rstest = { workspace = true }
+sentry = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
-sentry = { workspace = true, optional = true }
 spfs = { workspace = true }
 spk-schema = { workspace = true }
 sys-info = "0.9.0"
 tar = "0.4.30"
 tempfile = { workspace = true }
 thiserror = { workspace = true }
-miette = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }
 tracing-subscriber = "0.3.17"
