@@ -35,6 +35,7 @@ const SOLUTION_FORMAT_FOOTER: &str = "Number of Packages:";
 const PACKAGE_COLUMN: usize = 0;
 const VERSION_COLUMN: usize = 1;
 const HIGHEST_VERSION_COLUMN: usize = 2;
+const DISK_SIZE_COLUMN: usize = 3;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PackageSource {
@@ -466,7 +467,9 @@ impl Solution {
         }
         let highest_versions = self.get_all_highest_package_versions(repos).await?;
 
-        Ok(self.format_solution_with_padding_and_highest(verbosity, &highest_versions, sort))
+        Ok(self
+            .format_solution_with_padding_and_highest(verbosity, &highest_versions, sort)
+            .await)
     }
 
     fn format_solution_without_padding_or_highest(&self, verbosity: u8) -> String {
@@ -499,7 +502,7 @@ impl Solution {
         out
     }
 
-    fn format_solution_with_padding_and_highest(
+    async fn format_solution_with_padding_and_highest(
         &self,
         verbosity: u8,
         highest_versions: &HashMap<PkgNameBuf, Arc<Version>>,
@@ -519,15 +522,21 @@ impl Solution {
         let package_heading = String::from("Package");
         let version_heading = String::from("Version");
         let highest_heading = String::from("Newest");
+        let size_heading = String::from("Size");
         let package_heading_width = console::measure_text_width(&package_heading);
         let version_heading_width = console::measure_text_width(&version_heading);
         let highest_heading_width = console::measure_text_width(&highest_heading);
+        let size_heading_width = console::measure_text_width(&size_heading);
 
         let mut header: Vec<(usize, String)> = vec![
             (package_heading_width, package_heading),
             (version_heading_width, version_heading),
             (highest_heading_width, highest_heading),
         ];
+        if verbosity >= 1 {
+            header.push((size_heading_width, size_heading));
+        }
+
         if verbosity == 1 {
             // Zero because not padding this column
             header.push((0, String::from("Requested by")));
@@ -542,14 +551,43 @@ impl Solution {
             package_heading_width,
             version_heading_width,
             highest_heading_width,
+            size_heading_width,
             0,
             0,
         ];
+
+        let mut total_size = 0;
 
         // This only pads the first 2 columns at the moment: the
         // packages and the highest_versions. The remaining columns
         // are unpadded.
         for req in required_items {
+            // Work out the disk usage size of the resolved build components.
+            let size = match &req.source {
+                PackageSource::Repository { repo, components } => {
+                    match spk_storage::get_components_disk_usage(
+                        repo.clone(),
+                        Arc::new(req.spec.ident().clone()),
+                        components,
+                    )
+                    .await
+                    {
+                        Ok(disk_usage) => disk_usage.size,
+                        Err(err) => {
+                            tracing::warn!(
+                                "Problem working out disk size of {}: {err}",
+                                req.spec.ident().to_string()
+                            );
+                            0
+                        }
+                    }
+                }
+                // Other package sources are ignored for disk usage
+                _ => 0,
+            };
+            total_size += size;
+
+            // Assemble the output line for this resolved request
             let mut line: Vec<(usize, String)> = Vec::new();
 
             // Get installed request with components and repo name included
@@ -589,9 +627,30 @@ impl Solution {
             }
             line.push((l, highest_label.to_string()));
 
-            // Optionally, add the last 2 columns: the things that
-            // requested this package, and the package's options
+            // Optionally, add the last 3 columns: the disk usage, the
+            // things that requested this package, and the package's
+            // build options.
             if verbosity > 0 {
+                let mut disk_usage = if size < 1024 {
+                    format!("{} ", spk_storage::human_readable(size))
+                } else {
+                    spk_storage::human_readable(size)
+                };
+                // Right aligning the size column by using a minimum
+                // width of 8 because the human readable format, after
+                // the adjustment above, is at least "ddd.d UU" = 8
+                let delta = 8 - disk_usage.len();
+                if delta > 0 {
+                    let padding = " ".repeat(delta);
+                    disk_usage = format!("{padding}{disk_usage}");
+                }
+
+                let l = console::measure_text_width(&disk_usage);
+                if l > max_widths[DISK_SIZE_COLUMN] {
+                    max_widths[DISK_SIZE_COLUMN] = l;
+                }
+                line.push((l, disk_usage));
+
                 // Zero because not padding this value's column
                 line.push((0, req.format_package_requesters()));
 
@@ -622,7 +681,11 @@ impl Solution {
             out.push('\n');
         }
 
-        let _ = write!(out, " {SOLUTION_FORMAT_FOOTER} {number_of_packages}");
+        let human_readable_size = spk_storage::human_readable(total_size);
+        let _ = write!(
+            out,
+            " {SOLUTION_FORMAT_FOOTER} {number_of_packages}   (Total Size: {human_readable_size})"
+        );
         out
     }
 
