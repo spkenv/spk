@@ -8,7 +8,7 @@ Packages built with `spk build` are only installed to your configured
 local storage path via the root storage key in the SPFS
 configuration file:
 
-```angular2html
+```toml
 [storage]
 root = "~/.local/spfs"
 ```
@@ -24,7 +24,7 @@ This will copy an already built local package called `my-pkg` to
 the configured `remote.origin` address in the SPFS configuration
 file:
 
-```angular2html
+```toml
 [remote.origin]
 address = "file:/tmp/spfs-origin"
 ```
