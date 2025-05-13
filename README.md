@@ -23,7 +23,7 @@ SPFS provides a powerful set of tools for capturing and isolating process filesy
 
 ## Usage
 
-See the main [docs](docs/) for details on using spk, starting with the [index](docs/_index.md).
+See the main [docs](https://spkenv.dev/) for details on using spk, starting with the [index](https://spkenv.dev/).
 
 ## License
 
