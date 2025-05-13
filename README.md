@@ -199,10 +199,17 @@ tests/integration/run_all.sh
 
 ### Windows
 
-To build and run on Windows, you need a couple of dependencies that are easiest to install via Chocolatey.
+To build and run on Windows, you will first need to use the Windows package manager `winget` to install
+Chocolatey.
 
 ```sh
-choco install protoc llvm winfsp
+winget install Chocolatey
+```
+
+Next you need a couple of dependencies that are easiest to install via Chocolatey.
+
+```sh
+choco install make protoc llvm winfsp
 ```
 
 ### Benchmarks
