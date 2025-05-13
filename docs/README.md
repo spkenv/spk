@@ -1,4 +1,4 @@
-# Build instructions
+# Build Instructions
 
 To build the docs you must install the following requirements:
 
