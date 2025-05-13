@@ -212,6 +212,20 @@ Next you need a couple of dependencies that are easiest to install via Chocolate
 choco install make protoc llvm winfsp
 ```
 
+Next we need to install the FlatBuffers compiler. You will need to run PowerShell as Administrator.
+
+```powershell
+$url = "https://github.com/google/flatbuffers/releases/download/v23.5.26/Windows.flatc.binary.zip"
+Invoke-WebRequest $url -OutFile "$Env:TEMP\flatc.zip"
+New-Item -ItemType Directory -Force -Path "C:\Program Files\Google\flatc"
+Expand-Archive "$Env:TEMP\flatc.zip" -DestinationPath "C:\Program Files\Google\flatc"
+Remove-Item -Path "$Env:TEMP\flatc.zip"
+[Environment]::SetEnvironmentVariable(
+    "Path",
+    [Environment]::GetEnvironmentVariable("Path", [EnvironmentVariableTarget]::Machine) + ";C:\Program Files\Google\flatc",
+    [EnvironmentVariableTarget]::Machine)
+```
+
 ### Benchmarks
 
 Benchmark tests can be found in `benches/`. All benchmark tests can be run with `cargo bench`, but in order to successfully pass `criterion`-specific options to the `criterion`-based benchmarks, those types of benchmarks need to be filtered for.
