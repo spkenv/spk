@@ -353,6 +353,7 @@ fn _find_org_error(org: &str) -> Option<usize> {
     for (i, ch) in org.chars().enumerate() {
         match ch {
             '-' | '_' | '.' | '/' => (),
+            '#' if &org[i..] == "#ns" => return None,
             _ => {
                 if !ch.is_ascii_alphanumeric() {
                     return Some(i);
