@@ -151,7 +151,7 @@ pub struct CmdRun {
 
     /// The tag or id of the desired runtime
     ///
-    /// Use '-' to request an empty environment
+    /// Use '-' to or an empty string to request an empty environment
     pub reference: Option<spfs::tracking::EnvSpec>,
 
     /// The command to run in the environment and its arguments

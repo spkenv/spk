@@ -54,7 +54,7 @@ pub struct CmdShell {
 
     /// The tag or id of the desired runtime
     ///
-    /// Use '-' or nothing to request an empty environment
+    /// Use '-' or an empty string to request an empty environment
     #[clap(name = "REF")]
     reference: Option<spfs::tracking::EnvSpec>,
 }

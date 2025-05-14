@@ -11,7 +11,7 @@ Additional command line workflows for more advanced users.
 When tags are created in spfs, they are added to what is known as a _tag stream_. Tag streams are simply a historical record of that tag over time, keeping track of each change, when it was made, and by whom. Previous versions of a tag can be referenced using a tilde, where the most recent version of a tag is version `~0`; the previous version is version `~1`; the version before that is version `~2` etc... This notation can be used everywhere a tag can be used. This means that `spfs run my-tag` is the same as `spfs run my-tag~0`. All the available versions of a tag can be viewed using the `spfs log <tag>` command, where you will see this notation used.
 
 ```bash
-spfs shell
+spfs shell -
 
 echo 1 > /spfs/message.txt
 spfs commit layer --tag my-layer
@@ -60,7 +60,7 @@ It's easy enough to pull and mount an spfs file tree, but sometimes it's not ide
 - `spfs cat` can be used to output the contents of a file stored in spfs
 
 ```bash
-spfs shell
+spfs shell -
 mkdir -p /spfs/bin
 echo "I am root" > /spfs/root.txt
 touch /spfs/bin/command
