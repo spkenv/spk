@@ -113,6 +113,8 @@ pub struct CmdClean {
         default_value_t = spfs::Cleaner::DEFAULT_DISCOVER_CONCURRENCY
     )]
     max_discover_concurrency: usize,
+    #[clap(long, hide = true)]
+    markdown_help: bool
 }
 
 impl CommandName for CmdClean {
@@ -123,6 +125,11 @@ impl CommandName for CmdClean {
 
 impl CmdClean {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
+        if self.markdown_help {
+            clap_markdown::print_help_markdown::<CmdClean>();
+            return Ok(0);
+        }
+        
         let mut repo =
             spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
         tracing::debug!("spfs clean command called");
