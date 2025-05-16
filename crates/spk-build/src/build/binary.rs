@@ -37,7 +37,7 @@ use spk_schema::{
 };
 use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;
-use spk_solve::{BoxedResolverCallback, Named, ResolverCallback, Solver};
+use spk_solve::{BoxedResolverCallback, Named, ResolverCallback, StepSolver};
 use spk_storage as storage;
 
 use crate::report::{BuildOutputReport, BuildReport, BuildSetupReport};
@@ -131,7 +131,7 @@ pub struct BinaryPackageBuilder<'a, Recipe> {
     prefix: PathBuf,
     recipe: Recipe,
     source: BuildSource,
-    solver: Solver,
+    solver: StepSolver,
     environment: HashMap<String, String>,
     source_resolver: BoxedResolverCallback<'a>,
     build_resolver: BoxedResolverCallback<'a>,
@@ -155,7 +155,7 @@ where
             recipe,
             source,
             prefix: PathBuf::from("/spfs"),
-            solver: Solver::default(),
+            solver: StepSolver::default(),
             environment: Default::default(),
             #[cfg(test)]
             source_resolver: Box::new(spk_solve::DecisionFormatter::new_testing()),
