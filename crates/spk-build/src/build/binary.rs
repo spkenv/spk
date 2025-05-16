@@ -117,9 +117,9 @@ where
 ///
 /// ```no_run
 /// # use spk_schema::{recipe, foundation::option_map};
-/// # use spk_solve::Solver;
+/// # use spk_solve::StepSolver;
 /// # async fn demo() {
-/// spk_build::BinaryPackageBuilder::<_, Solver>::from_recipe(recipe!({
+/// spk_build::BinaryPackageBuilder::<_, StepSolver>::from_recipe(recipe!({
 ///         "pkg": "my-pkg",
 ///         "build": {"script": "echo hello, world"},
 ///      }))
