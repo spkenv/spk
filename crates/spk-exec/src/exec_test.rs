@@ -9,15 +9,15 @@ use rstest::{fixture, rstest};
 use spk_cmd_build::build_package;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::ident::build_ident;
-use spk_solve::{DecisionFormatterBuilder, Solver};
+use spk_solve::{DecisionFormatterBuilder, StepSolver};
 use spk_solve_macros::request;
 use spk_storage::fixtures::*;
 
 use crate::solution_to_resolved_runtime_layers;
 
 #[fixture]
-fn solver() -> Solver {
-    Solver::default()
+fn solver() -> StepSolver {
+    StepSolver::default()
 }
 
 /// If two layers contribute files to the same subdirectory, the Manifest is
@@ -26,7 +26,7 @@ fn solver() -> Solver {
 #[tokio::test]
 async fn get_environment_filesystem_merges_directories(
     tmpdir: tempfile::TempDir,
-    mut solver: Solver,
+    mut solver: StepSolver,
 ) {
     let rt = spfs_runtime().await;
 

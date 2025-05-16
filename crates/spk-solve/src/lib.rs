@@ -7,7 +7,7 @@ mod io;
 #[cfg(feature = "statsd")]
 mod metrics;
 mod search_space;
-mod solver;
+mod solvers;
 mod status_line;
 
 use std::sync::Arc;
@@ -34,7 +34,7 @@ pub use metrics::{
     get_metrics_client,
 };
 pub(crate) use search_space::show_search_space_stats;
-pub use solver::{Solver, SolverRuntime};
+pub use solvers::{StepSolver, StepSolverRuntime};
 pub use spk_schema::foundation::ident_build::Build;
 pub use spk_schema::foundation::ident_component::Component;
 pub use spk_schema::foundation::option_map;
@@ -62,11 +62,11 @@ pub use {
 
 #[async_trait::async_trait]
 pub trait ResolverCallback: Send + Sync {
-    /// Run a solve using the given [`crate::Solver`],
+    /// Run a solve using the given [`crate::StepSolver`],
     /// producing a [`crate::Solution`].
     async fn solve<'s, 'a: 's>(
         &'s self,
-        r: &'a Solver,
+        r: &'a StepSolver,
     ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)>;
 }
 
@@ -77,7 +77,7 @@ pub struct DefaultResolver {}
 impl ResolverCallback for DefaultResolver {
     async fn solve<'s, 'a: 's>(
         &'s self,
-        r: &'a Solver,
+        r: &'a StepSolver,
     ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
         let mut runtime = r.run();
         let solution = runtime.solution().await;
