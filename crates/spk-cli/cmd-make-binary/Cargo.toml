@@ -14,10 +14,10 @@ workspace = true
 
 [features]
 migration-to-components = [
-  "spk-build/migration-to-components",
-  "spk-cli-common/migration-to-components",
-  "spk-schema/migration-to-components",
-  "spk-storage/migration-to-components",
+    "spk-build/migration-to-components",
+    "spk-cli-common/migration-to-components",
+    "spk-schema/migration-to-components",
+    "spk-storage/migration-to-components",
 ]
 
 [dependencies]
@@ -30,6 +30,7 @@ spfs = { workspace = true }
 spk-build = { workspace = true }
 spk-cli-common = { workspace = true }
 spk-schema = { workspace = true }
+spk-solve = { workspace = true }
 spk-storage = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }
