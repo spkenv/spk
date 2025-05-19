@@ -1,0 +1,9 @@
+pkg: maya/2020.0.0
+api: v0/package
+build:
+  script:
+    - true
+install:
+  embedded:
+    - pkg: qt/5.12.6
+      api: v0/package

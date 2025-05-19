@@ -1,0 +1,5 @@
+pkg: gcc/6.3.1
+api: v0/package
+build:
+  script:
+    - true
