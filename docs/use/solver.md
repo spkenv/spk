@@ -16,12 +16,18 @@ To help understand the decision tree and what can go wrong let's look at some ex
 
 ### Package Doesn't Exist
 
-```console
+{{< tabs groupId="solver" >}} {{< tab name="Step" >}}
 $ spk explain -v doesntexist
  DEFINE {arch=x86_64, centos=7, distro=centos, os=linux}
  REQUEST doesntexist/*
 !BLOCKED Package not found: doesntexist
-```
+{{< /tab >}} {{< tab name="Resolvo" >}}
+$ spk explain -v doesntexist
+ERROR (link)
+
+  × Failed to resolve: No candidates were found for doesntexist:run doesntexist:run.
+  │
+{{< /tab >}} {{< /tabs >}}
 
 This error is one of the most obvious - but knowing when and why it can appear helps with understanding other issues. This error happens when the package that was requested simple doesn't exist in and of the enabled repositories.
 
@@ -34,7 +40,7 @@ This error is one of the most obvious - but knowing when and why it can appear h
 
 ### No Applicable Versions
 
-```console
+{{< tabs groupId="solver" >}} {{< tab name="Step" >}}
 $ spk explain -v gcc/3.*
  REQUEST gcc/3.*
  DEFINE {arch=x86_64, centos=7, distro=centos, os=linux}
@@ -42,7 +48,13 @@ $ spk explain -v gcc/3.*
 . TRY gcc/6.3.1 - Out of range: 3.* [at pos 0]
 . TRY gcc/4.8.5 - Out of range: 3.* [at pos 0]
 !BLOCKED failed to resolve 'gcc'
-```
+{{< /tab >}} {{< tab name="Resolvo" >}}
+$ spk explain -v gcc/3.*
+ERROR (link)
+
+  × Failed to resolve: No candidates were found for gcc:run gcc:run/3.*.
+  │
+{{< /tab >}} {{< /tabs >}}
 
 In this case, the package exists but still failed to resolve. We can see that the solver looked at the existing versions of the `gcc` package but found that none of them were applicable to the requested version range.
 
@@ -59,14 +71,22 @@ In these cases, the additional use of the `--verbose (-v)` flag is extremely hel
 
 ### Incompatible Options
 
-```console
+{{< tabs groupId="solver" >}} {{< tab name="Step" >}}
 $ spk explain -v gcc/6 -o os=darwin
  DEFINE {arch=x86_64, centos=7, distro=centos, os=darwin}
  REQUEST gcc/6.0.0
 . TRY gcc/6.3.1 - invalid value for os: Invalid value 'darwin' for option 'os', must be one of {'linux'}
 . TRY gcc/4.8.5 - Not compatible with 6.0.0 [x.a.b at pos 0]
 !BLOCKED failed to resolve 'gcc'
-```
+{{< /tab >}} {{< tab name="Resolvo" >}}
+$ spk explain -v gcc/6 -o os=darwin
+ERROR (link)
+
+  × Failed to resolve: The following packages are incompatible
+  │ └─ gcc:all gcc:all/6.0.0 cannot be installed because there are no viable options:
+  │    └─ gcc:all origin/gcc/6.3.1+r.1/HU3U5LCO:all | origin/gcc/6.3.1/Q6FOANXT:all is excluded because build option os does not satisfy global var request: incompatible build option 'os': 'linux' != 'darwin'
+  │
+{{< /tab >}} {{< /tabs >}}
 
 In this example, we've specifically requested an environment where the `os` option is `darwin`. We can see by the different error message that although there is a `gcc/6.3.1` package available that it was build for `os: linux`, which is not what we requested.
 
@@ -83,8 +103,8 @@ In most cases, the solver will encounter multiple issues as it tries to find an 
 
 #### Incompatible Dependencies
 
-```console
-$ spk explain -v my-plugin/1, maya/2020
+{{< tabs groupId="solver" >}} {{< tab name="Step" >}}
+$ spk explain -v my-plugin/1 maya/2020
  REQUEST my-plugin/1.0.0
  REQUEST maya/2019.0.0
 > RESOLVE my-plugin/1.0.0/3I42H3S6
@@ -93,15 +113,24 @@ $ spk explain -v my-plugin/1, maya/2020
 .. TRY maya/2019.0.0/3I42H3S6 - version too low
 !!BLOCKED failed to resolve 'maya'
 !BLOCKED failed to resolve 'my-plugin'
-```
+{{< /tab >}} {{< tab name="Resolvo" >}}
+$ spk explain -v my-plugin/1 maya/2020
+ERROR (link)
 
-In this example, we've requested my-plugin version 1 and maya 2020. The solver resolved `my-plugin/1.0.0` but this package has it's own dependency on `maya/2019`, as denoted by the additional `REQUEST` which is added. The solver combines the two requests into one, and then cannot find a version that satisfies both the `2019` and `2020` request.
+  × Failed to resolve: my-plugin:run my-plugin:run/1.0.0 cannot be installed because there are no viable
+  │ options:
+  │ └─ my-plugin:run local/my-plugin/1.0.0/G6ZOWQVE:run would require
+  │    └─ maya:run maya:run/Binary:2019.0.0, for which no candidates were found.
+  │
+{{< /tab >}} {{< /tabs >}}
+
+In this example, we've requested my-plugin version 1 and maya 2020. The solver resolved `my-plugin/1.0.0` but this package has its own dependency on `maya/2019`, as denoted by the additional `REQUEST` which is added. The solver combines the two requests into one, and then cannot find a version that satisfies both the `2019` and `2020` request.
 
 The last line of this output is the unwinding of the solver stack. When the first error happens, the solver steps back and tries to see if there is another version of `my-plugin` that can be used (hopefully without the conflicting dependency). In this case there are none left and so it fails.
 
 #### Recovered Incompatibility
 
-```console
+{{< tabs groupId="solver" >}} {{< tab name="Step" >}}
 $ spk explain -v my-plugin/1 maya/2019
  REQUEST my-plugin/1.0.0
  REQUEST maya/2019.0.0
@@ -114,13 +143,16 @@ $ spk explain -v my-plugin/1 maya/2019
 . REQUEST maya/2019.0.0
 .. TRY maya/2020.0.0/3I42H3S6 - Not compatible with 2019.0.0 [x.a.b at pos 0]
 >> RESOLVE maya/2019.0.0/3I42H3S6
-```
+{{< /tab >}} {{< tab name="Resolvo" >}}
+$ spk explain -v my-plugin/1 maya/2019
+[Resolvo solves these requests without output]
+{{< /tab >}} {{< /tabs >}}
 
 Similar to above, `my-plugin/1.1.0` has a dependency on `maya/2020` which conflicts with the original request for maya 2019. In this case, the solver backed out and tried an older version of `my-plugin`, which requested maya 2019 instead and so the resolve was completed.
 
 #### Revisiting a Request
 
-```console
+{{< tabs groupId="solver" >}} {{< tab name="Step" >}}
 $ spk explain -v my-plugin
  REQUEST my-plugin/*
 > RESOLVE my-plugin/1.0.0/3I42H3S6
@@ -132,19 +164,28 @@ $ spk explain -v my-plugin
 >> RESOLVE maya/2019.0.0/3I42H3S6
 >>> RESOLVE some-library/1.0.0/3I42H3S6
 ... REQUEST maya/~2019.0.0
-```
+{{< /tab >}} {{< tab name="Resolvo" >}}
+$ spk explain my-plugin
+[Resolvo solves this request without output]
+{{< /tab >}} {{< /tabs >}}
 
 In this example, `my-plugin` has two dependencies. The first maya dependency is resolved to `2019.2` but then when `some-library` is resolved, it adds a new request for `maya/~2019.0.0` for which `2019.2` is not applicable. Similar to above, the solver steps back and tries again with an older version of maya which ends up being applicable to both requirements.
 
 #### Deprecated Packages
 
-```console
+{{< tabs groupId="solver" >}} {{< tab name="Step" >}}
 $ spk explain -v my-tool
  REQUEST my-tool/*
 . TRY my-tool/1.2.0/STLY6HNC - Build is deprecated and was not specifically requested
 . TRY my-tool/1.2.0 - Package version is deprecated
 ! BLOCKED failed to resolve 'my-tool'
-```
+{{< /tab >}} {{< tab name="Resolvo" >}}
+$ spk explain -v my-tool
+ERROR (link)
+
+  × Failed to resolve: No candidates were found for my-tool:run my-tool:run.
+  │
+{{< /tab >}} {{< /tabs >}}
 
 Packages can be deprecated by package owners when an issue is found or an older version is no longer fit for use. Deprecated packages should not be used under normal circumstances, but there are ways to use the packages if absolutely required.
 
@@ -157,16 +198,19 @@ Packages can be deprecated by package owners when an issue is found or an older 
 
 Some packages, especially DCC packages, are bundled with other software/packages. Package maintainers should include these packages as _embedded_ packages, so that the solver understands what's in the bundle. The solver will show embedded packages being requested and resolved, always with the `embedded` build string.
 
-```console
+{{< tabs groupId="solver" >}} {{< tab name="Step" >}}
 $ spk explain qt maya
  REQUEST qt/*
  REQUEST maya/*
 > RESOLVE qt/5.13.0/3I42H3S6
 !! BLOCKED Package maya embeds package already resolved: qt
 .. REQUEST maya/*
-> RESOLVE maya/2019.2.0/3I42H3S6
+> RESOLVE maya/2020.0.0/3I42H3S6
 . REQUEST qt/=5.12.6/embedded
 . RESOLVE qt/5.12.6/embedded
-```
+{{< /tab >}} {{< tab name="Resolvo" >}}
+$ spk explain qt maya
+[Resolvo solves these requests without output]
+{{< /tab >}} {{< /tabs >}}
 
 In this case, `qt` was resolved to version 5.13 first, but it blocked `maya` from being resolved, since `maya` brought in its own embedded version of `qt`. The solver backtracks to before `qt` was resolved to try a different path. It resolves the `maya` package with its embedded `qt`, which satisfies the original request for both `qt` and `maya`. The solver will always show the same `RESOLVE` message for embedded packages, but embedded packages can only ever resolve to the one bundled with the package in question.
