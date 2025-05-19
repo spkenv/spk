@@ -31,7 +31,7 @@ ERROR (link)
 
 This error is one of the most obvious - but knowing when and why it can appear helps with understanding other issues. This error happens when the package that was requested simple doesn't exist in and of the enabled repositories.
 
-#### Possible Solutions
+#### Possible Solutions {#possible-solutions-1}
 
 - check that the package name was spelled correctly
 - if you just created the package but haven't published it, make sure the the `--enable-repo=local` flag is used
@@ -62,7 +62,7 @@ In this case, the package exists but still failed to resolve. We can see that th
 
 In these cases, the additional use of the `--verbose (-v)` flag is extremely helpful, as it shows us that the solver tried to find an appropriate version and, most importantly, it shows us why none of those versions could be used.
 
-#### Possible Solutions
+#### Possible Solutions {#possible-solutions-2}
 
 - if you just created a new version but haven't published it, make sure the the `--enable-repo=local` flag is used
 - if the package is in a testing or other alternative repository, make sure to enable the repository with `--enable-repo=<name>`
@@ -90,7 +90,7 @@ ERROR (link)
 
 In this example, we've specifically requested an environment where the `os` option is `darwin`. We can see by the different error message that although there is a `gcc/6.3.1` package available that it was build for `os: linux`, which is not what we requested.
 
-#### Possible Solutions
+#### Possible Solutions {#possible-solutions-3}
 
 - Ensure that all your options are appropriate for the package that you are requesting
 - Consider whether the build options that you are using are required or unnecessarily specific
@@ -189,7 +189,7 @@ ERROR (link)
 
 Packages can be deprecated by package owners when an issue is found or an older version is no longer fit for use. Deprecated packages should not be used under normal circumstances, but there are ways to use the packages if absolutely required.
 
-##### Possible Solutions
+##### Possible Solutions {#possible-solutions-4}
 
 - Generally, you want to update to a newer version of the package that has not been deprecated. Package maintainers should not deprecate packages without providing a reasonable alternative.
 - If you are really stuck, note that the error message says _was not specifically requested_. This means that if you request the deprecated build exactly, then it will still resolve the environment for you, eg `spk env my-tool/1.2.0/STLY6HNC`.
