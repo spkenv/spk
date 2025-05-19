@@ -1,0 +1,5 @@
+pkg: gcc/4.8.5
+api: v0/package
+build:
+  script:
+    - true

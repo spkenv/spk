@@ -1,0 +1,11 @@
+pkg: my-plugin/1.0.0
+api: v0/package
+build:
+  options:
+    - pkg: maya/2019
+  script:
+    - true
+install:
+  requirements:
+    - pkg: maya
+      fromBuildEnv: true
