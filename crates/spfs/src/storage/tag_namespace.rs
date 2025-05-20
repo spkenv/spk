@@ -42,10 +42,15 @@ impl std::fmt::Display for TagNamespace {
 }
 
 /// An owned tag namespace name
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct TagNamespaceBuf(RelativePathBuf);
 
 impl TagNamespaceBuf {
+    #[inline]
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+
     /// Create a new tag namespace from the given path.
     pub fn new<P: AsRef<RelativePath>>(path: P) -> Self {
         Self(path.as_ref().to_owned())
@@ -69,5 +74,17 @@ impl std::ops::Deref for TagNamespaceBuf {
 
     fn deref(&self) -> &Self::Target {
         TagNamespace::new(self.0.deref())
+    }
+}
+
+impl From<&str> for TagNamespaceBuf {
+    fn from(path: &str) -> Self {
+        Self(RelativePathBuf::from(path))
+    }
+}
+
+impl From<String> for TagNamespaceBuf {
+    fn from(path: String) -> Self {
+        Self(RelativePathBuf::from(path))
     }
 }

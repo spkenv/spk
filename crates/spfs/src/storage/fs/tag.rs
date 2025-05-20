@@ -238,7 +238,7 @@ impl TagStorage for OpenFsRepository {
                 path.file_name().map(|s| {
                     let s = s.to_string_lossy();
                     match s.split_once(TAG_NAMESPACE_MARKER) {
-                        Some((name, _)) => Ok(EntryType::Namespace(name.to_owned())),
+                        Some((name, _)) => Ok(EntryType::Namespace(name.into())),
                         None => Ok(EntryType::Folder(s.to_string())),
                     }
                 })

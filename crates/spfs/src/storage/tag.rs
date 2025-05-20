@@ -25,7 +25,7 @@ mod tag_test;
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum EntryType {
     Folder(String),
-    Namespace(String),
+    Namespace(TagNamespaceBuf),
     Tag(String),
 }
 
@@ -33,7 +33,7 @@ impl AsRef<str> for EntryType {
     fn as_ref(&self) -> &str {
         match self {
             Self::Folder(s) => s,
-            Self::Namespace(s) => s,
+            Self::Namespace(s) => s.as_str(),
             Self::Tag(s) => s,
         }
     }
@@ -43,7 +43,7 @@ impl From<EntryType> for String {
     fn from(entry: EntryType) -> String {
         match entry {
             EntryType::Folder(s) => s,
-            EntryType::Namespace(s) => s,
+            EntryType::Namespace(s) => s.to_string(),
             EntryType::Tag(s) => s,
         }
     }
