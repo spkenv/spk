@@ -12,7 +12,7 @@ pub const TAG_NAMESPACE_MARKER: &str = "#ns";
 
 /// A borrowed tag namespace name
 #[repr(transparent)]
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct TagNamespace(RelativePath);
 
 impl TagNamespace {

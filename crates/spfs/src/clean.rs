@@ -20,8 +20,8 @@ use super::prune::PruneParameters;
 use crate::io::Pluralize;
 use crate::prelude::*;
 use crate::runtime::makedirs_with_perms;
-use crate::storage::TagNamespaceBuf;
 use crate::storage::fs::OpenFsRepository;
+use crate::storage::{TagNamespace, TagNamespaceBuf};
 use crate::{Digest, Error, Result, encoding, graph, storage, tracking};
 
 #[cfg(test)]
@@ -319,6 +319,7 @@ where
     /// partially complete depending on the nature of the errors.
     pub async fn prune_all_tags_and_clean(&self) -> Result<CleanResult> {
         let mut result = CleanResult::default();
+        let tag_namespace_to_prune = self.repo.get_tag_namespace();
         let namespaces = self.repo.ls_tag_namespaces();
         let mut stream = namespaces
             .map(|ns| {
@@ -346,7 +347,11 @@ where
                     futures.try_next().await?;
                 }
             }
-            futures.push(self.prune_tag_stream_and_walk(tag_namespace, tag_spec));
+            futures.push(self.prune_tag_stream_and_walk(
+                tag_namespace_to_prune.as_ref(),
+                tag_namespace,
+                tag_spec,
+            ));
         }
         drop(stream);
         while let Some(r) = futures.try_next().await? {
@@ -375,12 +380,18 @@ where
         Ok(result)
     }
 
-    async fn prune_tag_stream_and_walk(
+    async fn prune_tag_stream_and_walk<T>(
         &self,
-        tag_namespace: Option<TagNamespaceBuf>,
+        tag_namespace_to_prune: Option<T>,
+        tag_namespace_to_visit: Option<TagNamespaceBuf>,
         tag_spec: tracking::TagSpec,
-    ) -> Result<CleanResult> {
-        let (mut result, to_keep) = self.prune_tag_stream(tag_namespace, tag_spec).await?;
+    ) -> Result<CleanResult>
+    where
+        T: AsRef<TagNamespace>,
+    {
+        let (mut result, to_keep) = self
+            .prune_tag_stream(tag_namespace_to_prune, tag_namespace_to_visit, tag_spec)
+            .await?;
         result += self.walk_attached_objects(&to_keep).await?;
 
         Ok(result)
@@ -404,14 +415,31 @@ where
     /// Visit the tag and its history, pruning as configured and
     /// returning a cleaning (pruning) result and list of tags that
     /// were kept.
-    pub async fn prune_tag_stream(
+    pub async fn prune_tag_stream<T>(
         &self,
-        tag_namespace: Option<TagNamespaceBuf>,
+        tag_namespace_to_prune: Option<T>,
+        tag_namespace_to_visit: Option<TagNamespaceBuf>,
         tag_spec: tracking::TagSpec,
-    ) -> Result<(CleanResult, Vec<encoding::Digest>)> {
+    ) -> Result<(CleanResult, Vec<encoding::Digest>)>
+    where
+        T: AsRef<TagNamespace>,
+    {
+        // The Cleaner needs to visit all namespaces to learn what objects are
+        // still alive, but if the repo passed to the Cleaner has a namespace
+        // set on it then one would expect that only tags in that namespace are
+        // pruned.
+        let should_prune_this_namespace = match (
+            tag_namespace_to_prune.as_ref(),
+            tag_namespace_to_visit.as_deref(),
+        ) {
+            (Some(prune), Some(visit)) if prune.as_ref() == visit => true,
+            (None, None) => true,
+            _ => false,
+        };
+
         let history = self
             .repo
-            .read_tag_in_namespace(tag_namespace.as_deref(), &tag_spec)
+            .read_tag_in_namespace(tag_namespace_to_visit.as_deref(), &tag_spec)
             .await?
             .try_collect::<Vec<_>>()
             .await?;
@@ -423,7 +451,7 @@ where
             self.reporter.visit_tag(&tag);
             let count = if let Some(seen_count) = seen_targets.get(&tag.target) {
                 if let Some(keep_number) = self.prune_repeated_tags {
-                    if *seen_count >= keep_number.get() {
+                    if should_prune_this_namespace && *seen_count >= keep_number.get() {
                         to_prune.push(tag);
                         continue;
                     }
@@ -435,7 +463,7 @@ where
 
             seen_targets.insert(tag.target, count);
 
-            if self.prune_params.should_prune(&spec, &tag) {
+            if should_prune_this_namespace && self.prune_params.should_prune(&spec, &tag) {
                 to_prune.push(tag);
             } else {
                 to_keep.push(tag.target);
@@ -450,7 +478,7 @@ where
         for tag in to_prune.iter() {
             if !self.dry_run {
                 self.repo
-                    .remove_tag_in_namespace(tag_namespace.as_deref(), tag)
+                    .remove_tag_in_namespace(tag_namespace_to_visit.as_deref(), tag)
                     .await?;
             }
             self.reporter.tag_removed(tag);
@@ -458,7 +486,7 @@ where
 
         result
             .pruned_tags
-            .entry(tag_namespace)
+            .entry(tag_namespace_to_visit)
             .or_default()
             .insert(tag_spec, to_prune);
 
