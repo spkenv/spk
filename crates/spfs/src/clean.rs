@@ -20,6 +20,7 @@ use super::prune::PruneParameters;
 use crate::io::Pluralize;
 use crate::prelude::*;
 use crate::runtime::makedirs_with_perms;
+use crate::storage::TagNamespaceBuf;
 use crate::storage::fs::OpenFsRepository;
 use crate::{Digest, Error, Result, encoding, graph, storage, tracking};
 
@@ -318,9 +319,23 @@ where
     /// partially complete depending on the nature of the errors.
     pub async fn prune_all_tags_and_clean(&self) -> Result<CleanResult> {
         let mut result = CleanResult::default();
-        let mut stream = self.repo.iter_tag_streams().boxed();
+        let namespaces = self.repo.ls_tag_namespaces();
+        let mut stream = namespaces
+            .map(|ns| {
+                ns.map(|ns| {
+                    self.repo
+                        .iter_tag_streams_in_namespace(Some(&ns))
+                        .map(move |r| r.map(|(spec, stream)| (Some(ns.clone()), spec, stream)))
+                })
+            })
+            .try_flatten()
+            .chain(
+                self.repo
+                    .iter_tag_streams_in_namespace(None)
+                    .map(|r| r.map(|(spec, stream)| (None, spec, stream))),
+            );
         let mut futures = futures::stream::FuturesUnordered::new();
-        while let Some((tag_spec, _stream)) = stream.try_next().await? {
+        while let Some((tag_namespace, tag_spec, _stream)) = stream.try_next().await? {
             if futures.len() > self.tag_stream_concurrency {
                 // if we've reached the limit, let the fastest half finish
                 // before adding additional futures. This is a crude way to
@@ -331,7 +346,7 @@ where
                     futures.try_next().await?;
                 }
             }
-            futures.push(self.prune_tag_stream_and_walk(tag_spec));
+            futures.push(self.prune_tag_stream_and_walk(tag_namespace, tag_spec));
         }
         drop(stream);
         while let Some(r) = futures.try_next().await? {
@@ -360,8 +375,12 @@ where
         Ok(result)
     }
 
-    async fn prune_tag_stream_and_walk(&self, tag_spec: tracking::TagSpec) -> Result<CleanResult> {
-        let (mut result, to_keep) = self.prune_tag_stream(tag_spec).await?;
+    async fn prune_tag_stream_and_walk(
+        &self,
+        tag_namespace: Option<TagNamespaceBuf>,
+        tag_spec: tracking::TagSpec,
+    ) -> Result<CleanResult> {
+        let (mut result, to_keep) = self.prune_tag_stream(tag_namespace, tag_spec).await?;
         result += self.walk_attached_objects(&to_keep).await?;
 
         Ok(result)
@@ -387,11 +406,12 @@ where
     /// were kept.
     pub async fn prune_tag_stream(
         &self,
+        tag_namespace: Option<TagNamespaceBuf>,
         tag_spec: tracking::TagSpec,
     ) -> Result<(CleanResult, Vec<encoding::Digest>)> {
         let history = self
             .repo
-            .read_tag(&tag_spec)
+            .read_tag_in_namespace(tag_namespace.as_deref(), &tag_spec)
             .await?
             .try_collect::<Vec<_>>()
             .await?;
@@ -429,12 +449,18 @@ where
 
         for tag in to_prune.iter() {
             if !self.dry_run {
-                self.repo.remove_tag(tag).await?;
+                self.repo
+                    .remove_tag_in_namespace(tag_namespace.as_deref(), tag)
+                    .await?;
             }
             self.reporter.tag_removed(tag);
         }
 
-        result.pruned_tags.insert(tag_spec, to_prune);
+        result
+            .pruned_tags
+            .entry(tag_namespace)
+            .or_default()
+            .insert(tag_spec, to_prune);
 
         Ok((result, to_keep))
     }
@@ -779,7 +805,8 @@ pub struct CleanResult {
     /// The number of tags visited when walking the database
     pub visited_tags: u64,
     /// The tags pruned from the database
-    pub pruned_tags: HashMap<tracking::TagSpec, Vec<tracking::Tag>>,
+    pub pruned_tags:
+        HashMap<Option<TagNamespaceBuf>, HashMap<tracking::TagSpec, Vec<tracking::Tag>>>,
 
     /// The number of objects visited when walking the database
     pub visited_objects: u64,
@@ -815,7 +842,11 @@ impl CleanResult {
     }
 
     pub fn into_all_tags(self) -> Vec<tracking::Tag> {
-        self.pruned_tags.into_values().flatten().collect()
+        self.pruned_tags
+            .into_values()
+            .flat_map(|tags| tags.into_values())
+            .flatten()
+            .collect()
     }
 }
 

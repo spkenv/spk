@@ -301,6 +301,120 @@ async fn test_clean_on_repo_with_tag_namespace(
 
 #[rstest]
 #[tokio::test]
+async fn test_clean_on_repo_with_tag_namespace_set(
+    #[future] tmprepo: TempRepo,
+    tmpdir: tempfile::TempDir,
+) {
+    init_logging();
+
+    // The point of this test is to run a cleaner when a tag in a tag namespace
+    // exists and a tag namespace is set on the repo passed into the Cleaner. It
+    // is a dupe of `test_clean_on_repo_with_tag_namespace` but the repo passed
+    // into the Cleaner has a tag namespace set.
+
+    let non_namespaced_tmprepo = tmprepo.await;
+    let namespaced_tmprepo = non_namespaced_tmprepo.with_tag_namespace("test").await;
+
+    // Group 1: untagged objects
+    let data_dir_1 = tmpdir.path().join("data");
+    ensure(data_dir_1.join("dir/dir/test.file"), "1 hello");
+    ensure(data_dir_1.join("dir/dir/test.file2"), "1 hello, world");
+    ensure(data_dir_1.join("dir/dir/test.file4"), "1 hello, world");
+
+    let manifest1 = crate::Committer::new(&namespaced_tmprepo)
+        .commit_dir(data_dir_1.as_path())
+        .await
+        .unwrap();
+
+    // Group 2: tagged objects
+    let data_dir_2 = tmpdir.path().join("data2");
+    ensure(data_dir_2.join("dir/dir/test.file"), "2 hello");
+    ensure(data_dir_2.join("dir/dir/test.file2"), "2 hello, world");
+
+    let manifest2 = crate::Committer::new(&namespaced_tmprepo)
+        .commit_dir(data_dir_2.as_path())
+        .await
+        .unwrap();
+    let layer = namespaced_tmprepo
+        .create_layer(&manifest2.to_graph_manifest())
+        .await
+        .unwrap();
+    let tag = tracking::TagSpec::parse("tagged_manifest").unwrap();
+    namespaced_tmprepo
+        .push_tag(&tag, &layer.digest().unwrap())
+        .await
+        .unwrap();
+
+    // Note current time now.
+    let time_before_group_three = Utc::now();
+
+    // Ensure these new files are created a measurable amount of time after
+    // the noted time.
+    sleep(Duration::from_millis(250)).await;
+
+    // Group 3: untagged objects created after grabbing time.
+    let data_dir_3 = tmpdir.path().join("data");
+    ensure(data_dir_3.join("dir/dir/test.file"), "3 hello");
+    ensure(data_dir_3.join("dir/dir/test.file2"), "3 hello, world");
+    ensure(data_dir_3.join("dir/dir/test.file4"), "3 hello, world");
+
+    let manifest3 = crate::Committer::new(&namespaced_tmprepo)
+        .commit_dir(data_dir_3.as_path())
+        .await
+        .unwrap();
+
+    // Clean objects older than group 3.
+    let cleaner = Cleaner::new(&namespaced_tmprepo)
+        .with_reporter(TracingCleanReporter)
+        .with_required_age_cutoff(time_before_group_three);
+    let result = cleaner
+        .prune_all_tags_and_clean()
+        .await
+        .expect("failed to clean objects");
+    println!("{result:#?}");
+
+    for node in manifest1.walk() {
+        if !node.entry.kind.is_blob() {
+            continue;
+        }
+        let res = namespaced_tmprepo.open_payload(node.entry.object).await;
+        if let Err(Error::UnknownObject(_)) = res {
+            continue;
+        }
+        if let Err(err) = res {
+            println!("{err:?}");
+        }
+        panic!(
+            "expected object to be cleaned but it was not: {:?}",
+            node.entry.object
+        );
+    }
+
+    for node in manifest2.walk() {
+        if !node.entry.kind.is_blob() {
+            continue;
+        }
+        namespaced_tmprepo
+            .open_payload(node.entry.object)
+            .await
+            .expect("expected payload not to be cleaned");
+    }
+
+    // Group 3 should not have been cleaned...
+
+    for node in manifest3.walk() {
+        if !node.entry.kind.is_blob() {
+            continue;
+        }
+        namespaced_tmprepo
+            .open_payload(node.entry.object)
+            .await
+            .expect("expected payload not to be cleaned");
+    }
+}
+
+#[rstest]
+#[tokio::test]
 async fn test_clean_untagged_objects_layers_platforms(#[future] tmprepo: TempRepo) {
     init_logging();
     let tmprepo = tmprepo.await;

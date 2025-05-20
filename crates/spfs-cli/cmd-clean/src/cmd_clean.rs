@@ -217,7 +217,11 @@ impl CmdClean {
         };
         println!(
             "{visited_tags:>12} tags visited     [{:>6} {removed}]",
-            pruned_tags.values().map(Vec::len).sum::<usize>()
+            pruned_tags
+                .values()
+                .flat_map(|m| m.values())
+                .map(|v| v.len())
+                .sum::<usize>()
         );
         println!(
             "{visited_objects:>12} objects visited  [{:>6} {removed}]",

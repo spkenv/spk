@@ -6,9 +6,8 @@ use std::borrow::Cow;
 use std::fmt::Display;
 use std::pin::Pin;
 
-use futures::Stream;
+use futures::{Stream, StreamExt, TryStreamExt};
 use relative_path::RelativePath;
-use tokio_stream::StreamExt;
 
 use super::{TAG_NAMESPACE_MARKER, TagNamespace, TagNamespaceBuf};
 use crate::prelude::*;
@@ -122,6 +121,21 @@ pub trait TagStorage: Send + Sync {
         path: &RelativePath,
     ) -> Pin<Box<dyn Stream<Item = Result<EntryType>> + Send>> {
         self.ls_tags_in_namespace(self.get_tag_namespace().as_deref(), path)
+    }
+
+    /// List all the tag namespaces in this storage.
+    ///
+    /// This operation ignores any tag namespace set in the storage, or in
+    /// other words, there is no concept of nested namespaces.
+    fn ls_tag_namespaces(&self) -> Pin<Box<dyn Stream<Item = Result<TagNamespaceBuf>> + Send>> {
+        self.ls_tags_in_namespace(None, RelativePath::new(""))
+            .try_filter_map(|entry| async move {
+                match entry {
+                    EntryType::Namespace(name) => Ok(Some(name)),
+                    _ => Ok(None),
+                }
+            })
+            .boxed()
     }
 
     /// List tags and tag directories based on a tag path and namespace.
