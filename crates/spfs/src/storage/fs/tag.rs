@@ -491,7 +491,7 @@ impl Stream for TagStreamIter {
         use TagStreamIterState::*;
         match self.state.take() {
             // TODO: this walkdir loop is not actually async and should be fixed
-            Some(WalkingTree) => loop {
+            Some(WalkingTree) => 'entry: loop {
                 let entry = self.inner.next();
                 match entry {
                     None => break Ready(None),
@@ -510,6 +510,28 @@ impl Stream for TagStreamIter {
                         if path.extension() != Some(OsStr::new(TAG_EXT)) {
                             continue;
                         }
+
+                        // This iterator skips over any namespaces; since the
+                        // walkdir iterator will descend into any directory,
+                        // the whole parent hierarchy needs to be checked for
+                        // the namespace marker.
+                        //
+                        // The root itself may be a namespace.
+                        let mut parent = path.parent();
+                        while let Some(p) = parent {
+                            if p == self.root {
+                                break;
+                            }
+                            if p.file_name()
+                                .and_then(|s| s.to_str())
+                                .map(|p| p.ends_with(TAG_NAMESPACE_MARKER))
+                                .unwrap_or_default()
+                            {
+                                continue 'entry;
+                            }
+                            parent = p.parent();
+                        }
+
                         let spec = match tag_from_path(&path, &self.root) {
                             Err(err) => break Ready(Some(Err(err))),
                             Ok(spec) => spec,
