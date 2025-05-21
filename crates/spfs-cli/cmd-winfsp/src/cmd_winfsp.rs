@@ -246,7 +246,7 @@ struct CmdMount {
 
     /// The tag or id of the files to mount
     ///
-    /// Use '-' or '' to request an empty environment
+    /// Use '-' or an empty string to request an empty environment
     #[clap(name = "REF")]
     reference: EnvSpec,
 }
