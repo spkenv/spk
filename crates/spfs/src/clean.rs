@@ -46,6 +46,7 @@ where
     attached: DashSet<encoding::Digest>,
     dry_run: bool,
     must_be_older_than: DateTime<Utc>,
+    prune_all_tag_namespaces: bool,
     prune_repeated_tags: Option<NonZero<u64>>,
     prune_params: PruneParameters,
     remove_proxies_with_no_links: bool,
@@ -69,6 +70,7 @@ impl<'repo> Cleaner<'repo, SilentCleanReporter> {
             attached: Default::default(),
             dry_run: false,
             must_be_older_than: Utc::now(),
+            prune_all_tag_namespaces: false,
             prune_repeated_tags: None,
             prune_params: Default::default(),
             remove_proxies_with_no_links: true,
@@ -89,6 +91,7 @@ where
             attached: self.attached,
             dry_run: self.dry_run,
             must_be_older_than: self.must_be_older_than,
+            prune_all_tag_namespaces: self.prune_all_tag_namespaces,
             prune_repeated_tags: self.prune_repeated_tags,
             prune_params: self.prune_params,
             removal_concurrency: self.removal_concurrency,
@@ -152,6 +155,13 @@ where
     /// Overrides and previous value for [`Self::with_required_age`]
     pub fn with_required_age_cutoff(mut self, cutoff: DateTime<Utc>) -> Self {
         self.must_be_older_than = cutoff;
+        self
+    }
+
+    /// When walking tags, whether to prune tags in all tag namespaces or only
+    /// the tag namespace configured on the repository.
+    pub fn with_prune_all_tag_namespaces(mut self, prune_all_tag_namespaces: bool) -> Self {
+        self.prune_all_tag_namespaces = prune_all_tag_namespaces;
         self
     }
 
@@ -428,14 +438,15 @@ where
         // still alive, but if the repo passed to the Cleaner has a namespace
         // set on it then one would expect that only tags in that namespace are
         // pruned.
-        let should_prune_this_namespace = match (
-            tag_namespace_to_prune.as_ref(),
-            tag_namespace_to_visit.as_deref(),
-        ) {
-            (Some(prune), Some(visit)) if prune.as_ref() == visit => true,
-            (None, None) => true,
-            _ => false,
-        };
+        let should_prune_this_namespace = self.prune_all_tag_namespaces
+            || match (
+                tag_namespace_to_prune.as_ref(),
+                tag_namespace_to_visit.as_deref(),
+            ) {
+                (Some(prune), Some(visit)) if prune.as_ref() == visit => true,
+                (None, None) => true,
+                _ => false,
+            };
 
         let history = self
             .repo
