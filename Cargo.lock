@@ -3957,6 +3957,7 @@ dependencies = [
  "nom-supreme",
  "relative-path",
  "rstest",
+ "serial_test",
  "spfs",
  "spk-cli-common",
  "spk-config",
