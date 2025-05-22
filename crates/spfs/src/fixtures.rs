@@ -42,9 +42,10 @@ impl TempRepo {
                 let mut repo = spfs::storage::fs::FsRepository::open(tempdir.path().join("repo"))
                     .await
                     .unwrap();
-                repo.set_tag_namespace(Some(spfs::storage::TagNamespaceBuf::new(
-                    namespace.as_ref(),
-                )));
+                repo.set_tag_namespace(Some(
+                    spfs::storage::TagNamespaceBuf::new(namespace.as_ref())
+                        .expect("tag namespaces used in tests must be valid"),
+                ));
                 TempRepo::FS(Arc::new(repo.into()), Arc::clone(tempdir))
             }
             _ => panic!("only TempRepo::FS type supports setting tag namespaces"),

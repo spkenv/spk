@@ -266,7 +266,7 @@ impl RemoteConfig {
                     builder.when(tracking::TimeSpec::parse(v)?);
                 }
                 "tag_namespace" => {
-                    builder.tag_namespace(TagNamespaceBuf::new(RelativePath::new(&v)));
+                    builder.tag_namespace(TagNamespaceBuf::new(RelativePath::new(&v))?);
                 }
                 _ => (),
             }
