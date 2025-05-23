@@ -206,7 +206,10 @@ where
         tracing::debug!(?tag, "Checking tag");
         self.reporter.visit_tag(&tag);
         let result = self.check_digest(tag.target).await?;
-        let res = CheckTagResult::Checked { tag, result };
+        let res = CheckTagResult::Checked {
+            tag: Box::new(tag),
+            result,
+        };
         self.reporter.checked_tag(&res);
         Ok(res)
     }
@@ -812,7 +815,7 @@ pub enum CheckTagResult {
     Missing,
     /// The tag was checked
     Checked {
-        tag: tracking::Tag,
+        tag: Box<tracking::Tag>,
         result: CheckObjectResult,
     },
 }

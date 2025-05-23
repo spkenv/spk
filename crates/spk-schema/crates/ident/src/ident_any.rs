@@ -231,6 +231,13 @@ impl From<PkgNameBuf> for AnyIdent {
     }
 }
 
+impl From<PkgNameBuf> for Box<AnyIdent> {
+    #[inline]
+    fn from(name: PkgNameBuf) -> Self {
+        Box::new(name.into())
+    }
+}
+
 impl PartialEq<&AnyIdent> for IdentPartsBuf {
     fn eq(&self, other: &&AnyIdent) -> bool {
         self.repository_name.is_none()

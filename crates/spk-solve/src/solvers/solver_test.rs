@@ -1111,7 +1111,8 @@ async fn test_solver_build_from_source_deprecated(mut solver: StepSolver) {
 
     let res = run_and_print_resolve_for_tests(&solver).await;
     match res {
-        Err(Error::GraphError(spk_solve_graph::Error::FailedToResolve(_))) => {}
+        Err(Error::GraphError(ref graph_err))
+            if matches!(&**graph_err, spk_solve_graph::Error::FailedToResolve(_)) => {}
         Err(err) => {
             panic!("expected solver spk_solver_graph::Error::FailedToResolve, got: '{err:?}'")
         }
@@ -1155,7 +1156,9 @@ async fn test_solver_build_from_source_deprecated_and_impossible_initial_checks(
 
     let res = run_and_print_resolve_for_tests(&solver).await;
     match res {
-        Err(Error::GraphError(spk_solve_graph::Error::FailedToResolve(_))) => {
+        Err(Error::GraphError(ref graph_err))
+            if matches!(&**graph_err, spk_solve_graph::Error::FailedToResolve(_)) =>
+        {
             // Success, when the 'migration-to-components' feature is
             // enabled because: the initial checks for impossible
             // requests pass because the :all component matches the
@@ -1517,7 +1520,8 @@ async fn test_multiple_packages_embed_same_package(
     solver.set_resolve_validation_impossible_checks(resolve_validation_impossible_checks);
 
     match run_and_print_resolve_for_tests(&solver).await {
-        Err(Error::GraphError(spk_solve_graph::Error::FailedToResolve(_))) => {}
+        Err(Error::GraphError(ref graph_err))
+            if matches!(&**graph_err, spk_solve_graph::Error::FailedToResolve(_)) => {}
         Ok(_) => {
             panic!("No solution expected");
         }

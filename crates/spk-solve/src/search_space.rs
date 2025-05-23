@@ -91,11 +91,11 @@ async fn get_package_version_build_states(
                 for build in builds {
                     let spec = match repo.read_package(&build).await {
                         Ok(s) => s,
-                        Err(InvalidPackageSpec(ident, message)) => {
+                        Err(invalid_package_spec @ InvalidPackageSpec(_)) => {
                             // Ignore invalid package spec errors for
                             // the purposes of getting all the valid
                             // package version builds.
-                            tracing::warn!("{}", InvalidPackageSpec(ident, message).to_string());
+                            tracing::warn!("{invalid_package_spec}");
                             continue;
                         }
                         Err(err) => return Err(Error::String(err.to_string())),

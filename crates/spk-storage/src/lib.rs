@@ -6,7 +6,7 @@ mod error;
 pub mod fixtures;
 mod storage;
 
-pub use error::{Error, Result};
+pub use error::{Error, InvalidPackageSpec, Result};
 pub use storage::{
     CachePolicy,
     MemRepository,

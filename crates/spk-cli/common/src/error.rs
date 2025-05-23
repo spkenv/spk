@@ -19,16 +19,16 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     #[error(transparent)]
     #[diagnostic(forward(0))]
-    Error(#[from] spfs::Error),
+    Error(Box<spfs::Error>),
     #[error("Error: {0}")]
     String(String),
 
     #[error(transparent)]
     #[diagnostic(forward(0))]
-    SpkBuildError(#[from] spk_build::Error),
+    SpkBuildError(Box<spk_build::Error>),
     #[error(transparent)]
     #[diagnostic(forward(0))]
-    SpkExecError(#[from] spk_exec::Error),
+    SpkExecError(Box<spk_exec::Error>),
     #[error(transparent)]
     #[diagnostic(forward(0))]
     SpkIdentError(#[from] spk_schema::ident::Error),
@@ -37,20 +37,20 @@ pub enum Error {
     SpkNameError(#[from] spk_schema::name::Error),
     #[error(transparent)]
     #[diagnostic(forward(0))]
-    SpkSolverError(#[from] spk_solve::Error),
+    SpkSolverError(Box<spk_solve::Error>),
     #[error(transparent)]
     #[diagnostic(forward(0))]
-    SpkSpecError(#[from] spk_schema::Error),
+    SpkSpecError(Box<spk_schema::Error>),
     #[error(transparent)]
     #[diagnostic(forward(0))]
-    SpkStorageError(#[from] spk_storage::Error),
+    SpkStorageError(Box<spk_storage::Error>),
 
     // IO Errors
     #[error("Failed to write file {0}")]
     FileWriteError(std::path::PathBuf, #[source] std::io::Error),
     #[error(transparent)]
     #[diagnostic(forward(0))]
-    ProcessSpawnError(spfs::Error),
+    ProcessSpawnError(Box<spfs::Error>),
     #[error("Failed to create temp dir: {0}")]
     TempDirError(#[source] std::io::Error),
 
@@ -73,6 +73,42 @@ impl Error {
     /// Wraps an error message with a prefix, creating a contextual error
     pub fn wrap_io<S: AsRef<str>>(prefix: S, err: std::io::Error) -> Error {
         Error::String(format!("{}: {:?}", prefix.as_ref(), err))
+    }
+}
+
+impl From<spfs::Error> for Error {
+    fn from(err: spfs::Error) -> Self {
+        Self::Error(Box::new(err))
+    }
+}
+
+impl From<spk_build::Error> for Error {
+    fn from(err: spk_build::Error) -> Self {
+        Self::SpkBuildError(Box::new(err))
+    }
+}
+
+impl From<spk_exec::Error> for Error {
+    fn from(err: spk_exec::Error) -> Self {
+        Self::SpkExecError(Box::new(err))
+    }
+}
+
+impl From<spk_schema::Error> for Error {
+    fn from(e: spk_schema::Error) -> Self {
+        Self::SpkSpecError(Box::new(e))
+    }
+}
+
+impl From<spk_solve::Error> for Error {
+    fn from(e: spk_solve::Error) -> Self {
+        Self::SpkSolverError(Box::new(e))
+    }
+}
+
+impl From<spk_storage::Error> for Error {
+    fn from(e: spk_storage::Error) -> Self {
+        Self::SpkStorageError(Box::new(e))
     }
 }
 

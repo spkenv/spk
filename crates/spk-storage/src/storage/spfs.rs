@@ -35,7 +35,7 @@ use tokio::task::JoinSet;
 use super::CachePolicy;
 use super::repository::{PublishPolicy, Storage};
 use crate::storage::repository::internal::RepositoryExt;
-use crate::{Error, Result, with_cache_policy};
+use crate::{Error, InvalidPackageSpec, Result, with_cache_policy};
 
 #[cfg(test)]
 #[path = "./spfs_test.rs"]
@@ -204,8 +204,10 @@ enum CacheValue<T> {
 impl<T> From<CacheValue<T>> for Result<T> {
     fn from(cv: CacheValue<T>) -> Self {
         match cv {
-            CacheValue::InvalidPackageSpec(i, err) => Err(crate::Error::InvalidPackageSpec(i, err)),
-            CacheValue::PackageNotFound(i) => Err(Error::PackageNotFound(i)),
+            CacheValue::InvalidPackageSpec(i, err) => Err(crate::Error::InvalidPackageSpec(
+                Box::new(InvalidPackageSpec(i, err)),
+            )),
+            CacheValue::PackageNotFound(i) => Err(Error::PackageNotFound(Box::new(i))),
             CacheValue::StringError(s) => Err(s.into()),
             CacheValue::StringifiedError(s) => Err(s.into()),
             CacheValue::Success(v) => Ok(v),
@@ -217,10 +219,13 @@ impl<T> From<std::result::Result<T, &crate::Error>> for CacheValue<T> {
     fn from(r: std::result::Result<T, &crate::Error>) -> Self {
         match r {
             Ok(v) => CacheValue::Success(v),
-            Err(crate::Error::InvalidPackageSpec(i, err)) => {
-                CacheValue::InvalidPackageSpec(i.clone(), err.to_string())
+            Err(crate::Error::InvalidPackageSpec(invalid_package_spec)) => {
+                CacheValue::InvalidPackageSpec(
+                    invalid_package_spec.0.clone(),
+                    invalid_package_spec.1.clone(),
+                )
             }
-            Err(Error::PackageNotFound(i)) => CacheValue::PackageNotFound(i.clone()),
+            Err(Error::PackageNotFound(i)) => CacheValue::PackageNotFound((**i).clone()),
             Err(crate::Error::String(s)) => CacheValue::StringError(s.clone()),
             // Decorate the error message so we can tell it was a custom error
             // downgraded to a String.
@@ -429,8 +434,9 @@ impl Storage for SpfsRepository {
         let tag_path = Self::build_spec_tag(ident);
         let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
 
-        let payload = serde_yaml::to_string(&spec)
-            .map_err(|err| Error::SpkSpecError(spk_schema::Error::SpecEncodingError(err)))?;
+        let payload = serde_yaml::to_string(&spec).map_err(|err| {
+            Error::SpkSpecError(Box::new(spk_schema::Error::SpecEncodingError(err)))
+        })?;
         let digest = self
             .inner
             .commit_blob(Box::pin(std::io::Cursor::new(payload.into_bytes())))
@@ -477,8 +483,9 @@ impl Storage for SpfsRepository {
         // TODO: dedupe this part with force_publish_recipe
         let tag_path = Self::build_spec_tag(package.ident());
         let tag_spec = spfs::tracking::TagSpec::parse(tag_path)?;
-        let payload = serde_yaml::to_string(&package)
-            .map_err(|err| Error::SpkSpecError(spk_schema::Error::SpecEncodingError(err)))?;
+        let payload = serde_yaml::to_string(&package).map_err(|err| {
+            Error::SpkSpecError(Box::new(spk_schema::Error::SpecEncodingError(err)))
+        })?;
         let digest = self
             .inner
             .commit_blob(Box::pin(std::io::Cursor::new(payload.into_bytes())))
@@ -504,8 +511,9 @@ impl Storage for SpfsRepository {
             return Err(Error::VersionExists(ident.clone()));
         }
 
-        let payload = serde_yaml::to_string(&spec)
-            .map_err(|err| Error::SpkSpecError(spk_schema::Error::SpecEncodingError(err)))?;
+        let payload = serde_yaml::to_string(&spec).map_err(|err| {
+            Error::SpkSpecError(Box::new(spk_schema::Error::SpecEncodingError(err)))
+        })?;
         let digest = self
             .inner
             .commit_blob(Box::pin(std::io::Cursor::new(payload.into_bytes())))
@@ -552,7 +560,12 @@ impl Storage for SpfsRepository {
                     .await
                     .map_err(|err| Error::FileReadError(filename, err))?;
                 Spec::from_yaml(&yaml)
-                    .map_err(|err| Error::InvalidPackageSpec(pkg.to_any_ident(), err.to_string()))
+                    .map_err(|err| {
+                        Error::InvalidPackageSpec(Box::new(InvalidPackageSpec(
+                            pkg.to_any_ident(),
+                            err.to_string(),
+                        )))
+                    })
                     .map(Arc::new)
             })
             .await;
@@ -567,7 +580,7 @@ impl Storage for SpfsRepository {
         self.with_build_spec_tag_for_pkg(pkg, |pkg, tag_spec, _| async move {
             match self.inner.remove_tag_stream(&tag_spec).await {
                 Err(spfs::Error::UnknownReference(_)) => {
-                    Err(Error::PackageNotFound(pkg.to_any_ident()))
+                    Err(Error::PackageNotFound(Box::new(pkg.to_any_ident())))
                 }
                 Err(err) => Err(err.into()),
                 Ok(_) => {
@@ -628,7 +641,7 @@ impl Storage for SpfsRepository {
             self.with_build_spec_tag_for_pkg(pkg, |_, tag_spec, _| async move {
                 match self.inner.remove_tag_stream(&tag_spec).await {
                     Err(spfs::Error::UnknownReference(_)) => {
-                        Err(Error::PackageNotFound(pkg.to_any_ident()))
+                        Err(Error::PackageNotFound(Box::new(pkg.to_any_ident())))
                     }
                     Err(err) => Err(err.into()),
                     Ok(_) => Ok(true),
@@ -677,7 +690,7 @@ impl Storage for SpfsRepository {
             if deleted_something {
                 Ok(())
             } else {
-                Err(Error::PackageNotFound(pkg.to_any_ident()))
+                Err(Error::PackageNotFound(Box::new(pkg.to_any_ident())))
             }
         })
     }
@@ -797,7 +810,12 @@ impl crate::Repository for SpfsRepository {
                     .await
                     .map_err(|err| Error::FileReadError(tag.target.to_string().into(), err))?;
                 Spec::from_yaml(yaml)
-                    .map_err(|err| Error::InvalidPackageSpec(pkg.to_any_ident(), err.to_string()))
+                    .map_err(|err| {
+                        Error::InvalidPackageSpec(Box::new(InvalidPackageSpec(
+                            pkg.to_any_ident(),
+                            err.to_string(),
+                        )))
+                    })
                     .map(Arc::new)
             })
             .await;
@@ -824,7 +842,10 @@ impl crate::Repository for SpfsRepository {
                     .map_err(|err| Error::FileReadError(tag.target.to_string().into(), err))?;
                 SpecRecipe::from_yaml(yaml)
                     .map_err(|err| {
-                        Error::InvalidPackageSpec(pkg.to_any_ident(None), err.to_string())
+                        Error::InvalidPackageSpec(Box::new(InvalidPackageSpec(
+                            pkg.to_any_ident(None),
+                            err.to_string(),
+                        )))
                     })
                     .map(Arc::new)
             })
@@ -840,7 +861,7 @@ impl crate::Repository for SpfsRepository {
         self.with_build_spec_tag_for_pkg(pkg, |pkg, tag_spec, _| async move {
             match self.inner.remove_tag_stream(&tag_spec).await {
                 Err(spfs::Error::UnknownReference(_)) => {
-                    Err(Error::PackageNotFound(pkg.to_any_ident(None)))
+                    Err(Error::PackageNotFound(Box::new(pkg.to_any_ident(None))))
                 }
                 Err(err) => Err(err.into()),
                 Ok(_) => {
@@ -1074,7 +1095,7 @@ impl SpfsRepository {
             return f(pkg, tag_spec, tag).await;
         }
         Err(first_resolve_err
-            .unwrap_or_else(|| Error::PackageNotFound(pkg.to_any_ident_without_build())))
+            .unwrap_or_else(|| Error::PackageNotFound(Box::new(pkg.to_any_ident_without_build()))))
     }
 
     async fn ls_tags(&self, path: &relative_path::RelativePath) -> Vec<Result<EntryType>> {
@@ -1143,7 +1164,7 @@ impl SpfsRepository {
             .resolve_tag(tag_spec)
             .await
             .map_err(|err| match err {
-                spfs::Error::UnknownReference(_) => Error::PackageNotFound(for_pkg()),
+                spfs::Error::UnknownReference(_) => Error::PackageNotFound(Box::new(for_pkg())),
                 err => err.into(),
             });
 
@@ -1194,10 +1215,11 @@ impl SpfsRepository {
                 return Ok(StoredPackage::WithoutComponents(tag_spec));
             }
             if first_resolve_err.is_none() {
-                first_resolve_err = Some(Error::PackageNotFound(pkg.to_any_ident()));
+                first_resolve_err = Some(Error::PackageNotFound(Box::new(pkg.to_any_ident())));
             }
         }
-        Err(first_resolve_err.unwrap_or_else(|| Error::PackageNotFound(pkg.to_any_ident())))
+        Err(first_resolve_err
+            .unwrap_or_else(|| Error::PackageNotFound(Box::new(pkg.to_any_ident()))))
     }
 
     /// Construct an spfs tag string to represent a binary package layer.

@@ -620,5 +620,5 @@ where
         Ok(unsafe { tokio::fs::File::from_raw_fd(fd) })
     })
     .await
-    .map_err(|_join_err| std::io::Error::new(std::io::ErrorKind::Other, "mkdir task panic'd"))?
+    .map_err(|_join_err| std::io::Error::other("mkdir task panic'd"))?
 }
