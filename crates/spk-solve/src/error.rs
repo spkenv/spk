@@ -65,6 +65,8 @@ pub enum Error {
     SolverLogFileIOError(#[source] std::io::Error, PathBuf),
     #[error("Error: Flushing solver log file: {0}")]
     SolverLogFileFlushError(#[source] std::io::Error),
+    #[error("Failed to resolve: {0}")]
+    FailedToResolve(String),
 }
 
 #[derive(Diagnostic, Debug, Error)]

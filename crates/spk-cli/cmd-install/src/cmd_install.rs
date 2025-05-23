@@ -14,6 +14,7 @@ use spk_exec::setup_current_runtime;
 use spk_schema::Package;
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::spec_ops::Named;
+use spk_solve::{Solver, SolverMut};
 
 /// Install a package into the current environment
 #[derive(Args)]
@@ -31,9 +32,6 @@ pub struct Install {
     /// Do not prompt for confirmation, just continue
     #[clap(long, short)]
     yes: bool,
-
-    #[clap(flatten)]
-    pub formatter_settings: flags::DecisionFormatterSettings,
 
     /// The packages to install
     #[clap(name = "PKG", required = true)]
@@ -62,12 +60,14 @@ impl Run for Install {
             solver.add_request(request);
         }
 
-        let formatter = self.formatter_settings.get_formatter(self.verbose)?;
-        let (solution, _) = formatter.run_and_print_resolve(&solver).await?;
+        let formatter = self
+            .solver
+            .decision_formatter_settings
+            .get_formatter(self.verbose)?;
+        let solution = solver.run_and_print_resolve(&formatter).await?;
 
         println!("The following packages will be installed:\n");
         let requested: HashSet<_> = solver
-            .get_initial_state()
             .get_pkg_requests()
             .iter()
             .map(|r| r.pkg.name.clone())
@@ -119,7 +119,7 @@ impl Run for Install {
             }
         }
 
-        let compiled_solution = build_required_packages(&solution)
+        let compiled_solution = build_required_packages(&solution, solver)
             .await
             .wrap_err("Failed to build one or more packages from source")?;
         setup_current_runtime(&compiled_solution).await?;

@@ -10,6 +10,7 @@ use spk_cli_common::{CommandArgs, Run, current_env, flags};
 use spk_schema::Package;
 use spk_schema::ident::RequestedBy;
 use spk_solve::solution::{LayerPackageAndComponents, PackageSource, get_spfs_layers_to_packages};
+use spk_solve::{Solver, SolverMut};
 
 #[cfg(test)]
 #[path = "./cmd_bake_test.rs"]
@@ -62,9 +63,6 @@ pub struct Bake {
     /// Verbosity level, can be specified multiple times for more verbose output
     #[clap(short, long, global = true, action = clap::ArgAction::Count)]
     pub verbose: u8,
-
-    #[clap(flatten)]
-    pub formatter_settings: flags::DecisionFormatterSettings,
 
     /// The requests to resolve and bake
     #[clap(name = "REQUESTS")]
@@ -237,8 +235,11 @@ impl Bake {
             solver.add_request(request)
         }
 
-        let formatter = self.formatter_settings.get_formatter(self.verbose)?;
-        let (solution, _) = formatter.run_and_print_resolve(&solver).await?;
+        let formatter = self
+            .solver
+            .decision_formatter_settings
+            .get_formatter(self.verbose)?;
+        let solution = solver.run_and_print_resolve(&formatter).await?;
 
         // The solution order is the order things were found during
         // the solve. Need to reverse it to match up with the spfs

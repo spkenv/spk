@@ -4,9 +4,11 @@
 
 //! Spk package solver implementations.
 
+pub(crate) mod resolvo;
 pub(crate) mod step;
 
-pub use step::{ErrorFreq, Solver as StepSolver, SolverRuntime as StepSolverRuntime};
+pub use resolvo::Solver as ResolvoSolver;
+pub use step::{Solver as StepSolver, SolverRuntime as StepSolverRuntime};
 
 // Public to allow other tests to use its macros
 #[cfg(test)]
