@@ -39,7 +39,7 @@ pub enum BuildError {
         /// The file that failed to load
         file: std::path::PathBuf,
         /// The underlying error that occurred
-        source: spk_schema::Error,
+        source: Box<spk_schema::Error>,
     },
     /// A template was found but has no discernible name
     #[error("template cannot be loaded into workspace since it has no name defined: {file:?}")]

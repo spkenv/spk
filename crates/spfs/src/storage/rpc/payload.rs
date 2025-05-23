@@ -200,12 +200,7 @@ where
 {
     // the stream must return io errors in order to be converted to a reader
     let mapped_stream = http_body_util::BodyDataStream::new(body)
-        .map_err(|err| {
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to read response body: {err:?}"),
-            )
-        })
+        .map_err(|err| std::io::Error::other(format!("Failed to read response body: {err:?}")))
         .into_async_read();
     let stream_reader = tokio_util::compat::FuturesAsyncReadCompatExt::compat(mapped_stream);
     let buffered_reader = tokio::io::BufReader::new(stream_reader);

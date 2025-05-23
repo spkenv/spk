@@ -1534,33 +1534,28 @@ impl DecisionFormatter {
         runtime: &mut StepSolverRuntime,
         mut output_location: OutputKind,
     ) -> LoopOutcome {
-        // This block exists to shorten the scope of `runtime`'s borrow.
-        let loop_outcome = {
-            let decisions = runtime.iter();
-            let mut formatted_decisions = self.formatted_decisions_iter(decisions);
-            let iter = formatted_decisions.iter();
-            tokio::pin!(iter);
-            #[allow(clippy::never_loop)]
-            'outer: loop {
-                while let Some(line) = iter.next().await {
-                    match line {
-                        Ok(message) => output_location.output_message(message),
-                        Err(e) => {
-                            match e {
-                                Error::SolverInterrupted(mesg) => {
-                                    break 'outer LoopOutcome::Interrupted(mesg);
-                                }
-                                _ => break 'outer LoopOutcome::Failed(Box::new(e)),
-                            };
-                        }
-                    };
-                }
-
-                break LoopOutcome::Success;
+        let decisions = runtime.iter();
+        let mut formatted_decisions = self.formatted_decisions_iter(decisions);
+        let iter = formatted_decisions.iter();
+        tokio::pin!(iter);
+        #[allow(clippy::never_loop)]
+        'outer: loop {
+            while let Some(line) = iter.next().await {
+                match line {
+                    Ok(message) => output_location.output_message(message),
+                    Err(e) => {
+                        match e {
+                            Error::SolverInterrupted(mesg) => {
+                                break 'outer LoopOutcome::Interrupted(mesg);
+                            }
+                            _ => break 'outer LoopOutcome::Failed(Box::new(e)),
+                        };
+                    }
+                };
             }
-        };
 
-        loop_outcome
+            break LoopOutcome::Success;
+        }
     }
 
     async fn check_and_output_solver_results(

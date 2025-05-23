@@ -61,7 +61,7 @@ pub enum Error {
     #[error(transparent)]
     Utf8Error(#[from] Utf8Error),
     #[error("Error communicating with the server: {0:?}")]
-    Tonic(#[from] tonic::Status),
+    Tonic(Box<tonic::Status>),
     #[error(transparent)]
     TokioJoinError(#[from] tokio::task::JoinError),
     #[error("Failed to spawn {0}")]
@@ -287,6 +287,12 @@ impl From<std::path::StripPrefixError> for Error {
 impl From<spfs_proto::digest::Error> for Error {
     fn from(err: spfs_proto::digest::Error) -> Self {
         Error::Encoding(err.into())
+    }
+}
+
+impl From<tonic::Status> for Error {
+    fn from(value: tonic::Status) -> Self {
+        Error::Tonic(Box::new(value))
     }
 }
 

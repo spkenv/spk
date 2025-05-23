@@ -75,10 +75,7 @@ async fn render_via_subcommand(
         }
         _ => Err(Error::process_spawn_error(
             "spfs-render",
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "process exited with non-zero status",
-            ),
+            std::io::Error::other("process exited with non-zero status"),
             None,
         )),
     };

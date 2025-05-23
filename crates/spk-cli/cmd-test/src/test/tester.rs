@@ -60,11 +60,11 @@ pub trait Tester: Send {
             .env("SHELL", "bash")
             .status()
             .map_err(|err| {
-                Error::ProcessSpawnError(spfs::Error::process_spawn_error(
+                Error::ProcessSpawnError(Box::new(spfs::Error::process_spawn_error(
                     "bash",
                     err,
                     Some(source_dir.to_owned()),
-                ))
+                )))
             })?;
         if !status.success() {
             Err(TestError::new_error(format!(

@@ -544,7 +544,7 @@ async fn test_build_bad_options() {
     assert!(
         matches!(
             res,
-            Err(crate::Error::SpkSpecError(spk_schema::Error::String(_)))
+            Err(crate::Error::SpkSpecError(ref schema_err)) if matches!(&**schema_err, spk_schema::Error::String(_))
         ),
         "got {res:?}"
     );

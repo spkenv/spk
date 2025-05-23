@@ -29,7 +29,7 @@ pub enum Error {
     #[diagnostic(forward(0))]
     Graph(#[from] GraphError),
     #[error("Package not found: {0}")]
-    PackageNotFoundDuringSolve(PkgRequest),
+    PackageNotFoundDuringSolve(Box<PkgRequest>),
     #[error("Solver error: {0}")]
     SolverError(String),
     #[error("Solver interrupted: {0}")]
@@ -51,7 +51,7 @@ pub enum Error {
     SpkSolverSolutionError(#[from] spk_solve_solution::Error),
     #[error(transparent)]
     #[diagnostic(forward(0))]
-    SpkSpecError(#[from] spk_schema::Error),
+    SpkSpecError(Box<spk_schema::Error>),
     #[error(transparent)]
     #[diagnostic(forward(0))]
     SpkStorageError(#[from] spk_storage::Error),
@@ -93,6 +93,12 @@ impl From<GetMergedRequestError> for crate::Error {
 impl From<crate::Error> for GetMergedRequestError {
     fn from(err: crate::Error) -> Self {
         GetMergedRequestError::Other(Box::new(err))
+    }
+}
+
+impl From<spk_schema::Error> for Error {
+    fn from(err: spk_schema::Error) -> Self {
+        Error::SpkSpecError(Box::new(err))
     }
 }
 

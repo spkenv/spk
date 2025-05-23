@@ -43,16 +43,16 @@ pub enum Error {
     BuildManifest(#[from] spfs::tracking::manifest::MkError),
     #[error(transparent)]
     #[diagnostic(forward(0))]
-    SpkExecError(#[from] spk_exec::Error),
+    SpkExecError(Box<spk_exec::Error>),
     #[error(transparent)]
     #[diagnostic(forward(0))]
     SpkIdentError(#[from] spk_schema::ident::Error),
     #[error(transparent)]
     #[diagnostic(forward(0))]
-    SpkSolverError(#[from] spk_solve::Error),
+    SpkSolverError(Box<spk_solve::Error>),
     #[error(transparent)]
     #[diagnostic(forward(0))]
-    SpkSpecError(#[from] spk_schema::Error),
+    SpkSpecError(Box<spk_schema::Error>),
     #[error(transparent)]
     #[diagnostic(forward(0))]
     SpkStorageError(#[from] spk_storage::Error),
@@ -64,4 +64,22 @@ pub enum Error {
         help = "Replace them with the new 'build.validation.rules', as appropriate. https://spkenv.dev/ref/api/v0/package/#validationspec"
     )]
     UseOfObsoleteValidators,
+}
+
+impl From<spk_exec::Error> for Error {
+    fn from(err: spk_exec::Error) -> Self {
+        Self::SpkExecError(Box::new(err))
+    }
+}
+
+impl From<spk_schema::Error> for Error {
+    fn from(e: spk_schema::Error) -> Self {
+        Self::SpkSpecError(Box::new(e))
+    }
+}
+
+impl From<spk_solve::Error> for Error {
+    fn from(e: spk_solve::Error) -> Self {
+        Self::SpkSolverError(Box::new(e))
+    }
 }

@@ -192,12 +192,12 @@ where
             .read()
             .await
             .get(pkg.name())
-            .ok_or_else(|| Error::PackageNotFound(pkg.to_any_ident()))?
+            .ok_or_else(|| Error::PackageNotFound(Box::new(pkg.to_any_ident())))?
             .get(pkg.version())
-            .ok_or_else(|| Error::PackageNotFound(pkg.to_any_ident()))?
+            .ok_or_else(|| Error::PackageNotFound(Box::new(pkg.to_any_ident())))?
             .get(pkg.build())
             .map(|(_, d)| d.to_owned())
-            .ok_or_else(|| Error::PackageNotFound(pkg.to_any_ident()))
+            .ok_or_else(|| Error::PackageNotFound(Box::new(pkg.to_any_ident())))
     }
 
     async fn read_package_from_storage(
@@ -210,11 +210,11 @@ where
             .read()
             .await
             .get(pkg.name())
-            .ok_or_else(|| Error::PackageNotFound(pkg.to_any_ident()))?
+            .ok_or_else(|| Error::PackageNotFound(Box::new(pkg.to_any_ident())))?
             .get(pkg.version())
-            .ok_or_else(|| Error::PackageNotFound(pkg.to_any_ident()))?
+            .ok_or_else(|| Error::PackageNotFound(Box::new(pkg.to_any_ident())))?
             .get(pkg.build())
-            .ok_or_else(|| Error::PackageNotFound(pkg.to_any_ident()))
+            .ok_or_else(|| Error::PackageNotFound(Box::new(pkg.to_any_ident())))
             .map(|found| Arc::clone(&found.0))
     }
 
@@ -231,14 +231,14 @@ where
                 match versions.get_mut(pkg.version()) {
                     Some(builds) => {
                         if builds.remove(pkg.build()).is_none() {
-                            return Err(Error::PackageNotFound(pkg.to_any_ident()));
+                            return Err(Error::PackageNotFound(Box::new(pkg.to_any_ident())));
                         }
                         if builds.is_empty() {
                             versions.remove(pkg.version());
                         }
                     }
                     None => {
-                        return Err(Error::PackageNotFound(pkg.to_any_ident()));
+                        return Err(Error::PackageNotFound(Box::new(pkg.to_any_ident())));
                     }
                 };
                 if versions.is_empty() {
@@ -246,7 +246,7 @@ where
                 }
             }
             None => {
-                return Err(Error::PackageNotFound(pkg.to_any_ident()));
+                return Err(Error::PackageNotFound(Box::new(pkg.to_any_ident())));
             }
         };
         Ok(())
@@ -256,16 +256,16 @@ where
         let mut packages = self.packages.write().await;
         let versions = match packages.get_mut(pkg.name()) {
             Some(v) => v,
-            None => return Err(Error::PackageNotFound(pkg.to_any_ident())),
+            None => return Err(Error::PackageNotFound(Box::new(pkg.to_any_ident()))),
         };
 
         let builds = match versions.get_mut(pkg.version()) {
             Some(v) => v,
-            None => return Err(Error::PackageNotFound(pkg.to_any_ident())),
+            None => return Err(Error::PackageNotFound(Box::new(pkg.to_any_ident()))),
         };
 
         if builds.remove(pkg.build()).is_none() {
-            Err(Error::PackageNotFound(pkg.to_any_ident()))
+            Err(Error::PackageNotFound(Box::new(pkg.to_any_ident())))
         } else {
             Ok(())
         }
@@ -337,11 +337,11 @@ where
             .read()
             .await
             .get(pkg.name())
-            .ok_or_else(|| Error::PackageNotFound(pkg.to_any_ident()))?
+            .ok_or_else(|| Error::PackageNotFound(Box::new(pkg.to_any_ident())))?
             .get(pkg.version())
-            .ok_or_else(|| Error::PackageNotFound(pkg.to_any_ident()))?
+            .ok_or_else(|| Error::PackageNotFound(Box::new(pkg.to_any_ident())))?
             .get(pkg.build())
-            .ok_or_else(|| Error::PackageNotFound(pkg.to_any_ident()))
+            .ok_or_else(|| Error::PackageNotFound(Box::new(pkg.to_any_ident())))
             .cloned()
     }
 
@@ -350,10 +350,10 @@ where
             .read()
             .await
             .get(pkg.name())
-            .ok_or_else(|| Error::PackageNotFound(pkg.to_any_ident(None)))?
+            .ok_or_else(|| Error::PackageNotFound(Box::new(pkg.to_any_ident(None))))?
             .get(pkg.version())
             .cloned()
-            .ok_or_else(|| Error::PackageNotFound(pkg.to_any_ident(None)))
+            .ok_or_else(|| Error::PackageNotFound(Box::new(pkg.to_any_ident(None))))
     }
 
     async fn remove_recipe(&self, pkg: &VersionIdent) -> Result<()> {
@@ -361,13 +361,13 @@ where
         match specs.get_mut(pkg.name()) {
             Some(versions) => {
                 if versions.remove(pkg.version()).is_none() {
-                    return Err(Error::PackageNotFound(pkg.to_any_ident(None)));
+                    return Err(Error::PackageNotFound(Box::new(pkg.to_any_ident(None))));
                 }
                 if versions.is_empty() {
                     specs.remove(pkg.name());
                 }
             }
-            None => return Err(Error::PackageNotFound(pkg.to_any_ident(None))),
+            None => return Err(Error::PackageNotFound(Box::new(pkg.to_any_ident(None)))),
         };
         Ok(())
     }

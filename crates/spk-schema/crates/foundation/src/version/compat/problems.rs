@@ -8,7 +8,13 @@
 
 use std::collections::BTreeSet;
 
-use super::{CommaSeparated, IncompatibleReason, IsSameReasonAs};
+use super::{
+    CommaSeparated,
+    CompatNotCompatible,
+    CompatNotCompatibleSpan,
+    IncompatibleReason,
+    IsSameReasonAs,
+};
 use crate::ident_build::Build;
 use crate::name::{OptNameBuf, PkgNameBuf, RepositoryNameBuf};
 use crate::version::Version;
@@ -39,6 +45,25 @@ pub enum VersionRangeProblem {
     NotHighEnough { op: &'static str, bound: Version },
     #[strum(to_string = "not {op} {bound} [too high]")]
     NotLowEnough { op: &'static str, bound: Version },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VersionNotCompatibleProblem {
+    pub required_compat: CompatNotCompatible,
+    pub base: Version,
+    pub span: CompatNotCompatibleSpan,
+}
+
+impl std::fmt::Display for VersionNotCompatibleProblem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{required_compat} with {base} {span}",
+            required_compat = self.required_compat,
+            base = self.base,
+            span = self.span
+        )
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, strum::Display)]

@@ -8,6 +8,21 @@ use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+#[derive(Debug)]
+pub struct InvalidPackageSpec(
+    pub AnyIdent,
+    // ideally this would contain the original format_serde_error instance
+    // but they are not clone-able and we need to be able to cache and duplicate
+    // this error type
+    pub String,
+);
+
+impl std::fmt::Display for InvalidPackageSpec {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Invalid package spec for {}: {}", self.0, self.1)
+    }
+}
+
 #[derive(Diagnostic, Debug, Error)]
 #[diagnostic(
     url(
@@ -22,18 +37,12 @@ pub enum Error {
     FileOpenError(std::path::PathBuf, #[source] std::io::Error),
     #[error("Failed to read file {0}")]
     FileReadError(std::path::PathBuf, #[source] std::io::Error),
-    #[error("Invalid package spec for {0}: {1}")]
-    InvalidPackageSpec(
-        AnyIdent,
-        // ideally this would contain the original format_serde_error instance
-        // but they are not clone-able and we need to be able to cache and duplicate
-        // this error type
-        String,
-    ),
+    #[error("{0}")]
+    InvalidPackageSpec(Box<InvalidPackageSpec>),
     #[error("Invalid repository metadata: {0}")]
     InvalidRepositoryMetadata(#[source] serde_yaml::Error),
     #[error("Package not found: {0}")]
-    PackageNotFound(AnyIdent),
+    PackageNotFound(Box<AnyIdent>),
     #[error("Version exists: {0}")]
     VersionExists(VersionIdent),
     #[error(transparent)]
@@ -53,7 +62,7 @@ pub enum Error {
     SpkNameError(#[from] spk_schema::foundation::name::Error),
     #[error(transparent)]
     #[diagnostic(forward(0))]
-    SpkSpecError(#[from] spk_schema::Error),
+    SpkSpecError(Box<spk_schema::Error>),
     #[error("{0}")]
     String(String),
 }
@@ -75,5 +84,11 @@ impl From<String> for Error {
 impl From<&str> for Error {
     fn from(err: &str) -> Error {
         Error::String(err.to_owned())
+    }
+}
+
+impl From<spk_schema::Error> for Error {
+    fn from(err: spk_schema::Error) -> Error {
+        Error::SpkSpecError(Box::new(err))
     }
 }

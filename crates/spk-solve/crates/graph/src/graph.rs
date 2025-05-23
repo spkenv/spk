@@ -843,7 +843,7 @@ impl Node {
 /// Some additional information left by the solver
 #[derive(Clone, Debug)]
 pub enum Note {
-    SkipPackageNote(SkipPackageNote),
+    SkipPackageNote(Box<SkipPackageNote>),
     Other(String),
 }
 
