@@ -20,9 +20,10 @@ use futures::{Future, Stream, StreamExt, TryFutureExt};
 use relative_path::RelativePath;
 use tokio::io::{AsyncRead, AsyncSeek, AsyncWriteExt, ReadBuf};
 
-use super::{MaybeOpenFsRepository, OpenFsRepository};
+use super::{DefaultRenderStoreCreationPolicy, MaybeOpenFsRepository, OpenFsRepository};
 use crate::storage::tag::{EntryType, TagSpecAndTagStream, TagStream};
 use crate::storage::{
+    RenderStoreForUser,
     TAG_NAMESPACE_MARKER,
     TagNamespace,
     TagNamespaceBuf,
@@ -34,7 +35,14 @@ use crate::{Error, OsError, OsErrorExt, Result, encoding, tracking};
 const TAG_EXT: &str = "tag";
 
 #[async_trait::async_trait]
-impl TagStorage for MaybeOpenFsRepository {
+impl<RS> TagStorage for MaybeOpenFsRepository<RS>
+where
+    RS: DefaultRenderStoreCreationPolicy
+        + RenderStoreForUser<RenderStore = RS>
+        + Send
+        + Sync
+        + 'static,
+{
     #[inline]
     fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
         self.fs_impl.get_tag_namespace()
@@ -131,7 +139,14 @@ impl TagStorage for MaybeOpenFsRepository {
     }
 }
 
-impl MaybeOpenFsRepository {
+impl<RS> MaybeOpenFsRepository<RS>
+where
+    RS: DefaultRenderStoreCreationPolicy
+        + RenderStoreForUser<RenderStore = RS>
+        + Send
+        + Sync
+        + 'static,
+{
     /// Forcefully remove any lock file for the identified tag.
     ///
     /// # Safety
@@ -154,7 +169,7 @@ impl MaybeOpenFsRepository {
     }
 }
 
-impl OpenFsRepository {
+impl<RS> OpenFsRepository<RS> {
     fn tags_root_in_namespace(&self, namespace: Option<&TagNamespace>) -> PathBuf {
         let mut tags_root = self.root().join("tags");
         if let Some(tag_namespace) = namespace {
@@ -192,7 +207,10 @@ impl OpenFsRepository {
 }
 
 #[async_trait::async_trait]
-impl TagStorage for OpenFsRepository {
+impl<RS> TagStorage for OpenFsRepository<RS>
+where
+    RS: Send + Sync,
+{
     #[inline]
     fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
         self.fs_impl.get_tag_namespace()
@@ -448,7 +466,10 @@ impl TagStorage for OpenFsRepository {
     }
 }
 
-impl TagStorageMut for MaybeOpenFsRepository {
+impl<RS> TagStorageMut for MaybeOpenFsRepository<RS>
+where
+    RS: Clone,
+{
     fn try_set_tag_namespace(
         &mut self,
         tag_namespace: Option<TagNamespaceBuf>,

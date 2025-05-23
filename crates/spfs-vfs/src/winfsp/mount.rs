@@ -10,7 +10,7 @@ use dashmap::DashMap;
 use libc::c_void;
 use spfs::OsError;
 use spfs::prelude::*;
-use spfs::storage::LocalRepository;
+use spfs::storage::LocalPayloads;
 use spfs::tracking::{Entry, EntryKind};
 use tokio::io::AsyncReadExt;
 use windows::Win32::Foundation::{ERROR_SEEK_ON_DEVICE, STATUS_NOT_A_DIRECTORY};
@@ -281,9 +281,13 @@ impl winfsp::filesystem::FileSystemContext for Mount {
         let digest = entry.object;
         self.rt.spawn(async move {
             for repo in repos.into_iter() {
-                match &*repo {
-                    spfs::storage::RepositoryHandle::FS(fs_repo) => {
-                        let Ok(fs_repo) = fs_repo.opened().await else {
+                // XXX: Using a macro here for an easy fix but it would be nicer
+                // if there was a way to borrow the RepositoryHandle as a
+                // `&MaybeOpenFsRepository<NoRenderStore>` since this code
+                // doesn't need to access renders.
+                macro_rules! read_fs {
+                    ($fs_repo:ident) => {
+                        let Ok(fs_repo) = $fs_repo.opened().await else {
                             let _ =
                                 send.send(Err(winfsp::FspError::IO(std::io::ErrorKind::NotFound)));
                             return;
@@ -299,6 +303,17 @@ impl winfsp::filesystem::FileSystemContext for Mount {
                             }
                             Err(err) => err!(send, err),
                         }
+                    };
+                }
+                match &*repo {
+                    spfs::storage::RepositoryHandle::FSWithMaybeRenders(fs_repo) => {
+                        read_fs!(fs_repo);
+                    }
+                    spfs::storage::RepositoryHandle::FSWithRenders(fs_repo) => {
+                        read_fs!(fs_repo);
+                    }
+                    spfs::storage::RepositoryHandle::FSWithoutRenders(fs_repo) => {
+                        read_fs!(fs_repo);
                     }
                     repo => match repo.open_payload(digest).await {
                         Ok((stream, _)) => {

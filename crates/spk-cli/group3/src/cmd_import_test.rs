@@ -55,7 +55,6 @@ async fn test_archive_io() {
             "VERSION".to_string(),
             "objects".to_string(),
             "payloads".to_string(),
-            "renders".to_string(),
             "tags".to_string(),
             "tags/spk".to_string(),
             "tags/spk/pkg".to_string(),
