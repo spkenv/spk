@@ -661,6 +661,7 @@ build:
 }
 
 #[rstest]
+#[serial_test::serial(host_options)]
 #[tokio::test]
 async fn test_build_filters_variants_based_on_host_opts(tmpdir: tempfile::TempDir) {
     let _rt = spfs_runtime().await;
