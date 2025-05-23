@@ -51,7 +51,7 @@ impl OpenFsRepository {
     fn get_render_storage(&self) -> Result<&crate::storage::fs::FsHashStore> {
         match &self.renders {
             Some(render_store) => Ok(&render_store.renders),
-            None => Err(Error::NoRenderStorage(self.address())),
+            None => Err(Error::NoRenderStorage(self.address().into_owned())),
         }
     }
 
@@ -76,7 +76,8 @@ impl OpenFsRepository {
     }
 
     pub fn proxy_path(&self) -> Option<&std::path::Path> {
-        self.renders
+        self.fs_impl
+            .renders
             .as_ref()
             .map(|render_store| render_store.proxy.root())
     }

@@ -20,7 +20,7 @@ use super::prune::PruneParameters;
 use crate::io::Pluralize;
 use crate::prelude::*;
 use crate::runtime::makedirs_with_perms;
-use crate::storage::fs::OpenFsRepository;
+use crate::storage::fs::FsRepositoryOps;
 use crate::storage::{TagNamespace, TagNamespaceBuf};
 use crate::{Digest, Error, Result, encoding, graph, storage, tracking};
 
@@ -705,7 +705,7 @@ where
     async fn remove_unvisited_renders_and_proxies_for_storage(
         &self,
         username: Option<String>,
-        repo: &storage::fs::OpenFsRepository,
+        repo: impl FsRepositoryOps,
     ) -> Result<CleanResult> {
         let mut result = CleanResult::default();
         let mut stream = repo
@@ -811,7 +811,8 @@ where
                 let future = async move {
                     if !self.dry_run {
                         tracing::trace!(?path, "removing proxy render");
-                        OpenFsRepository::remove_dir_atomically(&path, &workdir).await?;
+                        storage::fs::OpenFsRepository::remove_dir_atomically(&path, &workdir)
+                            .await?;
                     }
                     Ok(digest)
                 };
