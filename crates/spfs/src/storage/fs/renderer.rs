@@ -40,11 +40,37 @@ pub const DEFAULT_MAX_CONCURRENT_BLOBS: usize = 100;
 /// See: [`Renderer::with_max_concurrent_branches`]
 pub const DEFAULT_MAX_CONCURRENT_BRANCHES: usize = 5;
 
+/// Render type options available to command line commands.
 #[derive(Debug, Copy, Clone, strum::EnumString, strum::VariantNames, strum::IntoStaticStr)]
-pub enum RenderType {
+pub enum CliRenderType {
     HardLink,
     HardLinkNoProxy,
     Copy,
+}
+
+#[derive(Debug, Default, Copy, Clone)]
+pub enum HardLinkRenderType {
+    #[default]
+    WithProxy,
+    WithoutProxy,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum RenderType {
+    HardLink(HardLinkRenderType),
+    Copy,
+}
+
+impl From<CliRenderType> for RenderType {
+    fn from(cli_render_type: CliRenderType) -> Self {
+        match cli_render_type {
+            CliRenderType::HardLink => RenderType::HardLink(HardLinkRenderType::WithProxy),
+            CliRenderType::HardLinkNoProxy => {
+                RenderType::HardLink(HardLinkRenderType::WithoutProxy)
+            }
+            CliRenderType::Copy => RenderType::Copy,
+        }
+    }
 }
 
 impl OpenFsRepository {
@@ -338,7 +364,7 @@ where
         self.render_manifest_into_dir(
             manifest,
             &working_dir,
-            render_type.unwrap_or(RenderType::HardLink),
+            render_type.unwrap_or(RenderType::HardLink(HardLinkRenderType::default())),
         )
         .await
         .map_err(|err| {

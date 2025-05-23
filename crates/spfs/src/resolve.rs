@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use super::config::get_config;
 use crate::prelude::*;
 use crate::storage::fallback::FallbackProxy;
-use crate::storage::fs::{ManifestRenderPath, RenderSummary};
+use crate::storage::fs::{CliRenderType, ManifestRenderPath, RenderSummary};
 use crate::{Error, Result, graph, runtime, storage, tracking};
 
 #[cfg(test)]
@@ -52,7 +52,7 @@ async fn render_via_subcommand(
         // of overlayfs. To avoid any issues editing files and
         // hardlinks the rendering for them switches to Copy.
         cmd.arg("--strategy");
-        cmd.arg::<&str>(crate::storage::fs::RenderType::Copy.into());
+        cmd.arg::<&str>(CliRenderType::Copy.into());
     }
     cmd.arg(spec.to_string());
     tracing::debug!("{:?}", cmd);
