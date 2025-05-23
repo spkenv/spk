@@ -367,6 +367,11 @@ pub struct Filesystem {
     /// directly in the annotation layer.
     #[serde(default = "Filesystem::default_annotation_size_limit")]
     pub annotation_size_limit: usize,
+
+    /// Use direct syscalls when performing overlayfs mounts when true.
+    /// Use the "mount" command when false. Defaults to false.
+    #[serde(default)]
+    pub use_mount_syscalls: bool,
 }
 
 impl Filesystem {
