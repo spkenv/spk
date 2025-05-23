@@ -15,7 +15,7 @@ use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
 use spk_schema::{AnyIdent, Recipe, SpecRecipe};
 use spk_solve::solution::Solution;
-use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
+use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, StepSolver};
 use spk_storage as storage;
 
 use super::Tester;
@@ -117,7 +117,7 @@ impl<'a> PackageBuildTester<'a> {
             }
         }
 
-        let mut solver = Solver::default();
+        let mut solver = StepSolver::default();
         solver.set_binary_only(true);
         solver.update_options(self.options.clone());
         for repo in self.repos.iter().cloned() {
@@ -154,7 +154,7 @@ impl<'a> PackageBuildTester<'a> {
     }
 
     async fn resolve_source_package(&mut self, package: &AnyIdent) -> Result<Solution> {
-        let mut solver = Solver::default();
+        let mut solver = StepSolver::default();
         solver.update_options(self.options.clone());
         let local_repo: Arc<storage::RepositoryHandle> =
             Arc::new(storage::local_repository().await?.into());

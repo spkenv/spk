@@ -257,10 +257,10 @@ pub struct Solver {
 }
 
 impl Solver {
-    pub async fn get_solver(&self, options: &Options) -> Result<solve::Solver> {
+    pub async fn get_solver(&self, options: &Options) -> Result<solve::StepSolver> {
         let option_map = options.get_options()?;
 
-        let mut solver = solve::Solver::default();
+        let mut solver = solve::StepSolver::default();
         solver.update_options(option_map);
 
         for (name, repo) in self.repos.get_repos_for_non_destructive_operation().await? {

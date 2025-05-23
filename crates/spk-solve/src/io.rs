@@ -40,17 +40,8 @@ use spk_solve_graph::{
     State,
 };
 
-use crate::solver::ErrorFreq;
-use crate::{
-    Error,
-    ResolverCallback,
-    Result,
-    Solution,
-    Solver,
-    SolverRuntime,
-    StatusLine,
-    show_search_space_stats,
-};
+use crate::solvers::{ErrorFreq, StepSolver, StepSolverRuntime};
+use crate::{Error, ResolverCallback, Result, Solution, StatusLine, show_search_space_stats};
 #[cfg(feature = "statsd")]
 use crate::{
     SPK_SOLUTION_PACKAGE_COUNT_METRIC,
@@ -1101,7 +1092,7 @@ impl Display for MultiSolverKind {
 }
 
 struct SolverTaskSettings {
-    solver: Solver,
+    solver: StepSolver,
     solver_kind: MultiSolverKind,
     ignore_failure: bool,
 }
@@ -1109,7 +1100,7 @@ struct SolverTaskSettings {
 struct SolverTaskDone {
     pub(crate) start: Instant,
     pub(crate) loop_outcome: LoopOutcome,
-    pub(crate) runtime: SolverRuntime,
+    pub(crate) runtime: StepSolverRuntime,
     pub(crate) verbosity: u8,
     pub(crate) solver_kind: MultiSolverKind,
     pub(crate) can_ignore_failure: bool,
@@ -1119,7 +1110,7 @@ struct SolverTaskDone {
 struct SolverResult {
     pub(crate) solver_kind: MultiSolverKind,
     pub(crate) solve_time: Duration,
-    pub(crate) solver: Solver,
+    pub(crate) solver: StepSolver,
     pub(crate) result: Result<(Solution, Arc<tokio::sync::RwLock<spk_solve_graph::Graph>>)>,
 }
 
@@ -1163,7 +1154,7 @@ impl DecisionFormatter {
     /// result from the first to finish.
     pub async fn run_and_print_resolve(
         &self,
-        solver: &Solver,
+        solver: &StepSolver,
     ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
         let solvers = self.setup_solvers(solver);
         self.run_multi_solve(solvers, OutputKind::Println).await
@@ -1174,7 +1165,7 @@ impl DecisionFormatter {
     /// won't benefit from running solvers in parallel.
     pub async fn run_and_print_decisions(
         &self,
-        runtime: &mut SolverRuntime,
+        runtime: &mut StepSolverRuntime,
     ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
         // Note: this is only used directly by cmd_view/info when it
         // runs a solve. Once 'spk info' no longer runs a solve we may
@@ -1196,7 +1187,7 @@ impl DecisionFormatter {
     /// options) and takes the result from the first to finish.
     pub async fn run_and_log_resolve(
         &self,
-        solver: &Solver,
+        solver: &StepSolver,
     ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
         let solvers = self.setup_solvers(solver);
         self.run_multi_solve(solvers, OutputKind::Tracing).await
@@ -1208,7 +1199,7 @@ impl DecisionFormatter {
     /// parallel.
     pub async fn run_and_log_decisions(
         &self,
-        runtime: &mut SolverRuntime,
+        runtime: &mut StepSolverRuntime,
     ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
         // Note: this is not currently used directly. We may be able
         // to remove this method.
@@ -1223,7 +1214,7 @@ impl DecisionFormatter {
             .await
     }
 
-    fn setup_solvers(&self, base_solver: &Solver) -> Vec<SolverTaskSettings> {
+    fn setup_solvers(&self, base_solver: &StepSolver) -> Vec<SolverTaskSettings> {
         // Leave the first solver as is.
         let solver_with_no_change = base_solver.clone();
 
@@ -1540,7 +1531,7 @@ impl DecisionFormatter {
 
     async fn run_solver_loop(
         &self,
-        runtime: &mut SolverRuntime,
+        runtime: &mut StepSolverRuntime,
         mut output_location: OutputKind,
     ) -> LoopOutcome {
         // This block exists to shorten the scope of `runtime`'s borrow.
@@ -1576,7 +1567,7 @@ impl DecisionFormatter {
         &self,
         loop_outcome: LoopOutcome,
         solve_time: Duration,
-        runtime: &mut SolverRuntime,
+        runtime: &mut StepSolverRuntime,
         mut output_location: OutputKind,
     ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
         match loop_outcome {
@@ -1686,7 +1677,7 @@ impl DecisionFormatter {
     async fn show_search_space_info(
         &self,
         solution: &Result<Solution>,
-        runtime: &SolverRuntime,
+        runtime: &StepSolverRuntime,
     ) -> Result<()> {
         if let Ok(ref s) = *solution {
             tracing::info!("Calculating search space stats. This may take some time...");
@@ -1713,7 +1704,7 @@ impl DecisionFormatter {
     }
 
     #[cfg(feature = "statsd")]
-    fn send_solver_start_metrics(&self, runtime: &SolverRuntime) {
+    fn send_solver_start_metrics(&self, runtime: &StepSolverRuntime) {
         let Some(statsd_client) = get_metrics_client() else {
             return;
         };
@@ -1774,7 +1765,7 @@ impl DecisionFormatter {
     #[cfg(feature = "sentry")]
     fn add_details_to_next_sentry_event(
         &self,
-        solver: &Solver,
+        solver: &StepSolver,
         solve_duration: Duration,
     ) -> Vec<String> {
         let seconds = solve_duration.as_secs_f64();
@@ -1831,7 +1822,7 @@ impl DecisionFormatter {
     #[cfg(feature = "sentry")]
     fn send_sentry_warning_message(
         &self,
-        solver: &Solver,
+        solver: &StepSolver,
         solve_duration: Duration,
         sentry_warning: SentryWarning,
     ) {
@@ -1900,7 +1891,11 @@ impl DecisionFormatter {
         FormattedDecisionsIter::new(decisions, self.settings.clone())
     }
 
-    pub(crate) fn format_solve_stats(&self, solver: &Solver, solve_duration: Duration) -> String {
+    pub(crate) fn format_solve_stats(
+        &self,
+        solver: &StepSolver,
+        solve_duration: Duration,
+    ) -> String {
         // Show how long this solve took
         let mut out: String = " Solver took: ".to_string();
         let seconds = solve_duration.as_secs_f64();
@@ -2130,7 +2125,7 @@ impl DecisionFormatter {
 impl ResolverCallback for &DecisionFormatter {
     async fn solve<'s, 'a: 's>(
         &'s self,
-        r: &'a Solver,
+        r: &'a StepSolver,
     ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
         self.run_and_print_resolve(r).await
     }
@@ -2140,7 +2135,7 @@ impl ResolverCallback for &DecisionFormatter {
 impl ResolverCallback for DecisionFormatter {
     async fn solve<'s, 'a: 's>(
         &'s self,
-        r: &'a Solver,
+        r: &'a StepSolver,
     ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
         self.run_and_print_resolve(r).await
     }
