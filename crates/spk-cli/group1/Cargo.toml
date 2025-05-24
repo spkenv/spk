@@ -34,6 +34,7 @@ spk-storage = { workspace = true }
 strip-ansi-escapes = { version = "0.1.1" }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }
+clap_complete_nushell ={ version = "4.5"}
 
 [dev-dependencies]
 rstest = { workspace = true }
