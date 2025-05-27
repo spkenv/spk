@@ -13,7 +13,7 @@ use tokio_stream::StreamExt;
 
 use crate::fixtures::*;
 #[cfg(unix)]
-use crate::storage::fs::FsRepository;
+use crate::storage::fs::MaybeOpenFsRepository;
 use crate::storage::{EntryType, TagStorage};
 use crate::{Result, encoding, tracking};
 
@@ -113,7 +113,7 @@ async fn test_tag_no_duplication(
 #[rstest]
 #[tokio::test]
 async fn test_tag_permissions(tmpdir: tempfile::TempDir) {
-    let storage = FsRepository::create(tmpdir.path().join("repo"))
+    let storage = MaybeOpenFsRepository::create(tmpdir.path().join("repo"))
         .await
         .unwrap();
     let spec = tracking::TagSpec::parse("hello").unwrap();
@@ -362,7 +362,7 @@ async fn test_tag_in_namespace(
         .collect::<Result<Vec<_>>>()
         .await
         .unwrap();
-    assert_eq!(tags, vec![EntryType::Namespace(namespace_name.to_string())]);
+    assert_eq!(tags, vec![EntryType::Namespace(namespace_name.into())]);
 }
 
 #[rstest]
@@ -383,13 +383,15 @@ async fn test_tag_in_namespace_name_collision(
     // | none      | foo/bar/baz |
     // | foo       | bar/baz     |
     // | foo/bar   | baz         |
+    //
+    // However the last one is not currently checked because "foo/bar" has
+    // become an invalid tag namespace name. Should that change in the future,
+    // the code to check it was removed in the commit that added this message.
 
     let repo_in_foo = tmprepo.with_tag_namespace("foo").await;
-    let repo_in_foo_bar = tmprepo.with_tag_namespace("foo/bar").await;
 
     let foo_bar_baz = random_digest();
     let bar_baz = random_digest();
-    let baz = random_digest();
 
     let spec_foo_bar_baz = tracking::TagSpec::parse("foo/bar/baz").unwrap();
     tmprepo
@@ -400,13 +402,7 @@ async fn test_tag_in_namespace_name_collision(
     let spec_bar_baz = tracking::TagSpec::parse("bar/baz").unwrap();
     repo_in_foo.push_tag(&spec_bar_baz, &bar_baz).await.unwrap();
 
-    let spec_baz = tracking::TagSpec::parse("baz").unwrap();
-    repo_in_foo_bar.push_tag(&spec_baz, &baz).await.unwrap();
-
     // Now confirm these can be read back.
-
-    let tag = repo_in_foo_bar.resolve_tag(&spec_baz).await.unwrap();
-    assert_eq!(tag.target, baz);
 
     let tag = repo_in_foo.resolve_tag(&spec_bar_baz).await.unwrap();
     assert_eq!(tag.target, bar_baz);

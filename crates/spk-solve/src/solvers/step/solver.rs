@@ -53,15 +53,9 @@ use spk_solve_validation::{
 };
 use spk_storage::RepositoryHandle;
 
-use super::error;
 use crate::error::OutOfOptions;
 use crate::option_map::OptionMap;
-use crate::{Error, Result};
-
-// Public to allow other tests to use its macros
-#[cfg(test)]
-#[path = "./solver_test.rs"]
-mod solver_test;
+use crate::{Error, Result, error};
 
 /// Structure to hold whether the three kinds of impossible checks are
 /// enabled or disabled in a solver.

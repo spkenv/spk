@@ -20,7 +20,8 @@ use super::prune::PruneParameters;
 use crate::io::Pluralize;
 use crate::prelude::*;
 use crate::runtime::makedirs_with_perms;
-use crate::storage::fs::OpenFsRepository;
+use crate::storage::fs::FsRepositoryOps;
+use crate::storage::{TagNamespace, TagNamespaceBuf};
 use crate::{Digest, Error, Result, encoding, graph, storage, tracking};
 
 #[cfg(test)]
@@ -45,6 +46,7 @@ where
     attached: DashSet<encoding::Digest>,
     dry_run: bool,
     must_be_older_than: DateTime<Utc>,
+    prune_all_tag_namespaces: bool,
     prune_repeated_tags: Option<NonZero<u64>>,
     prune_params: PruneParameters,
     remove_proxies_with_no_links: bool,
@@ -68,6 +70,7 @@ impl<'repo> Cleaner<'repo, SilentCleanReporter> {
             attached: Default::default(),
             dry_run: false,
             must_be_older_than: Utc::now(),
+            prune_all_tag_namespaces: false,
             prune_repeated_tags: None,
             prune_params: Default::default(),
             remove_proxies_with_no_links: true,
@@ -88,6 +91,7 @@ where
             attached: self.attached,
             dry_run: self.dry_run,
             must_be_older_than: self.must_be_older_than,
+            prune_all_tag_namespaces: self.prune_all_tag_namespaces,
             prune_repeated_tags: self.prune_repeated_tags,
             prune_params: self.prune_params,
             removal_concurrency: self.removal_concurrency,
@@ -151,6 +155,13 @@ where
     /// Overrides and previous value for [`Self::with_required_age`]
     pub fn with_required_age_cutoff(mut self, cutoff: DateTime<Utc>) -> Self {
         self.must_be_older_than = cutoff;
+        self
+    }
+
+    /// When walking tags, whether to prune tags in all tag namespaces or only
+    /// the tag namespace configured on the repository.
+    pub fn with_prune_all_tag_namespaces(mut self, prune_all_tag_namespaces: bool) -> Self {
+        self.prune_all_tag_namespaces = prune_all_tag_namespaces;
         self
     }
 
@@ -318,9 +329,24 @@ where
     /// partially complete depending on the nature of the errors.
     pub async fn prune_all_tags_and_clean(&self) -> Result<CleanResult> {
         let mut result = CleanResult::default();
-        let mut stream = self.repo.iter_tag_streams().boxed();
+        let tag_namespace_to_prune = self.repo.get_tag_namespace();
+        let namespaces = self.repo.ls_tag_namespaces();
+        let mut stream = namespaces
+            .map(|ns| {
+                ns.map(|ns| {
+                    self.repo
+                        .iter_tag_streams_in_namespace(Some(&ns))
+                        .map(move |r| r.map(|(spec, stream)| (Some(ns.clone()), spec, stream)))
+                })
+            })
+            .try_flatten()
+            .chain(
+                self.repo
+                    .iter_tag_streams_in_namespace(None)
+                    .map(|r| r.map(|(spec, stream)| (None, spec, stream))),
+            );
         let mut futures = futures::stream::FuturesUnordered::new();
-        while let Some((tag_spec, _stream)) = stream.try_next().await? {
+        while let Some((tag_namespace, tag_spec, _stream)) = stream.try_next().await? {
             if futures.len() > self.tag_stream_concurrency {
                 // if we've reached the limit, let the fastest half finish
                 // before adding additional futures. This is a crude way to
@@ -331,7 +357,11 @@ where
                     futures.try_next().await?;
                 }
             }
-            futures.push(self.prune_tag_stream_and_walk(tag_spec));
+            futures.push(self.prune_tag_stream_and_walk(
+                tag_namespace_to_prune.as_ref(),
+                tag_namespace,
+                tag_spec,
+            ));
         }
         drop(stream);
         while let Some(r) = futures.try_next().await? {
@@ -360,8 +390,18 @@ where
         Ok(result)
     }
 
-    async fn prune_tag_stream_and_walk(&self, tag_spec: tracking::TagSpec) -> Result<CleanResult> {
-        let (mut result, to_keep) = self.prune_tag_stream(tag_spec).await?;
+    async fn prune_tag_stream_and_walk<T>(
+        &self,
+        tag_namespace_to_prune: Option<T>,
+        tag_namespace_to_visit: Option<TagNamespaceBuf>,
+        tag_spec: tracking::TagSpec,
+    ) -> Result<CleanResult>
+    where
+        T: AsRef<TagNamespace>,
+    {
+        let (mut result, to_keep) = self
+            .prune_tag_stream(tag_namespace_to_prune, tag_namespace_to_visit, tag_spec)
+            .await?;
         result += self.walk_attached_objects(&to_keep).await?;
 
         Ok(result)
@@ -385,13 +425,32 @@ where
     /// Visit the tag and its history, pruning as configured and
     /// returning a cleaning (pruning) result and list of tags that
     /// were kept.
-    pub async fn prune_tag_stream(
+    pub async fn prune_tag_stream<T>(
         &self,
+        tag_namespace_to_prune: Option<T>,
+        tag_namespace_to_visit: Option<TagNamespaceBuf>,
         tag_spec: tracking::TagSpec,
-    ) -> Result<(CleanResult, Vec<encoding::Digest>)> {
+    ) -> Result<(CleanResult, Vec<encoding::Digest>)>
+    where
+        T: AsRef<TagNamespace>,
+    {
+        // The Cleaner needs to visit all namespaces to learn what objects are
+        // still alive, but if the repo passed to the Cleaner has a namespace
+        // set on it then one would expect that only tags in that namespace are
+        // pruned.
+        let should_prune_this_namespace = self.prune_all_tag_namespaces
+            || match (
+                tag_namespace_to_prune.as_ref(),
+                tag_namespace_to_visit.as_deref(),
+            ) {
+                (Some(prune), Some(visit)) if prune.as_ref() == visit => true,
+                (None, None) => true,
+                _ => false,
+            };
+
         let history = self
             .repo
-            .read_tag(&tag_spec)
+            .read_tag_in_namespace(tag_namespace_to_visit.as_deref(), &tag_spec)
             .await?
             .try_collect::<Vec<_>>()
             .await?;
@@ -403,7 +462,7 @@ where
             self.reporter.visit_tag(&tag);
             let count = if let Some(seen_count) = seen_targets.get(&tag.target) {
                 if let Some(keep_number) = self.prune_repeated_tags {
-                    if *seen_count >= keep_number.get() {
+                    if should_prune_this_namespace && *seen_count >= keep_number.get() {
                         to_prune.push(tag);
                         continue;
                     }
@@ -415,7 +474,7 @@ where
 
             seen_targets.insert(tag.target, count);
 
-            if self.prune_params.should_prune(&spec, &tag) {
+            if should_prune_this_namespace && self.prune_params.should_prune(&spec, &tag) {
                 to_prune.push(tag);
             } else {
                 to_keep.push(tag.target);
@@ -429,12 +488,18 @@ where
 
         for tag in to_prune.iter() {
             if !self.dry_run {
-                self.repo.remove_tag(tag).await?;
+                self.repo
+                    .remove_tag_in_namespace(tag_namespace_to_visit.as_deref(), tag)
+                    .await?;
             }
             self.reporter.tag_removed(tag);
         }
 
-        result.pruned_tags.insert(tag_spec, to_prune);
+        result
+            .pruned_tags
+            .entry(tag_namespace_to_visit)
+            .or_default()
+            .insert(tag_spec, to_prune);
 
         Ok((result, to_keep))
     }
@@ -640,7 +705,7 @@ where
     async fn remove_unvisited_renders_and_proxies_for_storage(
         &self,
         username: Option<String>,
-        repo: &storage::fs::OpenFsRepository,
+        repo: impl FsRepositoryOps,
     ) -> Result<CleanResult> {
         let mut result = CleanResult::default();
         let mut stream = repo
@@ -746,7 +811,8 @@ where
                 let future = async move {
                     if !self.dry_run {
                         tracing::trace!(?path, "removing proxy render");
-                        OpenFsRepository::remove_dir_atomically(&path, &workdir).await?;
+                        storage::fs::OpenFsRepository::remove_dir_atomically(&path, &workdir)
+                            .await?;
                     }
                     Ok(digest)
                 };
@@ -779,7 +845,8 @@ pub struct CleanResult {
     /// The number of tags visited when walking the database
     pub visited_tags: u64,
     /// The tags pruned from the database
-    pub pruned_tags: HashMap<tracking::TagSpec, Vec<tracking::Tag>>,
+    pub pruned_tags:
+        HashMap<Option<TagNamespaceBuf>, HashMap<tracking::TagSpec, Vec<tracking::Tag>>>,
 
     /// The number of objects visited when walking the database
     pub visited_objects: u64,
@@ -815,7 +882,11 @@ impl CleanResult {
     }
 
     pub fn into_all_tags(self) -> Vec<tracking::Tag> {
-        self.pruned_tags.into_values().flatten().collect()
+        self.pruned_tags
+            .into_values()
+            .flat_map(|tags| tags.into_values())
+            .flatten()
+            .collect()
     }
 }
 

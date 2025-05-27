@@ -361,7 +361,8 @@ impl TagStorageMut for FallbackProxy {
         &mut self,
         tag_namespace: Option<TagNamespaceBuf>,
     ) -> Result<Option<TagNamespaceBuf>> {
-        Ok(Arc::make_mut(&mut self.primary).set_tag_namespace(tag_namespace))
+        Ok(Arc::make_mut(&mut Arc::make_mut(&mut self.primary).fs_impl)
+            .set_tag_namespace(tag_namespace))
     }
 }
 

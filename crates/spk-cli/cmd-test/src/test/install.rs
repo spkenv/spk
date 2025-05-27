@@ -12,7 +12,7 @@ use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
 use spk_schema::ident_build::Build;
 use spk_schema::{Recipe, SpecRecipe, Variant, VariantExt};
-use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
+use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, StepSolver};
 use spk_storage as storage;
 
 use super::Tester;
@@ -94,7 +94,7 @@ where
 
         let requires_localization = rt.config.mount_backend.requires_localization();
 
-        let mut solver = Solver::default();
+        let mut solver = StepSolver::default();
         solver.set_binary_only(true);
         solver.update_options(self.options.clone());
         for repo in self.repos.iter().cloned() {

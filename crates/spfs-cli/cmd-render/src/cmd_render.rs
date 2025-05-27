@@ -31,10 +31,10 @@ pub struct CmdRender {
     /// using a local directory and `HardLink` for the repository.
     #[clap(
         long,
-        value_parser = clap::builder::PossibleValuesParser::new(spfs::storage::fs::RenderType::VARIANTS)
-            .map(|s| s.parse::<spfs::storage::fs::RenderType>().unwrap())
+        value_parser = clap::builder::PossibleValuesParser::new(spfs::storage::fs::CliRenderType::VARIANTS)
+            .map(|s| s.parse::<spfs::storage::fs::CliRenderType>().unwrap())
     )]
-    strategy: Option<spfs::storage::fs::RenderType>,
+    strategy: Option<spfs::storage::fs::CliRenderType>,
 
     /// The tag or digest of what to render, use a '+' to join multiple layers
     reference: String,
@@ -121,7 +121,9 @@ impl CmdRender {
             .render_into_directory(
                 env_spec,
                 &target_dir,
-                self.strategy.unwrap_or(spfs::storage::fs::RenderType::Copy),
+                self.strategy
+                    .map(Into::into)
+                    .unwrap_or(spfs::storage::fs::RenderType::Copy),
             )
             .await?;
         Ok(RenderResult {
@@ -165,7 +167,7 @@ impl CmdRender {
             .collect();
         tracing::trace!("stack: {:?}", stack);
         renderer
-            .render(&stack, self.strategy)
+            .render(&stack, self.strategy.map(Into::into))
             .await
             .map(|paths_rendered| RenderResult {
                 paths_rendered,

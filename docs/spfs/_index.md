@@ -23,7 +23,7 @@ The contents of `/spfs` are managed _per-process-tree_. This means that one prog
 
 ```bash
 # enter an empty spfs environment
-spfs shell
+spfs shell -
 
 # put some files into the spfs area
 echo "hello, world" > /spfs/message.txt
@@ -59,7 +59,7 @@ The spfs _commit_ process is used to capture any active file changes and save th
 
 ```bash
 # enter an empty spfs environment
-spfs shell
+spfs shell -
 
 # put some files into the spfs area
 echo "hello, world" > /spfs/message.txt

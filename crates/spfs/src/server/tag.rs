@@ -19,7 +19,10 @@ fn string_to_namespace(namespace: &String) -> Option<&TagNamespace> {
     if namespace.is_empty() {
         None
     } else {
-        Some(TagNamespace::new(RelativePath::new(namespace)))
+        Some(
+            TagNamespace::new(RelativePath::new(namespace))
+                .expect("namespace was valid before being passed over rpc as a string"),
+        )
     }
 }
 
