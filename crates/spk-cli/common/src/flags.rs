@@ -192,7 +192,7 @@ impl Runtime {
             );
             args.insert(
                 0,
-                std::ffi::CString::new("--name").expect("should never fail"),
+                std::ffi::CString::new("--runtime-name").expect("should never fail"),
             );
         }
 
