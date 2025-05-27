@@ -22,7 +22,6 @@ sentry = ["spfs-cli-common/sentry"]
 [dependencies]
 chrono = { workspace = true }
 clap = { workspace = true }
-clap-markdown = "0.1.5"
 colored = { workspace = true }
 miette = { workspace = true, features = ["fancy"] }
 question = "0.2.2"
