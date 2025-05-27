@@ -50,6 +50,11 @@ pub struct CmdClean {
     #[clap(long)]
     dry_run: bool,
 
+    /// Prune all tag namespaces. The default is to only prune tags in the
+    /// active tag namespace.
+    #[clap(long)]
+    prune_all_tag_namespaces: bool,
+
     /// Prune old tags that have the same target as a more recent version
     #[clap(long = "prune-repeated", group = "repo_data")]
     prune_repeated: bool,
@@ -172,6 +177,7 @@ impl CmdClean {
             .with_reporter(spfs::clean::ConsoleCleanReporter::default())
             .with_dry_run(self.dry_run)
             .with_required_age(chrono::Duration::minutes(15))
+            .with_prune_all_tag_namespaces(self.prune_all_tag_namespaces)
             .with_prune_repeated_tags(prune_repeated_tags)
             .with_prune_tags_older_than(self.prune_if_older_than)
             .with_keep_tags_newer_than(self.keep_if_newer_than)
@@ -224,7 +230,11 @@ impl CmdClean {
         };
         println!(
             "{visited_tags:>12} tags visited     [{:>6} {removed}]",
-            pruned_tags.values().map(Vec::len).sum::<usize>()
+            pruned_tags
+                .values()
+                .flat_map(|m| m.values())
+                .map(|v| v.len())
+                .sum::<usize>()
         );
         println!(
             "{visited_objects:>12} objects visited  [{:>6} {removed}]",

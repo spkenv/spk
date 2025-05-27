@@ -39,12 +39,20 @@ impl TempRepo {
     {
         match self {
             TempRepo::FS(_, tempdir) => {
-                let mut repo = spfs::storage::fs::FsRepository::open(tempdir.path().join("repo"))
-                    .await
-                    .unwrap();
-                repo.set_tag_namespace(Some(spfs::storage::TagNamespaceBuf::new(
-                    namespace.as_ref(),
-                )));
+                let repo = spfs::storage::fs::MaybeOpenFsRepository {
+                    fs_impl: {
+                        let mut fs_impl = spfs::storage::fs::MaybeOpenFsRepositoryImpl::open(
+                            tempdir.path().join("repo"),
+                        )
+                        .await
+                        .unwrap();
+                        fs_impl.set_tag_namespace(Some(
+                            spfs::storage::TagNamespaceBuf::new(namespace.as_ref())
+                                .expect("tag namespaces used in tests must be valid"),
+                        ));
+                        fs_impl.into()
+                    },
+                };
                 TempRepo::FS(Arc::new(repo.into()), Arc::clone(tempdir))
             }
             _ => panic!("only TempRepo::FS type supports setting tag namespaces"),
@@ -130,7 +138,7 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
     let tmpdir = tmpdir();
     match kind {
         "fs" => {
-            let repo = spfs::storage::fs::FsRepository::create(tmpdir.path().join("repo"))
+            let repo = spfs::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("repo"))
                 .await
                 .unwrap()
                 .into();
@@ -147,7 +155,7 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
         "rpc" => {
             use crate::storage::prelude::*;
             let repo = std::sync::Arc::new(spfs::storage::RepositoryHandle::FS(
-                spfs::storage::fs::FsRepository::create(tmpdir.path().join("repo"))
+                spfs::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("repo"))
                     .await
                     .unwrap(),
             ));

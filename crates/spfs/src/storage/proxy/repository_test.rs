@@ -12,12 +12,13 @@ use crate::prelude::*;
 async fn test_proxy_payload_read_through(tmpdir: tempfile::TempDir) {
     init_logging();
 
-    let primary = crate::storage::fs::FsRepository::create(tmpdir.path().join("primary"))
+    let primary = crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("primary"))
         .await
         .unwrap();
-    let secondary = crate::storage::fs::FsRepository::create(tmpdir.path().join("secondary"))
-        .await
-        .unwrap();
+    let secondary =
+        crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("secondary"))
+            .await
+            .unwrap();
 
     let digest = secondary
         .commit_blob(Box::pin(b"some data".as_slice()))
@@ -40,12 +41,13 @@ async fn test_proxy_payload_read_through(tmpdir: tempfile::TempDir) {
 async fn test_proxy_object_read_through(tmpdir: tempfile::TempDir) {
     init_logging();
 
-    let primary = crate::storage::fs::FsRepository::create(tmpdir.path().join("primary"))
+    let primary = crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("primary"))
         .await
         .unwrap();
-    let secondary = crate::storage::fs::FsRepository::create(tmpdir.path().join("secondary"))
-        .await
-        .unwrap();
+    let secondary =
+        crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("secondary"))
+            .await
+            .unwrap();
 
     let payload = secondary
         .commit_blob(Box::pin(b"some data".as_slice()))
@@ -68,12 +70,13 @@ async fn test_proxy_object_read_through(tmpdir: tempfile::TempDir) {
 async fn test_proxy_tag_read_through(tmpdir: tempfile::TempDir) {
     init_logging();
 
-    let primary = crate::storage::fs::FsRepository::create(tmpdir.path().join("primary"))
+    let primary = crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("primary"))
         .await
         .unwrap();
-    let secondary = crate::storage::fs::FsRepository::create(tmpdir.path().join("secondary"))
-        .await
-        .unwrap();
+    let secondary =
+        crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("secondary"))
+            .await
+            .unwrap();
 
     let payload = secondary
         .commit_blob(Box::pin(b"some data".as_slice()))
