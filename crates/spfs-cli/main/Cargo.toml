@@ -33,6 +33,7 @@ server = [
 async-recursion = "1.0.2"
 chrono = { workspace = true }
 clap = { workspace = true }
+clap-markdown = "0.1.5"
 colored = "2.0"
 dunce = { workspace = true }
 futures = { workspace = true }
