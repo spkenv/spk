@@ -611,6 +611,7 @@ build:
 // this case passes because host options override default values, and the
 // provided host option value of "linux" is a valid choice.
 #[case::non_empty_value_for_host_option_bad_value_succeeds_with_host_options_enabled("os", "beos", &["linux", "windows"], true)]
+#[serial_test::serial(host_options)]
 #[tokio::test]
 async fn test_options_with_choices_and_empty_values(
     tmpdir: tempfile::TempDir,

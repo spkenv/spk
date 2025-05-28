@@ -36,4 +36,5 @@ tracing = { workspace = true }
 futures = { workspace = true }
 relative-path = { workspace = true }
 rstest = { workspace = true }
+serial_test = { workspace = true }
 tempfile = { workspace = true }
