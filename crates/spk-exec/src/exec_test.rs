@@ -9,7 +9,7 @@ use rstest::{fixture, rstest};
 use spk_cmd_build::build_package;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::ident::build_ident;
-use spk_solve::{DecisionFormatterBuilder, StepSolver};
+use spk_solve::{DecisionFormatterBuilder, SolverExt, SolverMut, StepSolver};
 use spk_solve_macros::request;
 use spk_storage::fixtures::*;
 
@@ -23,10 +23,15 @@ fn solver() -> StepSolver {
 /// If two layers contribute files to the same subdirectory, the Manifest is
 /// expected to contain both files.
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
 async fn get_environment_filesystem_merges_directories(
     tmpdir: tempfile::TempDir,
+    // TODO: test with all solvers
     mut solver: StepSolver,
+    #[case] solver_to_run: &str,
 ) {
     let rt = spfs_runtime().await;
 
@@ -42,6 +47,7 @@ build:
     - mkdir "$PREFIX"/subdir
     - touch "$PREFIX"/subdir/one.txt
 "#,
+        solver_to_run
     );
 
     build_package!(
@@ -56,6 +62,7 @@ build:
     - mkdir "$PREFIX"/subdir
     - touch "$PREFIX"/subdir/two.txt
 "#,
+        solver_to_run
     );
 
     let formatter = DecisionFormatterBuilder::default()
@@ -66,7 +73,7 @@ build:
     solver.add_request(request!("one"));
     solver.add_request(request!("two"));
 
-    let (solution, _) = formatter.run_and_log_resolve(&solver).await.unwrap();
+    let solution = solver.run_and_log_resolve(&formatter).await.unwrap();
 
     let resolved_layers = solution_to_resolved_runtime_layers(&solution).unwrap();
 

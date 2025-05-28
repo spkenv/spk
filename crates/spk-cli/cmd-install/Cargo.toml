@@ -21,4 +21,5 @@ futures = { workspace = true }
 spk-cli-common = { workspace = true }
 spk-exec = { workspace = true }
 spk-schema = { workspace = true }
+spk-solve = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }

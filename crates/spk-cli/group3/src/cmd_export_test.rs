@@ -7,11 +7,22 @@ use spfs::prelude::*;
 use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_schema::foundation::option_map;
 use spk_schema::{Package, recipe};
+use spk_solve::SolverImpl;
 use spk_storage::fixtures::*;
 
+fn step_solver() -> SolverImpl {
+    SolverImpl::Step(spk_solve::StepSolver::default())
+}
+
+fn resolvo_solver() -> SolverImpl {
+    SolverImpl::Resolvo(spk_solve::ResolvoSolver::default())
+}
+
 #[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_export_works_with_missing_builds() {
+async fn test_export_works_with_missing_builds(#[case] solver: SolverImpl) {
     let rt = spfs_runtime().await;
 
     let spec = recipe!(
@@ -26,12 +37,13 @@ async fn test_export_works_with_missing_builds() {
         }
     );
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
-    let (blue_spec, _) = BinaryPackageBuilder::from_recipe(spec.clone())
-        .with_source(BuildSource::LocalPath(".".into()))
-        .build_and_publish(option_map! {"color" => "blue"}, &*rt.tmprepo)
-        .await
-        .unwrap();
-    let (red_spec, _) = BinaryPackageBuilder::from_recipe(spec)
+    let (blue_spec, _) =
+        BinaryPackageBuilder::from_recipe_with_solver(spec.clone(), solver.clone())
+            .with_source(BuildSource::LocalPath(".".into()))
+            .build_and_publish(option_map! {"color" => "blue"}, &*rt.tmprepo)
+            .await
+            .unwrap();
+    let (red_spec, _) = BinaryPackageBuilder::from_recipe_with_solver(spec, solver)
         .with_source(BuildSource::LocalPath(".".into()))
         .build_and_publish(option_map! {"color" => "red"}, &*rt.tmprepo)
         .await

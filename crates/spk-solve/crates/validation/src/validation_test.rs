@@ -103,11 +103,11 @@ fn test_qualified_var_supersedes_unqualified() {
         vec![
             Request::from_yaml("{var: debug/off}")
                 .unwrap()
-                .into_var()
+                .var()
                 .unwrap(),
             Request::from_yaml("{var: my-package.debug/on}")
                 .unwrap()
-                .into_var()
+                .var()
                 .unwrap(),
         ],
         vec![],

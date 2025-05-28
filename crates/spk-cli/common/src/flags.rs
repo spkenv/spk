@@ -15,6 +15,9 @@ use solve::{
     DecisionFormatter,
     DecisionFormatterBuilder,
     MultiSolverKind,
+    SolverExt,
+    SolverImpl,
+    SolverMut,
 };
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::ident_build::Build;
@@ -232,6 +235,9 @@ pub struct Solver {
     #[clap(flatten)]
     pub repos: Repositories,
 
+    #[clap(flatten)]
+    pub decision_formatter_settings: DecisionFormatterSettings,
+
     /// If true, build packages from source if needed
     #[clap(long)]
     pub allow_builds: bool,
@@ -257,10 +263,30 @@ pub struct Solver {
 }
 
 impl Solver {
-    pub async fn get_solver(&self, options: &Options) -> Result<solve::StepSolver> {
+    pub async fn get_solver(
+        &self,
+        options: &Options,
+    ) -> Result<impl SolverExt + SolverMut + Clone + 'static> {
         let option_map = options.get_options()?;
 
-        let mut solver = solve::StepSolver::default();
+        let mut solver = match self.decision_formatter_settings.solver_to_run {
+            SolverToRun::Resolvo => SolverImpl::Resolvo(solve::ResolvoSolver::default()),
+            _ => {
+                let mut solver = solve::StepSolver::default();
+                // These settings are only applicable to the Step solver.
+                solver.set_initial_request_impossible_checks(
+                    self.check_impossible_initial || self.check_impossible_all,
+                );
+                solver.set_resolve_validation_impossible_checks(
+                    self.check_impossible_validation || self.check_impossible_all,
+                );
+                solver.set_build_key_impossible_checks(
+                    self.check_impossible_builds || self.check_impossible_all,
+                );
+                SolverImpl::Step(solver)
+            }
+        };
+
         solver.update_options(option_map);
 
         for (name, repo) in self.repos.get_repos_for_non_destructive_operation().await? {
@@ -268,15 +294,6 @@ impl Solver {
             solver.add_repository(repo);
         }
         solver.set_binary_only(!self.allow_builds);
-        solver.set_initial_request_impossible_checks(
-            self.check_impossible_initial || self.check_impossible_all,
-        );
-        solver.set_resolve_validation_impossible_checks(
-            self.check_impossible_validation || self.check_impossible_all,
-        );
-        solver.set_build_key_impossible_checks(
-            self.check_impossible_builds || self.check_impossible_all,
-        );
 
         for r in options.get_var_requests()? {
             solver.add_request(r.into());
@@ -629,7 +646,7 @@ impl Requests {
         let mut req = serde_yaml::from_value::<Request>(request_data.into())
             .into_diagnostic()
             .wrap_err_with(|| format!("Failed to parse request {request}"))?
-            .into_pkg()
+            .pkg()
             .ok_or_else(|| miette!("Expected a package request, got None"))?;
         req.add_requester(RequestedBy::CommandLine);
 
@@ -1172,17 +1189,22 @@ pub enum SolverToRun {
     Cli,
     /// Run and show output from the "impossible requests" checking solver
     Checks,
-    /// Run both solvers, showing the output from the basic solver,
-    /// unless overridden with --solver-to-run
+    /// Run both "cli" and "checks" solvers, showing the output from the "cli"
+    /// solver, unless overridden with --solver-to-run
     All,
+    /// Run the Resolvo-based SAT solver
+    Resolvo,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum SolverToShow {
-    /// Show output from the basic solver
+    /// Show output from the basic solver.
     Cli,
-    /// Show output from the "impossible requests" checking solver
+    /// Show output from the "impossible requests" checking solver.
     Checks,
+    /// Show output from the Resolvo SAT solver. This is only possible when
+    /// running with that solver.
+    Resolvo,
 }
 
 impl From<SolverToRun> for MultiSolverKind {
@@ -1191,6 +1213,7 @@ impl From<SolverToRun> for MultiSolverKind {
             SolverToRun::Cli => MultiSolverKind::Unchanged,
             SolverToRun::Checks => MultiSolverKind::AllImpossibleChecks,
             SolverToRun::All => MultiSolverKind::All,
+            SolverToRun::Resolvo => MultiSolverKind::Resolvo,
         }
     }
 }
@@ -1200,6 +1223,7 @@ impl From<SolverToShow> for MultiSolverKind {
         match item {
             SolverToShow::Cli => MultiSolverKind::Unchanged,
             SolverToShow::Checks => MultiSolverKind::AllImpossibleChecks,
+            SolverToShow::Resolvo => MultiSolverKind::Resolvo,
         }
     }
 }
