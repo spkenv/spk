@@ -6,7 +6,7 @@ use std::fs;
 use clap::Args;
 use miette::Result;
 
-/// Output the current configuration of spfs
+/// Write Markdown documentation for all SPFS subcommands to docs folder.
 #[derive(Debug, Args)]
 pub struct CmdDocs {}
 
