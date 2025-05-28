@@ -4,7 +4,7 @@
 use std::fs;
 
 use clap::Args;
-use miette::{Result};
+use miette::Result;
 
 /// Output the current configuration of spfs
 #[derive(Debug, Args)]
