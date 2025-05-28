@@ -10,6 +10,7 @@ mod cmd_check;
 mod cmd_commit;
 mod cmd_config;
 mod cmd_diff;
+mod cmd_docs;
 mod cmd_edit;
 mod cmd_info;
 mod cmd_init;
@@ -38,7 +39,6 @@ mod cmd_tags;
 mod cmd_untag;
 mod cmd_version;
 mod cmd_write;
-mod cmd_docs;
 
 use spfs_cli_common as cli;
 use spfs_cli_common::CommandName;
