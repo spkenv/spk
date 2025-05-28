@@ -4,16 +4,16 @@
 use std::fs;
 
 use clap::Args;
-use miette::{IntoDiagnostic, Result};
+use miette::{Result};
 
 /// Output the current configuration of spfs
 #[derive(Debug, Args)]
 pub struct CmdDocs {}
 
 impl CmdDocs {
-    pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
+    pub async fn run(&mut self, _config: &spfs::Config) -> Result<i32> {
         let mut markdown = clap_markdown::help_markdown::<crate::Opt>();
-        markdown.insert_str(0, "\n");
+        markdown.insert(0, '\n');
         markdown.insert_str(0, "---\n");
         markdown.insert_str(0, "chapter: true\n");
         markdown.insert_str(0, "title: SPFS CLI\n");
