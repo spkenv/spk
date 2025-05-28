@@ -9,39 +9,39 @@ This document contains the help content for the `spfs-cli-main` command-line pro
 
 **Command Overview:**
 
-* [`spfs-cli-main`Γå┤](#spfs-cli-main)
-* [`spfs-cli-main version`Γå┤](#spfs-cli-main-version)
-* [`spfs-cli-main init`Γå┤](#spfs-cli-main-init)
-* [`spfs-cli-main init repo`Γå┤](#spfs-cli-main-init-repo)
-* [`spfs-cli-main edit`Γå┤](#spfs-cli-main-edit)
-* [`spfs-cli-main commit`Γå┤](#spfs-cli-main-commit)
-* [`spfs-cli-main config`Γå┤](#spfs-cli-main-config)
-* [`spfs-cli-main reset`Γå┤](#spfs-cli-main-reset)
-* [`spfs-cli-main run`Γå┤](#spfs-cli-main-run)
-* [`spfs-cli-main tag`Γå┤](#spfs-cli-main-tag)
-* [`spfs-cli-main untag`Γå┤](#spfs-cli-main-untag)
-* [`spfs-cli-main shell`Γå┤](#spfs-cli-main-shell)
-* [`spfs-cli-main runtime`Γå┤](#spfs-cli-main-runtime)
-* [`spfs-cli-main runtime info`Γå┤](#spfs-cli-main-runtime-info)
-* [`spfs-cli-main runtime list`Γå┤](#spfs-cli-main-runtime-list)
-* [`spfs-cli-main runtime prune`Γå┤](#spfs-cli-main-runtime-prune)
-* [`spfs-cli-main runtime remove`Γå┤](#spfs-cli-main-runtime-remove)
-* [`spfs-cli-main layers`Γå┤](#spfs-cli-main-layers)
-* [`spfs-cli-main platforms`Γå┤](#spfs-cli-main-platforms)
-* [`spfs-cli-main tags`Γå┤](#spfs-cli-main-tags)
-* [`spfs-cli-main info`Γå┤](#spfs-cli-main-info)
-* [`spfs-cli-main pull`Γå┤](#spfs-cli-main-pull)
-* [`spfs-cli-main push`Γå┤](#spfs-cli-main-push)
-* [`spfs-cli-main log`Γå┤](#spfs-cli-main-log)
-* [`spfs-cli-main search`Γå┤](#spfs-cli-main-search)
-* [`spfs-cli-main diff`Γå┤](#spfs-cli-main-diff)
-* [`spfs-cli-main ls-tags`Γå┤](#spfs-cli-main-ls-tags)
-* [`spfs-cli-main ls`Γå┤](#spfs-cli-main-ls)
-* [`spfs-cli-main migrate`Γå┤](#spfs-cli-main-migrate)
-* [`spfs-cli-main check`Γå┤](#spfs-cli-main-check)
-* [`spfs-cli-main read`Γå┤](#spfs-cli-main-read)
-* [`spfs-cli-main write`Γå┤](#spfs-cli-main-write)
-* [`spfs-cli-main docs`Γå┤](#spfs-cli-main-docs)
+* [`spfs-cli-main`↴](#spfs-cli-main)
+* [`spfs-cli-main version`↴](#spfs-cli-main-version)
+* [`spfs-cli-main init`↴](#spfs-cli-main-init)
+* [`spfs-cli-main init repo`↴](#spfs-cli-main-init-repo)
+* [`spfs-cli-main edit`↴](#spfs-cli-main-edit)
+* [`spfs-cli-main commit`↴](#spfs-cli-main-commit)
+* [`spfs-cli-main config`↴](#spfs-cli-main-config)
+* [`spfs-cli-main reset`↴](#spfs-cli-main-reset)
+* [`spfs-cli-main run`↴](#spfs-cli-main-run)
+* [`spfs-cli-main tag`↴](#spfs-cli-main-tag)
+* [`spfs-cli-main untag`↴](#spfs-cli-main-untag)
+* [`spfs-cli-main shell`↴](#spfs-cli-main-shell)
+* [`spfs-cli-main runtime`↴](#spfs-cli-main-runtime)
+* [`spfs-cli-main runtime info`↴](#spfs-cli-main-runtime-info)
+* [`spfs-cli-main runtime list`↴](#spfs-cli-main-runtime-list)
+* [`spfs-cli-main runtime prune`↴](#spfs-cli-main-runtime-prune)
+* [`spfs-cli-main runtime remove`↴](#spfs-cli-main-runtime-remove)
+* [`spfs-cli-main layers`↴](#spfs-cli-main-layers)
+* [`spfs-cli-main platforms`↴](#spfs-cli-main-platforms)
+* [`spfs-cli-main tags`↴](#spfs-cli-main-tags)
+* [`spfs-cli-main info`↴](#spfs-cli-main-info)
+* [`spfs-cli-main pull`↴](#spfs-cli-main-pull)
+* [`spfs-cli-main push`↴](#spfs-cli-main-push)
+* [`spfs-cli-main log`↴](#spfs-cli-main-log)
+* [`spfs-cli-main search`↴](#spfs-cli-main-search)
+* [`spfs-cli-main diff`↴](#spfs-cli-main-diff)
+* [`spfs-cli-main ls-tags`↴](#spfs-cli-main-ls-tags)
+* [`spfs-cli-main ls`↴](#spfs-cli-main-ls)
+* [`spfs-cli-main migrate`↴](#spfs-cli-main-migrate)
+* [`spfs-cli-main check`↴](#spfs-cli-main-check)
+* [`spfs-cli-main read`↴](#spfs-cli-main-read)
+* [`spfs-cli-main write`↴](#spfs-cli-main-write)
+* [`spfs-cli-main docs`↴](#spfs-cli-main-docs)
 
 ## `spfs-cli-main`
 
@@ -55,39 +55,39 @@ EXTERNAL SUBCOMMANDS:
 
 ###### **Subcommands:**
 
-* `version` ΓÇö Print the version of spfs
-* `init` ΓÇö Create an empty filesystem repository
-* `edit` ΓÇö Make the current runtime editable
-* `commit` ΓÇö Commit the current runtime state or a directory to storage
-* `config` ΓÇö Output the current configuration of spfs
-* `reset` ΓÇö Reset changes, or rebuild the entire spfs directory
-* `run` ΓÇö Run a program in a configured spfs environment
-* `tag` ΓÇö Tag an object
-* `untag` ΓÇö Remove tag versions or entire tag streams
-* `shell` ΓÇö Enter a subshell in a configured spfs environment
-* `runtime` ΓÇö View and manage spfs runtime information
-* `layers` ΓÇö List all layers in an spfs repository
-* `platforms` ΓÇö List all platforms in an spfs repository
-* `tags` ΓÇö List all tags in an spfs repository
-* `info` ΓÇö Display information about the current environment, or specific items
-* `pull` ΓÇö Pull one or more objects to the local repository
-* `push` ΓÇö Push one or more objects to a remote repository
-* `log` ΓÇö Log the history of a given tag over time
-* `search` ΓÇö Search for available tags by substring
-* `diff` ΓÇö Compare two spfs file system states
-* `ls-tags` ΓÇö List tags by their path
-* `ls` ΓÇö List the contents of a committed directory
-* `migrate` ΓÇö Migrate the data from and older repository format to the latest one
-* `check` ΓÇö Check a repositories internal integrity
-* `read` ΓÇö Output the contents of a blob to stdout
-* `write` ΓÇö Store an arbitrary blob of data in spfs
-* `docs` ΓÇö Output the current configuration of spfs
+* `version` — Print the version of spfs
+* `init` — Create an empty filesystem repository
+* `edit` — Make the current runtime editable
+* `commit` — Commit the current runtime state or a directory to storage
+* `config` — Output the current configuration of spfs
+* `reset` — Reset changes, or rebuild the entire spfs directory
+* `run` — Run a program in a configured spfs environment
+* `tag` — Tag an object
+* `untag` — Remove tag versions or entire tag streams
+* `shell` — Enter a subshell in a configured spfs environment
+* `runtime` — View and manage spfs runtime information
+* `layers` — List all layers in an spfs repository
+* `platforms` — List all platforms in an spfs repository
+* `tags` — List all tags in an spfs repository
+* `info` — Display information about the current environment, or specific items
+* `pull` — Pull one or more objects to the local repository
+* `push` — Push one or more objects to a remote repository
+* `log` — Log the history of a given tag over time
+* `search` — Search for available tags by substring
+* `diff` — Compare two spfs file system states
+* `ls-tags` — List tags by their path
+* `ls` — List the contents of a committed directory
+* `migrate` — Migrate the data from and older repository format to the latest one
+* `check` — Check a repositories internal integrity
+* `read` — Output the contents of a blob to stdout
+* `write` — Store an arbitrary blob of data in spfs
+* `docs` — Output the current configuration of spfs
 
 ###### **Options:**
 
-* `-v`, `--verbose` ΓÇö Make output more verbose, can be specified more than once
-* `--log-file <LOG_FILE>` ΓÇö Additionally log output to the provided file
-* `--timestamp` ΓÇö Enables timestamp in logging (always enabled in file log)
+* `-v`, `--verbose` — Make output more verbose, can be specified more than once
+* `--log-file <LOG_FILE>` — Additionally log output to the provided file
+* `--timestamp` — Enables timestamp in logging (always enabled in file log)
 
 
 
@@ -107,7 +107,7 @@ Create an empty filesystem repository
 
 ###### **Subcommands:**
 
-* `repo` ΓÇö Initialize an empty filesystem repository
+* `repo` — Initialize an empty filesystem repository
 
 
 
@@ -121,7 +121,7 @@ Does nothing when run on an existing repository
 
 ###### **Arguments:**
 
-* `<PATH>` ΓÇö The root of the new repository
+* `<PATH>` — The root of the new repository
 
 
 
@@ -133,8 +133,8 @@ Make the current runtime editable
 
 ###### **Options:**
 
-* `--off` ΓÇö Disable edit mode instead
-* `--keep-runtime` ΓÇö Change a runtime into a durable runtime, will also make the runtime editable
+* `--off` — Disable edit mode instead
+* `--keep-runtime` — Change a runtime into a durable runtime, will also make the runtime editable
 
 
 
@@ -146,28 +146,28 @@ Commit the current runtime state or a directory to storage
 
 ###### **Arguments:**
 
-* `<KIND>` ΓÇö The desired object type to create, skip this when giving --path or --ref
+* `<KIND>` — The desired object type to create, skip this when giving --path or --ref
 
   Possible values: `layer`, `platform`
 
 
 ###### **Options:**
 
-* `-r`, `--remote <REMOTE>` ΓÇö Commit files directly into a remote repository
+* `-r`, `--remote <REMOTE>` — Commit files directly into a remote repository
 
    The default is to commit to the local repository. This flag is only valid with the --path argument.
-* `-t`, `--tag <TAGS>` ΓÇö A human-readable tag for the generated object
+* `-t`, `--tag <TAGS>` — A human-readable tag for the generated object
 
    Can be provided more than once.
-* `--path <PATH>` ΓÇö Commit this directory instead of the current spfs changes
-* `--ref <REFERENCE>` ΓÇö Combine existing items into a platform, use a '+' to join multiple
-* `--hash-while-committing` ΓÇö Hash the files while committing, rather than before.
+* `--path <PATH>` — Commit this directory instead of the current spfs changes
+* `--ref <REFERENCE>` — Combine existing items into a platform, use a '+' to join multiple
+* `--hash-while-committing` — Hash the files while committing, rather than before.
 
    This option can improve commit times when a large number of the files are both large, and don't already exist in the repository. It may degrade commit times when committing directly to a slow or remote repository. When given, all files are written to the repository even if the payload exists, rather than hashing the file first to determine if it needs to be transferred.
-* `--max-concurrent-blobs <MAX_CONCURRENT_BLOBS>` ΓÇö The total number of blobs that can be committed concurrently
+* `--max-concurrent-blobs <MAX_CONCURRENT_BLOBS>` — The total number of blobs that can be committed concurrently
 
   Default value: `1000`
-* `--max-concurrent-branches <MAX_CONCURRENT_BRANCHES>` ΓÇö The total number of branches that can be processed concurrently at each level of the rendered file tree.
+* `--max-concurrent-branches <MAX_CONCURRENT_BRANCHES>` — The total number of branches that can be processed concurrently at each level of the rendered file tree.
 
    The number of active trees being processed can grow exponentially by this exponent for each additional level of depth in the rendered file tree. In general, this number should be kept low.
 
@@ -191,24 +191,24 @@ Reset changes, or rebuild the entire spfs directory
 
 ###### **Arguments:**
 
-* `<PATHS>` ΓÇö Glob patterns in the spfs dir of files to reset, defaults to everything
+* `<PATHS>` — Glob patterns in the spfs dir of files to reset, defaults to everything
 
 ###### **Options:**
 
-* `--sync` ΓÇö Sync the latest information for each tag even if it already exists
-* `--check` ΓÇö Traverse and check the entire graph, filling in any missing data
+* `--sync` — Sync the latest information for each tag even if it already exists
+* `--check` — Traverse and check the entire graph, filling in any missing data
 
    When a repository is in good health, this should not be necessary, but if some subset of the data has been deleted or lost, this option may help recover it.
-* `--resync` ΓÇö Forcefully sync all associated graph data even if it already exists
+* `--resync` — Forcefully sync all associated graph data even if it already exists
 
    When a repository is in good health, this should not be necessary, but if some subset of the data has been deleted, lost, or corrupted this option may help recover it.
-* `--max-concurrent-manifests <MAX_CONCURRENT_MANIFESTS>` ΓÇö The total number of manifests that can be synced concurrently
+* `--max-concurrent-manifests <MAX_CONCURRENT_MANIFESTS>` — The total number of manifests that can be synced concurrently
 
   Default value: `100`
-* `--max-concurrent-payloads <MAX_CONCURRENT_PAYLOADS>` ΓÇö The total number of file payloads that can be synced concurrently
+* `--max-concurrent-payloads <MAX_CONCURRENT_PAYLOADS>` — The total number of file payloads that can be synced concurrently
 
   Default value: `100`
-* `--progress <PROGRESS>` ΓÇö Options for showing progress
+* `--progress <PROGRESS>` — Options for showing progress
 
   Possible values:
   - `bars`:
@@ -216,10 +216,10 @@ Reset changes, or rebuild the entire spfs directory
   - `none`:
     Do not show any progress
 
-* `-e`, `--edit` ΓÇö Mount the resulting runtime in edit mode
+* `-e`, `--edit` — Mount the resulting runtime in edit mode
 
    Default to true if REF is empty or not given
-* `-r`, `--ref <REFERENCE>` ΓÇö The tag or id to rebuild the runtime with.
+* `-r`, `--ref <REFERENCE>` — The tag or id to rebuild the runtime with.
 
    Uses current runtime stack if not given. Use '-' or an empty string to request an empty environment. Only valid if no paths are given
 
@@ -233,29 +233,29 @@ Run a program in a configured spfs environment
 
 ###### **Arguments:**
 
-* `<REFERENCE>` ΓÇö The tag or id of the desired runtime
+* `<REFERENCE>` — The tag or id of the desired runtime
 
-   Use '-' to request an empty environment
-* `<COMMAND>` ΓÇö The command to run in the environment and its arguments
+   Use '-' to or an empty string to request an empty environment
+* `<COMMAND>` — The command to run in the environment and its arguments
 
    In order to ensure that flags are passed as-is, '--' must be place before specifying the command and any flags that should be given to that command: e.g. `spfs run <args> -- command --flag-for-command`
 
 ###### **Options:**
 
-* `--sync` ΓÇö Sync the latest information for each tag even if it already exists
-* `--check` ΓÇö Traverse and check the entire graph, filling in any missing data
+* `--sync` — Sync the latest information for each tag even if it already exists
+* `--check` — Traverse and check the entire graph, filling in any missing data
 
    When a repository is in good health, this should not be necessary, but if some subset of the data has been deleted or lost, this option may help recover it.
-* `--resync` ΓÇö Forcefully sync all associated graph data even if it already exists
+* `--resync` — Forcefully sync all associated graph data even if it already exists
 
    When a repository is in good health, this should not be necessary, but if some subset of the data has been deleted, lost, or corrupted this option may help recover it.
-* `--max-concurrent-manifests <MAX_CONCURRENT_MANIFESTS>` ΓÇö The total number of manifests that can be synced concurrently
+* `--max-concurrent-manifests <MAX_CONCURRENT_MANIFESTS>` — The total number of manifests that can be synced concurrently
 
   Default value: `100`
-* `--max-concurrent-payloads <MAX_CONCURRENT_PAYLOADS>` ΓÇö The total number of file payloads that can be synced concurrently
+* `--max-concurrent-payloads <MAX_CONCURRENT_PAYLOADS>` — The total number of file payloads that can be synced concurrently
 
   Default value: `100`
-* `--progress <PROGRESS>` ΓÇö Options for showing progress
+* `--progress <PROGRESS>` — Options for showing progress
 
   Possible values:
   - `bars`:
@@ -263,16 +263,16 @@ Run a program in a configured spfs environment
   - `none`:
     Do not show any progress
 
-* `-v`, `--verbose` ΓÇö Make output more verbose, can be specified more than once
-* `--log-file <LOG_FILE>` ΓÇö Additionally log output to the provided file
-* `--timestamp` ΓÇö Enables timestamp in logging (always enabled in file log)
-* `-e`, `--edit` ΓÇö Mount the spfs filesystem in edit mode (default if REF is empty or not given)
-* `--no-edit` ΓÇö Mount the spfs filesystem in read-only mode (default if REF is non-empty)
-* `--force` ΓÇö Requires --rerun. Force reset the process fields of the runtime before it is run again
-* `-k`, `--keep-runtime` ΓÇö Use to keep the runtime around rather than deleting it when the process exits. This is best used with '--name NAME' to make rerunning the runtime easier at a later time
-* `--runtime-name <RUNTIME_NAME>` ΓÇö Provide a name for this runtime to make it easier to identify
-* `--rerun <RUNTIME_NAME>` ΓÇö Name of an existing durable runtime to reuse for this run
-* `--annotation <KEY:VALUE>` ΓÇö Adds annotation key-value string data to the new runtime.
+* `-v`, `--verbose` — Make output more verbose, can be specified more than once
+* `--log-file <LOG_FILE>` — Additionally log output to the provided file
+* `--timestamp` — Enables timestamp in logging (always enabled in file log)
+* `-e`, `--edit` — Mount the spfs filesystem in edit mode (default if REF is empty or not given)
+* `--no-edit` — Mount the spfs filesystem in read-only mode (default if REF is non-empty)
+* `--force` — Requires --rerun. Force reset the process fields of the runtime before it is run again
+* `-k`, `--keep-runtime` — Use to keep the runtime around rather than deleting it when the process exits. This is best used with '--name NAME' to make rerunning the runtime easier at a later time
+* `--runtime-name <RUNTIME_NAME>` — Provide a name for this runtime to make it easier to identify
+* `--rerun <RUNTIME_NAME>` — Name of an existing durable runtime to reuse for this run
+* `--annotation <KEY:VALUE>` — Adds annotation key-value string data to the new runtime.
 
    This allows external processes to store arbitrary data in the runtimes they create. This is most useful with durable runtimes. The data can be retrieved by running `spfs runtime info` or `spfs info` and using the `--get <KEY>` or `--get-all` options
 
@@ -281,7 +281,7 @@ Run a program in a configured spfs environment
    Annotation data can also be given in a json or yaml file, by using the `--annotation-file <FILE>` argument. If given, `--annotation` arguments will supersede anything given in annotation files.
 
    If the same key is used more than once, the last key-value pair will override the earlier values for the same key.
-* `--annotation-file <ANNOTATION_FILE>` ΓÇö Specify annotation key-value data from a json or yaml file (see --annotation)
+* `--annotation-file <ANNOTATION_FILE>` — Specify annotation key-value data from a json or yaml file (see --annotation)
 
 
 
@@ -293,12 +293,12 @@ Tag an object
 
 ###### **Arguments:**
 
-* `<TARGET_REF>` ΓÇö The reference or id of the item to tag
-* `<TAG>` ΓÇö The tag(s) to point to the the given target
+* `<TARGET_REF>` — The reference or id of the item to tag
+* `<TAG>` — The tag(s) to point to the the given target
 
 ###### **Options:**
 
-* `-r`, `--remote <REMOTE>` ΓÇö Create tags in a remote repository instead of the local one
+* `-r`, `--remote <REMOTE>` — Create tags in a remote repository instead of the local one
 
 
 
@@ -310,15 +310,15 @@ Remove tag versions or entire tag streams
 
 ###### **Arguments:**
 
-* `<TAG>` ΓÇö The tag to remove
+* `<TAG>` — The tag to remove
 
    Unless --all or --latest is provided, this must have an explicit version number (eg: path/name~0)
 
 ###### **Options:**
 
-* `-r`, `--remote <REMOTE>` ΓÇö Remove tags in a remote repository instead of the local one
-* `--latest` ΓÇö Only remove the latest version of this tag
-* `-a`, `--all` ΓÇö Remove all versions of this tag, deleting it completely
+* `-r`, `--remote <REMOTE>` — Remove tags in a remote repository instead of the local one
+* `--latest` — Only remove the latest version of this tag
+* `-a`, `--all` — Remove all versions of this tag, deleting it completely
 
 
 
@@ -330,26 +330,26 @@ Enter a subshell in a configured spfs environment
 
 ###### **Arguments:**
 
-* `<REF>` ΓÇö The tag or id of the desired runtime
+* `<REF>` — The tag or id of the desired runtime
 
-   Use '-' or nothing to request an empty environment
+   Use '-' or an empty string to request an empty environment
 
 ###### **Options:**
 
-* `--sync` ΓÇö Sync the latest information for each tag even if it already exists
-* `--check` ΓÇö Traverse and check the entire graph, filling in any missing data
+* `--sync` — Sync the latest information for each tag even if it already exists
+* `--check` — Traverse and check the entire graph, filling in any missing data
 
    When a repository is in good health, this should not be necessary, but if some subset of the data has been deleted or lost, this option may help recover it.
-* `--resync` ΓÇö Forcefully sync all associated graph data even if it already exists
+* `--resync` — Forcefully sync all associated graph data even if it already exists
 
    When a repository is in good health, this should not be necessary, but if some subset of the data has been deleted, lost, or corrupted this option may help recover it.
-* `--max-concurrent-manifests <MAX_CONCURRENT_MANIFESTS>` ΓÇö The total number of manifests that can be synced concurrently
+* `--max-concurrent-manifests <MAX_CONCURRENT_MANIFESTS>` — The total number of manifests that can be synced concurrently
 
   Default value: `100`
-* `--max-concurrent-payloads <MAX_CONCURRENT_PAYLOADS>` ΓÇö The total number of file payloads that can be synced concurrently
+* `--max-concurrent-payloads <MAX_CONCURRENT_PAYLOADS>` — The total number of file payloads that can be synced concurrently
 
   Default value: `100`
-* `--progress <PROGRESS>` ΓÇö Options for showing progress
+* `--progress <PROGRESS>` — Options for showing progress
 
   Possible values:
   - `bars`:
@@ -357,16 +357,16 @@ Enter a subshell in a configured spfs environment
   - `none`:
     Do not show any progress
 
-* `-v`, `--verbose` ΓÇö Make output more verbose, can be specified more than once
-* `--log-file <LOG_FILE>` ΓÇö Additionally log output to the provided file
-* `--timestamp` ΓÇö Enables timestamp in logging (always enabled in file log)
-* `-e`, `--edit` ΓÇö Mount the spfs filesystem in edit mode (true if REF is empty or not given)
-* `--no-edit` ΓÇö Mount the spfs filesystem in read-only mode (default if REF is non-empty)
-* `--rerun <RUNTIME_NAME>` ΓÇö Name of a previously run durable runtime to reuse for this run
-* `--force` ΓÇö Requires --rerun. Force reset the process fields of the runtime before it is run again
-* `--runtime-name <RUNTIME_NAME>` ΓÇö Provide a name for this runtime to make it easier to identify
-* `-k`, `--keep-runtime` ΓÇö Use to keep the runtime around rather than deleting it when the process exits. This is best used with '--name NAME' to make rerunning the runtime easier at a later time
-* `--annotation <KEY:VALUE>` ΓÇö Adds annotation key-value string data to the new runtime.
+* `-v`, `--verbose` — Make output more verbose, can be specified more than once
+* `--log-file <LOG_FILE>` — Additionally log output to the provided file
+* `--timestamp` — Enables timestamp in logging (always enabled in file log)
+* `-e`, `--edit` — Mount the spfs filesystem in edit mode (true if REF is empty or not given)
+* `--no-edit` — Mount the spfs filesystem in read-only mode (default if REF is non-empty)
+* `--rerun <RUNTIME_NAME>` — Name of a previously run durable runtime to reuse for this run
+* `--force` — Requires --rerun. Force reset the process fields of the runtime before it is run again
+* `--runtime-name <RUNTIME_NAME>` — Provide a name for this runtime to make it easier to identify
+* `-k`, `--keep-runtime` — Use to keep the runtime around rather than deleting it when the process exits. This is best used with '--name NAME' to make rerunning the runtime easier at a later time
+* `--annotation <KEY:VALUE>` — Adds annotation key-value string data to the new runtime.
 
    This allows external processes to store arbitrary data in the runtimes they create. This is most useful with durable runtimes. The data can be retrieved by running `spfs runtime info` or `spfs info` and using the `--get <KEY>` or `--get-all` options
 
@@ -375,7 +375,7 @@ Enter a subshell in a configured spfs environment
    Annotation data can also be given in a json or yaml file, by using the `--annotation-file <FILE>` argument. If given, `--annotation` arguments will supersede anything given in annotation files.
 
    If the same key is used more than once, the last key-value pair will override the earlier values for the same key.
-* `--annotation-file <ANNOTATION_FILE>` ΓÇö Specify annotation key-value data from a json or yaml file (see --annotation)
+* `--annotation-file <ANNOTATION_FILE>` — Specify annotation key-value data from a json or yaml file (see --annotation)
 
 
 
@@ -389,10 +389,10 @@ View and manage spfs runtime information
 
 ###### **Subcommands:**
 
-* `info` ΓÇö Show the complete state of a runtime
-* `list` ΓÇö List runtime information from the repository
-* `prune` ΓÇö Find and remove runtimes from the repository based on a pruning strategy
-* `remove` ΓÇö Remove runtimes from the repository
+* `info` — Show the complete state of a runtime
+* `list` — List runtime information from the repository
+* `prune` — Find and remove runtimes from the repository based on a pruning strategy
+* `remove` — Remove runtimes from the repository
 
 
 
@@ -404,13 +404,13 @@ Show the complete state of a runtime
 
 ###### **Arguments:**
 
-* `<NAME>` ΓÇö The name/id of the runtime to remove
+* `<NAME>` — The name/id of the runtime to remove
 
 ###### **Options:**
 
-* `-r`, `--remote <REMOTE>` ΓÇö Load a runtime in a remote or alternate repository
-* `--get <GET>` ΓÇö Output the data value for the given annotation key(s) from the active runtime. Each value is printed on its own line without its key
-* `--get-all` ΓÇö Output all the annotation keys and values from the active runtime as a yaml dictionary
+* `-r`, `--remote <REMOTE>` — Load a runtime in a remote or alternate repository
+* `--get <GET>` — Output the data value for the given annotation key(s) from the active runtime. Each value is printed on its own line without its key
+* `--get-all` — Output all the annotation keys and values from the active runtime as a yaml dictionary
 
 
 
@@ -424,8 +424,8 @@ List runtime information from the repository
 
 ###### **Options:**
 
-* `-r`, `--remote <REMOTE>` ΓÇö List runtimes in a remote or alternate repository
-* `-q`, `--quiet` ΓÇö Only print the name of each runtime, no additional data
+* `-r`, `--remote <REMOTE>` — List runtimes in a remote or alternate repository
+* `-q`, `--quiet` — Only print the name of each runtime, no additional data
 
 
 
@@ -437,13 +437,13 @@ Find and remove runtimes from the repository based on a pruning strategy
 
 ###### **Options:**
 
-* `-r`, `--remote <REMOTE>` ΓÇö Prune a runtime in a remote or alternate repository
-* `--ignore-user` ΓÇö Remove the runtime even if it's owned by someone else
-* `--ignore-host` ΓÇö Remove the runtime even if it appears to be from a different host
+* `-r`, `--remote <REMOTE>` — Prune a runtime in a remote or alternate repository
+* `--ignore-user` — Remove the runtime even if it's owned by someone else
+* `--ignore-host` — Remove the runtime even if it appears to be from a different host
 
    Implies --ignore-monitor
-* `--ignore-monitor` ΓÇö Do not try and terminate the monitor process, just remove runtime data
-* `--from-before-boot` ΓÇö Remove runtimes started before last reboot
+* `--ignore-monitor` — Do not try and terminate the monitor process, just remove runtime data
+* `--from-before-boot` — Remove runtimes started before last reboot
 
 
 
@@ -457,20 +457,20 @@ Remove runtimes from the repository
 
 ###### **Arguments:**
 
-* `<NAME>` ΓÇö The name/id of the runtime to remove
+* `<NAME>` — The name/id of the runtime to remove
 
 ###### **Options:**
 
-* `-r`, `--remote <REMOTE>` ΓÇö Remove a runtime in a remote or alternate repository
-* `-f`, `--force` ΓÇö Remove the runtime from the repository forcefully
+* `-r`, `--remote <REMOTE>` — Remove a runtime in a remote or alternate repository
+* `-f`, `--force` — Remove the runtime from the repository forcefully
 
    Even if the monitor cannot be stopped or killed the data will be removed from the repository.
-* `--ignore-user` ΓÇö Remove the runtime even if it's owned by someone else
-* `--ignore-host` ΓÇö Remove the runtime even if it appears to be from a different host
+* `--ignore-user` — Remove the runtime even if it's owned by someone else
+* `--ignore-host` — Remove the runtime even if it appears to be from a different host
 
    Implies --ignore-monitor
-* `--ignore-monitor` ΓÇö Do not try and terminate the monitor process, just remove runtime data
-* `--remove-durable` ΓÇö Allow durable runtimes to be removed, normally they will not be removed
+* `--ignore-monitor` — Do not try and terminate the monitor process, just remove runtime data
+* `--remove-durable` — Allow durable runtimes to be removed, normally they will not be removed
 
 
 
@@ -482,9 +482,9 @@ List all layers in an spfs repository
 
 ###### **Options:**
 
-* `-r`, `--remote <REMOTE>` ΓÇö Show layers from remote repository instead of the local one
-* `--short` ΓÇö Show the shortened form of each reported layer digest
-* `--tags` ΓÇö Also find and report any tags that point to each layer, implies --short
+* `-r`, `--remote <REMOTE>` — Show layers from remote repository instead of the local one
+* `--short` — Show the shortened form of each reported layer digest
+* `--tags` — Also find and report any tags that point to each layer, implies --short
 
 
 
@@ -496,9 +496,9 @@ List all platforms in an spfs repository
 
 ###### **Options:**
 
-* `-r`, `--remote <REMOTE>` ΓÇö Show layers from remote repository instead of the local one
-* `--short` ΓÇö Show the shortened form of each reported layer digest
-* `--tags` ΓÇö Also find and report any tags that point to each platform, implies --short
+* `-r`, `--remote <REMOTE>` — Show layers from remote repository instead of the local one
+* `--short` — Show the shortened form of each reported layer digest
+* `--tags` — Also find and report any tags that point to each platform, implies --short
 
 
 
@@ -510,9 +510,9 @@ List all tags in an spfs repository
 
 ###### **Options:**
 
-* `-r`, `--remote <REMOTE>` ΓÇö Show layers from remote repository instead of the local one
-* `--target` ΓÇö Also show the target digest of each tag
-* `--short` ΓÇö Show the shortened form of each reported digest, implies --target
+* `-r`, `--remote <REMOTE>` — Show layers from remote repository instead of the local one
+* `--target` — Also show the target digest of each tag
+* `--short` — Show the shortened form of each reported digest, implies --target
 
 
 
@@ -524,22 +524,22 @@ Display information about the current environment, or specific items
 
 ###### **Arguments:**
 
-* `<REF>` ΓÇö Tag, id, or /spfs/file/path to show information about
+* `<REF>` — Tag, id, or /spfs/file/path to show information about
 
 ###### **Options:**
 
-* `-v`, `--verbose` ΓÇö Make output more verbose, can be specified more than once
-* `--log-file <LOG_FILE>` ΓÇö Additionally log output to the provided file
-* `--timestamp` ΓÇö Enables timestamp in logging (always enabled in file log)
-* `--get <GET>` ΓÇö Output the data value for the given annotation key(s) from the active runtime. Each value is printed on its own line without its key
-* `--get-all` ΓÇö Output all the annotation keys and values from the active runtime as a yaml dictionary
-* `-H`, `--human-readable` ΓÇö Lists file sizes in human readable format
-* `-r`, `--remote <REMOTE>` ΓÇö Operate on a remote repository instead of the local one
+* `-v`, `--verbose` — Make output more verbose, can be specified more than once
+* `--log-file <LOG_FILE>` — Additionally log output to the provided file
+* `--timestamp` — Enables timestamp in logging (always enabled in file log)
+* `--get <GET>` — Output the data value for the given annotation key(s) from the active runtime. Each value is printed on its own line without its key
+* `--get-all` — Output all the annotation keys and values from the active runtime as a yaml dictionary
+* `-H`, `--human-readable` — Lists file sizes in human readable format
+* `-r`, `--remote <REMOTE>` — Operate on a remote repository instead of the local one
 
    This is really only helpful if you are providing a specific ref to look up.
-* `--tags` ΓÇö Also find and report any tags that point to any identified digest (implies '--short')
-* `--short` ΓÇö Use shortened digests in the output (nicer, but slower)
-* `--follow` ΓÇö Follow and show child objects, depth-first
+* `--tags` — Also find and report any tags that point to any identified digest (implies '--short')
+* `--short` — Use shortened digests in the output (nicer, but slower)
+* `--follow` — Follow and show child objects, depth-first
 
 
 
@@ -551,26 +551,26 @@ Pull one or more objects to the local repository
 
 ###### **Arguments:**
 
-* `<REF>` ΓÇö The reference(s) to pull/localize
+* `<REF>` — The reference(s) to pull/localize
 
    These can be individual tags or digests, or they may also be a collection of items joined by a '+'
 
 ###### **Options:**
 
-* `--sync` ΓÇö Sync the latest information for each tag even if it already exists
-* `--check` ΓÇö Traverse and check the entire graph, filling in any missing data
+* `--sync` — Sync the latest information for each tag even if it already exists
+* `--check` — Traverse and check the entire graph, filling in any missing data
 
    When a repository is in good health, this should not be necessary, but if some subset of the data has been deleted or lost, this option may help recover it.
-* `--resync` ΓÇö Forcefully sync all associated graph data even if it already exists
+* `--resync` — Forcefully sync all associated graph data even if it already exists
 
    When a repository is in good health, this should not be necessary, but if some subset of the data has been deleted, lost, or corrupted this option may help recover it.
-* `--max-concurrent-manifests <MAX_CONCURRENT_MANIFESTS>` ΓÇö The total number of manifests that can be synced concurrently
+* `--max-concurrent-manifests <MAX_CONCURRENT_MANIFESTS>` — The total number of manifests that can be synced concurrently
 
   Default value: `100`
-* `--max-concurrent-payloads <MAX_CONCURRENT_PAYLOADS>` ΓÇö The total number of file payloads that can be synced concurrently
+* `--max-concurrent-payloads <MAX_CONCURRENT_PAYLOADS>` — The total number of file payloads that can be synced concurrently
 
   Default value: `100`
-* `--progress <PROGRESS>` ΓÇö Options for showing progress
+* `--progress <PROGRESS>` — Options for showing progress
 
   Possible values:
   - `bars`:
@@ -579,7 +579,7 @@ Pull one or more objects to the local repository
     Do not show any progress
 
 * `-v`, `--verbose`
-* `-r`, `--remote <REMOTE>` ΓÇö The name or address of the remote server to pull from
+* `-r`, `--remote <REMOTE>` — The name or address of the remote server to pull from
 
    Defaults to searching all configured remotes
 
@@ -593,26 +593,26 @@ Push one or more objects to a remote repository
 
 ###### **Arguments:**
 
-* `<REF>` ΓÇö The reference(s) to push
+* `<REF>` — The reference(s) to push
 
    These can be individual tags or digests, or they may also be a collection of items joined by a '+'
 
 ###### **Options:**
 
-* `--sync` ΓÇö Sync the latest information for each tag even if it already exists
-* `--check` ΓÇö Traverse and check the entire graph, filling in any missing data
+* `--sync` — Sync the latest information for each tag even if it already exists
+* `--check` — Traverse and check the entire graph, filling in any missing data
 
    When a repository is in good health, this should not be necessary, but if some subset of the data has been deleted or lost, this option may help recover it.
-* `--resync` ΓÇö Forcefully sync all associated graph data even if it already exists
+* `--resync` — Forcefully sync all associated graph data even if it already exists
 
    When a repository is in good health, this should not be necessary, but if some subset of the data has been deleted, lost, or corrupted this option may help recover it.
-* `--max-concurrent-manifests <MAX_CONCURRENT_MANIFESTS>` ΓÇö The total number of manifests that can be synced concurrently
+* `--max-concurrent-manifests <MAX_CONCURRENT_MANIFESTS>` — The total number of manifests that can be synced concurrently
 
   Default value: `100`
-* `--max-concurrent-payloads <MAX_CONCURRENT_PAYLOADS>` ΓÇö The total number of file payloads that can be synced concurrently
+* `--max-concurrent-payloads <MAX_CONCURRENT_PAYLOADS>` — The total number of file payloads that can be synced concurrently
 
   Default value: `100`
-* `--progress <PROGRESS>` ΓÇö Options for showing progress
+* `--progress <PROGRESS>` — Options for showing progress
 
   Possible values:
   - `bars`:
@@ -621,7 +621,7 @@ Push one or more objects to a remote repository
     Do not show any progress
 
 * `-v`, `--verbose`
-* `-r`, `--remote <REMOTE>` ΓÇö The name or address of the remote server to push to
+* `-r`, `--remote <REMOTE>` — The name or address of the remote server to push to
 
   Default value: `origin`
 
@@ -635,11 +635,11 @@ Log the history of a given tag over time
 
 ###### **Arguments:**
 
-* `<TAG>` ΓÇö The tag to show history of
+* `<TAG>` — The tag to show history of
 
 ###### **Options:**
 
-* `-r`, `--remote <REMOTE>` ΓÇö Load the tag from remote repository instead of the local one
+* `-r`, `--remote <REMOTE>` — Load the tag from remote repository instead of the local one
 
 
 
@@ -651,7 +651,7 @@ Search for available tags by substring
 
 ###### **Arguments:**
 
-* `<TERM>` ΓÇö The search term/substring to look for
+* `<TERM>` — The search term/substring to look for
 
 
 
@@ -663,8 +663,8 @@ Compare two spfs file system states
 
 ###### **Arguments:**
 
-* `<FROM>` ΓÇö The tag or id to use as the base of the computed diff, defaults to the current runtime
-* `<TO>` ΓÇö The tag or id to diff the base against, defaults to the contents of the spfs filesystem
+* `<FROM>` — The tag or id to use as the base of the computed diff, defaults to the current runtime
+* `<TO>` — The tag or id to diff the base against, defaults to the contents of the spfs filesystem
 
 
 
@@ -678,14 +678,14 @@ List tags by their path
 
 ###### **Arguments:**
 
-* `<PATH>` ΓÇö The tag path to list under
+* `<PATH>` — The tag path to list under
 
   Default value: `/`
 
 ###### **Options:**
 
-* `-r`, `--remote <REMOTE>` ΓÇö List tags from a remote repository instead of the local one
-* `--recursive` ΓÇö Walk the tag tree recursively listing all tags under the specified dir
+* `-r`, `--remote <REMOTE>` — List tags from a remote repository instead of the local one
+* `--recursive` — Walk the tag tree recursively listing all tags under the specified dir
 
 
 
@@ -699,17 +699,17 @@ List the contents of a committed directory
 
 ###### **Arguments:**
 
-* `<REF>` ΓÇö The tag or digest of the file tree to read from
-* `<PATH>` ΓÇö The subdirectory to list
+* `<REF>` — The tag or digest of the file tree to read from
+* `<PATH>` — The subdirectory to list
 
   Default value: `/spfs`
 
 ###### **Options:**
 
-* `-r`, `--remote <REMOTE>` ΓÇö List files on a remote repository instead of the local one
-* `-R`, `--recursive` ΓÇö Recursively list all files and directories
-* `-l` ΓÇö Long listing format
-* `-H`, `--human-readable` ΓÇö Lists file sizes in human readable format
+* `-r`, `--remote <REMOTE>` — List files on a remote repository instead of the local one
+* `-R`, `--recursive` — Recursively list all files and directories
+* `-l` — Long listing format
+* `-H`, `--human-readable` — Lists file sizes in human readable format
 
 
 
@@ -721,11 +721,11 @@ Migrate the data from and older repository format to the latest one
 
 ###### **Arguments:**
 
-* `<PATH>` ΓÇö The path to the filesystem repository to migrate
+* `<PATH>` — The path to the filesystem repository to migrate
 
 ###### **Options:**
 
-* `--upgrade` ΓÇö Replace old data with migrated data one complete
+* `--upgrade` — Replace old data with migrated data one complete
 
 
 
@@ -737,18 +737,18 @@ Check a repositories internal integrity
 
 ###### **Arguments:**
 
-* `<REF>` ΓÇö Objects to recursively check, defaults to everything
+* `<REF>` — Objects to recursively check, defaults to everything
 
 ###### **Options:**
 
-* `-r`, `--remote <REMOTE>` ΓÇö Trigger the check operation on a remote repository instead of the local one
-* `--max-tag-stream-concurrency <MAX_TAG_STREAM_CONCURRENCY>` ΓÇö The maximum number of tag streams that can be read and processed at once
+* `-r`, `--remote <REMOTE>` — Trigger the check operation on a remote repository instead of the local one
+* `--max-tag-stream-concurrency <MAX_TAG_STREAM_CONCURRENCY>` — The maximum number of tag streams that can be read and processed at once
 
   Default value: `1000`
-* `--max-object-concurrency <MAX_OBJECT_CONCURRENCY>` ΓÇö The maximum number of objects that can be validated at once
+* `--max-object-concurrency <MAX_OBJECT_CONCURRENCY>` — The maximum number of objects that can be validated at once
 
   Default value: `5000`
-* `--pull <PULL>` ΓÇö Attempt to fix problems by pulling from another repository. Defaults to "origin"
+* `--pull <PULL>` — Attempt to fix problems by pulling from another repository. Defaults to "origin"
 
 
 
@@ -762,12 +762,12 @@ Output the contents of a blob to stdout
 
 ###### **Arguments:**
 
-* `<REF>` ΓÇö The tag or digest of the blob/payload to output
-* `<PATH>` ΓÇö If the given ref is not a blob, read the blob found at this path
+* `<REF>` — The tag or digest of the blob/payload to output
+* `<PATH>` — If the given ref is not a blob, read the blob found at this path
 
 ###### **Options:**
 
-* `-r`, `--remote <REMOTE>` ΓÇö Read from a remote repository instead of the local one
+* `-r`, `--remote <REMOTE>` — Read from a remote repository instead of the local one
 
 
 
@@ -781,11 +781,11 @@ Store an arbitrary blob of data in spfs
 
 ###### **Options:**
 
-* `-t`, `--tag <TAGS>` ΓÇö A human-readable tag for the generated object
+* `-t`, `--tag <TAGS>` — A human-readable tag for the generated object
 
    Can be provided more than once.
-* `-r`, `--remote <REMOTE>` ΓÇö Write to a remote repository instead of the local one
-* `-f`, `--file <FILE>` ΓÇö Store the contents of this file instead of reading from stdin
+* `-r`, `--remote <REMOTE>` — Write to a remote repository instead of the local one
+* `-f`, `--file <FILE>` — Store the contents of this file instead of reading from stdin
 
 
 
@@ -803,4 +803,3 @@ Output the current configuration of spfs
     This document was generated automatically by
     <a href="https://crates.io/crates/clap-markdown"><code>clap-markdown</code></a>.
 </i></small>
-
