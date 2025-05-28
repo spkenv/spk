@@ -28,12 +28,14 @@ use spk_schema::ident::{
     PinPolicy,
     PkgRequest,
     RangeIdent,
+    RequestedBy,
     VarRequest,
 };
 use spk_schema::ident_component::Component;
+use spk_schema::name::PkgNameBuf;
 use spk_schema::prelude::{HasVersion, Named, Versioned};
 use spk_schema::version_range::VersionFilter;
-use spk_schema::{OptionMap, Package, Request};
+use spk_schema::{OptionMap, Package, Request, Spec};
 use spk_solve_solution::{PackageSource, Solution};
 use spk_solve_validation::{Validators, default_validators};
 use spk_storage::RepositoryHandle;
@@ -65,6 +67,60 @@ impl Solver {
             _validators: validators,
             build_from_source_trail: HashSet::new(),
         }
+    }
+
+    /// Populate the requested_by field of each PkgRequest in the solution.
+    fn populate_requested_by(
+        solution_adds: Vec<(PkgRequest, Arc<Spec>, PackageSource)>,
+    ) -> Vec<(PkgRequest, Arc<Spec>, PackageSource)> {
+        // At this point, almost all the pieces of the solution are in
+        // place, but the pkg_requests have the wrong requested by
+        // data. This is updated in two passes.
+        //
+        // First pass: take the runtime requirements (dependency
+        // requests) of each resolved package, and get the package
+        // name of each requirement, and use that name as key to map
+        // to a set that the resolved package's ident is added into.
+        // This makes sets of builds that requested each of the
+        // package names.
+        let mut names_to_requesters: HashMap<PkgNameBuf, BTreeSet<RequestedBy>> = HashMap::new();
+        for (_pkg_request, package, _source) in solution_adds.iter() {
+            for request in package.runtime_requirements().iter() {
+                if let Request::Pkg(pkg_req) = request {
+                    let name = pkg_req.pkg.name();
+                    let entry = names_to_requesters.entry(name.into()).or_default();
+                    entry.insert(RequestedBy::PackageBuild(package.ident().clone()));
+                }
+            }
+        }
+        // Second pass: go through each package request in the
+        // solution and look up its package name in the "name to
+        // requesters" mapping, produced above, to get its set of
+        // requester. Using the set, update each package request by
+        // adding everything in the set to the package request as
+        // something that requested it. If no set was found during the
+        // look up, and the resolved package isn't embedded, assumes
+        // the request was made "from the command line".
+        solution_adds
+            .into_iter()
+            .map(|(mut pkg_request, package, source)| {
+                let name = pkg_request.pkg.name();
+                if let Some(requesters) = names_to_requesters.get(name) {
+                    for requester in requesters {
+                        pkg_request.add_requester(requester.clone());
+                    }
+                    if let PackageSource::Embedded { ref parent, .. } = source {
+                        // Embedded case to match the other solver's output
+                        pkg_request.add_requester(RequestedBy::Embedded(parent.clone()));
+                    }
+                } else if let PackageSource::Embedded { ref parent, .. } = source {
+                    pkg_request.add_requester(RequestedBy::Embedded(parent.clone()));
+                } else {
+                    pkg_request.add_requester(RequestedBy::CommandLine);
+                }
+                (pkg_request, package, source)
+            })
+            .collect()
     }
 
     pub(crate) fn set_build_from_source_trail(&mut self, trail: HashSet<LocatedBuildIdent>) {
@@ -297,6 +353,9 @@ impl Solver {
                 }
             }));
         }
+
+        let solution_adds = Self::populate_requested_by(solution_adds);
+
         let mut solution = Solution::new(solution_options);
         for (pkg_request, package, source) in solution_adds {
             solution.add(pkg_request, package, source);
