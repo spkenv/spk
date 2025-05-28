@@ -21,7 +21,7 @@ use spk_schema::{BuildIdent, FromYaml, Package, Spec, SpecRecipe, VersionIdent};
 
 use super::Repository;
 use super::repository::{PublishPolicy, Storage};
-use crate::{Error, Result};
+use crate::{Error, InvalidPackageSpec, Result};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct RuntimeRepository {
@@ -192,7 +192,9 @@ impl RuntimeRepository {
                                 .any(|(_, p)| *p == *path)
                         })
                         .map(|component_filenames| {
-                            Error::PackageNotFound((pkgs[component_filenames.index]).to_any_ident())
+                            Error::PackageNotFound(Box::new(
+                                (pkgs[component_filenames.index]).to_any_ident(),
+                            ))
                         })
                         .unwrap_or(err)
                 } else {
@@ -324,7 +326,7 @@ impl Storage for RuntimeRepository {
                 .await
                 .map_err(|err| {
                     if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
-                        Error::PackageNotFound(pkg.to_any_ident())
+                        Error::PackageNotFound(Box::new(pkg.to_any_ident()))
                     } else {
                         err
                     }
@@ -339,7 +341,7 @@ impl Storage for RuntimeRepository {
             // package digest.
             let digest = find_layer_by_filename(path).await.map_err(|err| {
                 if let Error::SPFS(spfs::Error::UnknownReference(_)) = err {
-                    Error::PackageNotFound(pkg.to_any_ident())
+                    Error::PackageNotFound(Box::new(pkg.to_any_ident()))
                 } else {
                     err
                 }
@@ -359,7 +361,7 @@ impl Storage for RuntimeRepository {
 
         let mut reader = std::fs::File::open(&path).map_err(|err| {
             if err.kind() == std::io::ErrorKind::NotFound {
-                Error::PackageNotFound(pkg.to_any_ident())
+                Error::PackageNotFound(Box::new(pkg.to_any_ident()))
             } else {
                 Error::FileOpenError(path.to_owned(), err)
             }
@@ -370,7 +372,12 @@ impl Storage for RuntimeRepository {
             .map_err(|err| Error::FileReadError(path.to_owned(), err))?;
         <Self::Recipe as spk_schema::Recipe>::Output::from_yaml(yaml)
             .map(Arc::new)
-            .map_err(|err| Error::InvalidPackageSpec(pkg.to_any_ident(), err.to_string()))
+            .map_err(|err| {
+                Error::InvalidPackageSpec(Box::new(InvalidPackageSpec(
+                    pkg.to_any_ident(),
+                    err.to_string(),
+                )))
+            })
     }
 
     async fn remove_embed_stub_from_storage(&self, _pkg: &BuildIdent) -> Result<()> {
@@ -444,11 +451,11 @@ impl Repository for RuntimeRepository {
     }
 
     async fn read_embed_stub(&self, pkg: &BuildIdent) -> Result<Arc<Self::Package>> {
-        Err(Error::PackageNotFound(pkg.to_any_ident()))
+        Err(Error::PackageNotFound(Box::new(pkg.to_any_ident())))
     }
 
     async fn read_recipe(&self, pkg: &VersionIdent) -> Result<Arc<Self::Recipe>> {
-        Err(Error::PackageNotFound(pkg.to_any_ident(None)))
+        Err(Error::PackageNotFound(Box::new(pkg.to_any_ident(None))))
     }
 
     async fn remove_recipe(&self, _pkg: &VersionIdent) -> Result<()> {

@@ -459,10 +459,10 @@ impl Solver {
 
     /// Default behavior for skipping an incompatible build.
     fn skip_build(&mut self, notes: &mut Vec<Note>, spec: &Spec, compat: &Compatibility) {
-        notes.push(Note::SkipPackageNote(SkipPackageNote::new(
+        notes.push(Note::SkipPackageNote(Box::new(SkipPackageNote::new(
             spec.ident().to_any_ident(),
             compat.clone(),
-        )));
+        ))));
         self.number_builds_skipped += 1;
     }
 
@@ -500,13 +500,13 @@ impl Solver {
                     unsafe { embeds.get(missing_embed_provider).unwrap_unchecked() };
 
                 notes.push(Note::Other(format!("Embedded package {unprovided_embedded} missing its provider {missing_embed_provider}")));
-                return Err(Error::OutOfOptions(OutOfOptions {
+                return Err(Error::OutOfOptions(Box::new(OutOfOptions {
                     request: PkgRequest::new(
                         missing_embed_provider.clone().into(),
                         RequestedBy::PackageBuild(unprovided_embedded.clone()),
                     ),
                     notes,
-                }));
+                })));
             }
             return Ok(None);
         };
@@ -526,9 +526,9 @@ impl Solver {
                     // Intercept this error in this situation to
                     // capture the request for the package that turned
                     // out to be missing.
-                    return Err(spk_solve_graph::Error::PackageNotFoundDuringSolve(
+                    return Err(spk_solve_graph::Error::PackageNotFoundDuringSolve(Box::new(
                         request.clone(),
-                    )
+                    ))
                     .into());
                 }
                 Err(e) => return Err(e.into()),
@@ -545,10 +545,10 @@ impl Solver {
                     pkg.version(),
                     Arc::new(tokio::sync::Mutex::new(EmptyBuildIterator::new())),
                 );
-                notes.push(Note::SkipPackageNote(SkipPackageNote::new(
+                notes.push(Note::SkipPackageNote(Box::new(SkipPackageNote::new(
                     pkg.clone(),
                     compat,
-                )));
+                ))));
                 continue;
             }
 
@@ -625,9 +625,11 @@ impl Solver {
                                         // This build would add an impossible request,
                                         // which is a bad choice for any solve, so
                                         // discard this build and try another.
-                                        notes.push(Note::SkipPackageNote(SkipPackageNote::new(
-                                            spec.ident().to_any_ident(),
-                                            compat,
+                                        notes.push(Note::SkipPackageNote(Box::new(
+                                            SkipPackageNote::new(
+                                                spec.ident().to_any_ident(),
+                                                compat,
+                                            ),
                                         )));
                                         self.number_builds_skipped += 1;
                                         continue;
@@ -660,7 +662,7 @@ impl Solver {
                                 // Is the conflicting package already embedded
                                 // by some other package?
                                 if conflicting_pkg.ident().is_embedded() {
-                                    notes.push(Note::SkipPackageNote(SkipPackageNote::new(
+                                    notes.push(Note::SkipPackageNote(Box::new(SkipPackageNote::new(
                                         spec.ident().to_any_ident(),
                                         Compatibility::Incompatible({
                                             match conflicting_pkg_source {
@@ -683,7 +685,7 @@ impl Solver {
                                                 }
                                             }
                                         }),
-                                    )));
+                                    ))));
                                     self.number_builds_skipped += 1;
                                     continue;
                                 }
@@ -826,55 +828,57 @@ impl Solver {
                         }
                     } else {
                         if let PackageSource::Embedded { .. } = source {
-                            notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
-                                spec.ident().to_any_ident(),
-                                &compat,
+                            notes.push(Note::SkipPackageNote(Box::new(
+                                SkipPackageNote::new_from_message(
+                                    spec.ident().to_any_ident(),
+                                    &compat,
+                                ),
                             )));
                             self.number_builds_skipped += 1;
                             continue;
                         }
                         let recipe = match source.read_recipe(spec.ident().base()).await {
                             Ok(r) if r.is_deprecated() => {
-                                notes.push(Note::SkipPackageNote(
+                                notes.push(Note::SkipPackageNote(Box::new(
                                     SkipPackageNote::new_from_message(
                                         pkg.clone(),
                                         "cannot build from source, version is deprecated",
                                     ),
-                                ));
+                                )));
                                 continue;
                             }
                             Ok(r) => r,
                             Err(spk_solve_solution::Error::SpkStorageError(
                                 spk_storage::Error::PackageNotFound(pkg),
                             )) => {
-                                notes.push(Note::SkipPackageNote(
+                                notes.push(Note::SkipPackageNote(Box::new(
                                     SkipPackageNote::new_from_message(
-                                        pkg,
+                                        *pkg,
                                         "cannot build from source, recipe not available",
                                     ),
-                                ));
+                                )));
                                 continue;
                             }
                             Err(err) => return Err(err.into()),
                         };
                         compat = self.validate_recipe(&node.state, &recipe)?;
                         if !&compat {
-                            notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
+                            notes.push(Note::SkipPackageNote(Box::new(SkipPackageNote::new_from_message(
                                 spec.ident().to_any_ident(),
                                 format!("building from source is not possible with this recipe: {compat}"),
-                            )));
+                            ))));
                             self.number_builds_skipped += 1;
                             continue;
                         }
 
                         let new_spec = match self.resolve_new_build(&recipe, &node.state).await {
                             Err(err) => {
-                                notes.push(Note::SkipPackageNote(
+                                notes.push(Note::SkipPackageNote(Box::new(
                                     SkipPackageNote::new_from_message(
                                         spec.ident().to_any_ident(),
                                         format!("cannot resolve build env for source build: {err}"),
                                     ),
-                                ));
+                                )));
                                 self.number_builds_skipped += 1;
                                 continue;
                             }
@@ -886,9 +890,11 @@ impl Solver {
 
                         compat = self.validate_package(&node.state, &new_spec, &new_source)?;
                         if !&compat {
-                            notes.push(Note::SkipPackageNote(SkipPackageNote::new_from_message(
-                                spec.ident().to_any_ident(),
-                                format!("building from source not possible: {compat}"),
+                            notes.push(Note::SkipPackageNote(Box::new(
+                                SkipPackageNote::new_from_message(
+                                    spec.ident().to_any_ident(),
+                                    format!("building from source not possible: {compat}"),
+                                ),
                             )));
                             self.number_builds_skipped += 1;
                             continue;
@@ -900,12 +906,12 @@ impl Solver {
                         {
                             Ok(decision) => decision,
                             Err(err) => {
-                                notes.push(Note::SkipPackageNote(
+                                notes.push(Note::SkipPackageNote(Box::new(
                                     SkipPackageNote::new_from_message(
                                         spec.ident().to_any_ident(),
                                         format!("cannot build package from source: {err}"),
                                     ),
-                                ));
+                                )));
                                 self.number_builds_skipped += 1;
                                 continue;
                             }
@@ -918,10 +924,10 @@ impl Solver {
             }
         }
 
-        Err(error::Error::OutOfOptions(error::OutOfOptions {
+        Err(error::Error::OutOfOptions(Box::new(error::OutOfOptions {
             request,
             notes,
-        }))
+        })))
     }
 
     fn validate_recipe<R: Recipe>(&self, state: &State, recipe: &R) -> Result<Compatibility> {
@@ -1463,13 +1469,16 @@ impl SolverRuntime {
                         yield Ok(to_yield);
                         continue 'outer;
                     }
-                    Err(Error::GraphError(spk_solve_graph::Error::PackageNotFoundDuringSolve(err_req))) => {
+                    Err(Error::GraphError(graph_error)) if matches!(&*graph_error, spk_solve_graph::Error::PackageNotFoundDuringSolve(_)) => {
+                        let spk_solve_graph::Error::PackageNotFoundDuringSolve(err_req) = &*graph_error else {
+                            unreachable!()
+                        };
                         let requested_by = err_req.get_requesters();
                         for req in &requested_by {
                             // Can't recover from a command line request for a
                             // missing package.
                             if let RequestedBy::CommandLine = req {
-                                yield Err(Error::GraphError(spk_solve_graph::Error::PackageNotFoundDuringSolve(err_req)));
+                                yield Err(Error::GraphError(graph_error));
                                 continue 'outer;
                             }
 
