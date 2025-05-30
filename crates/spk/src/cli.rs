@@ -93,7 +93,9 @@ impl Opt {
             // out of scope and close the connection. The error will
             // be output for the user in 'main()' below.
             match err.root_cause().downcast_ref::<Error>() {
-                Some(Error::SpkSolverError(spk_solve::Error::SolverInterrupted(_))) => {
+                Some(Error::SpkSolverError(solver_error))
+                    if matches!(&**solver_error, spk_solve::Error::SolverInterrupted(_)) =>
+                {
                     // SolverInterrupted errors are not sent to sentry
                     // here. A message has already been sent to sentry
                     // from io::Decision::Formatter before it returns
