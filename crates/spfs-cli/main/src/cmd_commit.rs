@@ -8,6 +8,7 @@ use clap::Args;
 use miette::Result;
 use spfs::encoding::prelude::*;
 use spfs::prelude::*;
+use spfs_cli_common as cli;
 
 /// Commit the current runtime state or a directory to storage
 #[derive(Debug, Args)]
@@ -16,8 +17,8 @@ pub struct CmdCommit {
     ///
     /// The default is to commit to the local repository. This flag
     /// is only valid with the --path argument.
-    #[clap(long, short)]
-    remote: Option<String>,
+    #[clap(flatten)]
+    pub(crate) repos: cli::Repositories,
 
     /// A human-readable tag for the generated object
     ///
@@ -84,7 +85,8 @@ pub struct CmdCommit {
 
 impl CmdCommit {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
-        let repo = spfs::config::open_repository_from_string(config, self.remote.clone()).await?;
+        let repo =
+            spfs::config::open_repository_from_string(config, self.repos.remote.clone()).await?;
 
         let result = {
             let committer = spfs::Committer::new(&repo)

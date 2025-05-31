@@ -6,14 +6,14 @@ use clap::Args;
 use miette::Result;
 use spfs::io::{self, DigestFormat};
 use spfs::prelude::*;
+use spfs_cli_common as cli;
 use tokio_stream::StreamExt;
 
 /// List all platforms in an spfs repository
 #[derive(Debug, Args)]
 pub struct CmdPlatforms {
-    /// Show layers from remote repository instead of the local one
-    #[clap(long, short)]
-    remote: Option<String>,
+    #[clap(flatten)]
+    pub(crate) repos: cli::Repositories,
 
     /// Show the shortened form of each reported layer digest
     #[clap(long)]
@@ -26,7 +26,8 @@ pub struct CmdPlatforms {
 
 impl CmdPlatforms {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
-        let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
+        let repo =
+            spfs::config::open_repository_from_string(config, self.repos.remote.as_ref()).await?;
 
         let mut platforms = repo.iter_platforms();
         while let Some(platform) = platforms.next().await {
