@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::Utc;
@@ -13,6 +12,13 @@ use tokio::time::sleep;
 use super::{Cleaner, TracingCleanReporter};
 use crate::encoding::prelude::*;
 use crate::fixtures::*;
+use crate::storage::fs::MaybeOpenFsRepository;
+use crate::storage::{
+    DefaultRenderStoreCreationPolicy,
+    LocalRenderStore,
+    RenderStoreForUser,
+    TryRenderStore,
+};
 use crate::{Error, storage, tracking};
 
 #[rstest]
@@ -82,8 +88,16 @@ async fn test_get_attached_unattached_objects_blob(
 }
 
 #[rstest]
+#[case::fs_with_renders(tmprepo("fs-with-renders"))]
+#[case::fs_with_maybe_renders(tmprepo("fs-with-maybe-renders"))]
+#[case::fs_without_renders(tmprepo("fs-without-renders"))]
 #[tokio::test]
-async fn test_clean_untagged_objects(#[future] tmprepo: TempRepo, tmpdir: tempfile::TempDir) {
+async fn test_clean_untagged_objects(
+    #[case]
+    #[future]
+    tmprepo: TempRepo,
+    tmpdir: tempfile::TempDir,
+) {
     init_logging();
     let tmprepo = tmprepo.await;
 
@@ -414,8 +428,15 @@ async fn test_clean_on_repo_with_tag_namespace_set(
 }
 
 #[rstest]
+#[case::fs_with_renders(tmprepo("fs-with-renders"))]
+#[case::fs_with_maybe_renders(tmprepo("fs-with-maybe-renders"))]
+#[case::fs_without_renders(tmprepo("fs-without-renders"))]
 #[tokio::test]
-async fn test_clean_untagged_objects_layers_platforms(#[future] tmprepo: TempRepo) {
+async fn test_clean_untagged_objects_layers_platforms(
+    #[case]
+    #[future]
+    tmprepo: TempRepo,
+) {
     init_logging();
     let tmprepo = tmprepo.await;
     let manifest = tracking::Manifest::<()>::default();
@@ -449,21 +470,27 @@ async fn test_clean_untagged_objects_layers_platforms(#[future] tmprepo: TempRep
 }
 
 #[rstest]
+#[case::fs_with_renders(tmprepo("fs-with-renders"))]
+#[case::fs_with_maybe_renders(tmprepo("fs-with-maybe-renders"))]
+#[case::fs_without_renders(tmprepo("fs-without-renders"))]
 #[tokio::test]
-async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
+async fn test_clean_manifest_renders(
+    #[case]
+    #[future]
+    tmprepo: TempRepo,
+) {
+    use crate::storage::fs::RenderStore;
+
     init_logging();
-    let tmprepo = Arc::new(
-        storage::fs::MaybeOpenFsRepository::create(tmpdir.path())
-            .await
-            .unwrap()
-            .into(),
-    );
+    let TempRepo::FS(tmprepo, tmpdir) = &tmprepo.await else {
+        panic!("unexpected tmprepo type");
+    };
 
     let data_dir = tmpdir.path().join("data");
     ensure(data_dir.join("dir/dir/file.txt"), "hello");
     ensure(data_dir.join("dir/name.txt"), "john doe");
 
-    let manifest = crate::Committer::new(&tmprepo)
+    let manifest = crate::Committer::new(tmprepo)
         .commit_dir(data_dir.as_path())
         .await
         .unwrap();
@@ -476,10 +503,49 @@ async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
         .await
         .unwrap();
 
-    let fs_repo = match &*tmprepo {
-        RepositoryHandle::FS(fs) => fs,
+    match &**tmprepo {
+        RepositoryHandle::FSWithRenders(fs) => {
+            test_clean_manifest_renders_with_repo(tmprepo, fs, manifest).await
+        }
+        RepositoryHandle::FSWithMaybeRenders(fs) => {
+            let repo_with_render_store: MaybeOpenFsRepository<RenderStore> = fs
+                .clone()
+                .try_into()
+                .expect("render store created successfully");
+            let handle: RepositoryHandle = RepositoryHandle::FSWithRenders(repo_with_render_store);
+            let RepositoryHandle::FSWithRenders(borrow) = &handle else {
+                unreachable!()
+            };
+            test_clean_manifest_renders_with_repo(&handle, borrow, manifest).await
+        }
+        RepositoryHandle::FSWithoutRenders(_fs) => {
+            // This case exists for completeness, but this nonsensical
+            // conversion from NoRenderStore to RenderStore doesn't exist and
+            // this code won't compile. It is better to have this be a compile
+            // time error than a runtime error.
+            //
+            //let repo_with_render_store: MaybeOpenFsRepository<RenderStore> = fs
+            //    .clone()
+            //    .try_into()
+            //    .expect_err("converting from NoRenderStore to RenderStore is expected to fail");
+        }
         _ => panic!("Unexpected tmprepo type!"),
     };
+}
+
+async fn test_clean_manifest_renders_with_repo<RS>(
+    tmprepo: &RepositoryHandle,
+    fs_repo: &MaybeOpenFsRepository<RS>,
+    manifest: tracking::Manifest,
+) where
+    RS: LocalRenderStore
+        + TryRenderStore
+        + DefaultRenderStoreCreationPolicy
+        + RenderStoreForUser<RenderStore = RS>
+        + Send
+        + Sync
+        + 'static,
+{
     let fs_repo = fs_repo.opened().await.unwrap();
 
     storage::fs::Renderer::new(&fs_repo)
@@ -490,14 +556,14 @@ async fn test_clean_manifest_renders(tmpdir: tempfile::TempDir) {
     let files = list_files(fs_repo.objects.root());
     assert!(!files.is_empty(), "should have stored data");
 
-    let cleaner = Cleaner::new(&tmprepo).with_reporter(TracingCleanReporter);
+    let cleaner = Cleaner::new(tmprepo).with_reporter(TracingCleanReporter);
     let result = cleaner
         .prune_all_tags_and_clean()
         .await
         .expect("failed to clean repo");
     println!("{result:#?}");
 
-    let files = list_files(fs_repo.renders.as_ref().unwrap().renders.root());
+    let files = list_files(fs_repo.rs_impl.render_store().renders.root());
     assert_eq!(
         files,
         Vec::<String>::new(),
