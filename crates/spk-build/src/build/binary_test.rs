@@ -13,7 +13,7 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::{opt_name, option_map};
 use spk_schema::ident::{PkgRequest, RangeIdent, Request};
 use spk_schema::{ComponentSpecList, FromYaml, OptionMap, Package, Recipe, SpecRecipe, recipe};
-use spk_solve::Solution;
+use spk_solve::{Solution, SolverImpl};
 use spk_storage::fixtures::*;
 use spk_storage::{self as storage, Repository};
 
@@ -97,9 +97,19 @@ fn test_var_with_build_assigns_build() {
      if name.as_str() == "my-dep" && digest.digest() == "QYB6QLCN"));
 }
 
+fn step_solver() -> SolverImpl {
+    SolverImpl::Step(spk_solve::StepSolver::default())
+}
+
+fn resolvo_solver() -> SolverImpl {
+    SolverImpl::Resolvo(spk_solve::ResolvoSolver::default())
+}
+
 #[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_build_workdir(tmpdir: tempfile::TempDir) {
+async fn test_build_workdir(tmpdir: tempfile::TempDir, #[case] solver: SolverImpl) {
     let rt = spfs_runtime().await;
     let out_file = tmpdir.path().join("out.log");
     let recipe = recipe!({
@@ -113,7 +123,7 @@ async fn test_build_workdir(tmpdir: tempfile::TempDir) {
     });
 
     rt.tmprepo.publish_recipe(&recipe).await.unwrap();
-    BinaryPackageBuilder::from_recipe(recipe)
+    BinaryPackageBuilder::from_recipe_with_solver(recipe, solver)
         .with_source(BuildSource::LocalPath(tmpdir.path().to_owned()))
         .build_and_publish(&option_map! {}, &*rt.tmprepo)
         .await
@@ -129,8 +139,10 @@ async fn test_build_workdir(tmpdir: tempfile::TempDir) {
 }
 
 #[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_build_package_options() {
+async fn test_build_package_options(#[case] solver: SolverImpl) {
     let rt = spfs_runtime().await;
     let dep_spec = recipe!(
         {"pkg": "dep/1.0.0", "build": {"script": "touch /spfs/dep-file"}}
@@ -161,7 +173,7 @@ async fn test_build_package_options() {
 
     rt.tmprepo.publish_recipe(&dep_spec).await.unwrap();
 
-    BinaryPackageBuilder::from_recipe(dep_spec)
+    BinaryPackageBuilder::from_recipe_with_solver(dep_spec, solver.clone())
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build_and_publish(&option_map! {}, &*rt.tmprepo)
@@ -175,7 +187,7 @@ async fn test_build_package_options() {
         // specific option takes precedence
         "top.dep" => "1.0.0",
     };
-    let (spec, _) = BinaryPackageBuilder::from_recipe(spec)
+    let (spec, _) = BinaryPackageBuilder::from_recipe_with_solver(spec, solver)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build_and_publish(variant, &*rt.tmprepo)
@@ -198,7 +210,10 @@ async fn test_build_package_options() {
 #[case::camel_case("fromBuildEnv")]
 #[case::lower_case("frombuildenv")]
 #[tokio::test]
-async fn test_build_package_pinning(#[case] from_build_env_str: &str) {
+async fn test_build_package_pinning(
+    #[case] from_build_env_str: &str,
+    #[values(step_solver(), resolvo_solver())] solver: SolverImpl,
+) {
     let rt = spfs_runtime().await;
     let dep_spec = recipe!(
         {"pkg": "dep/1.0.0", "build": {"script": "touch /spfs/dep-file"}}
@@ -217,14 +232,14 @@ async fn test_build_package_pinning(#[case] from_build_env_str: &str) {
     );
 
     rt.tmprepo.publish_recipe(&dep_spec).await.unwrap();
-    BinaryPackageBuilder::from_recipe(dep_spec)
+    BinaryPackageBuilder::from_recipe_with_solver(dep_spec, solver.clone())
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build_and_publish(option_map! {}, &*rt.tmprepo)
         .await
         .unwrap();
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
-    let (spec, _) = BinaryPackageBuilder::from_recipe(spec)
+    let (spec, _) = BinaryPackageBuilder::from_recipe_with_solver(spec, solver)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build_and_publish(option_map! {}, &*rt.tmprepo)
@@ -242,8 +257,10 @@ async fn test_build_package_pinning(#[case] from_build_env_str: &str) {
 }
 
 #[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_build_package_pinning_optional_requirement() {
+async fn test_build_package_pinning_optional_requirement(#[case] solver: SolverImpl) {
     let rt = spfs_runtime().await;
     let dep1_spec = recipe!(
         {"pkg": "dep1/1.0.0", "build": {"script": "touch /spfs/dep-file"}}
@@ -273,7 +290,7 @@ async fn test_build_package_pinning_optional_requirement() {
     for dep_spec in [dep1_spec, dep2_spec] {
         rt.tmprepo.publish_recipe(&dep_spec).await.unwrap();
 
-        BinaryPackageBuilder::from_recipe(dep_spec)
+        BinaryPackageBuilder::from_recipe_with_solver(dep_spec, solver.clone())
             .with_source(BuildSource::LocalPath(".".into()))
             .with_repository(rt.tmprepo.clone())
             .build_and_publish(option_map! {}, &*rt.tmprepo)
@@ -285,7 +302,7 @@ async fn test_build_package_pinning_optional_requirement() {
 
     let default_variants = spec.default_variants(&OptionMap::default());
     for (variant, expected_dep) in default_variants.iter().zip(["dep1", "dep2"].iter()) {
-        let (spec, _) = BinaryPackageBuilder::from_recipe(spec.clone())
+        let (spec, _) = BinaryPackageBuilder::from_recipe_with_solver(spec.clone(), solver.clone())
             .with_source(BuildSource::LocalPath(".".into()))
             .with_repository(rt.tmprepo.clone())
             .build_and_publish(variant, &*rt.tmprepo)
@@ -304,8 +321,12 @@ async fn test_build_package_pinning_optional_requirement() {
 }
 
 #[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_build_package_pinning_optional_requirement_without_frombuildenv() {
+async fn test_build_package_pinning_optional_requirement_without_frombuildenv(
+    #[case] solver: SolverImpl,
+) {
     let rt = spfs_runtime().await;
     let dep1_spec = recipe!(
         {"pkg": "dep1/1.0.0", "build": {"script": "touch /spfs/dep-file"}}
@@ -335,7 +356,7 @@ async fn test_build_package_pinning_optional_requirement_without_frombuildenv() 
     for dep_spec in [dep1_spec, dep2_spec] {
         rt.tmprepo.publish_recipe(&dep_spec).await.unwrap();
 
-        BinaryPackageBuilder::from_recipe(dep_spec)
+        BinaryPackageBuilder::from_recipe_with_solver(dep_spec, solver.clone())
             .with_source(BuildSource::LocalPath(".".into()))
             .with_repository(rt.tmprepo.clone())
             .build_and_publish(option_map! {}, &*rt.tmprepo)
@@ -347,7 +368,7 @@ async fn test_build_package_pinning_optional_requirement_without_frombuildenv() 
 
     let default_variants = spec.default_variants(&OptionMap::default());
     for (variant, expected_dep) in default_variants.iter().zip(["dep1", "dep2"].iter()) {
-        let (spec, _) = BinaryPackageBuilder::from_recipe(spec.clone())
+        let (spec, _) = BinaryPackageBuilder::from_recipe_with_solver(spec.clone(), solver.clone())
             .with_source(BuildSource::LocalPath(".".into()))
             .with_repository(rt.tmprepo.clone())
             .build_and_publish(variant, &*rt.tmprepo)
@@ -366,8 +387,10 @@ async fn test_build_package_pinning_optional_requirement_without_frombuildenv() 
 }
 
 #[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_build_var_pinning_optional_requirement() {
+async fn test_build_var_pinning_optional_requirement(#[case] solver: SolverImpl) {
     let rt = spfs_runtime().await;
     let dep2_spec = recipe!(
         {"pkg": "dep2/1.0.0", "build": {
@@ -397,7 +420,7 @@ async fn test_build_var_pinning_optional_requirement() {
     for dep_spec in [dep2_spec] {
         rt.tmprepo.publish_recipe(&dep_spec).await.unwrap();
 
-        BinaryPackageBuilder::from_recipe(dep_spec)
+        BinaryPackageBuilder::from_recipe_with_solver(dep_spec, solver.clone())
             .with_source(BuildSource::LocalPath(".".into()))
             .with_repository(rt.tmprepo.clone())
             .build_and_publish(option_map! {}, &*rt.tmprepo)
@@ -417,7 +440,7 @@ async fn test_build_var_pinning_optional_requirement() {
         ]
         .into_iter(),
     ) {
-        let (spec, _) = BinaryPackageBuilder::from_recipe(spec.clone())
+        let (spec, _) = BinaryPackageBuilder::from_recipe_with_solver(spec.clone(), solver.clone())
             .with_source(BuildSource::LocalPath(".".into()))
             .with_repository(rt.tmprepo.clone())
             .build_and_publish(variant, &*rt.tmprepo)
@@ -435,8 +458,10 @@ async fn test_build_var_pinning_optional_requirement() {
 }
 
 #[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_build_package_missing_deps() {
+async fn test_build_package_missing_deps(#[case] solver: SolverImpl) {
     let rt = spfs_runtime().await;
     let spec = recipe!(
         {
@@ -449,7 +474,7 @@ async fn test_build_package_missing_deps() {
 
     // should not fail to resolve build env and build even though
     // runtime dependency is missing in the current repos
-    BinaryPackageBuilder::from_recipe(spec)
+    BinaryPackageBuilder::from_recipe_with_solver(spec, solver)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build_and_publish(option_map! {}, &*rt.tmprepo)
@@ -458,8 +483,10 @@ async fn test_build_package_missing_deps() {
 }
 
 #[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_build_var_pinning() {
+async fn test_build_var_pinning(#[case] solver: SolverImpl) {
     let rt = spfs_runtime().await;
     let dep_spec = recipe!(
         {
@@ -493,13 +520,13 @@ async fn test_build_var_pinning() {
 
     rt.tmprepo.publish_recipe(&dep_spec).await.unwrap();
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
-    BinaryPackageBuilder::from_recipe(dep_spec)
+    BinaryPackageBuilder::from_recipe_with_solver(dep_spec, solver.clone())
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build_and_publish(option_map! {}, &*rt.tmprepo)
         .await
         .unwrap();
-    let (spec, _) = BinaryPackageBuilder::from_recipe(spec)
+    let (spec, _) = BinaryPackageBuilder::from_recipe_with_solver(spec, solver)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build_and_publish(option_map! {}, &*rt.tmprepo)
@@ -520,8 +547,10 @@ async fn test_build_var_pinning() {
 }
 
 #[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_build_bad_options() {
+async fn test_build_bad_options(#[case] solver: SolverImpl) {
     let rt = spfs_runtime().await;
     let spec = recipe!(
         {
@@ -536,7 +565,7 @@ async fn test_build_bad_options() {
     );
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
 
-    let res = BinaryPackageBuilder::from_recipe(spec)
+    let res = BinaryPackageBuilder::from_recipe_with_solver(spec, solver)
         .with_source(BuildSource::LocalPath(".".into()))
         .build_and_publish(option_map! {"debug" => "false"}, &*rt.tmprepo)
         .await;
@@ -544,15 +573,17 @@ async fn test_build_bad_options() {
     assert!(
         matches!(
             res,
-            Err(crate::Error::SpkSpecError(spk_schema::Error::String(_)))
+            Err(crate::Error::SpkSpecError(ref schema_err)) if matches!(&**schema_err, spk_schema::Error::String(_))
         ),
         "got {res:?}"
     );
 }
 
 #[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_build_package_source_cleanup() {
+async fn test_build_package_source_cleanup(#[case] solver: SolverImpl) {
     let rt = spfs_runtime().await;
     let spec = recipe!(
         {
@@ -580,7 +611,7 @@ async fn test_build_package_source_cleanup() {
         .await
         .unwrap();
 
-    let (pkg, _) = BinaryPackageBuilder::from_recipe(spec)
+    let (pkg, _) = BinaryPackageBuilder::from_recipe_with_solver(spec, solver)
         .with_repository(rt.tmprepo.clone())
         .build_and_publish(option_map! {}, &*rt.tmprepo)
         .await
@@ -616,8 +647,10 @@ async fn test_build_package_source_cleanup() {
 }
 
 #[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_build_filters_reset_files() {
+async fn test_build_filters_reset_files(#[case] solver: SolverImpl) {
     let rt = spfs_runtime().await;
 
     // Create a package that can be used as a dependency...
@@ -642,7 +675,7 @@ async fn test_build_filters_reset_files() {
             .await
             .unwrap();
 
-        let _ = BinaryPackageBuilder::from_recipe(spec)
+        let _ = BinaryPackageBuilder::from_recipe_with_solver(spec, solver.clone())
             .with_repository(rt.tmprepo.clone())
             .build_and_publish(option_map! {}, &*rt.tmprepo)
             .await
@@ -676,7 +709,7 @@ async fn test_build_filters_reset_files() {
             .await
             .unwrap();
 
-        let (pkg, _) = BinaryPackageBuilder::from_recipe(spec)
+        let (pkg, _) = BinaryPackageBuilder::from_recipe_with_solver(spec, solver)
             .with_repository(rt.tmprepo.clone())
             .build_and_publish(option_map! {}, &*rt.tmprepo)
             .await
@@ -751,8 +784,10 @@ async fn test_default_build_component() {
 }
 
 #[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_build_components_metadata() {
+async fn test_build_components_metadata(#[case] solver: SolverImpl) {
     let mut rt = spfs_runtime().await;
     let spec = recipe!(
         {
@@ -767,7 +802,7 @@ async fn test_build_components_metadata() {
         }
     );
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
-    let (spec, _) = BinaryPackageBuilder::from_recipe(spec.clone())
+    let (spec, _) = BinaryPackageBuilder::from_recipe_with_solver(spec.clone(), solver)
         .with_source(BuildSource::LocalPath(".".into()))
         .build_and_publish(option_map! {}, &*rt.tmprepo)
         .await
@@ -795,8 +830,10 @@ async fn test_build_components_metadata() {
 }
 
 #[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_build_add_startup_files(tmpdir: tempfile::TempDir) {
+async fn test_build_add_startup_files(tmpdir: tempfile::TempDir, #[case] solver: SolverImpl) {
     let rt = spfs_runtime().await;
     let recipe = recipe!(
         {
@@ -815,7 +852,7 @@ async fn test_build_add_startup_files(tmpdir: tempfile::TempDir) {
     let spec = recipe
         .generate_binary_build(&option_map! {}, &Solution::default())
         .unwrap();
-    BinaryPackageBuilder::from_recipe(recipe)
+    BinaryPackageBuilder::from_recipe_with_solver(recipe, solver)
         .with_prefix(tmpdir.path().into())
         .generate_startup_scripts(&spec)
         .unwrap();
@@ -866,8 +903,10 @@ async fn test_build_multiple_priority_startup_files() {
 }
 
 #[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_build_priority_startup_files(tmpdir: tempfile::TempDir) {
+async fn test_build_priority_startup_files(tmpdir: tempfile::TempDir, #[case] solver: SolverImpl) {
     let rt = spfs_runtime().await;
     let recipe = recipe!(
         {
@@ -884,7 +923,7 @@ async fn test_build_priority_startup_files(tmpdir: tempfile::TempDir) {
     let spec = recipe
         .generate_binary_build(&option_map! {}, &Solution::default())
         .unwrap();
-    BinaryPackageBuilder::from_recipe(recipe)
+    BinaryPackageBuilder::from_recipe_with_solver(recipe, solver)
         .with_prefix(tmpdir.path().into())
         .generate_startup_scripts(&spec)
         .unwrap();
@@ -896,8 +935,13 @@ async fn test_build_priority_startup_files(tmpdir: tempfile::TempDir) {
 }
 
 #[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_variable_substitution_in_build_env(tmpdir: tempfile::TempDir) {
+async fn test_variable_substitution_in_build_env(
+    tmpdir: tempfile::TempDir,
+    #[case] solver: SolverImpl,
+) {
     let rt = spfs_runtime().await;
     let dep_spec = recipe!(
         {
@@ -931,14 +975,14 @@ async fn test_variable_substitution_in_build_env(tmpdir: tempfile::TempDir) {
 
     rt.tmprepo.publish_recipe(&dep_spec).await.unwrap();
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
-    BinaryPackageBuilder::from_recipe(dep_spec)
+    BinaryPackageBuilder::from_recipe_with_solver(dep_spec, solver.clone())
         .with_source(BuildSource::LocalPath(tmpdir.path().to_owned()))
         .with_repository(rt.tmprepo.clone())
         .build_and_publish(option_map! {}, &*rt.tmprepo)
         .await
         .unwrap();
 
-    BinaryPackageBuilder::from_recipe(spec)
+    BinaryPackageBuilder::from_recipe_with_solver(spec, solver)
         .with_source(BuildSource::LocalPath(tmpdir.path().to_owned()))
         .with_repository(rt.tmprepo.clone())
         .build_and_publish(option_map! {}, &*rt.tmprepo)
@@ -994,9 +1038,14 @@ async fn test_variable_substitution_in_build_env(tmpdir: tempfile::TempDir) {
 }
 
 #[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 #[serial_test::serial(env)] // env manipulation must be reliable
-async fn test_dependant_variable_substitution_in_startup_files(tmpdir: tempfile::TempDir) {
+async fn test_dependant_variable_substitution_in_startup_files(
+    tmpdir: tempfile::TempDir,
+    #[case] solver: SolverImpl,
+) {
     let rt = spfs_runtime().await;
 
     // Safety: this is unsafe. serial_test is used to prevent multiple tests
@@ -1021,7 +1070,7 @@ async fn test_dependant_variable_substitution_in_startup_files(tmpdir: tempfile:
     let spec = recipe
         .generate_binary_build(&option_map! {}, &Solution::default())
         .unwrap();
-    BinaryPackageBuilder::from_recipe(recipe)
+    BinaryPackageBuilder::from_recipe_with_solver(recipe, solver)
         .with_prefix(tmpdir.path().into())
         .generate_startup_scripts(&spec)
         .unwrap();
@@ -1066,8 +1115,10 @@ fn test_path_and_parents() {
 }
 
 #[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_build_options_respect_components() {
+async fn test_build_options_respect_components(#[case] solver: SolverImpl) {
     let rt = spfs_runtime().await;
     // Create a base package that has a couple components with unique
     // contents.
@@ -1123,7 +1174,7 @@ async fn test_build_options_respect_components() {
         .build_and_publish(".", &*rt.tmprepo)
         .await
         .unwrap();
-    let _base_pkg = BinaryPackageBuilder::from_recipe(base_spec)
+    let _base_pkg = BinaryPackageBuilder::from_recipe_with_solver(base_spec, solver.clone())
         .with_repository(rt.tmprepo.clone())
         .build_and_publish(option_map! {}, &*rt.tmprepo)
         .await
@@ -1134,7 +1185,7 @@ async fn test_build_options_respect_components() {
         .await
         .unwrap();
 
-    let r = BinaryPackageBuilder::from_recipe(top_spec)
+    let r = BinaryPackageBuilder::from_recipe_with_solver(top_spec, solver)
         .with_repository(rt.tmprepo.clone())
         .build_and_publish(option_map! {}, &*rt.tmprepo)
         .await;

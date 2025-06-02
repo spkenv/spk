@@ -1,4 +1,4 @@
-version: 0.42.0
+version: 0.44.0
 release_notes: |
   - convert api module to rust
   - update to latest spfs
@@ -6,7 +6,7 @@ release_notes: |
 
 toolchain:
   - kind: Rust
-    toolchain: 1.86.0
+    toolchain: 1.87.0
     additional_toolchains:
       - nightly
   - kind: Shell

@@ -11,6 +11,7 @@ use std::str::FromStr;
 
 use indexmap::IndexSet;
 use itertools::Itertools;
+use problems::VersionNotCompatibleProblem;
 pub use problems::{
     BuildIdProblem,
     ComponentsMissingProblem,
@@ -286,12 +287,8 @@ pub enum IncompatibleReason {
     VersionTooHigh(VersionRangeProblem),
     #[strum(to_string = "{0}")]
     VersionTooLow(VersionRangeProblem),
-    #[strum(to_string = "{required_compat} with {base} {span}")]
-    VersionNotCompatible {
-        required_compat: CompatNotCompatible,
-        base: Version,
-        span: CompatNotCompatibleSpan,
-    },
+    #[strum(to_string = "{0}")]
+    VersionNotCompatible(Box<VersionNotCompatibleProblem>),
     #[strum(to_string = "{0}")]
     VersionNotDifferent(VersionNotDifferentProblem),
     #[strum(to_string = "{0}")]
@@ -737,33 +734,36 @@ impl Compat {
                 if let Some(ruleset) = optruleset {
                     if ruleset.0.contains(&CompatRule::None) {
                         return Compatibility::Incompatible(
-                            IncompatibleReason::VersionNotCompatible {
-                                required_compat: CompatNotCompatible::NotCompatible,
-                                base: base.clone(),
-                                span: CompatNotCompatibleSpan::PreOrPostVersion {
-                                    this_compat: self.clone(),
-                                    desc,
-                                    has: b.clone(),
-                                    requires: a.clone(),
+                            IncompatibleReason::VersionNotCompatible(Box::new(
+                                VersionNotCompatibleProblem {
+                                    required_compat: CompatNotCompatible::NotCompatible,
+                                    base: base.clone(),
+                                    span: CompatNotCompatibleSpan::PreOrPostVersion {
+                                        this_compat: self.clone(),
+                                        desc,
+                                        has: b.clone(),
+                                        requires: a.clone(),
+                                    },
                                 },
-                            },
+                            )),
                         );
                     }
 
                     if !ruleset.0.contains(&required) {
                         return Compatibility::Incompatible(
-                            IncompatibleReason::VersionNotCompatible {
-                                required_compat: CompatNotCompatible::NotRequiredCompatibility {
-                                    required,
+                            IncompatibleReason::VersionNotCompatible(Box::new(
+                                VersionNotCompatibleProblem {
+                                    required_compat:
+                                        CompatNotCompatible::NotRequiredCompatibility { required },
+                                    base: base.clone(),
+                                    span: CompatNotCompatibleSpan::PreOrPostVersion {
+                                        this_compat: self.clone(),
+                                        desc,
+                                        has: b.clone(),
+                                        requires: a.clone(),
+                                    },
                                 },
-                                base: base.clone(),
-                                span: CompatNotCompatibleSpan::PreOrPostVersion {
-                                    this_compat: self.clone(),
-                                    desc,
-                                    has: b.clone(),
-                                    requires: a.clone(),
-                                },
-                            },
+                            )),
                         );
                     }
                 }
@@ -788,17 +788,19 @@ impl Compat {
                 match (a, b) {
                     (Some(a), Some(b)) if a != b => {
                         return Compatibility::Incompatible(
-                            IncompatibleReason::VersionNotCompatible {
-                                required_compat: CompatNotCompatible::NotCompatible,
-                                base: base.clone(),
-                                span: CompatNotCompatibleSpan::VersionPart {
-                                    this_compat: self.clone(),
-                                    pos: i + 1,
-                                    label: version::get_version_position_label(i),
-                                    has: *b,
-                                    requires: *a,
+                            IncompatibleReason::VersionNotCompatible(Box::new(
+                                VersionNotCompatibleProblem {
+                                    required_compat: CompatNotCompatible::NotCompatible,
+                                    base: base.clone(),
+                                    span: CompatNotCompatibleSpan::VersionPart {
+                                        this_compat: self.clone(),
+                                        pos: i + 1,
+                                        label: version::get_version_position_label(i),
+                                        has: *b,
+                                        requires: *a,
+                                    },
                                 },
-                            },
+                            )),
                         );
                     }
                     _ => continue,
@@ -812,17 +814,19 @@ impl Compat {
                     }
                     (Some(a), Some(b)) => {
                         return Compatibility::Incompatible(
-                            IncompatibleReason::VersionNotCompatible {
-                                required_compat: CompatNotCompatible::NotCompatible,
-                                base: base.clone(),
-                                span: CompatNotCompatibleSpan::VersionPart {
-                                    this_compat: self.clone(),
-                                    pos: i + 1,
-                                    label: version::get_version_position_label(i),
-                                    has: *b,
-                                    requires: *a,
+                            IncompatibleReason::VersionNotCompatible(Box::new(
+                                VersionNotCompatibleProblem {
+                                    required_compat: CompatNotCompatible::NotCompatible,
+                                    base: base.clone(),
+                                    span: CompatNotCompatibleSpan::VersionPart {
+                                        this_compat: self.clone(),
+                                        pos: i + 1,
+                                        label: version::get_version_position_label(i),
+                                        has: *b,
+                                        requires: *a,
+                                    },
                                 },
-                            },
+                            )),
                         );
                     }
                     _ => continue,
@@ -831,17 +835,21 @@ impl Compat {
 
             match (a, b) {
                 (Some(a), Some(b)) if b < a => {
-                    return Compatibility::Incompatible(IncompatibleReason::VersionNotCompatible {
-                        required_compat: CompatNotCompatible::NotRequiredCompatibility { required },
-                        base: base.clone(),
-                        span: CompatNotCompatibleSpan::VersionPartTooLow {
-                            this_compat: self.clone(),
-                            pos: i + 1,
-                            label: version::get_version_position_label(i),
-                            has: *b,
-                            requires: *a,
-                        },
-                    });
+                    return Compatibility::Incompatible(IncompatibleReason::VersionNotCompatible(
+                        Box::new(VersionNotCompatibleProblem {
+                            required_compat: CompatNotCompatible::NotRequiredCompatibility {
+                                required,
+                            },
+                            base: base.clone(),
+                            span: CompatNotCompatibleSpan::VersionPartTooLow {
+                                this_compat: self.clone(),
+                                pos: i + 1,
+                                label: version::get_version_position_label(i),
+                                has: *b,
+                                requires: *a,
+                            },
+                        }),
+                    ));
                 }
                 _ => {
                     return Compatibility::Compatible;
@@ -849,11 +857,13 @@ impl Compat {
             }
         }
 
-        Compatibility::Incompatible(IncompatibleReason::VersionNotCompatible {
-            required_compat: CompatNotCompatible::NotCompatible,
-            base: base.clone(),
-            span: CompatNotCompatibleSpan::NotSpecified { required },
-        })
+        Compatibility::Incompatible(IncompatibleReason::VersionNotCompatible(Box::new(
+            VersionNotCompatibleProblem {
+                required_compat: CompatNotCompatible::NotCompatible,
+                base: base.clone(),
+                span: CompatNotCompatibleSpan::NotSpecified { required },
+            },
+        )))
     }
 }
 

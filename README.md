@@ -46,7 +46,7 @@ Please read [Contributing to SPK](CONTRIBUTING.md).
 
 ## Development
 
-Both SPK and SPFS are written in Rust and use cargo. The best way to get started with Rust development is to install the latest stable Rust toolchain using [rustup](https://rustup.sh).
+Both SPK and SPFS are written in Rust and use cargo. The best way to get started with Rust development is to install the latest stable Rust toolchain using [rustup](https://rustup.rs).
 
 For details on architecture and design of the codebase, see the [developer docs](docs/develop).
 

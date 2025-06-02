@@ -10,6 +10,7 @@ use std::mem::size_of;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::Poll;
 
 use close_err::Closable;
@@ -19,7 +20,7 @@ use futures::{Future, Stream, StreamExt, TryFutureExt};
 use relative_path::RelativePath;
 use tokio::io::{AsyncRead, AsyncSeek, AsyncWriteExt, ReadBuf};
 
-use super::{FsRepository, OpenFsRepository};
+use super::{MaybeOpenFsRepository, OpenFsRepository};
 use crate::storage::tag::{EntryType, TagSpecAndTagStream, TagStream};
 use crate::storage::{
     TAG_NAMESPACE_MARKER,
@@ -33,10 +34,10 @@ use crate::{Error, OsError, OsErrorExt, Result, encoding, tracking};
 const TAG_EXT: &str = "tag";
 
 #[async_trait::async_trait]
-impl TagStorage for FsRepository {
+impl TagStorage for MaybeOpenFsRepository {
     #[inline]
     fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
-        Self::get_tag_namespace(self)
+        self.fs_impl.get_tag_namespace()
     }
 
     fn ls_tags_in_namespace(
@@ -130,7 +131,7 @@ impl TagStorage for FsRepository {
     }
 }
 
-impl FsRepository {
+impl MaybeOpenFsRepository {
     /// Forcefully remove any lock file for the identified tag.
     ///
     /// # Safety
@@ -194,7 +195,7 @@ impl OpenFsRepository {
 impl TagStorage for OpenFsRepository {
     #[inline]
     fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
-        Self::get_tag_namespace(self)
+        self.fs_impl.get_tag_namespace()
     }
 
     fn ls_tags_in_namespace(
@@ -238,7 +239,7 @@ impl TagStorage for OpenFsRepository {
                 path.file_name().map(|s| {
                     let s = s.to_string_lossy();
                     match s.split_once(TAG_NAMESPACE_MARKER) {
-                        Some((name, _)) => Ok(EntryType::Namespace(name.to_owned())),
+                        Some((name, _)) => Ok(EntryType::Namespace(name.into())),
                         None => Ok(EntryType::Folder(s.to_string())),
                     }
                 })
@@ -447,12 +448,12 @@ impl TagStorage for OpenFsRepository {
     }
 }
 
-impl TagStorageMut for FsRepository {
+impl TagStorageMut for MaybeOpenFsRepository {
     fn try_set_tag_namespace(
         &mut self,
         tag_namespace: Option<TagNamespaceBuf>,
     ) -> Result<Option<TagNamespaceBuf>> {
-        Ok(Self::set_tag_namespace(self, tag_namespace))
+        Ok(Arc::make_mut(&mut self.fs_impl).set_tag_namespace(tag_namespace))
     }
 }
 
@@ -491,7 +492,7 @@ impl Stream for TagStreamIter {
         use TagStreamIterState::*;
         match self.state.take() {
             // TODO: this walkdir loop is not actually async and should be fixed
-            Some(WalkingTree) => loop {
+            Some(WalkingTree) => 'entry: loop {
                 let entry = self.inner.next();
                 match entry {
                     None => break Ready(None),
@@ -510,6 +511,28 @@ impl Stream for TagStreamIter {
                         if path.extension() != Some(OsStr::new(TAG_EXT)) {
                             continue;
                         }
+
+                        // This iterator skips over any namespaces; since the
+                        // walkdir iterator will descend into any directory,
+                        // the whole parent hierarchy needs to be checked for
+                        // the namespace marker.
+                        //
+                        // The root itself may be a namespace.
+                        let mut parent = path.parent();
+                        while let Some(p) = parent {
+                            if p == self.root {
+                                break;
+                            }
+                            if p.file_name()
+                                .and_then(|s| s.to_str())
+                                .map(|p| p.ends_with(TAG_NAMESPACE_MARKER))
+                                .unwrap_or_default()
+                            {
+                                continue 'entry;
+                            }
+                            parent = p.parent();
+                        }
+
                         let spec = match tag_from_path(&path, &self.root) {
                             Err(err) => break Ready(Some(Err(err))),
                             Ok(spec) => spec,

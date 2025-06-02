@@ -18,7 +18,7 @@ pub struct Build {
     #[clap(flatten)]
     runtime: flags::Runtime,
     #[clap(flatten)]
-    repos: flags::Repositories,
+    solver: flags::Solver,
     #[clap(flatten)]
     options: flags::Options,
 
@@ -43,9 +43,6 @@ pub struct Build {
     /// Build only the specified variants
     #[clap(flatten)]
     variant: flags::Variant,
-
-    #[clap(flatten)]
-    pub formatter_settings: flags::DecisionFormatterSettings,
 
     /// Allow dependencies of the package being built to have a dependency on
     /// this package.
@@ -107,14 +104,13 @@ impl Run for Build {
             let mut make_binary = spk_cmd_make_binary::cmd_make_binary::MakeBinary {
                 verbose: self.verbose,
                 runtime: self.runtime.clone(),
-                repos: self.repos.clone(),
                 options: self.options.clone(),
+                solver: self.solver.clone(),
                 here: self.here,
                 interactive: self.interactive,
                 env: self.env,
                 packages,
                 variant: self.variant.clone(),
-                formatter_settings: self.formatter_settings.clone(),
                 allow_circular_dependencies: self.allow_circular_dependencies,
                 created_builds: spk_cli_common::BuildResult::default(),
             };

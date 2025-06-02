@@ -31,7 +31,7 @@ mod name_test;
 /// ```
 #[macro_export]
 macro_rules! pkg_name {
-    ($name:literal) => {
+    ($name:expr) => {
         $crate::name::PkgName::new($name).unwrap()
     };
 }

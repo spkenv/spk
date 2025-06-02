@@ -10,7 +10,7 @@ use super::was_render_completed;
 use crate::encoding::prelude::*;
 use crate::fixtures::*;
 use crate::graph::object::{DigestStrategy, EncodingFormat};
-use crate::storage::fs::{FsRepository, OpenFsRepository};
+use crate::storage::fs::{MaybeOpenFsRepository, OpenFsRepository};
 use crate::storage::{RepositoryExt, RepositoryHandle};
 use crate::{Config, tracking};
 
@@ -83,7 +83,7 @@ async fn test_render_manifest_with_repo(
     config.make_current().unwrap();
 
     let tmprepo = Arc::new(
-        FsRepository::create(tmpdir.path().join("repo"))
+        MaybeOpenFsRepository::create(tmpdir.path().join("repo"))
             .await
             .unwrap()
             .into(),
@@ -107,13 +107,14 @@ async fn test_render_manifest_with_repo(
     };
 
     let render = tmprepo
+        .fs_impl
         .renders
         .as_ref()
         .unwrap()
         .renders
         .build_digest_path(&manifest.digest().unwrap());
     assert!(!render.exists(), "render should NOT be seen as existing");
-    super::Renderer::new(&*tmprepo)
+    super::Renderer::new(&tmprepo)
         .render_manifest(&manifest, None)
         .await
         .unwrap();

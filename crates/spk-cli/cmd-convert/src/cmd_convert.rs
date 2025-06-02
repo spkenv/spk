@@ -22,9 +22,6 @@ pub struct Convert {
     #[clap(short, long, global = true, action = clap::ArgAction::Count)]
     pub verbose: u8,
 
-    #[clap(flatten)]
-    pub formatter_settings: flags::DecisionFormatterSettings,
-
     /// Options for showing progress
     #[clap(long, value_enum)]
     pub progress: Option<Progress>,
@@ -61,7 +58,6 @@ impl Run for Convert {
             runtime: self.runtime.clone(),
             requests: self.requests.clone(),
             verbose: self.verbose,
-            formatter_settings: self.formatter_settings.clone(),
             progress: self.progress,
             requested: vec![converter_package],
             command,

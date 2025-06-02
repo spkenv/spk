@@ -1,0 +1,5 @@
+pkg: my-tool/1.2.0
+api: v0/package
+build:
+  script:
+    - true

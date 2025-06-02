@@ -434,7 +434,7 @@ impl From<&storage::EntryType> for super::ls_tags_response::Entry {
                     super::ls_tags_response::entry::Kind::Folder(e.to_owned())
                 }
                 storage::EntryType::Namespace(e) => {
-                    super::ls_tags_response::entry::Kind::Namespace(e.to_owned())
+                    super::ls_tags_response::entry::Kind::Namespace(e.to_string())
                 }
                 storage::EntryType::Tag(e) => {
                     super::ls_tags_response::entry::Kind::Tag(e.to_owned())
@@ -453,7 +453,7 @@ impl TryFrom<super::ls_tags_response::Entry> for storage::EntryType {
                     Ok(storage::EntryType::Folder(e))
                 }
                 super::ls_tags_response::entry::Kind::Namespace(e) => {
-                    Ok(storage::EntryType::Namespace(e))
+                    Ok(storage::EntryType::Namespace(e.into()))
                 }
                 super::ls_tags_response::entry::Kind::Tag(e) => Ok(storage::EntryType::Tag(e)),
             },

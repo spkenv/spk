@@ -36,7 +36,7 @@ def inject_credentials(super_script_list: spdev.shell.Script) -> spdev.shell.Scr
             "1",
             "sed",
             "-i",
-            '"s|https://github.com|https://$GITHUB_SPFS_PULL_USERNAME:$GITHUB_SPFS_PULL_PASSWORD@github.com|"',
+            '"s|https://github.com/spkenv|https://$GITHUB_SPFS_PULL_USERNAME:$GITHUB_SPFS_PULL_PASSWORD@github.com/spkenv|"',
         )
     )
 
