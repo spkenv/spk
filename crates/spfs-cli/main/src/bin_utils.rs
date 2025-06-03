@@ -1,14 +1,14 @@
 use clap::{Parser, Subcommand};
-
 use spfs::{Error, OsErrorExt};
 use spfs_cli_common as cli;
 use spfs_cli_common::CommandName;
+
 use crate::{
     cmd_check,
-    cmd_config,
     cmd_commit,
-    cmd_docs,
+    cmd_config,
     cmd_diff,
+    cmd_docs,
     cmd_edit,
     cmd_info,
     cmd_init,
@@ -28,9 +28,9 @@ use crate::{
     cmd_shell,
     cmd_tag,
     cmd_tags,
-    cmd_version,
     cmd_untag,
-    cmd_write
+    cmd_version,
+    cmd_write,
 };
 
 /// Filesystem isolation, capture and distribution.
