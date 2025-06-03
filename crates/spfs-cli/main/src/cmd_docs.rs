@@ -6,13 +6,15 @@ use std::fs;
 use clap::Args;
 use miette::Result;
 
+use crate::bin_utils::Opt;
+
 /// Write Markdown documentation for all SPFS subcommands to docs folder.
 #[derive(Debug, Args)]
 pub struct CmdDocs {}
 
 impl CmdDocs {
     pub async fn run(&mut self, _config: &spfs::Config) -> Result<i32> {
-        let mut markdown = clap_markdown::help_markdown::<crate::Opt>();
+        let mut markdown = clap_markdown::help_markdown::<Opt>();
         markdown.insert(0, '\n');
         markdown.insert_str(0, "---\n");
         markdown.insert_str(0, "chapter: true\n");
