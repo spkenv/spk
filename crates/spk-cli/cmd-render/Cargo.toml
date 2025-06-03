@@ -20,6 +20,7 @@ dunce = { workspace = true }
 spfs = { workspace = true }
 spk-cli-common = { workspace = true }
 spk-exec = { workspace = true }
+spk-solve = { workspace = true }
 spk-storage = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }

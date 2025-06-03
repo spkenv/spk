@@ -130,7 +130,7 @@ pub async fn export_package(
                     return Err(first_error
                         .unwrap()
                         .err()
-                        .unwrap_or_else(|| Error::PackageNotFound(transfer_pkg)));
+                        .unwrap_or_else(|| Error::PackageNotFound(Box::new(transfer_pkg))));
                 }
                 _ => {
                     // Try the next repo

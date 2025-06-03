@@ -205,7 +205,7 @@ impl Workspace {
         let template = spk_schema::SpecTemplate::from_file(path.as_ref()).map_err(|source| {
             error::BuildError::TemplateLoadError {
                 file: path.as_ref().to_owned(),
-                source,
+                source: Box::new(source),
             }
         })?;
         tracing::trace!(

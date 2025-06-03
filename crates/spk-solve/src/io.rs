@@ -4,7 +4,7 @@
 
 use std::cmp::max;
 use std::collections::VecDeque;
-use std::fmt::{Display, Write};
+use std::fmt::Write;
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, ErrorKind, Write as IOWrite};
 use std::path::{Path, PathBuf};
@@ -40,8 +40,9 @@ use spk_solve_graph::{
     State,
 };
 
-use crate::solvers::{ErrorFreq, StepSolver, StepSolverRuntime};
-use crate::{Error, ResolverCallback, Result, Solution, StatusLine, show_search_space_stats};
+use crate::solvers::step::ErrorFreq;
+use crate::solvers::{StepSolver, StepSolverRuntime};
+use crate::{Error, Result, Solution, Solver, StatusLine, show_search_space_stats};
 #[cfg(feature = "statsd")]
 use crate::{
     SPK_SOLUTION_PACKAGE_COUNT_METRIC,
@@ -58,6 +59,7 @@ const BY_USER: &str = "by user";
 const CLI_SOLVER: &str = "cli";
 const IMPOSSIBLE_CHECKS_SOLVER: &str = "checks";
 const ALL_SOLVERS: &str = "all";
+const RESOLVO_SOLVER: &str = "resolvo";
 
 const UNABLE_TO_GET_OUTPUT_FILE_LOCK: &str = "Unable to get lock to write solver output to file";
 const UNABLE_TO_WRITE_OUTPUT_MESSAGE: &str = "Unable to write solver output message to file";
@@ -1001,7 +1003,7 @@ impl OutputKind {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub(crate) struct DecisionFormatterSettings {
     pub(crate) verbosity: u8,
     pub(crate) report_time: bool,
@@ -1032,13 +1034,22 @@ enum LoopOutcome {
     Success,
 }
 
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, Default, strum::Display)]
 pub enum MultiSolverKind {
+    #[strum(to_string = "Unchanged")]
     Unchanged,
+    #[strum(to_string = "All Impossible Checks")]
     AllImpossibleChecks,
     // This isn't a solver on its own. It indicates: the run all the
     // solvers in parallel but show the output from the unchanged one.
+    // This runs all the solvers implemented in the original solver. At least
+    // for now, it is not possible to run both the original solver and the
+    // new solver in parallel.
+    #[default]
+    #[strum(to_string = "All")]
     All,
+    #[strum(to_string = "Resolvo")]
+    Resolvo,
 }
 
 impl MultiSolverKind {
@@ -1053,6 +1064,7 @@ impl MultiSolverKind {
             MultiSolverKind::Unchanged => CLI_SOLVER,
             MultiSolverKind::AllImpossibleChecks => IMPOSSIBLE_CHECKS_SOLVER,
             MultiSolverKind::All => ALL_SOLVERS,
+            MultiSolverKind::Resolvo => RESOLVO_SOLVER,
         }
     }
 
@@ -1080,17 +1092,6 @@ impl MultiSolverKind {
     }
 }
 
-impl Display for MultiSolverKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = match self {
-            MultiSolverKind::Unchanged => "Unchanged",
-            MultiSolverKind::AllImpossibleChecks => "All Impossible Checks",
-            MultiSolverKind::All => "All",
-        };
-        write!(f, "{name}")
-    }
-}
-
 struct SolverTaskSettings {
     solver: StepSolver,
     solver_kind: MultiSolverKind,
@@ -1114,7 +1115,7 @@ struct SolverResult {
     pub(crate) result: Result<(Solution, Arc<tokio::sync::RwLock<spk_solve_graph::Graph>>)>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct DecisionFormatter {
     pub(crate) settings: DecisionFormatterSettings,
 }
@@ -1152,7 +1153,7 @@ impl DecisionFormatter {
     /// appropriate. This runs two solvers in parallel (one based on
     /// the given solver, one with additional options) and takes the
     /// result from the first to finish.
-    pub async fn run_and_print_resolve(
+    pub(crate) async fn run_and_print_resolve(
         &self,
         solver: &StepSolver,
     ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
@@ -1185,33 +1186,12 @@ impl DecisionFormatter {
     /// info-level event as appropriate. This runs two solvers in
     /// parallel (one based on the given solver, one with additional
     /// options) and takes the result from the first to finish.
-    pub async fn run_and_log_resolve(
+    pub(crate) async fn run_and_log_resolve(
         &self,
         solver: &StepSolver,
     ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
         let solvers = self.setup_solvers(solver);
         self.run_multi_solve(solvers, OutputKind::Tracing).await
-    }
-
-    /// Run the solver runtime to completion, logging each step as a
-    /// tracing info-level event as appropriate. This does not run
-    /// multiple solver and won't benefit from running solvers in
-    /// parallel.
-    pub async fn run_and_log_decisions(
-        &self,
-        runtime: &mut StepSolverRuntime,
-    ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
-        // Note: this is not currently used directly. We may be able
-        // to remove this method.
-        let start = Instant::now();
-        let loop_outcome = self.run_solver_loop(runtime, OutputKind::Tracing).await;
-        let solve_time = start.elapsed();
-
-        #[cfg(feature = "statsd")]
-        self.send_solver_end_metrics(solve_time);
-
-        self.check_and_output_solver_results(loop_outcome, solve_time, runtime, OutputKind::Tracing)
-            .await
     }
 
     fn setup_solvers(&self, base_solver: &StepSolver) -> Vec<SolverTaskSettings> {
@@ -1247,6 +1227,7 @@ impl DecisionFormatter {
                     ignore_failure: false,
                 },
             ]),
+            MultiSolverKind::Resolvo => unreachable!(),
         }
     }
 
@@ -1534,33 +1515,28 @@ impl DecisionFormatter {
         runtime: &mut StepSolverRuntime,
         mut output_location: OutputKind,
     ) -> LoopOutcome {
-        // This block exists to shorten the scope of `runtime`'s borrow.
-        let loop_outcome = {
-            let decisions = runtime.iter();
-            let mut formatted_decisions = self.formatted_decisions_iter(decisions);
-            let iter = formatted_decisions.iter();
-            tokio::pin!(iter);
-            #[allow(clippy::never_loop)]
-            'outer: loop {
-                while let Some(line) = iter.next().await {
-                    match line {
-                        Ok(message) => output_location.output_message(message),
-                        Err(e) => {
-                            match e {
-                                Error::SolverInterrupted(mesg) => {
-                                    break 'outer LoopOutcome::Interrupted(mesg);
-                                }
-                                _ => break 'outer LoopOutcome::Failed(Box::new(e)),
-                            };
-                        }
-                    };
-                }
-
-                break LoopOutcome::Success;
+        let decisions = runtime.iter();
+        let mut formatted_decisions = self.formatted_decisions_iter(decisions);
+        let iter = formatted_decisions.iter();
+        tokio::pin!(iter);
+        #[allow(clippy::never_loop)]
+        'outer: loop {
+            while let Some(line) = iter.next().await {
+                match line {
+                    Ok(message) => output_location.output_message(message),
+                    Err(e) => {
+                        match e {
+                            Error::SolverInterrupted(mesg) => {
+                                break 'outer LoopOutcome::Interrupted(mesg);
+                            }
+                            _ => break 'outer LoopOutcome::Failed(Box::new(e)),
+                        };
+                    }
+                };
             }
-        };
 
-        loop_outcome
+            break LoopOutcome::Success;
+        }
     }
 
     async fn check_and_output_solver_results(
@@ -2118,25 +2094,5 @@ impl DecisionFormatter {
         }
 
         out
-    }
-}
-
-#[async_trait::async_trait]
-impl ResolverCallback for &DecisionFormatter {
-    async fn solve<'s, 'a: 's>(
-        &'s self,
-        r: &'a StepSolver,
-    ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
-        self.run_and_print_resolve(r).await
-    }
-}
-
-#[async_trait::async_trait]
-impl ResolverCallback for DecisionFormatter {
-    async fn solve<'s, 'a: 's>(
-        &'s self,
-        r: &'a StepSolver,
-    ) -> Result<(Solution, Arc<tokio::sync::RwLock<Graph>>)> {
-        self.run_and_print_resolve(r).await
     }
 }

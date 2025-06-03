@@ -14,7 +14,7 @@
     <div class="tab-content">
         {{ range $idx, $tab := .Scratch.Get "tabs" }}
         <div data-tab-item="{{ .name }}" data-tab-group="{{ $groupId }}" class="tab-item {{ cond (eq $idx 0) "active" ""}}">
-            {{ .content }}
+            <pre><code class="language-{{ .lang }}">{{ .content | safeHTML }}</code></pre>
         </div>
         {{ end }}
     </div>

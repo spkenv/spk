@@ -23,7 +23,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     #[error(transparent)]
     #[diagnostic(forward(0))]
-    OutOfOptions(#[from] OutOfOptions),
+    OutOfOptions(Box<OutOfOptions>),
     #[error("Solver interrupted: {0}")]
     SolverInterrupted(String),
     #[error(transparent)]
@@ -34,7 +34,7 @@ pub enum Error {
     SpkIdentError(#[from] spk_schema::ident::Error),
     #[error(transparent)]
     #[diagnostic(forward(0))]
-    GraphError(#[from] spk_solve_graph::Error),
+    GraphError(Box<spk_solve_graph::Error>),
     #[error(transparent)]
     #[diagnostic(forward(0))]
     GraphGraphError(#[from] spk_solve_graph::GraphError),
@@ -49,7 +49,7 @@ pub enum Error {
     ValidationError(#[from] spk_solve_validation::Error),
     #[error(transparent)]
     #[diagnostic(forward(0))]
-    SpkSpecError(#[from] spk_schema::Error),
+    SpkSpecError(Box<spk_schema::Error>),
     #[error("Status bar IO error: {0}")]
     StatusBarIOError(#[source] std::io::Error),
     #[error("Initial requests contain {0} impossible request{plural}.", plural = if *.0 == 1 { "" } else { "s" } )]
@@ -65,6 +65,20 @@ pub enum Error {
     SolverLogFileIOError(#[source] std::io::Error, PathBuf),
     #[error("Error: Flushing solver log file: {0}")]
     SolverLogFileFlushError(#[source] std::io::Error),
+    #[error("Failed to resolve: {0}")]
+    FailedToResolve(String),
+}
+
+impl From<spk_solve_graph::Error> for Error {
+    fn from(err: spk_solve_graph::Error) -> Self {
+        Error::GraphError(Box::new(err))
+    }
+}
+
+impl From<spk_schema::Error> for Error {
+    fn from(err: spk_schema::Error) -> Self {
+        Error::SpkSpecError(Box::new(err))
+    }
 }
 
 #[derive(Diagnostic, Debug, Error)]

@@ -1,5 +1,5 @@
 Name: spk
-Version: 0.42.0
+Version: 0.44.0
 Release: 1
 Summary: Package manager and a software runtime for studio environments
 License: NONE
@@ -21,7 +21,7 @@ BuildRequires: spdev >= 0.28.2
 Requires: bash
 Requires: fuse
 Obsoletes: spfs
-Provides: spfs = 0.42.0
+Provides: spfs = 0.44.0
 
 %define debug_package %{nil}
 
