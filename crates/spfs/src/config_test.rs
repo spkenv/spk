@@ -119,6 +119,7 @@ fn test_config_expands_tilde_in_paths() {
 }
 
 #[rstest]
+#[serial_test::serial(config)]
 fn test_make_current_updates_config() {
     let config1 = Config::default();
     config1.make_current().unwrap();
