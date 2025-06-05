@@ -13,6 +13,7 @@ use spfs::RemoteAddress;
 use spfs::config::Remote;
 use spfs::encoding::EMPTY_DIGEST;
 use spk_build::{BinaryPackageBuilder, BuildSource};
+use spk_config::Config;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map;
 use spk_schema::recipe;
@@ -43,6 +44,15 @@ struct Opt {
     du: Du<OutputToVec>,
 }
 
+fn disable_external_metadata() {
+    // These tests have hard-coded expectations about file sizes.
+    // Disable any configured external metadata command to avoid that changing
+    // the size of spec.yaml unpredictably.
+    let mut config = Config::default();
+    config.metadata.global.clear();
+    config.make_current().unwrap();
+}
+
 fn step_solver() -> SolverImpl {
     SolverImpl::Step(spk_solve::StepSolver::default())
 }
@@ -55,7 +65,10 @@ fn resolvo_solver() -> SolverImpl {
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
+#[serial_test::serial(config)]
 async fn test_du_trivially_works(#[case] solver: SolverImpl) {
+    disable_external_metadata();
+
     let mut rt = spfs_runtime().await;
     let remote_repo = spfsrepo().await;
     rt.add_remote_repo(
@@ -361,7 +374,10 @@ async fn test_du_total_size(#[case] solver: SolverImpl) {
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
+#[serial_test::serial(config)]
 async fn test_du_summarize_output_enabled(#[case] solver: SolverImpl) {
+    disable_external_metadata();
+
     let mut rt = spfs_runtime().await;
     let remote_repo = spfsrepo().await;
     rt.add_remote_repo(
@@ -404,7 +420,10 @@ async fn test_du_summarize_output_enabled(#[case] solver: SolverImpl) {
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
+#[serial_test::serial(config)]
 async fn test_du_summarize_output_is_not_enabled(#[case] solver: SolverImpl) {
+    disable_external_metadata();
+
     let mut rt = spfs_runtime().await;
     let remote_repo = spfsrepo().await;
     rt.add_remote_repo(
@@ -462,7 +481,10 @@ async fn test_du_summarize_output_is_not_enabled(#[case] solver: SolverImpl) {
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
+#[serial_test::serial(config)]
 async fn test_deprecate_flag(#[case] solver: SolverImpl) {
+    disable_external_metadata();
+
     let mut rt = spfs_runtime().await;
     let remote_repo = spfsrepo().await;
     rt.add_remote_repo(
