@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-pub mod cmd_spfs;
 mod cmd_check;
 mod cmd_commit;
 mod cmd_config;
@@ -30,6 +29,7 @@ mod cmd_search;
 #[cfg(feature = "server")]
 mod cmd_server;
 mod cmd_shell;
+pub mod cmd_spfs;
 mod cmd_tag;
 mod cmd_tags;
 mod cmd_untag;

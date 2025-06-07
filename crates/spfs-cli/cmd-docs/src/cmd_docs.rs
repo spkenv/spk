@@ -17,7 +17,7 @@ use spfs_cli_main::cmd_spfs::Opt;
 #[clap(name = "spfs-docs")]
 pub struct CmdDocs {
     #[clap(flatten)]
-    pub logging: cli::Logging
+    pub logging: cli::Logging,
 }
 
 impl CmdDocs {
