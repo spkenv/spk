@@ -5,6 +5,7 @@
 mod error;
 pub mod fixtures;
 mod storage;
+pub mod walker;
 
 pub use error::{Error, InvalidPackageSpec, Result};
 pub use storage::{
@@ -22,3 +23,4 @@ pub use storage::{
     pretty_print_filepath,
     remote_repository,
 };
+pub use walker::{RepoWalker, RepoWalkerBuilder, RepoWalkerItem};
