@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-pub mod bin_utils;
+pub mod cmd_spfs;
 mod cmd_check;
 mod cmd_commit;
 mod cmd_config;

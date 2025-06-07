@@ -6,7 +6,7 @@ use std::fs;
 use clap::Args;
 use miette::Result;
 
-use crate::bin_utils::Opt;
+use crate::cmd_spfs::Opt;
 
 /// Write Markdown documentation for all SPFS subcommands to docs folder.
 #[derive(Debug, Args)]

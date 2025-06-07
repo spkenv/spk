@@ -4,6 +4,6 @@
 
 use clap::Parser;
 use spfs_cli_common as cli;
-use spfs_cli_main::bin_utils::Opt;
+use spfs_cli_main::cmd_spfs::Opt;
 
 cli::main!(Opt);
