@@ -7,7 +7,6 @@ mod cmd_check;
 mod cmd_commit;
 mod cmd_config;
 mod cmd_diff;
-mod cmd_docs;
 mod cmd_edit;
 mod cmd_info;
 mod cmd_init;

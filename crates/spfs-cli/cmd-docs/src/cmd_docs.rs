@@ -1,16 +1,24 @@
 // Copyright (c) Contributors to the SPK project.
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
+
 use std::fs;
 
-use clap::Args;
+use clap::Parser;
 use miette::Result;
+use spfs_cli_common as cli;
 
-use crate::cmd_spfs::Opt;
+cli::main!(CmdDocs);
+
+use spfs_cli_main::cmd_spfs::Opt;
 
 /// Write Markdown documentation for all SPFS subcommands to docs folder.
-#[derive(Debug, Args)]
-pub struct CmdDocs {}
+#[derive(Debug, Parser)]
+#[clap(name = "spfs-docs")]
+pub struct CmdDocs {
+    #[clap(flatten)]
+    pub logging: cli::Logging
+}
 
 impl CmdDocs {
     pub async fn run(&mut self, _config: &spfs::Config) -> Result<i32> {

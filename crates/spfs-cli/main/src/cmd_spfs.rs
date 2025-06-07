@@ -8,7 +8,6 @@ use crate::{
     cmd_commit,
     cmd_config,
     cmd_diff,
-    cmd_docs,
     cmd_edit,
     cmd_info,
     cmd_init,
@@ -79,7 +78,6 @@ pub enum Command {
     Check(cmd_check::CmdCheck),
     Read(cmd_read::CmdRead),
     Write(cmd_write::CmdWrite),
-    Docs(cmd_docs::CmdDocs),
 
     #[cfg(feature = "server")]
     Server(crate::cmd_server::CmdServer),
@@ -123,7 +121,6 @@ impl Opt {
             Command::Shell(cmd) => cmd.run(config).await,
             Command::Pull(cmd) => cmd.run(config).await,
             Command::Push(cmd) => cmd.run(config).await,
-            Command::Docs(cmd) => cmd.run(config).await,
             #[cfg(feature = "server")]
             Command::Server(cmd) => cmd.run(config).await,
             Command::External(args) => run_external_subcommand(args.clone()).await,

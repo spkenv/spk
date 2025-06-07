@@ -41,7 +41,6 @@ This document contains the help content for the `spfs-cli-main` command-line pro
 * [`spfs-cli-main check`↴](#spfs-cli-main-check)
 * [`spfs-cli-main read`↴](#spfs-cli-main-read)
 * [`spfs-cli-main write`↴](#spfs-cli-main-write)
-* [`spfs-cli-main docs`↴](#spfs-cli-main-docs)
 
 ## `spfs-cli-main`
 
@@ -81,7 +80,6 @@ EXTERNAL SUBCOMMANDS:
 * `check` — Check a repositories internal integrity
 * `read` — Output the contents of a blob to stdout
 * `write` — Store an arbitrary blob of data in spfs
-* `docs` — Output the current configuration of spfs
 
 ###### **Options:**
 
@@ -786,14 +784,6 @@ Store an arbitrary blob of data in spfs
    Can be provided more than once.
 * `-r`, `--remote <REMOTE>` — Write to a remote repository instead of the local one
 * `-f`, `--file <FILE>` — Store the contents of this file instead of reading from stdin
-
-
-
-## `spfs-cli-main docs`
-
-Output the current configuration of spfs
-
-**Usage:** `spfs-cli-main docs`
 
 
 

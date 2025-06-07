@@ -1,0 +1,34 @@
+[package]
+authors = { workspace = true }
+edition = { workspace = true }
+name = "spfs-cli-docs"
+version = { workspace = true }
+license-file = { workspace = true }
+homepage = { workspace = true }
+repository = { workspace = true }
+readme = { workspace = true }
+description = { workspace = true }
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "spfs-docs"
+path = "src/cmd_docs.rs"
+
+[features]
+sentry = ["spfs-cli-common/sentry"]
+
+[dependencies]
+chrono = { workspace = true }
+clap = { workspace = true }
+clap-markdown = "0.1.5"
+colored = { workspace = true }
+miette = { workspace = true, features = ["fancy"] }
+question = "0.2.2"
+spfs = { workspace = true }
+spfs-cli-common = { workspace = true }
+spfs-cli-main = { workspace = true }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
+tracing = { workspace = true }
+url = { version = "2.2", features = ["serde"] }
