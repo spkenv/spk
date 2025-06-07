@@ -108,6 +108,7 @@ shellexpand = "3.1.0"
 spdx = "0.10"
 spfs = { path = "crates/spfs" }
 spfs-cli-common = { path = "crates/spfs-cli/common" }
+spfs-cli-main = { path = "crates/spfs-cli/main" }
 spfs-encoding = { path = "crates/spfs-encoding" }
 spfs-vfs = { path = "crates/spfs-vfs" }
 spk-build = { path = "crates/spk-build" }
