@@ -550,7 +550,8 @@ impl<T: Output> Stats<T> {
             {
                 name_width = name_width.max(package_stats.package_name.to_string().len());
                 number_width = number_width.max(package_stats.builds_per_version.to_string().len());
-                // e.g. in (54/3) the + 3 is for the three (, /, and ) characters
+                // Ratio widths include 3 extra characters for the (,
+                // /, and ) in the output, e.g. (54/5)
                 ratio_width = ratio_width.max(
                     package_stats.total_versions.to_string().len()
                         + package_stats.total_builds.to_string().len()
