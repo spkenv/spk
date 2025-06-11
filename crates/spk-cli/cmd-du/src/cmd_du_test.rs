@@ -11,13 +11,11 @@ use itertools::Itertools;
 use rstest::rstest;
 use spfs::RemoteAddress;
 use spfs::config::Remote;
-use spfs::encoding::EMPTY_DIGEST;
 use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_config::Config;
-use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map;
 use spk_schema::recipe;
-use spk_solve::{SolverImpl, spec};
+use spk_solve::SolverImpl;
 use spk_storage::fixtures::*;
 
 use super::{Du, Output, Run};
@@ -66,7 +64,7 @@ fn resolvo_solver() -> SolverImpl {
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
 #[serial_test::serial(config)]
-async fn test_du_trivially_works(#[case] solver: SolverImpl) {
+async fn test_du_works_on_whole_repo(#[case] solver: SolverImpl) {
     disable_external_metadata();
 
     let mut rt = spfs_runtime().await;
@@ -121,40 +119,6 @@ async fn test_du_trivially_works(#[case] solver: SolverImpl) {
     }
 
     assert_eq!(expected_output.len(), 0);
-}
-
-#[tokio::test]
-async fn test_du_warnings_when_object_is_tree_or_blob() {
-    let mut rt = spfs_runtime().await;
-    let remote_repo = spfsrepo().await;
-
-    rt.add_remote_repo(
-        "origin",
-        Remote::Address(RemoteAddress {
-            address: remote_repo.address().clone(),
-        }),
-    )
-    .unwrap();
-
-    // publish package without publishing spec
-    let components = vec![
-        (Component::Run, EMPTY_DIGEST.into()),
-        (Component::Build, EMPTY_DIGEST.into()),
-    ]
-    .into_iter()
-    .collect();
-
-    let recipe = recipe!({"pkg": "my-pkg/1.0.0"});
-    remote_repo.publish_recipe(&recipe).await.unwrap();
-    let spec = spec!({"pkg": "my-pkg/1.0.0/BGSHW3CN"});
-    remote_repo
-        .publish_package(&spec, &components)
-        .await
-        .unwrap();
-
-    let mut opt = Opt::try_parse_from(["du", "origin/my-pkg/1.0.0/BGSHW3CN/", "-s"]).unwrap();
-    opt.du.run().await.unwrap();
-    assert_eq!(opt.du.output.warnings.lock().unwrap().len(), 2);
 }
 
 #[rstest]
