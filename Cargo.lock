@@ -4189,7 +4189,6 @@ dependencies = [
  "spfs",
  "spk-build",
  "spk-cli-common",
- "spk-cli-group2",
  "spk-config",
  "spk-schema",
  "spk-solve",

@@ -26,7 +26,6 @@ serial_test = { workspace = true }
 spfs = { workspace = true }
 spk-build = { workspace = true }
 spk-cli-common = { workspace = true }
-spk-cli-group2 = { workspace = true }
 spk-config = { workspace = true }
 spk-solve = { workspace = true }
 spk-storage = { workspace = true }
