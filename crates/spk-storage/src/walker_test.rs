@@ -98,54 +98,50 @@ async fn test_walker_builder_walker_walk() {
         .unwrap();
 
     // Setup the list of repos to walk
-    let repo_name = Arc::new("origin".to_string());
-    let repo = remote_repository(&*repo_name).await.unwrap();
-    let repos = vec![((*repo_name).clone(), RepositoryHandle::SPFS(repo))];
+    let repo_name: &str = "origin";
+    let repo = remote_repository(repo_name).await.unwrap();
+    let repos = vec![(repo_name.to_string(), RepositoryHandle::SPFS(repo))];
 
     // Set up expected items in the order they should be walked.
-    let pkg_name = unsafe { Arc::new(PkgNameBuf::from_string("my-pkg".to_string())) };
+    let pkg_name = Arc::new(unsafe { PkgNameBuf::from_string("my-pkg".to_string()) });
     let ident = Arc::new(parse_version_ident("my-pkg/1.0.0").unwrap());
     let build_ident = ident.to_build_ident(Build::Source);
     let expected = vec![
-        RepoWalkerItem::Repo(WalkedRepo {
-            name: repo_name.clone(),
-        }),
+        RepoWalkerItem::Repo(WalkedRepo { name: repo_name }),
         RepoWalkerItem::Package(WalkedPackage {
-            repo_name: repo_name.clone(),
+            repo_name,
             name: pkg_name.clone(),
         }),
         RepoWalkerItem::Version(WalkedVersion {
-            repo_name: repo_name.clone(),
+            repo_name,
             ident: ident.clone(),
         }),
         RepoWalkerItem::Build(WalkedBuild {
-            repo_name: repo_name.clone(),
+            repo_name,
             spec: Arc::new(Spec::V0Package(spk_schema::v0::Spec::new(
                 build_ident.clone(),
             ))),
         }),
         RepoWalkerItem::Component(WalkedComponent {
-            repo_name: repo_name.clone(),
+            repo_name,
             build: Arc::new(build_ident.clone()),
             name: Component::Run,
             digest: Arc::new(empty_layer_digest()),
         }),
         // Note: this doesn't check files
         RepoWalkerItem::EndOfBuild(WalkedBuild {
-            repo_name: repo_name.clone(),
+            repo_name,
             spec: Arc::new(Spec::V0Package(spk_schema::v0::Spec::new(build_ident))),
         }),
         RepoWalkerItem::EndOfVersion(WalkedVersion {
-            repo_name: repo_name.clone(),
+            repo_name,
             ident: ident.clone(),
         }),
         RepoWalkerItem::EndOfPackage(WalkedPackage {
-            repo_name: repo_name.clone(),
+            repo_name,
             name: pkg_name,
         }),
-        RepoWalkerItem::EndOfRepo(WalkedRepo {
-            name: repo_name.clone(),
-        }),
+        RepoWalkerItem::EndOfRepo(WalkedRepo { name: repo_name }),
     ];
 
     // Make and test the walker
