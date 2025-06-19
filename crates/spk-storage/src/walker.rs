@@ -33,39 +33,39 @@ mod walker_test;
 
 /// A repository the RepoWalker is processing
 #[derive(Debug)]
-pub struct WalkedRepo {
-    pub name: Arc<String>,
+pub struct WalkedRepo<'a> {
+    pub name: &'a str,
 }
 
 /// A package in a repo the RepoWalker is processing
 #[derive(Debug)]
-pub struct WalkedPackage {
-    pub repo_name: Arc<String>,
+pub struct WalkedPackage<'a> {
+    pub repo_name: &'a str,
     pub name: Arc<PkgNameBuf>,
 }
 
 /// A version of a package the RepoWalker is processing
 #[derive(Debug)]
-pub struct WalkedVersion {
-    pub repo_name: Arc<String>,
-    // This doesn't include the package name as a separate field
-    // because it is included in the version ident.
+pub struct WalkedVersion<'a> {
+    pub repo_name: &'a str,
+    /// This doesn't include the package name as a separate field
+    /// because it is included in the version ident.
     pub ident: Arc<VersionIdent>,
 }
 
 /// A build of a version the RepoWalker is processing
 #[derive(Debug)]
-pub struct WalkedBuild {
-    pub repo_name: Arc<String>,
-    // This doesn't include the build ident, because the spec.ident()
-    // method can provide it.
+pub struct WalkedBuild<'a> {
+    pub repo_name: &'a str,
+    /// This doesn't include the build ident, because the spec.ident()
+    /// method can provide it.
     pub spec: Arc<Spec>,
 }
 
 /// A component of a build the RepoWalker is processing
 #[derive(Debug)]
-pub struct WalkedComponent {
-    pub repo_name: Arc<String>,
+pub struct WalkedComponent<'a> {
+    pub repo_name: &'a str,
     pub build: Arc<BuildIdent>,
     pub name: Component,
     pub digest: Arc<Digest>,
@@ -73,8 +73,8 @@ pub struct WalkedComponent {
 
 /// A file in a component the RepoWalker is processing
 #[derive(Debug)]
-pub struct WalkedFile {
-    pub repo_name: Arc<String>,
+pub struct WalkedFile<'a> {
+    pub repo_name: &'a str,
     pub build: Arc<BuildIdent>,
     pub component: Component,
     pub path_pieces: Vec<Arc<String>>,
@@ -90,20 +90,20 @@ struct FileItem {
 
 /// The items a RepoWalker can find and return during a walk
 #[derive(Debug)]
-pub enum RepoWalkerItem {
+pub enum RepoWalkerItem<'a> {
     // Ones emitted during standard walks
-    Repo(WalkedRepo),
-    Package(WalkedPackage),
-    Version(WalkedVersion),
-    Build(WalkedBuild),
-    Component(WalkedComponent),
-    File(WalkedFile),
+    Repo(WalkedRepo<'a>),
+    Package(WalkedPackage<'a>),
+    Version(WalkedVersion<'a>),
+    Build(WalkedBuild<'a>),
+    Component(WalkedComponent<'a>),
+    File(WalkedFile<'a>),
     // Ones only emitted when the "EndOf..." markers are enabled
-    EndOfComponent(WalkedComponent),
-    EndOfBuild(WalkedBuild),
-    EndOfVersion(WalkedVersion),
-    EndOfPackage(WalkedPackage),
-    EndOfRepo(WalkedRepo),
+    EndOfComponent(WalkedComponent<'a>),
+    EndOfBuild(WalkedBuild<'a>),
+    EndOfVersion(WalkedVersion<'a>),
+    EndOfPackage(WalkedPackage<'a>),
+    EndOfRepo(WalkedRepo<'a>),
 }
 
 /// Package filters will be given the repository name, and the package name
@@ -236,8 +236,8 @@ impl RepoWalkerFilter {
 }
 
 /// A single stream objects found by walking a list of spk repos. It
-/// returns the objects from top to bottom: the repos, packages,
-/// versions, builds, components, and then files.
+/// returns the objects from top to bottom and depth-first: the repos,
+/// packages, versions, builds, components, and then files.
 ///
 /// A RepoWalker supports various search options but cannot be
 /// constructed directly. It is configured and constructed via a
@@ -250,10 +250,10 @@ impl RepoWalkerFilter {
 /// in that Version has been processed.
 pub struct RepoWalker<'a> {
     repos: &'a Vec<(String, storage::RepositoryHandle)>,
-    // There is no repository filter function because the list of
-    // repos to walk is given to the walker when it is created from
-    // the builder. If the caller doesn't want a repo walked, they
-    // should not pass it to the builder.
+    /// There is no repository filter function because the list of
+    /// repos to walk is given to the walker when it is created from
+    /// the builder. If the caller doesn't want a repo walked, they
+    /// should not pass it to the builder.
     package_filter_func: Arc<PackageFilterFunc<'a>>,
     version_filter_func: Arc<VersionFilterFunc<'a>>,
     // TODO: We don't have a use case for this at the moment, do we?
@@ -263,44 +263,45 @@ pub struct RepoWalker<'a> {
     component_filter_func: Arc<ComponentFilterFunc<'a>>,
     file_filter_func: Arc<FileFilterFunc<'a>>,
 
-    // Object level reporting controls, used to limit the extent of
-    // the walk by the kinds of objects.
+    /// Object level reporting controls, used to limit the extent of
+    /// the walk by the kinds of objects.
     report_on_versions: bool,
     report_on_builds: bool,
-    // Build specific settings
+    /// Build specific settings
     report_src: bool,
     report_deprecated: bool,
     report_embedded: bool,
-    // The objects inside a build
+    /// The objects inside a build
     report_on_components: bool,
     report_on_files: bool,
-    // Whether to emit the EndOf... items from the stream or not
+    /// Whether to emit the EndOf... items from the stream or not
     emit_end_of_markers: bool,
-    // Whether to turn errors into warning and continue the walking
-    // from the next object instead of stopping when an error occurs.
+    /// Whether to turn errors into warning and continue the walking
+    /// from the next object instead of stopping when an error occurs.
     continue_on_error: bool,
-    // Whether to sort objects at each level before walking them.
+    //// Whether to sort objects at each level before walking them.
     sort_objects: bool,
 }
 
 impl std::fmt::Debug for RepoWalker<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // The *_filter_func fields are not output
-        write!(
-            f,
-            "RepoWalker [report on versions: {}, report on builds: {}, include /src builds: {}, include deprecated builds: {}, include embedded builds: {}, report on components: {}, report on files: {}, emit end of markers: {}, continue on error: {}, sort objects: {}, repos: {}. filter functions: not displayed]",
-            self.report_on_versions,
-            self.report_on_builds,
-            self.report_src,
-            self.report_deprecated,
-            self.report_embedded,
-            self.report_on_components,
-            self.report_on_files,
-            self.emit_end_of_markers,
-            self.continue_on_error,
-            self.sort_objects,
-            self.repos.iter().map(|(n, _)| n.to_string()).join(","),
-        )
+        f.debug_struct("RepoWalker")
+            .field("report on versions", &self.report_on_versions)
+            .field("report on builds", &self.report_on_builds)
+            .field("include /src builds", &self.report_src)
+            .field("include deprecated builds", &self.report_deprecated)
+            .field("include embedded builds", &self.report_embedded)
+            .field("report on components", &self.report_on_components)
+            .field("report on files", &self.report_on_files)
+            .field("emit EndOf markers", &self.emit_end_of_markers)
+            .field("continue on error", &self.continue_on_error)
+            .field("sort objects", &self.sort_objects)
+            .field(
+                "repos",
+                &self.repos.iter().map(|(n, _)| n.to_string()).join(","),
+            )
+            .finish()
     }
 }
 
@@ -643,48 +644,47 @@ impl RepoWalker<'_> {
         })
     }
 
-    // Walk the spk objects in the repos and stream back the matching
-    // ones based on the walker's configuration.
+    /// Walk the spk objects in the repos and stream back the matching
+    /// ones based on the walker's configuration.
     pub fn walk(&self) -> impl Stream<Item = Result<RepoWalkerItem>> + '_ {
         Box::pin(try_stream! {
-
             for (repository_name, repo) in self.repos.iter() {
-                let repo_name = Arc::new((*repository_name).clone());
-                yield RepoWalkerItem::Repo(WalkedRepo { name: repo_name.clone()} );
+                let repo_name = repository_name.as_str();
+                yield RepoWalkerItem::Repo(WalkedRepo { name: repo_name } );
 
                 let packages = self.get_matching_packages(repository_name, repo).await?;
                 for package in packages.iter() {
                     let package_name = Arc::new(package.clone());
-                    yield RepoWalkerItem::Package(WalkedPackage{ repo_name: repo_name.clone(),
-                                                                 name: package_name.clone() });
+                    yield RepoWalkerItem::Package(WalkedPackage{ repo_name,
+                                                                 name: Arc::clone(&package_name) });
 
                     let versions = self.get_matching_versions(repo, package).await?;
                     for package_version in versions.iter() {
                         let ident = package_version.as_version_ident().clone();
                         let version_ident = Arc::new(ident.clone());
-                        yield RepoWalkerItem::Version(WalkedVersion { repo_name: repo_name.clone(),
-                                                                      ident: version_ident.clone() });
+                        yield RepoWalkerItem::Version(WalkedVersion { repo_name,
+                                                                      ident: Arc::clone(&version_ident) });
 
                         let builds = self.get_matching_builds(repo, &ident).await?;
                         for (build, build_spec) in builds.iter() {
-                            yield RepoWalkerItem::Build(WalkedBuild { repo_name: repo_name.clone(),
+                            yield RepoWalkerItem::Build(WalkedBuild { repo_name,
                                                                       spec: Arc::clone(build_spec) });
 
                             let build_ident = Arc::new(build.clone());
                             let components = self.get_matching_components(repo, build).await?;
                             for (component, digest) in components.iter() {
                                 let component_digest = Arc::new(*digest);
-                                yield RepoWalkerItem::Component(WalkedComponent{ repo_name: repo_name.clone(),
-                                                                                 build: build_ident.clone(),
+                                yield RepoWalkerItem::Component(WalkedComponent{ repo_name,
+                                                                                 build: Arc::clone(&build_ident),
                                                                                  name: component.clone(),
-                                                                                 digest: component_digest.clone()
+                                                                                 digest: Arc::clone(&component_digest)
                                 });
 
                                 let mut at_least_one_file = false;
                                 let mut file_stream = self.file_stream(repo, build_ident.clone(), component.clone(), digest);
                                 while let Some(file_item) = self.convert_file_error(file_stream.try_next().await)? {
-                                    yield RepoWalkerItem::File(WalkedFile { repo_name: repo_name.clone(),
-                                                                            build: build_ident.clone(),
+                                    yield RepoWalkerItem::File(WalkedFile { repo_name,
+                                                                            build: Arc::clone(&build_ident),
                                                                             component: component.clone(),
                                                                             path_pieces: file_item.parent_paths.clone(),
                                                                             entry: file_item.entry.clone() });
@@ -695,8 +695,8 @@ impl RepoWalker<'_> {
                                     // Report the end of this component (after all the files in it)
                                     yield RepoWalkerItem::EndOfComponent(
                                         WalkedComponent {
-                                            repo_name: repo_name.clone(),
-                                            build: build_ident.clone(),
+                                            repo_name,
+                                            build: Arc::clone(&build_ident),
                                             name: component.clone(),
                                             digest: component_digest }
                                     )
@@ -705,29 +705,29 @@ impl RepoWalker<'_> {
 
                             if self.emit_end_of_markers && !components.is_empty() {
                                 // Report the end of this build (after all the components in it)
-                                yield RepoWalkerItem::EndOfBuild(WalkedBuild { repo_name: repo_name.clone(),
-                                                                               spec: build_spec.clone()
+                                yield RepoWalkerItem::EndOfBuild(WalkedBuild { repo_name,
+                                                                               spec: Arc::clone(build_spec)
                                 })
                             }
                         }
 
                         if self.emit_end_of_markers && !builds.is_empty() {
                             // Report the end of this version (after all its builds)
-                            yield RepoWalkerItem::EndOfVersion(WalkedVersion { repo_name: repo_name.clone(),
-                                                                               ident: version_ident.clone() })
+                            yield RepoWalkerItem::EndOfVersion(WalkedVersion { repo_name,
+                                                                               ident: Arc::clone(&version_ident) })
                         }
                     }
 
                     if self.emit_end_of_markers && !versions.is_empty() {
                         // Report the end of this package (after all its versions)
-                        yield RepoWalkerItem::EndOfPackage(WalkedPackage{ repo_name: repo_name.clone(),
-                                                                          name: package_name.clone() })
+                        yield RepoWalkerItem::EndOfPackage(WalkedPackage{ repo_name,
+                                                                          name: Arc::clone(&package_name) })
                     }
                 }
 
                 if self.emit_end_of_markers && !packages.is_empty() {
                     // Report the end of this repo (after all the packages in it)
-                    yield RepoWalkerItem::EndOfRepo(WalkedRepo { name: repo_name.clone() })
+                    yield RepoWalkerItem::EndOfRepo(WalkedRepo { name: repo_name })
                 }
             }
         })
@@ -779,11 +779,11 @@ impl RepoWalker<'_> {
 /// hits an error.
 ///
 pub struct RepoWalkerBuilder<'a> {
-    // A list of repositories to walk. These must be given to the
-    // constructor, everything else has a default, see new(). There
-    // is no repository filter function because of this.
+    /// A list of repositories to walk. These must be given to the
+    /// constructor, everything else has a default, see new(). There
+    /// is no repository filter function because of this.
     repos: &'a Vec<(String, storage::RepositoryHandle)>,
-    // Filter function settings
+    /// Filter function settings
     package_filter_func: Arc<PackageFilterFunc<'a>>,
     version_filter_func: Arc<VersionFilterFunc<'a>>,
     // TODO: We don't have a use case for this at the moment do we?
@@ -792,26 +792,37 @@ pub struct RepoWalkerBuilder<'a> {
     build_spec_filter_func: Arc<BuildSpecFilterFunc<'a>>,
     component_filter_func: Arc<ComponentFilterFunc<'a>>,
     file_filter_func: Arc<FileFilterFunc<'a>>,
-    // Reporting  controls
+    /// Reporting  controls
     report_on_versions: bool,
     report_on_builds: bool,
-    // Build specific controls
+    /// Build specific controls
     report_src: bool,
     report_deprecated: bool,
     report_embedded: bool,
-    // Below sub-build object reporting controls
+    /// Below sub-build object reporting controls
     report_on_components: bool,
     report_on_files: bool,
-    // Whether to emit end of object level markers, e.g. EndOfVersion
-    // once all the builds have been walked.
+    /// Whether to emit end of object level markers, e.g. EndOfVersion
+    /// once all the builds have been walked.
     end_of_markers: bool,
-    // Whether to turn errors into warning log messages and continue walking
+    /// Whether to turn errors into warning log messages and continue walking
     continue_on_error: bool,
-    // Whether to sort the objects returned from walker
+    /// Whether to sort the objects returned from walker
     sort_objects: bool,
 }
 
 impl<'a> RepoWalkerBuilder<'a> {
+    /// Create a new RepoWalkerBuilder with the given repositories and
+    /// these defaults:
+    /// - no filter functions, so will emit everything it finds except where stated below,
+    /// - it will report on: packages, versions, normal and embedded builds
+    /// - it will not report on /src or deprecated builds
+    /// - it will not report on, or walk, components and files
+    /// - it will not emit EndOf markers
+    /// - it will stop if it encounters an error
+    /// - it will sort the objects i it find before emitting them
+    ///
+    /// Effectively this will walk all the active builds in the repos.
     pub fn new(repos: &'a Vec<(String, storage::RepositoryHandle)>) -> Self {
         Self {
             repos,
