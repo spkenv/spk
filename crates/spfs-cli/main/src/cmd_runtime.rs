@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::path::PathBuf;
+
 use clap::{Args, Subcommand};
 use miette::Result;
 
@@ -10,7 +12,7 @@ use miette::Result;
 #[clap(visible_alias = "rt")]
 pub struct CmdRuntime {
     #[clap(subcommand)]
-    command: Command,
+    pub(crate) command: Command,
 }
 
 impl CmdRuntime {
@@ -34,6 +36,16 @@ impl Command {
             Self::List(cmd) => cmd.run(config).await,
             Self::Prune(cmd) => cmd.run(config).await,
             Self::Remove(cmd) => cmd.run(config).await,
+        }
+    }
+
+    // Helper to get the repos.repo_path for the subcommand
+    pub fn add_proxy_repo_arg(&self) -> &Option<PathBuf> {
+        match self {
+            Self::Info(cmd) => &cmd.repos.add_proxy_repo,
+            Self::List(cmd) => &cmd.repos.add_proxy_repo,
+            Self::Prune(cmd) => &cmd.repos.add_proxy_repo,
+            Self::Remove(cmd) => &cmd.repos.add_proxy_repo,
         }
     }
 }
