@@ -6,6 +6,7 @@ use rstest::rstest;
 
 use super::{Config, Remote, RemoteConfig, RepositoryConfig};
 use crate::storage::RepositoryHandle;
+use crate::storage::fs::NoRenderStore;
 use crate::storage::prelude::*;
 use crate::{get_config, load_config};
 
@@ -41,7 +42,7 @@ async fn test_config_get_remote() {
         .tempdir()
         .unwrap();
     let remote = tmpdir.path().join("remote");
-    let _ = crate::storage::fs::MaybeOpenFsRepository::create(&remote)
+    let _ = crate::storage::fs::MaybeOpenFsRepository::<NoRenderStore>::create(&remote)
         .await
         .unwrap();
 
