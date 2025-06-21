@@ -101,6 +101,7 @@ impl EnvOp {
             spfs::ShellKind::Bash => self.bash_source(),
             spfs::ShellKind::Tcsh => self.tcsh_source(),
             spfs::ShellKind::Powershell => self.powershell_source(),
+            spfs::ShellKind::Nushell => self.nushell_source(),
         }
     }
 
@@ -185,6 +186,17 @@ impl EnvOp {
     /// Construct the powershell source representation for this operation
     pub fn powershell_source(&self) -> String {
         todo!()
+    }
+
+    /// Construct the nushell source representation for this operation
+    pub fn nushell_source(&self) -> String {
+        match self {
+            Self::Append(op) => op.nu_source(),
+            Self::Comment(op) => op.nu_source(),
+            Self::Prepend(op) => op.nu_source(),
+            Self::Priority(op) => op.nu_source(),
+            Self::Set(op) => op.nu_source(),
+        }
     }
 }
 
@@ -419,6 +431,12 @@ impl AppendEnv {
         ]
         .join("\n")
     }
+    pub fn nu_source(&self) -> String {
+        format!(
+            "$env.{} = (\"{}\" | append $env.{}?)",
+            self.append, self.append, self.value
+        )
+    }
 }
 
 /// Adds a comment to the generated environment script
@@ -435,6 +453,10 @@ impl EnvComment {
     /// Construct the tcsh source representation for this operation
     pub fn tcsh_source(&self) -> String {
         // Both bash and tcsh source use the same comment syntax
+        self.bash_source()
+    }
+    pub fn nu_source(&self) -> String {
+        // Nushell use the same comment syntax as bash
         self.bash_source()
     }
 }
@@ -458,6 +480,9 @@ impl EnvPriority {
 
     pub fn priority(&self) -> u8 {
         self.priority
+    }
+    pub fn nu_source(&self) -> String {
+        String::from("")
     }
 }
 
@@ -508,6 +533,12 @@ impl PrependEnv {
         ]
         .join("\n")
     }
+    pub fn nu_source(&self) -> String {
+        format!(
+            "$env.{} = ($env.{}?  | prepend \"{}\")",
+            self.prepend, self.prepend, self.value
+        )
+    }
 }
 
 /// Operates on an environment variable by setting it to a value
@@ -525,5 +556,8 @@ impl SetEnv {
     /// Construct the tcsh source representation for this operation
     pub fn tcsh_source(&self) -> String {
         format!("setenv {} \"{}\"", self.set, self.value)
+    }
+    pub fn nu_source(&self) -> String {
+        format!("$env.{} = \"{}\"", self.set, self.value)
     }
 }

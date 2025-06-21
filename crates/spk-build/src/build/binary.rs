@@ -699,23 +699,29 @@ where
 
         let mut startup_file_csh = startup_dir.join(format!("spk_{}.csh", package.name()));
         let mut startup_file_sh = startup_dir.join(format!("spk_{}.sh", package.name()));
+        let mut startup_file_nu = startup_dir.join(format!("spk_{}.nu", package.name()));
         let mut csh_file = std::fs::File::create(&startup_file_csh)
             .map_err(|err| Error::FileOpenError(startup_file_csh.to_owned(), err))?;
         let mut sh_file = std::fs::File::create(&startup_file_sh)
             .map_err(|err| Error::FileOpenError(startup_file_sh.to_owned(), err))?;
-
+        let mut nu_file = std::fs::File::create(&startup_file_nu)
+            .map_err(|err| Error::FileOpenError(startup_file_nu.to_owned(), err))?;
         for op in ops {
             if let Some(priority) = op.priority() {
                 let original_startup_file_sh_name = startup_file_sh.clone();
                 let original_startup_file_csh_name = startup_file_csh.clone();
+                let original_startup_file_nu_name = startup_file_nu.clone();
 
                 startup_file_sh.set_file_name(format!("{priority:02}_spk_{}.sh", package.name()));
                 startup_file_csh.set_file_name(format!("{priority:02}_spk_{}.csh", package.name()));
+                startup_file_nu.set_file_name(format!("{priority:02}_spk_{}.nu", package.name()));
 
                 std::fs::rename(original_startup_file_sh_name, &startup_file_sh)
                     .map_err(|err| Error::FileWriteError(startup_file_sh.to_owned(), err))?;
                 std::fs::rename(original_startup_file_csh_name, &startup_file_csh)
                     .map_err(|err| Error::FileWriteError(startup_file_csh.to_owned(), err))?;
+                std::fs::rename(original_startup_file_nu_name, &startup_file_nu)
+                    .map_err(|err| Error::FileWriteError(startup_file_nu.to_owned(), err))?;
 
                 continue;
             }
@@ -726,6 +732,9 @@ where
             sh_file
                 .write_fmt(format_args!("{}\n", op.bash_source()))
                 .map_err(|err| Error::FileWriteError(startup_file_sh.to_owned(), err))?;
+            nu_file
+                .write_fmt(format_args!("{}\n", op.nushell_source()))
+                .map_err(|err| Error::FileWriteError(startup_file_nu.to_owned(), err))?;
         }
         Ok(())
     }
