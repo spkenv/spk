@@ -736,7 +736,7 @@ impl RepoWalker<'_> {
 
 // The '# Ok::<(), Box<dyn std::error::Error>>(())' lines below trip
 // 'invalid_html_tags', but we want the example code to compile as
-// doctests. So have to allow invalid html tags here.
+// documentation tests. So have to allow invalid html tags here.
 #[allow(rustdoc::invalid_html_tags)]
 /// A builder for constructing a RepoWalker from various settings.
 ///
