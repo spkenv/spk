@@ -279,7 +279,7 @@ pub struct RepoWalker<'a> {
     /// Whether to turn errors into warning and continue the walking
     /// from the next object instead of stopping when an error occurs.
     continue_on_error: bool,
-    //// Whether to sort objects at each level before walking them.
+    /// Whether to sort objects at each level before walking them.
     sort_objects: bool,
 }
 
@@ -734,13 +734,26 @@ impl RepoWalker<'_> {
     }
 }
 
+// The '# Ok::<(), Box<dyn std::error::Error>>(())' lines below trip
+// 'invalid_html_tags', but we want the example code to compile as
+// doctests. So have to allow invalid html tags here.
+#[allow(rustdoc::invalid_html_tags)]
 /// A builder for constructing a RepoWalker from various settings.
 ///
 /// A default RepoWalker can made with:
+/// ```
+///   # use std::error::Error;
+///   # use futures::executor::block_on;
+///   # use spk_storage::RepositoryHandle;
+///   use spk_storage::RepoWalkerBuilder;
 ///
-///   let repo_walker_builder = RepoWalkerBuilder::new(repos);
-///   let repo_walker = builder.build();
+///   # let local_repo = block_on(spk_storage::local_repository())?;
+///   # let repos = vec!(("local".to_string(), RepositoryHandle::SPFS(local_repo)));
 ///
+///   let repo_walker_builder = RepoWalkerBuilder::new(&repos);
+///   let repo_walker = repo_walker_builder.build();
+///   # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
 /// That makes a RepoWalker that will: walk the given list of
 /// repositories to report on all packages, all versions, all builds
 /// that aren't /src or /deprecated builds, and will emit the package,
@@ -757,20 +770,29 @@ impl RepoWalker<'_> {
 /// RepoWalkerBuilder to configure it before calling build() and
 /// making the RepoWalker, e.g.
 ///
-///   let repo_walker_builder = RepoWalkerBuilder::new(repos);
-///   let repo_walker = builder
-///         .try_with_package_equals(some_package)?
+///   # use std::error::Error;
+///   # use futures::executor::block_on;
+///   # use spk_storage::RepositoryHandle;
+///   use spk_storage::RepoWalkerBuilder;
+///
+///   # let local_repo = block_on(spk_storage::local_repository())?;
+///   # let repos = vec!(("local".to_string(), RepositoryHandle::SPFS(local_repo)));
+///
+///   let repo_walker_builder = RepoWalkerBuilder::new(&repos);
+///   let repo_walker = repo_walker_builder
+///         .try_with_package_equals(&Some("local/python/3.9.7".to_string()))?
 ///         .with_report_on_versions(true)
 ///         .with_report_on_builds(true)
 ///         .with_report_src_builds(true)
 ///         .with_report_deprecated_builds(true)
 ///         .with_report_embedded_builds(false)
 ///         .with_report_on_components(true)
-///         .with_build_options_matching(host_options)
+///         .with_build_options_matching(None)
 ///         .with_report_on_files(true)
-///         .with_file_path(some_file_path)
+///         .with_file_path(Some("lib/python/".to_string()))
 ///         .with_continue_on_error(true)
 ///         .build();
+///   # Ok::<(), Box<dyn std::error::Error>>(())
 ///
 /// That makes a RepoWalker that will: walk down to files, but only
 /// for packages that match the given package identifier. It will
@@ -814,15 +836,15 @@ pub struct RepoWalkerBuilder<'a> {
 impl<'a> RepoWalkerBuilder<'a> {
     /// Create a new RepoWalkerBuilder with the given repositories and
     /// these defaults:
-    /// - no filter functions, so will emit everything it finds except where stated below,
-    /// - it will report on: packages, versions, normal and embedded builds
+    /// - no custom filters, so will emit everything it finds except where stated below,
+    /// - it will report on: packages, versions, and builds (non-embedded and embedded)
     /// - it will not report on /src or deprecated builds
-    /// - it will not report on, or walk, components and files
+    /// - it will not report on, or walk to, components and files
     /// - it will not emit EndOf markers
     /// - it will stop if it encounters an error
-    /// - it will sort the objects i it find before emitting them
+    /// - it will sort the objects it find before emitting them
     ///
-    /// Effectively this will walk all the active builds in the repos.
+    /// Effectively this will walk all the active builds in the given repositories.
     pub fn new(repos: &'a Vec<(String, storage::RepositoryHandle)>) -> Self {
         Self {
             repos,
