@@ -3933,6 +3933,7 @@ dependencies = [
  "spk-cli-group3",
  "spk-cli-group4",
  "spk-cmd-build",
+ "spk-cmd-build-tree",
  "spk-cmd-convert",
  "spk-cmd-debug",
  "spk-cmd-du",
@@ -4124,6 +4125,25 @@ dependencies = [
 
 [[package]]
 name = "spk-cmd-build"
+version = "0.44.0"
+dependencies = [
+ "async-trait",
+ "clap 4.5.0",
+ "miette",
+ "rstest",
+ "serial_test",
+ "spfs",
+ "spk-cli-common",
+ "spk-cmd-make-binary",
+ "spk-cmd-make-source",
+ "spk-schema",
+ "spk-storage",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "spk-cmd-build-tree"
 version = "0.44.0"
 dependencies = [
  "async-trait",

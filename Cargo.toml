@@ -117,6 +117,7 @@ spk-cli-group2 = { path = "crates/spk-cli/group2" }
 spk-cli-group3 = { path = "crates/spk-cli/group3" }
 spk-cli-group4 = { path = "crates/spk-cli/group4" }
 spk-cmd-build = { path = "crates/spk-cli/cmd-build" }
+spk-cmd-build-tree = { path = "crates/spk-cli/cmd-build-tree" }
 spk-cmd-convert = { path = "crates/spk-cli/cmd-convert" }
 spk-cmd-debug = { path = "crates/spk-cli/cmd-debug" }
 spk-cmd-du = { path = "crates/spk-cli/cmd-du" }

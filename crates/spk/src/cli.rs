@@ -17,6 +17,7 @@ use spk_cli_group2::{cmd_ls, cmd_new, cmd_num_variants, cmd_publish, cmd_remove}
 use spk_cli_group3::{cmd_export, cmd_import};
 use spk_cli_group4::{cmd_lint, cmd_search, cmd_version, cmd_view};
 use spk_cmd_build::cmd_build;
+use spk_cmd_build_tree::cmd_build_tree;
 use spk_cmd_convert::cmd_convert;
 use spk_cmd_debug::cmd_debug;
 use spk_cmd_du::cmd_du;
@@ -147,6 +148,7 @@ impl Opt {
 pub enum Command {
     Bake(cmd_bake::Bake),
     Build(cmd_build::Build),
+    BuildTree(cmd_build_tree::BuildTree),
     Completion(cmd_completion::Completion),
     Convert(cmd_convert::Convert),
     Debug(cmd_debug::Debug),
@@ -187,6 +189,7 @@ impl Run for Command {
         match self {
             Command::Bake(cmd) => cmd.run().await,
             Command::Build(cmd) => cmd.run().await.map(Into::into),
+            Command::BuildTree(cmd) => cmd.run().await.map(Into::into),
             Command::Completion(cmd) => cmd.run(Opt::command()),
             Command::Convert(cmd) => cmd.run().await,
             Command::Debug(cmd) => cmd.run().await,
@@ -222,6 +225,7 @@ impl CommandArgs for Command {
         match self {
             Command::Bake(cmd) => cmd.get_positional_args(),
             Command::Build(cmd) => cmd.get_positional_args(),
+            Command::BuildTree(cmd) => cmd.get_positional_args(),
             Command::Convert(cmd) => cmd.get_positional_args(),
             Command::Completion(cmd) => cmd.get_positional_args(),
             Command::Debug(cmd) => cmd.get_positional_args(),

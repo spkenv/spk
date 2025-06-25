@@ -39,6 +39,7 @@ cli = [
     "dep:spk-cli-group3",
     "dep:spk-cli-group4",
     "dep:spk-cmd-build",
+    "dep:spk-cmd-build-tree",
     "dep:spk-cmd-convert",
     "dep:spk-cmd-debug",
     "dep:spk-cmd-du",
@@ -69,6 +70,7 @@ spk-cli-group2 = { workspace = true, optional = true }
 spk-cli-group3 = { workspace = true, optional = true }
 spk-cli-group4 = { workspace = true, optional = true }
 spk-cmd-build = { workspace = true, optional = true }
+spk-cmd-build-tree = { workspace = true, optional = true }
 spk-cmd-convert = { workspace = true, optional = true }
 spk-cmd-debug = { workspace = true, optional = true }
 spk-cmd-du = { workspace = true, optional = true }
