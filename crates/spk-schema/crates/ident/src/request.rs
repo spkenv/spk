@@ -49,7 +49,18 @@ use crate::{BuildIdent, Error, RangeIdent, Result, Satisfy, VersionIdent};
 mod request_test;
 
 #[derive(
-    Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord, Default,
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    Deserialize,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+    Variantly,
 )]
 pub enum PreReleasePolicy {
     #[default]

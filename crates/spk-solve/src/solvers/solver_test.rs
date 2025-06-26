@@ -715,6 +715,34 @@ async fn test_solver_pre_release_config(#[case] mut solver: SolverImpl) {
     assert_resolved!(solution, "my-pkg", "1.0.0-pre.2");
 }
 
+/// Test that the solver can resolve a pre-release version of a package along
+/// with a package that requires it, when the pre-release version is requested
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
+#[tokio::test]
+async fn test_solver_pre_release_config_with_requirements(#[case] mut solver: SolverImpl) {
+    let repo = make_repo!(
+        [
+            {"pkg": "my-pkg/1.0.0-pre.2"},
+            // another package that requires my-pkg; it does not have an
+            // explicit prereleasePolicy
+            {
+                "pkg": "my-tool/1.0.0",
+                "install": {"requirements": [{"pkg": "my-pkg"}]},
+            },
+        ]
+    );
+    let repo = Arc::new(repo);
+
+    solver.add_repository(repo);
+    solver.add_request(request!({"pkg": "my-pkg/=1.0.0-pre.2", "prereleasePolicy": "IncludeAll"}));
+    solver.add_request(request!("my-tool"));
+
+    let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
+    assert_resolved!(solution, "my-pkg", "1.0.0-pre.2");
+}
+
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]

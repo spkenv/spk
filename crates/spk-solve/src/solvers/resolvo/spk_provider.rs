@@ -28,6 +28,7 @@ use spk_schema::ident::{
     LocatedBuildIdent,
     PinnableValue,
     PkgRequest,
+    PreReleasePolicy,
     RangeIdent,
     RequestedBy,
     Satisfy,
@@ -612,6 +613,19 @@ impl SpkProvider {
                         },
                     ));
             let mut pkg_request_with_component = pkg_request.clone();
+            // If this is a package that is allowed to be a prerelease via a
+            // top-level request, then when it appears as a dependency of other
+            // packages it needs to allow prereleases as well (unless it already
+            // has an explicit prerelease policy).
+            if pkg_request_with_component.prerelease_policy.is_none()
+                && self
+                    .global_pkg_requests
+                    .get(pkg_request.pkg.name())
+                    .and_then(|r| r.prerelease_policy)
+                    .is_some_and(|p| p.is_include_all())
+            {
+                pkg_request_with_component.prerelease_policy = Some(PreReleasePolicy::IncludeAll);
+            }
             pkg_request_with_component.pkg.components = BTreeSet::from_iter([component]);
             let dep_vs = self.pool.intern_version_set(
                 dep_name,
