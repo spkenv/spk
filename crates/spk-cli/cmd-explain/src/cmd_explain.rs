@@ -4,7 +4,8 @@
 
 use clap::Args;
 use miette::Result;
-use spk_cli_common::{flags, CommandArgs, Run};
+use spk_cli_common::{CommandArgs, Run, flags};
+use spk_solve::{Solver, SolverMut};
 
 /// Show the resolve process for a set of packages.
 #[derive(Args)]
@@ -18,9 +19,6 @@ pub struct Explain {
 
     #[clap(short, long, global = true, action = clap::ArgAction::Count)]
     pub verbose: u8,
-
-    #[clap(flatten)]
-    pub formatter_settings: flags::DecisionFormatterSettings,
 
     /// The requests to resolve
     #[clap(name = "REQUESTS", required = true)]
@@ -81,11 +79,12 @@ impl Run for Explain {
 
         // Always show the solution packages for the solve
         let formatter = self
-            .formatter_settings
+            .solver
+            .decision_formatter_settings
             .get_formatter_builder(self.verbose + 1)?
             .with_solution(true)
             .build();
-        formatter.run_and_print_resolve(&solver).await?;
+        solver.run_and_print_resolve(&formatter).await?;
 
         Ok(0)
     }

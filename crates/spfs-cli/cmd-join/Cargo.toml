@@ -25,5 +25,5 @@ futures = { workspace = true }
 miette = { workspace = true, features = ["fancy"] }
 spfs = { workspace = true }
 spfs-cli-common = { workspace = true }
-tokio = { version = "1.20", features = ["rt", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
 tracing = { workspace = true }

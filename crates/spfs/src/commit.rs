@@ -15,7 +15,7 @@ use spfs_encoding::prelude::*;
 use super::status::remount_runtime;
 use crate::prelude::*;
 use crate::tracking::{BlobHasher, BlobRead, ManifestBuilder, PathFilter};
-use crate::{encoding, graph, runtime, storage, tracking, Error, Result};
+use crate::{Error, Result, encoding, graph, runtime, storage, tracking};
 
 #[cfg(test)]
 #[path = "./commit_test.rs"]

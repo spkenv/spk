@@ -4,15 +4,15 @@
 
 use std::collections::{BTreeMap, HashSet};
 
+use nom::IResult;
 use nom::branch::alt;
 use nom::character::complete::{char, digit1};
 use nom::combinator::{eof, map, map_res, opt, peek, recognize};
 use nom::error::{ContextError, FromExternalError, ParseError};
 use nom::multi::separated_list1;
 use nom::sequence::{pair, preceded, separated_pair, terminated};
-use nom::IResult;
-use nom_supreme::tag::complete::tag;
 use nom_supreme::tag::TagError;
+use nom_supreme::tag::complete::tag;
 
 use super::separated_list1_with_cut;
 use crate::name::parsing::tag_name;

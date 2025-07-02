@@ -9,14 +9,18 @@ use std::io::Write;
 #[cfg(unix)]
 use std::os::unix::prelude::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::sync::Arc;
 
 use arc_swap::ArcSwap;
+use async_stream::try_stream;
+use chrono::{DateTime, Utc};
+use futures::Stream;
 
+use super::FsHashStore;
 use super::hash_store::PROXY_DIRNAME;
 use super::migrations::{MigrationError, MigrationResult};
-use super::FsHashStore;
-use crate::config::{pathbuf_deserialize_with_tilde_expansion, ToAddress};
+use crate::config::{ToAddress, pathbuf_deserialize_with_tilde_expansion};
 use crate::runtime::makedirs_with_perms;
 use crate::storage::prelude::*;
 use crate::storage::{
@@ -114,6 +118,213 @@ impl Clone for RenderStore {
     }
 }
 
+/// Operations on a FsRepository.
+#[async_trait::async_trait]
+pub trait FsRepositoryOps: Send + Sync {
+    /// True if this repo is setup to generate local manifest renders.
+    fn has_renders(&self) -> bool;
+
+    fn iter_rendered_manifests(
+        &self,
+    ) -> Pin<Box<dyn Stream<Item = Result<crate::encoding::Digest>> + Send + Sync + '_>>;
+
+    fn proxy_path(&self) -> Option<&std::path::Path>;
+
+    /// Remove the identified render from this storage.
+    async fn remove_rendered_manifest(&self, digest: crate::encoding::Digest) -> Result<()>;
+
+    /// Returns true if the render was actually removed
+    async fn remove_rendered_manifest_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: crate::encoding::Digest,
+    ) -> Result<bool>;
+
+    /// Returns a list of the render storage for all the users
+    /// with renders found in the repository, if any.
+    ///
+    /// Returns tuples of (username, `FsRepositoryOps`).
+    fn renders_for_all_users(&self) -> Result<Vec<(String, impl FsRepositoryOps)>>;
+}
+
+#[async_trait::async_trait]
+impl<T> FsRepositoryOps for &T
+where
+    T: FsRepositoryOps,
+{
+    fn has_renders(&self) -> bool {
+        T::has_renders(*self)
+    }
+
+    fn iter_rendered_manifests(
+        &self,
+    ) -> Pin<Box<dyn Stream<Item = Result<crate::encoding::Digest>> + Send + Sync + '_>> {
+        T::iter_rendered_manifests(*self)
+    }
+
+    fn proxy_path(&self) -> Option<&std::path::Path> {
+        T::proxy_path(*self)
+    }
+
+    async fn remove_rendered_manifest(&self, digest: crate::encoding::Digest) -> Result<()> {
+        T::remove_rendered_manifest(*self, digest).await
+    }
+
+    async fn remove_rendered_manifest_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: crate::encoding::Digest,
+    ) -> Result<bool> {
+        T::remove_rendered_manifest_if_older_than(*self, older_than, digest).await
+    }
+
+    fn renders_for_all_users(&self) -> Result<Vec<(String, impl FsRepositoryOps)>> {
+        T::renders_for_all_users(*self)
+    }
+}
+
+/// A pure filesystem-based repository of spfs data.
+#[derive(Clone, Debug)]
+pub struct FsRepository<FS> {
+    pub(crate) fs_impl: Arc<FS>,
+}
+
+impl<FS> std::ops::Deref for FsRepository<FS> {
+    type Target = FS;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.fs_impl
+    }
+}
+
+#[async_trait::async_trait]
+impl<FS> FsRepositoryOps for FsRepository<FS>
+where
+    FS: FsRepositoryOps,
+{
+    fn has_renders(&self) -> bool {
+        self.fs_impl.has_renders()
+    }
+
+    fn iter_rendered_manifests(
+        &self,
+    ) -> Pin<Box<dyn Stream<Item = Result<crate::encoding::Digest>> + Send + Sync + '_>> {
+        self.fs_impl.iter_rendered_manifests()
+    }
+
+    fn proxy_path(&self) -> Option<&std::path::Path> {
+        self.fs_impl.proxy_path()
+    }
+
+    async fn remove_rendered_manifest(&self, digest: crate::encoding::Digest) -> Result<()> {
+        self.fs_impl.remove_rendered_manifest(digest).await
+    }
+
+    async fn remove_rendered_manifest_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: crate::encoding::Digest,
+    ) -> Result<bool> {
+        self.fs_impl
+            .remove_rendered_manifest_if_older_than(older_than, digest)
+            .await
+    }
+
+    fn renders_for_all_users(&self) -> Result<Vec<(String, impl FsRepositoryOps)>> {
+        self.fs_impl.renders_for_all_users()
+    }
+}
+
+impl<FS> Address for FsRepository<FS>
+where
+    FS: Address,
+{
+    fn address(&self) -> Cow<'_, url::Url> {
+        self.fs_impl.address()
+    }
+}
+
+impl<FS> LocalRepository for FsRepository<FS>
+where
+    FS: LocalRepository,
+{
+    fn payloads(&self) -> &FsHashStore {
+        self.fs_impl.payloads()
+    }
+
+    fn render_store(&self) -> Result<&RenderStore> {
+        self.fs_impl.render_store()
+    }
+}
+
+pub type MaybeOpenFsRepository = FsRepository<MaybeOpenFsRepositoryImpl>;
+pub type OpenFsRepository = FsRepository<OpenFsRepositoryImpl>;
+
+impl MaybeOpenFsRepository {
+    /// Get the opened version of this repository, performing
+    /// any required opening and validation as needed
+    pub fn opened(&self) -> impl futures::Future<Output = Result<OpenFsRepository>> + 'static {
+        let fs_impl = Arc::clone(&self.fs_impl);
+        async move {
+            let fs_impl = fs_impl
+                .opened_and_map_err(Error::failed_to_open_repository)
+                .await?;
+            Ok(OpenFsRepository { fs_impl })
+        }
+    }
+
+    /// Open a filesystem repository, creating it if necessary
+    pub async fn create<P: AsRef<Path>>(root: P) -> OpenRepositoryResult<Self> {
+        MaybeOpenFsRepositoryImpl::create(root)
+            .await
+            .map(Into::into)
+            .map(|fs_impl| FsRepository { fs_impl })
+    }
+}
+
+#[async_trait::async_trait]
+impl FromConfig for MaybeOpenFsRepository {
+    type Config = Config;
+
+    async fn from_config(config: Self::Config) -> crate::storage::OpenRepositoryResult<Self> {
+        MaybeOpenFsRepositoryImpl::from_config(config)
+            .await
+            .map(Into::into)
+            .map(|fs_impl| FsRepository { fs_impl })
+    }
+}
+
+impl OpenFsRepository {
+    /// Establish a new filesystem repository
+    pub async fn create<P: AsRef<Path>>(root: P) -> OpenRepositoryResult<Self> {
+        OpenFsRepositoryImpl::create(root)
+            .await
+            .map(Into::into)
+            .map(|fs_impl| FsRepository { fs_impl })
+    }
+}
+
+impl From<OpenFsRepository> for MaybeOpenFsRepository {
+    fn from(value: OpenFsRepository) -> Self {
+        MaybeOpenFsRepository {
+            fs_impl: Arc::new(MaybeOpenFsRepositoryImpl(Arc::new(ArcSwap::new(Arc::new(
+                InnerFsRepository::Open(value.fs_impl),
+            ))))),
+        }
+    }
+}
+
+impl From<Arc<OpenFsRepository>> for MaybeOpenFsRepository {
+    fn from(value: Arc<OpenFsRepository>) -> Self {
+        MaybeOpenFsRepository {
+            fs_impl: Arc::new(MaybeOpenFsRepositoryImpl(Arc::new(ArcSwap::new(Arc::new(
+                InnerFsRepository::Open(Arc::clone(&value.fs_impl)),
+            ))))),
+        }
+    }
+}
+
 /// A pure filesystem-based repository of spfs data.
 ///
 /// This instance can be already validated and open or
@@ -122,21 +333,21 @@ impl Clone for RenderStore {
 /// An [`OpenFsRepository`] is more useful than this one, but
 /// can also be easily retrieved via the [`Self::opened`].
 #[derive(Clone)]
-pub struct FsRepository(Arc<ArcSwap<InnerFsRepository>>);
+pub struct MaybeOpenFsRepositoryImpl(Arc<ArcSwap<InnerFsRepository>>);
 
 enum InnerFsRepository {
     Closed(Config),
-    Open(Arc<OpenFsRepository>),
+    Open(Arc<OpenFsRepositoryImpl>),
 }
 
-impl From<OpenFsRepository> for FsRepository {
-    fn from(value: OpenFsRepository) -> Self {
+impl From<OpenFsRepositoryImpl> for MaybeOpenFsRepositoryImpl {
+    fn from(value: OpenFsRepositoryImpl) -> Self {
         Arc::new(value).into()
     }
 }
 
-impl From<Arc<OpenFsRepository>> for FsRepository {
-    fn from(value: Arc<OpenFsRepository>) -> Self {
+impl From<Arc<OpenFsRepositoryImpl>> for MaybeOpenFsRepositoryImpl {
+    fn from(value: Arc<OpenFsRepositoryImpl>) -> Self {
         Self(Arc::new(ArcSwap::new(Arc::new(InnerFsRepository::Open(
             value,
         )))))
@@ -144,7 +355,7 @@ impl From<Arc<OpenFsRepository>> for FsRepository {
 }
 
 #[async_trait::async_trait]
-impl FromConfig for FsRepository {
+impl FromConfig for MaybeOpenFsRepositoryImpl {
     type Config = Config;
 
     async fn from_config(config: Self::Config) -> crate::storage::OpenRepositoryResult<Self> {
@@ -153,16 +364,16 @@ impl FromConfig for FsRepository {
                 InnerFsRepository::Closed(config),
             )))))
         } else {
-            Ok(OpenFsRepository::from_config(config).await?.into())
+            Ok(OpenFsRepositoryImpl::from_config(config).await?.into())
         }
     }
 }
 
-impl FsRepository {
+impl MaybeOpenFsRepositoryImpl {
     /// Open a filesystem repository, creating it if necessary
     pub async fn create<P: AsRef<Path>>(root: P) -> OpenRepositoryResult<Self> {
         Ok(Self(Arc::new(ArcSwap::new(Arc::new(
-            InnerFsRepository::Open(Arc::new(OpenFsRepository::create(root).await?)),
+            InnerFsRepository::Open(Arc::new(OpenFsRepositoryImpl::create(root).await?)),
         )))))
     }
 
@@ -171,13 +382,15 @@ impl FsRepository {
     pub async fn open<P: AsRef<Path>>(root: P) -> OpenRepositoryResult<Self> {
         let root = root.as_ref();
         Ok(Self(Arc::new(ArcSwap::new(Arc::new(
-            InnerFsRepository::Open(Arc::new(OpenFsRepository::open(&root).await?)),
+            InnerFsRepository::Open(Arc::new(OpenFsRepositoryImpl::open(&root).await?)),
         )))))
     }
 
     /// Get the opened version of this repository, performing
     /// any required opening and validation as needed
-    pub fn opened(&self) -> impl futures::Future<Output = Result<Arc<OpenFsRepository>>> + 'static {
+    pub fn opened(
+        &self,
+    ) -> impl futures::Future<Output = Result<Arc<OpenFsRepositoryImpl>>> + 'static {
         self.opened_and_map_err(Error::failed_to_open_repository)
     }
 
@@ -185,14 +398,15 @@ impl FsRepository {
     /// any required opening and validation as needed
     pub fn try_open(
         &self,
-    ) -> impl futures::Future<Output = OpenRepositoryResult<Arc<OpenFsRepository>>> + 'static {
+    ) -> impl futures::Future<Output = OpenRepositoryResult<Arc<OpenFsRepositoryImpl>>> + 'static
+    {
         self.opened_and_map_err(|_, e| e)
     }
 
     fn opened_and_map_err<F, E>(
         &self,
         map: F,
-    ) -> impl futures::Future<Output = std::result::Result<Arc<OpenFsRepository>, E>> + 'static
+    ) -> impl futures::Future<Output = std::result::Result<Arc<OpenFsRepositoryImpl>, E>> + 'static
     where
         F: FnOnce(&Self, OpenRepositoryError) -> E + 'static,
     {
@@ -201,7 +415,7 @@ impl FsRepository {
             match &**inner.load() {
                 InnerFsRepository::Closed(config) => {
                     let config = config.clone();
-                    let opened = match OpenFsRepository::from_config(config).await {
+                    let opened = match OpenFsRepositoryImpl::from_config(config).await {
                         Ok(o) => Arc::new(o),
                         Err(err) => return Err(map(&Self(inner), err)),
                     };
@@ -258,20 +472,20 @@ impl FsRepository {
     }
 }
 
-impl Address for FsRepository {
+impl Address for MaybeOpenFsRepositoryImpl {
     fn address(&self) -> Cow<'_, url::Url> {
         Cow::Owned(url::Url::from_directory_path(self.root()).unwrap())
     }
 }
 
-impl std::fmt::Debug for FsRepository {
+impl std::fmt::Debug for MaybeOpenFsRepositoryImpl {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("FsRepository @ {:?}", self.root()))
     }
 }
 
 /// A validated and opened fs repository.
-pub struct OpenFsRepository {
+pub struct OpenFsRepositoryImpl {
     root: PathBuf,
     /// the namespace to use for tag resolution. If set, then this is treated
     /// as "chroot" of the real tag root.
@@ -285,7 +499,7 @@ pub struct OpenFsRepository {
 }
 
 #[async_trait::async_trait]
-impl FromConfig for OpenFsRepository {
+impl FromConfig for OpenFsRepositoryImpl {
     type Config = Config;
 
     async fn from_config(config: Self::Config) -> crate::storage::OpenRepositoryResult<Self> {
@@ -301,7 +515,7 @@ impl FromConfig for OpenFsRepository {
     }
 }
 
-impl Clone for OpenFsRepository {
+impl Clone for OpenFsRepositoryImpl {
     fn clone(&self) -> Self {
         let root = self.root.clone();
         Self {
@@ -314,7 +528,7 @@ impl Clone for OpenFsRepository {
     }
 }
 
-impl LocalRepository for OpenFsRepository {
+impl LocalRepository for OpenFsRepositoryImpl {
     #[inline]
     fn payloads(&self) -> &FsHashStore {
         &self.payloads
@@ -328,7 +542,7 @@ impl LocalRepository for OpenFsRepository {
     }
 }
 
-impl OpenFsRepository {
+impl OpenFsRepositoryImpl {
     /// The address of this repository that can be used to re-open it
     pub fn address(&self) -> url::Url {
         Config {
@@ -341,11 +555,6 @@ impl OpenFsRepository {
         }
         .to_address()
         .expect("repository address is valid")
-    }
-
-    /// The filesystem root path of this repository
-    pub fn root(&self) -> PathBuf {
-        self.root.clone()
     }
 
     /// Establish a new filesystem repository
@@ -386,19 +595,27 @@ impl OpenFsRepository {
         unsafe { Self::open_unchecked(root) }
     }
 
+    pub(crate) fn get_render_storage(&self) -> Result<&crate::storage::fs::FsHashStore> {
+        match &self.renders {
+            Some(render_store) => Ok(&render_store.renders),
+            None => Err(Error::NoRenderStorage(self.address())),
+        }
+    }
+
     /// Return the configured tag namespace, if any.
     #[inline]
     pub fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
         self.tag_namespace.as_deref().map(Cow::Borrowed)
     }
 
-    /// Set the configured tag namespace, returning the old tag namespace,
-    /// if there was one.
-    pub fn set_tag_namespace(
-        &mut self,
-        tag_namespace: Option<TagNamespaceBuf>,
-    ) -> Option<TagNamespaceBuf> {
-        std::mem::replace(&mut self.tag_namespace, tag_namespace)
+    /// The latest repository version that this was migrated to.
+    pub async fn last_migration(&self) -> MigrationResult<semver::Version> {
+        Ok(read_last_migration_version(self.root())
+            .await?
+            .unwrap_or_else(|| {
+                semver::Version::parse(crate::VERSION)
+                    .expect("crate::VERSION is a valid semver value")
+            }))
     }
 
     // Open a repository over the given directory, which must already
@@ -454,14 +671,9 @@ impl OpenFsRepository {
         })
     }
 
-    /// The latest repository version that this was migrated to.
-    pub async fn last_migration(&self) -> MigrationResult<semver::Version> {
-        Ok(read_last_migration_version(self.root())
-            .await?
-            .unwrap_or_else(|| {
-                semver::Version::parse(crate::VERSION)
-                    .expect("crate::VERSION is a valid semver value")
-            }))
+    /// The filesystem root path of this repository
+    pub fn root(&self) -> PathBuf {
+        self.root.clone()
     }
 
     /// Sets the latest version of this repository.
@@ -471,16 +683,97 @@ impl OpenFsRepository {
         set_last_migration(self.root(), Some(version)).await
     }
 
+    /// Set the configured tag namespace, returning the old tag namespace,
+    /// if there was one.
+    pub fn set_tag_namespace(
+        &mut self,
+        tag_namespace: Option<TagNamespaceBuf>,
+    ) -> Option<TagNamespaceBuf> {
+        std::mem::replace(&mut self.tag_namespace, tag_namespace)
+    }
+}
+
+#[async_trait::async_trait]
+impl FsRepositoryOps for OpenFsRepositoryImpl {
     /// True if this repo is setup to generate local manifest renders.
-    pub fn has_renders(&self) -> bool {
+    fn has_renders(&self) -> bool {
         self.renders.is_some()
+    }
+
+    fn iter_rendered_manifests(
+        &self,
+    ) -> Pin<Box<dyn Stream<Item = Result<crate::encoding::Digest>> + Send + Sync + '_>> {
+        Box::pin(try_stream! {
+            let renders = self.get_render_storage()?;
+            for await digest in renders.iter() {
+                yield digest?;
+            }
+        })
+    }
+
+    fn proxy_path(&self) -> Option<&std::path::Path> {
+        self.renders
+            .as_ref()
+            .map(|render_store| render_store.proxy.root())
+    }
+
+    async fn remove_rendered_manifest(&self, digest: crate::encoding::Digest) -> Result<()> {
+        let renders = match &self.renders {
+            Some(render_store) => &render_store.renders,
+            None => return Ok(()),
+        };
+        let rendered_dirpath = renders.build_digest_path(&digest);
+        let workdir = renders.workdir();
+        makedirs_with_perms(&workdir, renders.directory_permissions).map_err(|source| {
+            Error::StorageWriteError("remove render create workdir", workdir.clone(), source)
+        })?;
+        OpenFsRepository::remove_dir_atomically(&rendered_dirpath, &workdir).await
+    }
+
+    async fn remove_rendered_manifest_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: crate::encoding::Digest,
+    ) -> Result<bool> {
+        let renders = match &self.renders {
+            Some(render_store) => &render_store.renders,
+            None => return Ok(false),
+        };
+        let rendered_dirpath = renders.build_digest_path(&digest);
+
+        let metadata = match tokio::fs::symlink_metadata(&rendered_dirpath).await {
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+            Err(err) => {
+                return Err(Error::StorageReadError(
+                    "symlink_metadata on rendered dir path",
+                    rendered_dirpath.clone(),
+                    err,
+                ));
+            }
+            Ok(metadata) => metadata,
+        };
+
+        let mtime = metadata.modified().map_err(|err| {
+            Error::StorageReadError(
+                "modified on symlink metadata of rendered dir path",
+                rendered_dirpath.clone(),
+                err,
+            )
+        })?;
+
+        if DateTime::<Utc>::from(mtime) >= older_than {
+            return Ok(false);
+        }
+
+        self.remove_rendered_manifest(digest).await?;
+        Ok(true)
     }
 
     /// Returns a list of the render storage for all the users
     /// with renders found in the repository, if any.
     ///
     /// Returns tuples of (username, `ManifestViewer`).
-    pub fn renders_for_all_users(&self) -> Result<Vec<(String, Self)>> {
+    fn renders_for_all_users(&self) -> Result<Vec<(String, impl FsRepositoryOps)>> {
         if !self.has_renders() {
             return Ok(Vec::new());
         }
@@ -530,15 +823,15 @@ impl OpenFsRepository {
     }
 }
 
-impl Address for OpenFsRepository {
+impl Address for OpenFsRepositoryImpl {
     fn address(&self) -> Cow<'_, url::Url> {
         Cow::Owned(url::Url::from_directory_path(self.root()).unwrap())
     }
 }
 
-impl std::fmt::Debug for OpenFsRepository {
+impl std::fmt::Debug for OpenFsRepositoryImpl {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("OpenFsRepository @ {:?}", self.root()))
+        f.write_fmt(format_args!("OpenFsRepositoryImpl @ {:?}", self.root()))
     }
 }
 
@@ -558,7 +851,7 @@ pub async fn read_last_migration_version<P: AsRef<Path>>(
                     "read_to_string on last migration version",
                     version_file,
                     err,
-                ))
+                ));
             }
         },
     };

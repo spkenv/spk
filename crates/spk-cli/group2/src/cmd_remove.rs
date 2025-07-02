@@ -8,16 +8,12 @@ use clap::Args;
 use colored::Colorize;
 use itertools::Itertools;
 use miette::{IntoDiagnostic, Result};
-use spk_cli_common::{flags, CommandArgs, Run};
+use spk_cli_common::{CommandArgs, Run, flags};
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::ident::parse_ident;
 use spk_schema::spec_ops::WithVersion;
 use spk_schema::{BuildIdent, VersionIdent};
 use spk_storage as storage;
-
-#[cfg(test)]
-#[path = "./cmd_remove_test.rs"]
-mod cmd_remove_test;
 
 /// Remove a package from a repository
 #[derive(Args)]

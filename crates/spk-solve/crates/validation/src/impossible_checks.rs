@@ -3,8 +3,8 @@
 // https://github.com/spkenv/spk
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use dashmap::DashMap;
 use futures::stream::{FuturesUnordered, StreamExt};
@@ -650,7 +650,8 @@ impl GetMergedRequest for PotentialPackageRequest<'_> {
             Ok(self.package_request.clone())
         } else {
             Err(GetMergedRequestError::NoRequestFor(format!(
-                "No requests for '{name}' [INTERNAL ERROR - impossible check validation only looking at a request for: {}]", self.package_request.pkg.name()
+                "No requests for '{name}' [INTERNAL ERROR - impossible check validation only looking at a request for: {}]",
+                self.package_request.pkg.name()
             )))
         }
     }

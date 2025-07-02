@@ -5,7 +5,7 @@
 use std::convert::{TryFrom, TryInto};
 use std::ops::Not;
 
-use crate::{encoding, graph, storage, tracking, Error, Result};
+use crate::{Error, Result, encoding, graph, storage, tracking};
 
 pub(crate) fn convert_to_datetime(
     source: Option<super::DateTime>,
@@ -434,7 +434,7 @@ impl From<&storage::EntryType> for super::ls_tags_response::Entry {
                     super::ls_tags_response::entry::Kind::Folder(e.to_owned())
                 }
                 storage::EntryType::Namespace(e) => {
-                    super::ls_tags_response::entry::Kind::Namespace(e.to_owned())
+                    super::ls_tags_response::entry::Kind::Namespace(e.to_string())
                 }
                 storage::EntryType::Tag(e) => {
                     super::ls_tags_response::entry::Kind::Tag(e.to_owned())
@@ -453,7 +453,7 @@ impl TryFrom<super::ls_tags_response::Entry> for storage::EntryType {
                     Ok(storage::EntryType::Folder(e))
                 }
                 super::ls_tags_response::entry::Kind::Namespace(e) => {
-                    Ok(storage::EntryType::Namespace(e))
+                    Ok(storage::EntryType::Namespace(e.into()))
                 }
                 super::ls_tags_response::entry::Kind::Tag(e) => Ok(storage::EntryType::Tag(e)),
             },

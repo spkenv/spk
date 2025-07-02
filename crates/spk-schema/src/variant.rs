@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use std::fmt::Write;
 
 use spk_schema_foundation::format::FormatOptionMap;
-use spk_schema_foundation::option_map::{OptionMap, HOST_OPTIONS};
+use spk_schema_foundation::option_map::{HOST_OPTIONS, OptionMap};
 
 use crate::{RequirementsList, Result};
 
@@ -156,7 +156,7 @@ impl<V: Variant> std::fmt::Display for Override<V> {
         f.write_str(&self.options().format_option_map())?;
         let requirements = self.additional_requirements();
         f.write_fmt(format_args!("{br}Additional Requirements:"))?;
-        if requirements.len() > 0 {
+        if !requirements.is_empty() {
             for request in requirements.iter() {
                 f.write_char(br)?;
                 f.write_str(pad)?;

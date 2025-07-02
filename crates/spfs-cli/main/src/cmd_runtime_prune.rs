@@ -124,7 +124,10 @@ impl CmdRuntimePrune {
                     if runtime.is_durable() {
                         // Durable runtimes are not considered trash
                         // runtimes, they are not suitable for pruning.
-                        tracing::info!("Won't delete {}, the runtime is durable. Use `spk runtime rm` to delete it.", runtime.name());
+                        tracing::info!(
+                            "Won't delete {}, the runtime is durable. Use `spk runtime rm` to delete it.",
+                            runtime.name()
+                        );
                         continue;
                     }
 

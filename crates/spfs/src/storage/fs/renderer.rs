@@ -19,14 +19,14 @@ use tokio::sync::Semaphore;
 
 use crate::prelude::*;
 use crate::runtime::makedirs_with_perms;
+use crate::storage::LocalRepository;
 use crate::storage::fs::{
     ManifestRenderPath,
     OpenFsRepository,
     RenderReporter,
     SilentRenderReporter,
 };
-use crate::storage::LocalRepository;
-use crate::{encoding, graph, tracking, Error, OsError, Result};
+use crate::{Error, OsError, Result, encoding, graph, tracking};
 
 #[cfg(test)]
 #[path = "./renderer_test.rs"]
@@ -40,18 +40,44 @@ pub const DEFAULT_MAX_CONCURRENT_BLOBS: usize = 100;
 /// See: [`Renderer::with_max_concurrent_branches`]
 pub const DEFAULT_MAX_CONCURRENT_BRANCHES: usize = 5;
 
+/// Render type options available to command line commands.
 #[derive(Debug, Copy, Clone, strum::EnumString, strum::VariantNames, strum::IntoStaticStr)]
-pub enum RenderType {
+pub enum CliRenderType {
     HardLink,
     HardLinkNoProxy,
     Copy,
+}
+
+#[derive(Debug, Default, Copy, Clone)]
+pub enum HardLinkRenderType {
+    #[default]
+    WithProxy,
+    WithoutProxy,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum RenderType {
+    HardLink(HardLinkRenderType),
+    Copy,
+}
+
+impl From<CliRenderType> for RenderType {
+    fn from(cli_render_type: CliRenderType) -> Self {
+        match cli_render_type {
+            CliRenderType::HardLink => RenderType::HardLink(HardLinkRenderType::WithProxy),
+            CliRenderType::HardLinkNoProxy => {
+                RenderType::HardLink(HardLinkRenderType::WithoutProxy)
+            }
+            CliRenderType::Copy => RenderType::Copy,
+        }
+    }
 }
 
 impl OpenFsRepository {
     fn get_render_storage(&self) -> Result<&crate::storage::fs::FsHashStore> {
         match &self.renders {
             Some(render_store) => Ok(&render_store.renders),
-            None => Err(Error::NoRenderStorage(self.address())),
+            None => Err(Error::NoRenderStorage(self.address().into_owned())),
         }
     }
 
@@ -76,7 +102,8 @@ impl OpenFsRepository {
     }
 
     pub fn proxy_path(&self) -> Option<&std::path::Path> {
-        self.renders
+        self.fs_impl
+            .renders
             .as_ref()
             .map(|render_store| render_store.proxy.root())
     }
@@ -135,7 +162,7 @@ impl OpenFsRepository {
                     "symlink_metadata on rendered dir path",
                     rendered_dirpath.clone(),
                     err,
-                ))
+                ));
             }
             Ok(metadata) => metadata,
         };
@@ -337,7 +364,7 @@ where
         self.render_manifest_into_dir(
             manifest,
             &working_dir,
-            render_type.unwrap_or(RenderType::HardLink),
+            render_type.unwrap_or(RenderType::HardLink(HardLinkRenderType::default())),
         )
         .await
         .map_err(|err| {
@@ -368,7 +395,7 @@ where
                         "rename on render",
                         rendered_dirpath,
                         err,
-                    ))
+                    ));
                 }
             },
         }

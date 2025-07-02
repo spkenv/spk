@@ -3,7 +3,7 @@
 // https://github.com/spkenv/spk
 
 use clap::Args;
-use miette::Result;
+use miette::{IntoDiagnostic, Result};
 use spfs_cli_common as cli;
 
 /// Start an spfs server
@@ -42,37 +42,65 @@ impl CmdServer {
 
         let payload_service =
             spfs::server::PayloadService::new(repo.clone(), self.payloads_root.clone());
-        let http_server = {
-            let payload_service = payload_service.clone();
-            hyper::Server::bind(&self.http_address).serve(hyper::service::make_service_fn(
-                move |_| {
-                    let s = payload_service.clone();
-                    async move { Ok::<_, std::convert::Infallible>(s) }
-                },
-            ))
-        };
-        let http_future = http_server.with_graceful_shutdown(async {
-            if let Err(err) = tokio::signal::ctrl_c().await {
-                tracing::error!(?err, "Failed to setup graceful shutdown handler");
-            };
-            tracing::info!("shutting down http server...");
-        });
         let grpc_future = tonic::transport::Server::builder()
             .add_service(spfs::server::Repository::new_srv())
             .add_service(spfs::server::TagService::new_srv(repo.clone()))
             .add_service(spfs::server::DatabaseService::new_srv(repo))
-            .add_service(payload_service.into_srv())
+            .add_service(payload_service.clone().into_srv())
             .serve_with_shutdown(self.grpc_address, async {
                 if let Err(err) = tokio::signal::ctrl_c().await {
                     tracing::error!(?err, "Failed to setup graceful shutdown handler");
                 };
                 tracing::info!("shutting down gRPC server...");
             });
+        let http_listener = tokio::net::TcpListener::bind(self.http_address)
+            .await
+            .into_diagnostic()?;
+        let (shutdown_tx, mut shutdown_rx) = tokio::sync::oneshot::channel();
+        tokio::task::spawn(async move {
+            if let Err(err) = tokio::signal::ctrl_c().await {
+                tracing::error!(?err, "failed to setup graceful shutdown handler");
+            } else {
+                tracing::info!("shutting down HTTP server...");
+                shutdown_tx.send(()).ok();
+            }
+        });
+        let http_future = async move {
+            loop {
+                let conn = tokio::select! {
+                    conn = http_listener.accept() => conn,
+                    _ = &mut shutdown_rx => {
+                        break;
+                    }
+                };
+                let stream = match conn {
+                    Ok((stream, _)) => {
+                        tracing::debug!("Accepted connection from {:?}", stream.peer_addr());
+                        stream
+                    }
+                    Err(err) => {
+                        tracing::error!("Error accepting connection: {:?}", err);
+                        continue;
+                    }
+                };
+                let io = hyper_util::rt::TokioIo::new(stream);
+                let service = payload_service.clone();
+                tokio::task::spawn(async move {
+                    if let Err(err) = hyper::server::conn::http1::Builder::new()
+                        .serve_connection(io, service)
+                        .await
+                    {
+                        tracing::error!("Error serving connection: {:?}", err);
+                    }
+                });
+            }
+            Result::<(), miette::Report>::Ok(())
+        };
         tracing::info!("listening on: {}, {}", self.grpc_address, self.http_address);
 
         // TODO: stop the other server when one fails so that
         // the process can exit
-        let (grpc_result, http_result) = tokio::join!(grpc_future, http_future,);
+        let (grpc_result, http_result) = tokio::join!(grpc_future, http_future);
         if let Err(err) = grpc_result {
             tracing::error!("gRPC server failed: {:?}", err);
         }

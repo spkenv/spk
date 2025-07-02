@@ -15,17 +15,17 @@ use itertools::Itertools;
 use self::intersection::{CombineWith, ValidRange};
 use crate::spec_ops::Versioned;
 use crate::version::{
-    get_version_position_label,
     CompatRule,
     Compatibility,
     IncompatibleReason,
     RangeSupersetProblem,
+    VERSION_SEP,
     Version,
     VersionForClause,
     VersionNotDifferentProblem,
     VersionNotEqualProblem,
     VersionRangeProblem,
-    VERSION_SEP,
+    get_version_position_label,
 };
 
 mod error;
@@ -576,8 +576,14 @@ pub struct LowestSpecifiedRange {
 impl LowestSpecifiedRange {
     pub const REQUIRED_NUMBER_OF_DIGITS: usize = 2;
 
-    pub fn new(specified: usize, base: Version) -> Self {
-        Self { specified, base }
+    pub fn new(mut base: Version) -> Self {
+        while base.parts.len() < Self::REQUIRED_NUMBER_OF_DIGITS {
+            base.parts.push(0);
+        }
+        Self {
+            specified: base.parts.len(),
+            base,
+        }
     }
 }
 
@@ -1456,6 +1462,25 @@ impl FromStr for VersionFilter {
                 nom::Err::Error(e) | nom::Err::Failure(e) => Error::String(convert_error(range, e)),
                 nom::Err::Incomplete(_) => unreachable!(),
             })
+    }
+}
+
+impl<'de> serde::de::Deserialize<'de> for VersionFilter {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = String::deserialize(deserializer)?;
+        Self::from_str(&raw).map_err(serde::de::Error::custom)
+    }
+}
+
+impl serde::ser::Serialize for VersionFilter {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
     }
 }
 

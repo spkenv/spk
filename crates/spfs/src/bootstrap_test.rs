@@ -12,19 +12,15 @@ use crate::fixtures::*;
 use crate::resolve::which;
 use crate::runtime;
 
-#[rstest(
-    shell,
-    startup_script,
-    startup_cmd,
-    case("bash", "test.sh", "echo hi; export TEST_VALUE='spfs-test-value'"),
-    case("tcsh", "test.csh", "echo hi; setenv TEST_VALUE 'spfs-test-value'")
-)]
+#[rstest]
+#[case::bash("bash", "test.sh", "echo hi; export TEST_VALUE='spfs-test-value'")]
+#[case::tcsh("tcsh", "test.csh", "echo hi; setenv TEST_VALUE 'spfs-test-value'")]
 #[tokio::test]
 #[serial_test::serial(env)] // env and config manipulation must be reliable
 async fn test_shell_initialization_startup_scripts(
-    shell: &str,
-    startup_script: &str,
-    startup_cmd: &str,
+    #[case] shell: &str,
+    #[case] startup_script: &str,
+    #[case] startup_cmd: &str,
     tmpdir: tempfile::TempDir,
 ) {
     init_logging();
@@ -37,7 +33,7 @@ async fn test_shell_initialization_startup_scripts(
     };
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::FsRepository::create(&root)
+        crate::storage::fs::MaybeOpenFsRepository::create(&root)
             .await
             .unwrap(),
     );
@@ -57,7 +53,7 @@ async fn test_shell_initialization_startup_scripts(
 
     let tmp_startup_dir = tmpdir.path().join("startup.d");
     std::fs::create_dir(&tmp_startup_dir).unwrap();
-    rt.ensure_startup_scripts(None).unwrap();
+    rt.ensure_startup_scripts(&[]).unwrap();
     for startup_script in &[&rt.config.sh_startup_file, &rt.config.csh_startup_file] {
         let mut cmd = Command::new("sed");
         cmd.arg("-i");
@@ -72,7 +68,11 @@ async fn test_shell_initialization_startup_scripts(
 
     std::fs::write(tmp_startup_dir.join(startup_script), startup_cmd).unwrap();
 
-    std::env::set_var("SHELL", &shell_path);
+    // Safety: this is unsafe. serial_test is used to prevent multiple tests
+    // from changing the environment at the same time.
+    unsafe {
+        std::env::set_var("SHELL", &shell_path);
+    }
 
     match crate::Shell::find_best(None).unwrap() {
         #[cfg(unix)]
@@ -99,10 +99,15 @@ async fn test_shell_initialization_startup_scripts(
     assert!(out.stdout.ends_with("spfs-test-value\n".as_bytes()));
 }
 
-#[rstest(shell, case("bash"), case("tcsh"))]
+#[rstest]
+#[case::bash("bash")]
+#[case::tcsh("tcsh")]
 #[tokio::test]
 #[serial_test::serial(env)] // env and config manipulation must be reliable
-async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempfile::TempDir) {
+async fn test_shell_initialization_no_startup_scripts(
+    #[case] shell: &str,
+    tmpdir: tempfile::TempDir,
+) {
     init_logging();
     let shell_path = match which(shell) {
         Some(path) => path,
@@ -113,7 +118,7 @@ async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempf
     };
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::FsRepository::create(&root)
+        crate::storage::fs::MaybeOpenFsRepository::create(&root)
             .await
             .unwrap(),
     );
@@ -131,7 +136,7 @@ async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempf
 
     let tmp_startup_dir = tmpdir.path().join("startup.d");
     std::fs::create_dir(&tmp_startup_dir).unwrap();
-    rt.ensure_startup_scripts(None).unwrap();
+    rt.ensure_startup_scripts(&[]).unwrap();
     for startup_script in &[&rt.config.sh_startup_file, &rt.config.csh_startup_file] {
         let mut cmd = Command::new("sed");
         cmd.arg("-i");
@@ -144,7 +149,11 @@ async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempf
         println!("{:?}", cmd.output().unwrap());
     }
 
-    std::env::set_var("SHELL", &shell_path);
+    // Safety: this is unsafe. serial_test is used to prevent multiple tests
+    // from changing the environment at the same time.
+    unsafe {
+        std::env::set_var("SHELL", &shell_path);
+    }
     let cmd = build_shell_initialized_command(&rt, None, "echo", Option::<OsString>::None).unwrap();
     let mut cmd = cmd.into_std();
     setenv(&mut cmd);
@@ -154,15 +163,21 @@ async fn test_shell_initialization_no_startup_scripts(shell: &str, tmpdir: tempf
 }
 
 #[cfg(unix)]
-#[rstest(shell, case("bash"), case("tcsh"))]
+#[rstest]
+#[case::bash("bash")]
+#[case::tcsh("tcsh")]
 #[tokio::test]
 #[serial_test::serial(env)] // env manipulation must be reliable
-async fn test_find_alternate_bash(shell: &str, tmpdir: tempfile::TempDir) {
+async fn test_find_alternate_bash(#[case] shell: &str, tmpdir: tempfile::TempDir) {
     init_logging();
     let original_path = std::env::var("PATH").unwrap_or_default();
     let original_shell = std::env::var("SHELL").unwrap_or_default();
-    std::env::set_var("PATH", tmpdir.path());
-    std::env::set_var("SHELL", shell);
+    // Safety: this is unsafe. serial_test is used to prevent multiple tests
+    // from changing the environment at the same time.
+    unsafe {
+        std::env::set_var("PATH", tmpdir.path());
+        std::env::set_var("SHELL", shell);
+    }
 
     let tmp_shell = tmpdir.path().join(shell);
     make_exe(&tmp_shell);
@@ -171,8 +186,11 @@ async fn test_find_alternate_bash(shell: &str, tmpdir: tempfile::TempDir) {
     let expected = tmp_shell.as_os_str().to_os_string();
     assert!(found.executable() == expected, "should find shell in PATH");
 
-    std::env::set_var("PATH", original_path);
-    std::env::set_var("SHELL", original_shell);
+    // Safety: this is unsafe.
+    unsafe {
+        std::env::set_var("PATH", original_path);
+        std::env::set_var("SHELL", original_shell);
+    }
 }
 
 #[cfg(unix)]

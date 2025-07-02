@@ -1,0 +1,36 @@
+[package]
+name = "spk-workspace"
+authors = { workspace = true }
+edition = { workspace = true }
+version = { workspace = true }
+license-file = { workspace = true }
+homepage = { workspace = true }
+repository = { workspace = true }
+readme = { workspace = true }
+description = { workspace = true }
+
+[lints]
+workspace = true
+
+[features]
+sentry = ["spk-solve/sentry"]
+
+[dependencies]
+bracoxide = { workspace = true }
+dunce = { workspace = true }
+format_serde_error = { workspace = true }
+glob = { workspace = true }
+itertools = { workspace = true }
+miette = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_yaml = { workspace = true }
+spk-schema = { workspace = true }
+spk-solve = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+rstest = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }

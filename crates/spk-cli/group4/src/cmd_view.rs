@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::any::Any;
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -9,14 +10,14 @@ use std::sync::Arc;
 use clap::Args;
 use colored::Colorize;
 use futures::{StreamExt, TryStreamExt};
-use miette::{bail, Context, IntoDiagnostic, Result};
+use miette::{Context, IntoDiagnostic, Result, bail};
 use serde::Serialize;
+use spfs::Digest;
 use spfs::find_path::ObjectPathEntry;
 use spfs::graph::{HasKind, ObjectKind};
 use spfs::io::Pluralize;
-use spfs::Digest;
 use spk_cli_common::with_version_and_build_set::WithVersionSet;
-use spk_cli_common::{current_env, flags, CommandArgs, DefaultVersionStrategy, Run};
+use spk_cli_common::{CommandArgs, DefaultVersionStrategy, Run, current_env, flags};
 use spk_schema::foundation::format::{FormatChangeOptions, FormatRequest};
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::spec_ops::Named;
@@ -26,7 +27,6 @@ use spk_schema::version::Version;
 use spk_schema::{
     AnyIdent,
     BuildIdent,
-    Recipe,
     RequirementsList,
     Spec,
     Template,
@@ -34,9 +34,14 @@ use spk_schema::{
     Variant,
     VersionIdent,
 };
-use spk_solve::solution::{get_spfs_layers_to_packages, LayerPackageAndComponents};
+use spk_solve::solution::{LayerPackageAndComponents, get_spfs_layers_to_packages};
+use spk_solve::{Recipe, Solver, SolverMut};
 use spk_storage;
 use strum::{Display, EnumString, IntoEnumIterator, VariantNames};
+
+#[cfg(test)]
+#[path = "./cmd_view_test.rs"]
+mod cmd_view_test;
 
 /// Constants for the valid output formats
 #[derive(Default, Display, EnumString, VariantNames, Clone)]
@@ -85,9 +90,6 @@ pub struct View {
     #[clap(short = 'f', long)]
     pub format: Option<OutputFormat>,
 
-    #[clap(flatten)]
-    pub formatter_settings: flags::DecisionFormatterSettings,
-
     /// Explicitly get info on a filepath
     #[clap(short = 'F', long)]
     filepath: Option<String>,
@@ -123,7 +125,12 @@ impl Run for View {
     async fn run(&mut self) -> Result<Self::Output> {
         if self.variants || self.variants_with_tests {
             let options = self.options.get_options()?;
-            return self.print_variants_info(&options, self.variants_with_tests);
+            let mut workspace = self
+                .requests
+                .workspace
+                .load_or_default()
+                .wrap_err("loading workspace")?;
+            return self.print_variants_info(&options, &mut workspace, self.variants_with_tests);
         }
 
         let package = match (&self.package, &self.filepath, &self.pkg) {
@@ -224,16 +231,19 @@ impl View {
     fn print_variants_info(
         &self,
         options: &OptionMap,
+        workspace: &mut spk_workspace::Workspace,
         show_variants_with_tests: bool,
     ) -> Result<i32> {
-        let (filename, template) = flags::find_package_template(self.package.as_ref())
-            .wrap_err("find package template")?
-            .must_be_found();
-        let rendered_data = template.render(options)?;
+        let configured = match self.package.as_ref() {
+            Some(name) => workspace.find_or_load_package_template(name),
+            None => workspace.default_package_template().map_err(From::from),
+        }
+        .wrap_err("did not find recipe template")?;
+        let rendered_data = configured.template.render(options)?;
         let recipe = rendered_data.into_recipe().wrap_err_with(|| {
             format!(
                 "{filename} was expected to contain a recipe",
-                filename = filename.to_string_lossy()
+                filename = configured.template.file_path().to_string_lossy()
             )
         })?;
 
@@ -545,7 +555,10 @@ impl View {
                                     Ok(package_spec) => {
                                         let result = self.print_build_spec(package_spec);
                                         let number = builds.len();
-                                        tracing::info!("No version recipe exists. But found {number} {}. Output a build spec instead.", "build".pluralize(number));
+                                        tracing::info!(
+                                            "No version recipe exists. But found {number} {}. Output a build spec instead.",
+                                            "build".pluralize(number)
+                                        );
                                         return result;
                                     }
                                     Err(err) => {
@@ -591,7 +604,7 @@ impl View {
     async fn get_package_versions(
         &self,
         name: &PkgNameBuf,
-        repos: &Vec<std::sync::Arc<spk_solve::RepositoryHandle>>,
+        repos: &[std::sync::Arc<spk_solve::RepositoryHandle>],
     ) -> Result<Vec<Version>> {
         let mut versions = Vec::new();
         for repo in repos {
@@ -633,37 +646,44 @@ impl View {
             _ => bail!("Not a package request: {request:?}"),
         };
 
-        let mut runtime = solver.run();
-
-        let formatter = self.formatter_settings.get_formatter(self.verbose)?;
-
-        let result = formatter.run_and_print_decisions(&mut runtime).await;
-        let solution = match result {
-            Ok((s, _)) => s,
-            Err(err) => {
-                println!("{}", err.to_string().red());
-                match self.verbose {
-                    0 => eprintln!("{}", "try '--verbose' for more info".yellow().dimmed(),),
-                    v if v < 2 => {
-                        eprintln!("{}", "try '-vv' for even more info".yellow().dimmed(),)
-                    }
-                    _v => {
-                        let graph = runtime.graph();
-                        let graph = graph.read().await;
-                        // Iter much?
-                        let mut graph_walk = graph.walk();
-                        let walk_iter = graph_walk.iter().map(Ok);
-                        let mut decision_iter = formatter.formatted_decisions_iter(walk_iter);
-                        let iter = decision_iter.iter();
-                        tokio::pin!(iter);
-                        while let Some(line) = iter.try_next().await? {
-                            println!("{line}");
+        let solution = if let Some(solver) =
+            (&solver as &dyn Any).downcast_ref::<spk_solve::StepSolver>()
+        {
+            let mut runtime = solver.run();
+            let formatter = self
+                .solver
+                .decision_formatter_settings
+                .get_formatter(self.verbose)?;
+            let result = formatter.run_and_print_decisions(&mut runtime).await;
+            match result {
+                Ok((s, _)) => s,
+                Err(err) => {
+                    println!("{}", err.to_string().red());
+                    match self.verbose {
+                        0 => eprintln!("{}", "try '--verbose' for more info".yellow().dimmed(),),
+                        v if v < 2 => {
+                            eprintln!("{}", "try '-vv' for even more info".yellow().dimmed(),)
+                        }
+                        _v => {
+                            let graph = runtime.graph();
+                            let graph = graph.read().await;
+                            // Iter much?
+                            let mut graph_walk = graph.walk();
+                            let walk_iter = graph_walk.iter().map(Ok);
+                            let mut decision_iter = formatter.formatted_decisions_iter(walk_iter);
+                            let iter = decision_iter.iter();
+                            tokio::pin!(iter);
+                            while let Some(line) = iter.try_next().await? {
+                                println!("{line}");
+                            }
                         }
                     }
-                }
 
-                return Ok(1);
+                    return Ok(1);
+                }
             }
+        } else {
+            solver.solve().await?
         };
 
         for item in solution.items() {

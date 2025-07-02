@@ -30,6 +30,7 @@ spk-cmd-make-source = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
+serial_test = { workspace = true }
 spk-schema = { workspace = true }
 spk-storage = { workspace = true }
 tempfile = { workspace = true }

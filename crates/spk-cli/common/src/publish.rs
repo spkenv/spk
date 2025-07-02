@@ -10,7 +10,7 @@ use spk_schema::foundation::ident_component::ComponentSet;
 use spk_schema::ident::AsVersionIdent;
 use spk_schema::{AnyIdent, BuildIdent, Package, Recipe, VersionIdent};
 use spk_storage as storage;
-use storage::{with_cache_policy, CachePolicy};
+use storage::{CachePolicy, with_cache_policy};
 
 use crate::{Error, Result};
 
@@ -160,7 +160,9 @@ impl Publisher {
                                 // The existing version was generated and published by a
                                 // conversion process, e.g. spk convert pip/spk-convert-pip,
                                 // so allow these builds to be published.
-                                tracing::info!("Package version exists, allow-existing-with-label specified, and matched: publishing new builds allowed");
+                                tracing::info!(
+                                    "Package version exists, allow-existing-with-label specified, and matched: publishing new builds allowed"
+                                );
                             } else {
                                 match pkg.build() {
                                     Some(_) => (), // If build provided, we can silently fail.
@@ -197,7 +199,7 @@ impl Publisher {
         };
 
         for build in builds.iter() {
-            use storage::RepositoryHandle::{SPFSWithVerbatimTags, SPFS};
+            use storage::RepositoryHandle::SPFS;
 
             if build.is_source() && self.skip_source_packages {
                 tracing::info!("skipping source package: {}", build.format_ident());
@@ -221,15 +223,10 @@ impl Publisher {
             );
             let syncer = match (&*self.from, &*self.to) {
                 (SPFS(src), SPFS(dest)) => spfs::Syncer::new(src, dest),
-                (SPFS(src), SPFSWithVerbatimTags(dest)) => spfs::Syncer::new(src, dest),
-                (SPFSWithVerbatimTags(src), SPFS(dest)) => spfs::Syncer::new(src, dest),
-                (SPFSWithVerbatimTags(src), SPFSWithVerbatimTags(dest)) => {
-                    spfs::Syncer::new(src, dest)
-                }
                 _ => {
                     return Err(Error::String(
                         "Source and destination must both be spfs repositories".into(),
-                    ))
+                    ));
                 }
             };
             syncer

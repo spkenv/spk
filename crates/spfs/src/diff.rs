@@ -6,15 +6,15 @@ use std::sync::Arc;
 
 use super::resolve::compute_manifest;
 use super::status::{active_runtime, compute_runtime_manifest};
-use crate::{tracking, Result};
+use crate::{Result, tracking};
 
 ///  Return the changes going from 'base' to 'top'.
 ///
 /// Args:
 /// - **base**: The tag or id to use as the base of the computed diff
-///         (defaults to the current runtime)
+///   (defaults to the current runtime)
 /// - **top**: The tag or id to diff the base against
-///         (defaults to the contents of /spfs)
+///   (defaults to the contents of /spfs)
 pub async fn diff(
     base: Option<&String>,
     top: Option<&String>,

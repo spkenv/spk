@@ -13,7 +13,7 @@ use std::fmt;
 use std::time::Duration;
 
 use futures::stream::Fuse;
-use futures::{ready, Future, Stream, StreamExt};
+use futures::{Future, Stream, StreamExt, ready};
 use pin_project_lite::pin_project;
 use tokio::time::{Instant, Sleep};
 

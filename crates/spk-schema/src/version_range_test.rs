@@ -7,10 +7,9 @@ use proptest::option::weighted;
 use proptest::prelude::*;
 use rstest::rstest;
 
-use super::{spec, Spec};
-use crate::foundation::version::{parse_version, CompatRule, TagSet, Version, VersionParts};
+use super::{Spec, spec};
+use crate::foundation::version::{CompatRule, TagSet, Version, VersionParts, parse_version};
 use crate::foundation::version_range::{
-    parse_version_range,
     CompatRange,
     DoubleEqualsVersion,
     DoubleNotEqualsVersion,
@@ -25,8 +24,9 @@ use crate::foundation::version_range::{
     SemverRange,
     VersionRange,
     WildcardRange,
+    parse_version_range,
 };
-use crate::{recipe, SpecRecipe};
+use crate::{SpecRecipe, recipe};
 
 #[rstest]
 fn test_parse_version_range_carat() {
@@ -263,30 +263,27 @@ fn arb_lowest_specified_range_from_version(
                 0..=(*version.parts.get(parts_to_generate - 1).unwrap()),
             )
                 .prop_map(|(version, parts_to_generate, last_element_value)| {
-                    VersionRange::LowestSpecified(LowestSpecifiedRange::new(
-                        parts_to_generate,
-                        Version {
-                            parts: version
-                                .parts
-                                .iter()
-                                .take(parts_to_generate)
-                                .enumerate()
-                                .map(|(index, num)| {
-                                    if index == parts_to_generate - 1 {
-                                        last_element_value
-                                    } else {
-                                        *num
-                                    }
-                                })
-                                .collect::<Vec<_>>()
-                                .into(),
-                            // Retain pre and post from original version because
-                            // if the original has pre it might be smaller than
-                            // the smallest value we generated without it.
-                            pre: version.pre,
-                            post: version.post,
-                        },
-                    ))
+                    VersionRange::LowestSpecified(LowestSpecifiedRange::new(Version {
+                        parts: version
+                            .parts
+                            .iter()
+                            .take(parts_to_generate)
+                            .enumerate()
+                            .map(|(index, num)| {
+                                if index == parts_to_generate - 1 {
+                                    last_element_value
+                                } else {
+                                    *num
+                                }
+                            })
+                            .collect::<Vec<_>>()
+                            .into(),
+                        // Retain pre and post from original version because
+                        // if the original has pre it might be smaller than
+                        // the smallest value we generated without it.
+                        pre: version.pre,
+                        post: version.post,
+                    }))
                 })
         },
     )

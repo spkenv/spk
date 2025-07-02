@@ -4,8 +4,8 @@
 
 use clap::Parser;
 use rstest::rstest;
-use spk_cli_common::flags::VariantLocation;
 use spk_cli_common::BuildArtifact;
+use spk_cli_common::flags::VariantLocation;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::option_map;
 use spk_schema::opt_name;
@@ -22,8 +22,14 @@ struct Opt {
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
-async fn test_build_with_variant_acts_as_variant_filter(tmpdir: tempfile::TempDir) {
+async fn test_build_with_variant_acts_as_variant_filter(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
     let _rt = spfs_runtime().await;
 
     let (_, result) = try_build_package!(
@@ -42,6 +48,7 @@ build:
         - { color: green }
         - { color: blue }
         "#,
+        solver_to_run,
         // By saying --variant color=green, we are asking for the second variant
         "--variant",
         "color=green",
@@ -73,8 +80,14 @@ build:
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
-async fn test_build_with_opts_acts_as_override(tmpdir: tempfile::TempDir) {
+async fn test_build_with_opts_acts_as_override(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
     let _rt = spfs_runtime().await;
 
     let (_, result) = try_build_package!(
@@ -93,6 +106,7 @@ build:
         - { color: green }
         - { color: blue }
         "#,
+        solver_to_run,
         // By saying --opt color=green, we are asking to override the color in
         // all the variants (pruning duplicates).
         "--opt",
@@ -125,8 +139,14 @@ build:
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
-async fn test_build_with_variant_acts_as_variant_filter_no_match(tmpdir: tempfile::TempDir) {
+async fn test_build_with_variant_acts_as_variant_filter_no_match(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
     let _rt = spfs_runtime().await;
 
     let (_, result) = try_build_package!(
@@ -145,6 +165,7 @@ build:
         - { color: green }
         - { color: blue }
         "#,
+        solver_to_run,
         // By saying --variant color=purple, we are asking for a variant that
         // doesn't exist.
         "--variant",
@@ -155,9 +176,13 @@ build:
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
 async fn test_build_with_variant_on_recipe_with_no_variants_match_default(
     tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
 ) {
     let _rt = spfs_runtime().await;
 
@@ -173,6 +198,7 @@ build:
     script:
         - 'echo "color: $SPK_OPT_color" > "$PREFIX/color.txt"'
     "#,
+        solver_to_run,
         // By saying --variant color=blue, we are asking for the "default"
         // variant, because the default color is blue.
         "--variant",
@@ -205,8 +231,14 @@ build:
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
-async fn test_build_with_variant_on_recipe_with_no_variants_no_match(tmpdir: tempfile::TempDir) {
+async fn test_build_with_variant_on_recipe_with_no_variants_no_match(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
     let _rt = spfs_runtime().await;
 
     let (_, result) = try_build_package!(
@@ -221,6 +253,7 @@ build:
     script:
         - 'echo "color: $SPK_OPT_color" > "$PREFIX/color.txt"'
     "#,
+        solver_to_run,
         // By saying --variant color=green, we are asking for a variant that
         // doesn't exist.
         "--variant",
@@ -231,8 +264,14 @@ build:
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
-async fn test_build_with_new_variant_on_recipe_with_no_variants(tmpdir: tempfile::TempDir) {
+async fn test_build_with_new_variant_on_recipe_with_no_variants(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
     let _rt = spfs_runtime().await;
 
     let (_, result) = try_build_package!(
@@ -247,6 +286,7 @@ build:
     script:
         - 'echo "color: $SPK_OPT_color" > "$PREFIX/color.txt"'
     "#,
+        solver_to_run,
         // By saying --new-variant with color=green, we are asking for a bespoke
         // variant
         "--new-variant",
@@ -279,8 +319,14 @@ build:
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
-async fn test_build_with_variant_acts_as_variant_filter_two_opts(tmpdir: tempfile::TempDir) {
+async fn test_build_with_variant_acts_as_variant_filter_two_opts(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
     let _rt = spfs_runtime().await;
 
     let (_, result) = try_build_package!(
@@ -300,6 +346,7 @@ build:
         - { color: green, fruit: apple }
         - { color: blue, fruit: orange }
         "#,
+        solver_to_run,
         // By saying --variant color=green,fruit=apple we are asking for the
         // second variant
         "--variant",
@@ -336,9 +383,13 @@ build:
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
 async fn test_build_with_variant_acts_as_variant_filter_two_opts_no_match(
     tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
 ) {
     let _rt = spfs_runtime().await;
 
@@ -359,6 +410,7 @@ build:
         - { color: green, fruit: apple }
         - { color: blue, fruit: orange }
         "#,
+        solver_to_run,
         // The first option matches, but the second doesn't
         "--variant",
         "color=green,fruit=orange",
@@ -368,9 +420,13 @@ build:
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
 async fn test_build_with_variant_and_opts_acts_as_variant_filter_and_override(
     tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
 ) {
     let _rt = spfs_runtime().await;
 
@@ -391,6 +447,7 @@ build:
         - { color: green }
         - { color: blue }
         "#,
+        solver_to_run,
         // By saying --variant color=green, we are asking for the second variant
         "--variant",
         "color=green",
@@ -429,8 +486,14 @@ build:
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
-async fn test_build_with_opts_acts_as_an_override(tmpdir: tempfile::TempDir) {
+async fn test_build_with_opts_acts_as_an_override(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
     let _rt = spfs_runtime().await;
 
     let (_, result) = try_build_package!(
@@ -450,6 +513,7 @@ build:
         - { color: green }
         - { color: blue }
         "#,
+        solver_to_run,
         // Setting an option that doesn't appear in the variants will
         // not filter out any variants, but will override the default
         "--opt",
@@ -484,8 +548,14 @@ build:
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
-async fn test_build_with_opts_and_variant_index(tmpdir: tempfile::TempDir) {
+async fn test_build_with_opts_and_variant_index(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
     let _rt = spfs_runtime().await;
 
     let (_, result) = try_build_package!(
@@ -505,6 +575,7 @@ build:
         - { color: green, fruit: apple }
         - { color: blue, fruit: orange }
         "#,
+        solver_to_run,
         // By saying --variant 0, we are explicitly asking for the first variant
         "--variant",
         "0",
@@ -544,8 +615,11 @@ build:
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
-async fn test_build_with_variant_spec(tmpdir: tempfile::TempDir) {
+async fn test_build_with_variant_spec(tmpdir: tempfile::TempDir, #[case] solver_to_run: &str) {
     let _rt = spfs_runtime().await;
 
     let (_, result) = try_build_package!(
@@ -565,6 +639,7 @@ build:
         - { color: green, fruit: apple }
         - { color: blue, fruit: orange }
         "#,
+        solver_to_run,
         // By supplying a variant spec, we are asking for a bespoke variant
         "--new-variant",
         r#"{ "color": "brown", "fruit": "kiwi" }"#,
@@ -601,8 +676,14 @@ build:
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
 #[tokio::test]
-async fn test_build_with_variant_spec_and_override(tmpdir: tempfile::TempDir) {
+async fn test_build_with_variant_spec_and_override(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
     let _rt = spfs_runtime().await;
 
     let (_, result) = try_build_package!(
@@ -622,6 +703,7 @@ build:
         - { color: green, fruit: apple }
         - { color: blue, fruit: orange }
         "#,
+        solver_to_run,
         // By supplying a variant spec, we are asking for a bespoke variant
         "--new-variant",
         r#"{ "color": "brown", "fruit": "kiwi" }"#,
@@ -661,8 +743,15 @@ build:
 }
 
 #[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
+#[serial_test::serial(host_options)]
 #[tokio::test]
-async fn test_build_filters_variants_based_on_host_opts(tmpdir: tempfile::TempDir) {
+async fn test_build_filters_variants_based_on_host_opts(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &'static str,
+) {
     let _rt = spfs_runtime().await;
 
     // Force "distro" host option to "centos" to make this test pass on any OS.
@@ -685,6 +774,7 @@ async fn test_build_filters_variants_based_on_host_opts(tmpdir: tempfile::TempDi
             - { distro: rocky, color: green }
             - { distro: centos, color: blue }
             "#,
+            solver_to_run
         );
 
         let mut result = result.expect("Expected build to succeed");

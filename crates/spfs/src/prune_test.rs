@@ -11,7 +11,7 @@ use tokio_stream::StreamExt;
 use crate::clean::TracingCleanReporter;
 use crate::fixtures::*;
 use crate::prelude::*;
-use crate::{encoding, storage, tracking, Cleaner, Error};
+use crate::{Cleaner, Error, encoding, storage, tracking};
 
 #[rstest]
 #[tokio::test]

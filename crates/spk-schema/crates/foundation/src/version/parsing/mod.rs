@@ -19,8 +19,8 @@ where
     G: Parser<I, O2, E>,
     E: ParseError<I>,
 {
-    use nom::error::ErrorKind;
     use nom::Err;
+    use nom::error::ErrorKind;
 
     move |mut i: I| {
         let mut res = Vec::new();

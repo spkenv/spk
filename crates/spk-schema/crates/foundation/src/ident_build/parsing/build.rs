@@ -4,14 +4,14 @@
 
 use std::convert::TryInto;
 
+use nom::IResult;
 use nom::branch::alt;
 use nom::bytes::complete::take_while_m_n;
 use nom::combinator::{cut, map, map_res, opt, verify};
 use nom::error::{ContextError, FromExternalError, ParseError};
 use nom::sequence::{delimited, preceded};
-use nom::IResult;
-use nom_supreme::tag::complete::tag;
 use nom_supreme::tag::TagError;
+use nom_supreme::tag::complete::tag;
 
 use crate::ident_build::build::{EmbeddedSource, EmbeddedSourcePackage};
 use crate::ident_build::{Build, InvalidBuildError};

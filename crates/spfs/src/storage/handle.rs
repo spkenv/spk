@@ -16,12 +16,12 @@ use super::tag::TagSpecAndTagStream;
 use super::{TagNamespace, TagNamespaceBuf, TagStorageMut};
 use crate::graph::ObjectProto;
 use crate::tracking::{self, BlobRead};
-use crate::{graph, Error, Result};
+use crate::{Error, Result, graph};
 
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum RepositoryHandle {
-    FS(super::fs::FsRepository),
+    FS(super::fs::MaybeOpenFsRepository),
     Tar(super::tar::TarRepository),
     Rpc(super::rpc::RpcRepository),
     FallbackProxy(Box<super::fallback::FallbackProxy>),
@@ -80,8 +80,8 @@ impl RepositoryHandle {
     }
 }
 
-impl From<super::fs::FsRepository> for RepositoryHandle {
-    fn from(repo: super::fs::FsRepository) -> Self {
+impl From<super::fs::MaybeOpenFsRepository> for RepositoryHandle {
+    fn from(repo: super::fs::MaybeOpenFsRepository) -> Self {
         RepositoryHandle::FS(repo)
     }
 }

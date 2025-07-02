@@ -10,7 +10,7 @@ Both spfs and spk have defined error codes that are produced. These codes can be
 
 ### Build Validation Errors
 
-These rules are checked either before or just after a package build and validate the build setup and collected package contents for common issues and potential danger. In all cases it will depend on the default and any additional configuration of the [validation rules]({{< ref "../ref/spec" >}}#validationspec) in the package spec.
+These rules are checked either before or just after a package build and validate the build setup and collected package contents for common issues and potential danger. In all cases it will depend on the default and any additional configuration of the [validation rules]({{< ref "../ref/api/v0/package" >}}#validationspec) in the package spec.
 
 #### `spk::build::validation::empty_package`
 
@@ -38,7 +38,7 @@ If you cannot stop the build process from touching the files, you can add a call
 
 Packages that appear in a build environment may assert that one or more requirements must be included in the output package. Typically, this is because building against that dependency crates a compatibility requirement that should be represented in your package and should be added as denoted by the error message.
 
-In some cases, the developer maybe know that the dependency was not used for compilation or the compatibility requirement was somehow mitigated because of how it was being used in the build environment. In these cases, the validation rule can be disabled like any other (see [validation rules]({{< ref "../ref/spec" >}}#validationspec))
+In some cases, the developer maybe know that the dependency was not used for compilation or the compatibility requirement was somehow mitigated because of how it was being used in the build environment. In these cases, the validation rule can be disabled like any other (see [validation rules]({{< ref "../ref/api/v0/package" >}}#validationspec))
 
 #### `spk::build::validation::recursive_build`
 

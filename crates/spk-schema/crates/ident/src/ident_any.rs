@@ -8,12 +8,12 @@ use std::str::FromStr;
 use relative_path::RelativePathBuf;
 use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::ident_ops::parsing::IdentPartsBuf;
-use spk_schema_foundation::ident_ops::{MetadataPath, TagPath, TagPathStrategy};
+use spk_schema_foundation::ident_ops::{MetadataPath, TagPath};
 use spk_schema_foundation::name::{PkgName, PkgNameBuf, RepositoryNameBuf};
 use spk_schema_foundation::version::Version;
 
 use crate::ident_version::VersionIdent;
-use crate::{parsing, BuildIdent, Ident, LocatedBuildIdent, RangeIdent, Result};
+use crate::{BuildIdent, Ident, LocatedBuildIdent, RangeIdent, Result, parsing};
 
 #[cfg(test)]
 #[path = "./ident_any_test.rs"]
@@ -142,17 +142,31 @@ impl MetadataPath for AnyIdent {
 }
 
 impl TagPath for AnyIdent {
-    fn tag_path<S: TagPathStrategy>(&self) -> RelativePathBuf {
+    fn tag_path(&self) -> RelativePathBuf {
         let path = RelativePathBuf::from(self.name().as_str());
         match self.build() {
-            Some(build) => path
-                .join(self.version().tag_path::<S>())
-                .join(build.tag_path::<S>()),
+            Some(build) => path.join(self.version().tag_path()).join(build.tag_path()),
             None => {
                 if self.version().is_zero() {
                     path
                 } else {
-                    path.join(self.version().tag_path::<S>())
+                    path.join(self.version().tag_path())
+                }
+            }
+        }
+    }
+
+    fn verbatim_tag_path(&self) -> RelativePathBuf {
+        let path = RelativePathBuf::from(self.name().as_str());
+        match self.build() {
+            Some(build) => path
+                .join(self.version().verbatim_tag_path())
+                .join(build.verbatim_tag_path()),
+            None => {
+                if self.version().is_zero() {
+                    path
+                } else {
+                    path.join(self.version().verbatim_tag_path())
                 }
             }
         }
@@ -214,6 +228,13 @@ impl From<&AnyIdent> for IdentPartsBuf {
 impl From<PkgNameBuf> for AnyIdent {
     fn from(name: PkgNameBuf) -> Self {
         VersionIdent::new_zero(name).into_any_ident(None)
+    }
+}
+
+impl From<PkgNameBuf> for Box<AnyIdent> {
+    #[inline]
+    fn from(name: PkgNameBuf) -> Self {
+        Box::new(name.into())
     }
 }
 

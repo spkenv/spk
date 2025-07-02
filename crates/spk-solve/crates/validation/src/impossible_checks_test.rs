@@ -3,12 +3,12 @@
 // https://github.com/spkenv/spk
 
 use std::collections::HashMap;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 
 use rstest::rstest;
 use spk_schema::foundation::fixtures::*;
-use spk_schema::ident::{version_ident, PkgRequest, RequestedBy};
+use spk_schema::ident::{PkgRequest, RequestedBy, version_ident};
 use spk_schema::name::PkgNameBuf;
 use spk_schema::spec;
 use spk_solve_macros::{make_build, make_repo};

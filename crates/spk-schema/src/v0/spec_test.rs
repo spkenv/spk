@@ -13,9 +13,9 @@ use spk_schema_foundation::version_range::VersionFilter;
 use spk_schema_ident::{AnyIdent, BuildIdent, Request, VersionIdent};
 
 use super::Spec;
+use crate::foundation::FromYaml;
 use crate::foundation::fixtures::*;
 use crate::foundation::option_map::OptionMap;
-use crate::foundation::FromYaml;
 use crate::option::PkgOpt;
 use crate::spec::SpecTemplate;
 use crate::{BuildEnv, Opt, Recipe, Template, TemplateExt, Variant, VariantExt};
@@ -168,8 +168,9 @@ fn test_strong_inheritance_injection() {
         type Package = Spec<BuildIdent>;
 
         fn build_env(&self) -> Vec<Self::Package> {
-            vec![serde_yaml::from_str(
-                r#"
+            vec![
+                serde_yaml::from_str(
+                    r#"
                 api: package/v0
                 pkg: base/1.0.0/3TCOOP2W
                 build:
@@ -178,8 +179,9 @@ fn test_strong_inheritance_injection() {
                       static: 1.2.3
                       inheritance: Strong
             "#,
-            )
-            .unwrap()]
+                )
+                .unwrap(),
+            ]
         }
 
         fn env_vars(&self) -> HashMap<String, String> {
@@ -236,8 +238,9 @@ fn test_strong_inheritance_injection_transitivity() {
         type Package = Spec<BuildIdent>;
 
         fn build_env(&self) -> Vec<Self::Package> {
-            vec![serde_yaml::from_str(
-                r#"
+            vec![
+                serde_yaml::from_str(
+                    r#"
                 api: v0/package
                 pkg: base/1.0.0/3TCOOP2W
                 build:
@@ -246,8 +249,9 @@ fn test_strong_inheritance_injection_transitivity() {
                       static: 1.2.3
                       inheritance: Strong
             "#,
-            )
-            .unwrap()]
+                )
+                .unwrap(),
+            ]
         }
 
         fn env_vars(&self) -> HashMap<String, String> {
@@ -357,13 +361,15 @@ fn test_variants_can_append_components() {
         type Package = Spec<BuildIdent>;
 
         fn build_env(&self) -> Vec<Self::Package> {
-            vec![serde_yaml::from_str(
-                r#"
+            vec![
+                serde_yaml::from_str(
+                    r#"
                 api: v0/package
                 pkg: dep-pkg/1.2.3/3TCOOP2W
             "#,
-            )
-            .unwrap()]
+                )
+                .unwrap(),
+            ]
         }
 
         fn env_vars(&self) -> HashMap<String, String> {

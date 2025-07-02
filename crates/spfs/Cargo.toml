@@ -26,10 +26,10 @@ winfsp-backend = []
 
 [dependencies]
 arc-swap = { workspace = true }
-async-compression = { version = "0.3.15", features = ["tokio", "bzip2"] }
-async-trait = "0.1.52"
+async-compression = { version = "0.3.15", features = ["bzip2", "tokio"] }
 async-recursion = "1.0"
 async-stream = "0.3"
+async-trait = "0.1.52"
 bytes = { workspace = true }
 cached = { workspace = true }
 chrono = { workspace = true }
@@ -48,9 +48,11 @@ futures = { workspace = true }
 futures-core = { workspace = true }
 gitignore = "1.0"
 glob = { workspace = true }
-hyper = { version = "0.14.16", features = ["client"] }
+http-body-util = { workspace = true }
+hyper = { workspace = true, features = ["client", "http1"] }
+hyper-util = { workspace = true }
 indicatif = { workspace = true }
-itertools = "0.10.3"
+itertools = { workspace = true }
 libc = { workspace = true }
 miette = { workspace = true }
 nix = { workspace = true, features = ["fs"] }
@@ -68,27 +70,28 @@ semver = "1.0"
 sentry = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-serde_yaml = { workspace = true }
 serde_qs = "0.10.1"
+serde_yaml = { workspace = true }
 shellexpand = { workspace = true }
 spfs-encoding = { workspace = true }
 spfs-proto = { path = "../spfs-proto", features = ["serde"] }
 strum = { workspace = true, features = ["derive"] }
 tar = "0.4.30"
 tempfile = { workspace = true }
-tokio = { version = "1.20", features = [
+thiserror = { workspace = true }
+tokio = { workspace = true, features = [
     "fs",
-    "io-util",
     "io-std",
+    "io-util",
+    "macros",
+    "process",
     "rt",
     "rt-multi-thread",
-    "macros",
-    "sync",
-    "process",
     "signal",
+    "sync",
 ] }
 tokio-retry = { workspace = true }
-tokio-stream = { version = "0.1", features = ["net", "fs"] }
+tokio-stream = { version = "0.1", features = ["fs", "net"] }
 tokio-util = { version = "0.7.3", features = ["compat", "io"] }
 tonic = { workspace = true }
 tracing = { workspace = true }
@@ -98,16 +101,15 @@ url = { version = "2.2", features = ["serde"] }
 uuid = { version = "1.1", features = ["v4"] }
 walkdir = "2.3"
 whoami = { workspace = true }
-thiserror = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
+caps = "0.5.3"
 fuser = { workspace = true, optional = true }
 procfs = { workspace = true }
-caps = "0.5.3"
 
 [target.'cfg(windows)'.dependencies.windows]
+features = ["Win32_Foundation", "Win32_Storage_FileSystem"]
 version = "0.51"
-features = ["Win32_Storage_FileSystem", "Win32_Foundation"]
 
 [build-dependencies]
 protobuf-src = { version = "1.0.5", optional = true } # protoc @ 3.19.3
@@ -115,10 +117,10 @@ tonic-build = { workspace = true }
 
 [dev-dependencies]
 criterion = { version = "0.3", features = ["async_tokio", "html_reports"] }
-rstest = { version = "0.15.0", default-features = false }
+rstest = { workspace = true }
 serial_test = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
 static_assertions = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
 
 [[bench]]
 name = "spfs_bench"

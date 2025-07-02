@@ -14,9 +14,9 @@ use tokio::sync::Semaphore;
 
 use crate::graph::AnnotationValue;
 use crate::prelude::*;
-use crate::sync::reporter::{SyncObjectResult, SyncPayloadResult};
 use crate::sync::SyncPolicy;
-use crate::{encoding, graph, storage, tracking, Error, Result};
+use crate::sync::reporter::{SyncObjectResult, SyncPayloadResult};
+use crate::{Error, Result, encoding, graph, storage, tracking};
 
 #[cfg(test)]
 #[path = "./check_test.rs"]
@@ -206,7 +206,10 @@ where
         tracing::debug!(?tag, "Checking tag");
         self.reporter.visit_tag(&tag);
         let result = self.check_digest(tag.target).await?;
-        let res = CheckTagResult::Checked { tag, result };
+        let res = CheckTagResult::Checked {
+            tag: Box::new(tag),
+            result,
+        };
         self.reporter.checked_tag(&res);
         Ok(res)
     }
@@ -812,7 +815,7 @@ pub enum CheckTagResult {
     Missing,
     /// The tag was checked
     Checked {
-        tag: tracking::Tag,
+        tag: Box<tracking::Tag>,
         result: CheckObjectResult,
     },
 }

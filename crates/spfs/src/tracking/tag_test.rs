@@ -4,12 +4,13 @@
 
 use rstest::rstest;
 
-use super::{split_tag_spec, Tag, TagSpec};
+use super::{Tag, TagSpec, split_tag_spec};
 use crate::encoding;
 use crate::encoding::{Decodable, Encodable};
 
-#[rstest(org, name, case("vfx", "2019"))]
-fn test_tag_encoding(org: &str, name: &str) {
+#[rstest]
+#[case("vfx", "2019")]
+fn test_tag_encoding(#[case] org: &str, #[case] name: &str) {
     let tag = Tag::new(
         Some(org.to_string()),
         name.to_string(),

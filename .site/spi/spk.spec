@@ -1,5 +1,5 @@
 Name: spk
-Version: 0.42.0
+Version: 0.44.0
 Release: 1
 Summary: Package manager and a software runtime for studio environments
 License: NONE
@@ -21,7 +21,7 @@ BuildRequires: spdev >= 0.28.2
 Requires: bash
 Requires: fuse
 Obsoletes: spfs
-Provides: spfs = 0.42.0
+Provides: spfs = 0.44.0
 
 %define debug_package %{nil}
 
@@ -36,7 +36,7 @@ export SPDEV_CONFIG_FILE=.site/spi/.spdev.yaml
 dev toolchain install
 source ~/.bashrc
 # Include `--all` to also build spk-launcher
-dev env -- cargo build --release --features "migration-to-components,sentry,spfs/protobuf-src,statsd,fuse-backend-rhel-7-6,legacy-spk-version-tags,legacy-spk-version-tags-for-writes" --all
+dev env -- cargo build --release --features "migration-to-components,sentry,spfs/protobuf-src,statsd,fuse-backend-rhel-7-6,legacy-spk-version-tags" --all
 
 %install
 mkdir -p %{buildroot}/usr/local/bin

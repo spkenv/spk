@@ -13,7 +13,7 @@ use futures::Stream;
 use relative_path::RelativePath;
 use tar::{Archive, Builder};
 
-use crate::config::{pathbuf_deserialize_with_tilde_expansion, ToAddress};
+use crate::config::{ToAddress, pathbuf_deserialize_with_tilde_expansion};
 use crate::graph::ObjectProto;
 use crate::prelude::*;
 use crate::storage::fs::DURABLE_EDITS_DIR;
@@ -27,7 +27,7 @@ use crate::storage::{
     TagStorageMut,
 };
 use crate::tracking::BlobRead;
-use crate::{encoding, graph, storage, tracking, Error, Result};
+use crate::{Error, Result, encoding, graph, storage, tracking};
 
 /// Configuration for a tar repository
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
@@ -68,7 +68,7 @@ pub struct TarRepository {
     up_to_date: AtomicBool,
     archive: std::path::PathBuf,
     repo_dir: tempfile::TempDir,
-    repo: crate::storage::fs::FsRepository,
+    repo: crate::storage::fs::MaybeOpenFsRepository,
 }
 
 #[async_trait::async_trait]
@@ -158,7 +158,7 @@ impl TarRepository {
             up_to_date: AtomicBool::new(false),
             archive: path,
             repo_dir: tmpdir,
-            repo: crate::storage::fs::FsRepository::create(&repo_path).await?,
+            repo: crate::storage::fs::MaybeOpenFsRepository::create(&repo_path).await?,
         })
     }
 

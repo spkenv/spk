@@ -7,7 +7,7 @@ use std::pin::Pin;
 use futures::Stream;
 use tokio_stream::StreamExt;
 
-use crate::{encoding, graph, Error, Result};
+use crate::{Error, Result, encoding, graph};
 
 pub type BlobStreamItem = Result<(encoding::Digest, graph::Blob)>;
 

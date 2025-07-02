@@ -4,9 +4,9 @@
 
 use itertools::Itertools;
 use relative_path::RelativePathBuf;
+use spk_schema::BuildIdent;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::validation::ValidationMatcherDiscriminants;
-use spk_schema::BuildIdent;
 
 use super::{Error, Outcome, Report, Status, Subject};
 

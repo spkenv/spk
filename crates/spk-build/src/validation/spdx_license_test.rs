@@ -7,7 +7,7 @@ use std::sync::Arc;
 use spfs::tracking::Manifest;
 use spk_schema::foundation::option_map;
 use spk_schema::validation::ValidationMatcher;
-use spk_schema::{spec, Package, ValidationRule};
+use spk_schema::{Package, ValidationRule, spec};
 use spk_solve::Solution;
 
 use crate::report::BuildSetupReport;

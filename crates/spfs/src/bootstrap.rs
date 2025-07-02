@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use url::Url;
 
 use super::resolve::{which, which_spfs};
-use crate::{runtime, Error, Result};
+use crate::{Error, Result, runtime};
 
 #[cfg(test)]
 #[path = "./bootstrap_test.rs"]
@@ -355,15 +355,21 @@ where
 
     let mut enter_args = Vec::new();
 
-    // Capture the current $TMPDIR value here before it is lost when running
-    // privileged process spfs-enter.
-    if let Some(tmpdir_value_for_child_process) = std::env::var_os("TMPDIR") {
-        tracing::trace!(
-            ?tmpdir_value_for_child_process,
-            "capture existing value for $TMPDIR (build_spfs_enter_command)"
-        );
-
-        enter_args.extend(["--tmpdir".into(), tmpdir_value_for_child_process]);
+    // Capture the configured environment variable values here before they are
+    // possibly lost when running privileged process spfs-enter.
+    let config = crate::get_config()?;
+    for key in &config.environment.variable_names_to_preserve {
+        if let Ok(value) = std::env::var(key) {
+            tracing::trace!(
+                ?key,
+                ?value,
+                "capture existing variable (build_spfs_enter_command)"
+            );
+            enter_args.extend([
+                "--environment-override".into(),
+                format!("{key}={value}").into(),
+            ]);
+        }
     }
 
     enter_args.extend([

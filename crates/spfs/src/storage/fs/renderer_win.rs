@@ -6,9 +6,9 @@ use std::path::Path;
 
 use super::{RenderType, Renderer};
 use crate::prelude::*;
-use crate::storage::fs::RenderReporter;
 use crate::storage::LocalRepository;
-use crate::{graph, Result};
+use crate::storage::fs::RenderReporter;
+use crate::{Result, graph};
 
 impl<'repo, Repo, Reporter> Renderer<'repo, Repo, Reporter>
 where

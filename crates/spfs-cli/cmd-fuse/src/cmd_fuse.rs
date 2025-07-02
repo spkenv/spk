@@ -12,17 +12,17 @@ use clap::Parser;
 use fuser::MountOption;
 use miette::Result;
 #[cfg(unix)]
-use miette::{bail, miette, Context, IntoDiagnostic};
-use spfs::tracking::EnvSpec;
+use miette::{Context, IntoDiagnostic, bail, miette};
 #[cfg(unix)]
 use spfs::Error;
+use spfs::tracking::EnvSpec;
 #[cfg(unix)]
 use spfs_cli_common::warn_and_sentry_event;
 use spfs_cli_common::{self as cli};
 #[cfg(unix)]
 use spfs_vfs::{Config, Session};
 #[cfg(unix)]
-use tokio::signal::unix::{signal, SignalKind};
+use tokio::signal::unix::{SignalKind, signal};
 #[cfg(unix)]
 use tokio::time::timeout;
 
@@ -41,7 +41,11 @@ fn main2() -> i32 {
         .log_file
         .get_or_insert("/tmp/spfs-runtime/fuse.log".into());
     opt.logging.syslog = true;
-    opt.logging.configure();
+    // Safety: the process is single threaded still and it is safe to set
+    // environment variables.
+    unsafe {
+        opt.logging.configure();
+    }
 
     let config = match spfs::get_config() {
         Err(err) => {
@@ -102,7 +106,7 @@ pub struct CmdFuse {
 
     /// The tag or id of the files to mount
     ///
-    /// Use '-' or nothing to request an empty environment
+    /// Use '-' or an empty string to request an empty environment
     #[clap(name = "REF")]
     reference: EnvSpec,
 

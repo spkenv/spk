@@ -12,7 +12,7 @@ include!(concat!(env!("OUT_DIR"), "/spfs_generated.rs"));
 
 pub mod digest;
 
-pub use digest::{parse_digest, DIGEST_SIZE, EMPTY_DIGEST, NULL_DIGEST};
+pub use digest::{DIGEST_SIZE, EMPTY_DIGEST, NULL_DIGEST, parse_digest};
 
 impl From<Digest> for Cow<'static, Digest> {
     fn from(value: Digest) -> Self {

@@ -7,13 +7,13 @@ use std::sync::Arc;
 use rstest::rstest;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::opt_name;
-use spk_schema::ident::{build_ident, version_ident, PkgRequest, Request, RequestedBy};
-use spk_schema::{spec, FromYaml};
+use spk_schema::ident::{PkgRequest, Request, RequestedBy, build_ident, version_ident};
+use spk_schema::{FromYaml, spec};
 use spk_solve_graph::State;
 use spk_solve_macros::recipe;
 use spk_solve_solution::PackageSource;
 
-use super::{default_validators, OptionsValidator, ValidatorT, VarRequirementsValidator};
+use super::{OptionsValidator, ValidatorT, VarRequirementsValidator, default_validators};
 
 #[rstest]
 fn test_src_package_install_requests_are_not_considered() {
@@ -103,11 +103,11 @@ fn test_qualified_var_supersedes_unqualified() {
         vec![
             Request::from_yaml("{var: debug/off}")
                 .unwrap()
-                .into_var()
+                .var()
                 .unwrap(),
             Request::from_yaml("{var: my-package.debug/on}")
                 .unwrap()
-                .into_var()
+                .var()
                 .unwrap(),
         ],
         vec![],

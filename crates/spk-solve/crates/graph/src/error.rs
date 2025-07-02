@@ -29,7 +29,7 @@ pub enum Error {
     #[diagnostic(forward(0))]
     Graph(#[from] GraphError),
     #[error("Package not found: {0}")]
-    PackageNotFoundDuringSolve(PkgRequest),
+    PackageNotFoundDuringSolve(Box<PkgRequest>),
     #[error("Solver error: {0}")]
     SolverError(String),
     #[error("Solver interrupted: {0}")]
@@ -51,7 +51,7 @@ pub enum Error {
     SpkSolverSolutionError(#[from] spk_solve_solution::Error),
     #[error(transparent)]
     #[diagnostic(forward(0))]
-    SpkSpecError(#[from] spk_schema::Error),
+    SpkSpecError(Box<spk_schema::Error>),
     #[error(transparent)]
     #[diagnostic(forward(0))]
     SpkStorageError(#[from] spk_storage::Error),
@@ -96,6 +96,12 @@ impl From<crate::Error> for GetMergedRequestError {
     }
 }
 
+impl From<spk_schema::Error> for Error {
+    fn from(err: spk_schema::Error) -> Self {
+        Error::SpkSpecError(Box::new(err))
+    }
+}
+
 #[async_trait::async_trait]
 impl FormatError for Error {
     async fn format_error(&self, verbosity: u8) -> String {
@@ -127,7 +133,12 @@ impl FormatError for Error {
                     .map(ToString::to_string)
                     .collect();
                 msg.push_str("\n * ");
-                let _ = write!(msg, "Package '{}' not found during the solve as required by: {}.\n   Please check the package name's spelling", request.pkg, requirers.join(", "));
+                let _ = write!(
+                    msg,
+                    "Package '{}' not found during the solve as required by: {}.\n   Please check the package name's spelling",
+                    request.pkg,
+                    requirers.join(", ")
+                );
             }
             err => {
                 msg.push_str("\n * ");

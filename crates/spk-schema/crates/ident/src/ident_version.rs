@@ -7,11 +7,11 @@ use std::str::FromStr;
 
 use relative_path::RelativePathBuf;
 use spk_schema_foundation::ident_build::Build;
-use spk_schema_foundation::ident_ops::{TagPath, TagPathStrategy};
+use spk_schema_foundation::ident_ops::TagPath;
 use spk_schema_foundation::name::{PkgName, PkgNameBuf};
 use spk_schema_foundation::version::Version;
 
-use crate::{parsing, AnyIdent, AsVersionIdent, BuildIdent, Ident, Result, ToAnyIdentWithoutBuild};
+use crate::{AnyIdent, AsVersionIdent, BuildIdent, Ident, Result, ToAnyIdentWithoutBuild, parsing};
 
 /// Identifies a package name and number version.
 pub type VersionIdent = Ident<PkgNameBuf, Version>;
@@ -128,8 +128,12 @@ impl FromStr for VersionIdent {
 }
 
 impl TagPath for VersionIdent {
-    fn tag_path<S: TagPathStrategy>(&self) -> RelativePathBuf {
-        RelativePathBuf::from(self.name().as_str()).join(self.version().tag_path::<S>())
+    fn tag_path(&self) -> RelativePathBuf {
+        RelativePathBuf::from(self.name().as_str()).join(self.version().tag_path())
+    }
+
+    fn verbatim_tag_path(&self) -> RelativePathBuf {
+        RelativePathBuf::from(self.name().as_str()).join(self.version().verbatim_tag_path())
     }
 }
 

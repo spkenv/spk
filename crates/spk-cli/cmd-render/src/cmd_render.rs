@@ -5,10 +5,11 @@
 use std::path::PathBuf;
 
 use clap::Args;
-use miette::{bail, Context, IntoDiagnostic, Result};
+use miette::{Context, IntoDiagnostic, Result, bail};
 use spfs::storage::fallback::FallbackProxy;
-use spk_cli_common::{build_required_packages, flags, CommandArgs, Run};
+use spk_cli_common::{CommandArgs, Run, build_required_packages, flags};
 use spk_exec::resolve_runtime_layers;
+use spk_solve::{Solver, SolverMut};
 
 /// Output the contents of an spk environment (/spfs) to a folder
 #[derive(Args)]
@@ -22,9 +23,6 @@ pub struct Render {
 
     #[clap(short, long, global = true, action = clap::ArgAction::Count)]
     pub verbose: u8,
-
-    #[clap(flatten)]
-    pub formatter_settings: flags::DecisionFormatterSettings,
 
     /// The packages to resolve and render
     #[clap(name = "PKG", required = true)]
@@ -51,10 +49,13 @@ impl Run for Render {
             solver.add_request(name);
         }
 
-        let formatter = self.formatter_settings.get_formatter(self.verbose)?;
-        let (solution, _) = formatter.run_and_print_resolve(&solver).await?;
+        let formatter = self
+            .solver
+            .decision_formatter_settings
+            .get_formatter(self.verbose)?;
+        let solution = solver.run_and_print_resolve(&formatter).await?;
 
-        let solution = build_required_packages(&solution).await?;
+        let solution = build_required_packages(&solution, solver.clone()).await?;
         let stack = resolve_runtime_layers(true, &solution).await?;
         std::fs::create_dir_all(&self.target)
             .into_diagnostic()

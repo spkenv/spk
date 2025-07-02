@@ -6,7 +6,7 @@ use std::convert::TryInto;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use spk_build::{source_package_path, BuildSource};
+use spk_build::{BuildSource, source_package_path};
 use spk_cli_common::Result;
 use spk_exec::resolve_runtime_layers;
 use spk_schema::foundation::ident_build::Build;
@@ -15,25 +15,32 @@ use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
 use spk_schema::{AnyIdent, Recipe, SpecRecipe};
 use spk_solve::solution::Solution;
-use spk_solve::{BoxedResolverCallback, DefaultResolver, ResolverCallback, Solver};
+use spk_solve::{DecisionFormatter, SolverExt, SolverMut};
 use spk_storage as storage;
 
 use super::Tester;
 
-pub struct PackageBuildTester<'a> {
+pub struct PackageBuildTester<Solver>
+where
+    Solver: Send,
+{
     prefix: PathBuf,
     recipe: SpecRecipe,
     script: String,
     repos: Vec<Arc<storage::RepositoryHandle>>,
+    solver: Solver,
     options: OptionMap,
     additional_requirements: Vec<Request>,
     source: BuildSource,
-    source_resolver: BoxedResolverCallback<'a>,
-    build_resolver: BoxedResolverCallback<'a>,
+    source_formatter: DecisionFormatter,
+    build_formatter: DecisionFormatter,
 }
 
-impl<'a> PackageBuildTester<'a> {
-    pub fn new(recipe: SpecRecipe, script: String) -> Self {
+impl<Solver> PackageBuildTester<Solver>
+where
+    Solver: SolverExt + SolverMut + Clone + Send,
+{
+    pub fn new(recipe: SpecRecipe, script: String, solver: Solver) -> Self {
         let source =
             BuildSource::SourcePackage(recipe.ident().to_any_ident(Some(Build::Source)).into());
         Self {
@@ -41,11 +48,12 @@ impl<'a> PackageBuildTester<'a> {
             recipe,
             script,
             repos: Vec::new(),
+            solver,
             options: OptionMap::default(),
             additional_requirements: Vec::new(),
             source,
-            source_resolver: Box::new(DefaultResolver {}),
-            build_resolver: Box::new(DefaultResolver {}),
+            source_formatter: DecisionFormatter::default(),
+            build_formatter: DecisionFormatter::default(),
         }
     }
 
@@ -74,31 +82,15 @@ impl<'a> PackageBuildTester<'a> {
         self
     }
 
-    /// Provide a function that will be called when resolving the source package.
-    ///
-    /// This function should run the provided solver runtime to
-    /// completion, returning the final result. This function
-    /// is useful for introspecting and reporting on the solve
-    /// process as needed.
-    pub fn with_source_resolver<F>(&mut self, resolver: F) -> &mut Self
-    where
-        F: ResolverCallback + 'a,
-    {
-        self.source_resolver = Box::new(resolver);
+    /// Provide a formatter to use when resolving the source package.
+    pub fn with_source_formatter(&mut self, formatter: DecisionFormatter) -> &mut Self {
+        self.source_formatter = formatter;
         self
     }
 
-    /// Provide a function that will be called when resolving the build environment.
-    ///
-    /// This function should run the provided solver runtime to
-    /// completion, returning the final result. This function
-    /// is useful for introspecting and reporting on the solve
-    /// process as needed.
-    pub fn with_build_resolver<F>(&mut self, resolver: F) -> &mut Self
-    where
-        F: ResolverCallback + 'a,
-    {
-        self.build_resolver = Box::new(resolver);
+    /// Provide a formatter to use when resolving the build environment.
+    pub fn with_build_formatter(&mut self, formatter: DecisionFormatter) -> &mut Self {
+        self.build_formatter = formatter;
         self
     }
 
@@ -117,18 +109,22 @@ impl<'a> PackageBuildTester<'a> {
             }
         }
 
-        let mut solver = Solver::default();
+        // Use a clone of the solver before changing settings so
+        // `resolve_source_package` can do the same.
+        let mut solver = self.solver.clone();
         solver.set_binary_only(true);
         solver.update_options(self.options.clone());
         for repo in self.repos.iter().cloned() {
             solver.add_repository(repo);
         }
+        // Configure solver for build environment.
         solver.configure_for_build_environment(&self.recipe)?;
         for request in self.additional_requirements.drain(..) {
             solver.add_request(request)
         }
 
-        let (solution, _) = self.build_resolver.solve(&solver).await?;
+        // let (solution, _) = self.build_resolver.solve(&solver).await?;
+        let solution = solver.run_and_print_resolve(&self.build_formatter).await?;
 
         for layer in resolve_runtime_layers(requires_localization, &solution).await? {
             rt.push_digest(layer);
@@ -154,7 +150,9 @@ impl<'a> PackageBuildTester<'a> {
     }
 
     async fn resolve_source_package(&mut self, package: &AnyIdent) -> Result<Solution> {
-        let mut solver = Solver::default();
+        // Use a clone of the solver before changing settings so `test` can do
+        // the same.
+        let mut solver = self.solver.clone();
         solver.update_options(self.options.clone());
         let local_repo: Arc<storage::RepositoryHandle> =
             Arc::new(storage::local_repository().await?.into());
@@ -175,15 +173,19 @@ impl<'a> PackageBuildTester<'a> {
 
         solver.add_request(request.into());
 
-        let (solution, _) = self.source_resolver.solve(&solver).await?;
+        // let (solution, _) = self.source_resolver.solve(&solver).await?;
+        let solution = solver.run_and_print_resolve(&self.source_formatter).await?;
         Ok(solution)
     }
 }
 
 #[async_trait::async_trait]
-impl Tester for PackageBuildTester<'_> {
+impl<Solver> Tester for PackageBuildTester<Solver>
+where
+    Solver: SolverExt + SolverMut + Clone + Send,
+{
     async fn test(&mut self) -> Result<()> {
-        self.test().await
+        PackageBuildTester::test(self).await
     }
     fn prefix(&self) -> &Path {
         &self.prefix

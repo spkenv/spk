@@ -11,8 +11,8 @@ use std::os::unix::ffi::OsStrExt;
 use std::os::unix::prelude::FileExt;
 #[cfg(feature = "fuse-backend-abi-7-31")]
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime};
 
 use dashmap::DashMap;
@@ -28,11 +28,12 @@ use fuser::{
     ReplyOpen,
     Request,
 };
+use spfs::OsError;
 use spfs::prelude::*;
+use spfs::storage::LocalRepository;
 #[cfg(feature = "fuse-backend-abi-7-31")]
 use spfs::tracking::BlobRead;
 use spfs::tracking::{Entry, EntryKind, EnvSpec, Manifest};
-use spfs::OsError;
 use tokio::io::AsyncReadExt;
 
 use crate::Error;
@@ -381,7 +382,7 @@ impl Filesystem {
                         reply.error(libc::ENOENT);
                         return;
                     };
-                    let payload_path = fs_repo.payloads.build_digest_path(digest);
+                    let payload_path = fs_repo.payloads().build_digest_path(digest);
                     match std::fs::OpenOptions::new().read(true).open(payload_path) {
                         Ok(file) => {
                             handle = Some(Handle::BlobFile { entry, file });
@@ -842,7 +843,7 @@ impl fuser::Filesystem for Session {
         });
     }
 
-    fn getattr(&mut self, _req: &Request<'_>, ino: u64, reply: fuser::ReplyAttr) {
+    fn getattr(&mut self, _req: &Request<'_>, ino: u64, _fh: Option<u64>, reply: fuser::ReplyAttr) {
         let session = Arc::clone(&self.inner);
         tokio::task::spawn(async move {
             let fs = unwrap!(reply, session.get_fs().await);

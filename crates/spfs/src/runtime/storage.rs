@@ -31,9 +31,9 @@ use crate::graph::object::Enum;
 use crate::graph::{Annotation, AnnotationValue, KeyAnnotationValuePair};
 use crate::prelude::*;
 use crate::runtime::LiveLayer;
-use crate::storage::fs::DURABLE_EDITS_DIR;
 use crate::storage::RepositoryHandle;
-use crate::{bootstrap, graph, storage, tracking, Error, Result};
+use crate::storage::fs::DURABLE_EDITS_DIR;
+use crate::{Error, Result, bootstrap, graph, storage, tracking};
 
 #[cfg(test)]
 #[path = "./storage_test.rs"]
@@ -423,6 +423,10 @@ impl OwnedRuntime {
     }
 }
 
+/// A key-value pair for setting environment variables.
+#[derive(Clone, Debug)]
+pub struct EnvKeyValue(pub String, pub String);
+
 /// Represents an active spfs session.
 ///
 /// The runtime contains the working files for a spfs
@@ -658,7 +662,10 @@ impl Runtime {
                                 if !existing_file.exists() {
                                     // This file's mount will fail because of the earlier
                                     // directory extra mount over the file's parent directory.
-                                    return Err(Error::String(format!("Invalid extra mount order: the file mount, {}, will fail because its destination is hidden by the earlier dir mount, {}, please reorder these extra mounts", extra_mount, dir_mount )));
+                                    return Err(Error::String(format!(
+                                        "Invalid extra mount order: the file mount, {}, will fail because its destination is hidden by the earlier dir mount, {}, please reorder these extra mounts",
+                                        extra_mount, dir_mount
+                                    )));
                                 }
                             }
 
@@ -790,24 +797,24 @@ impl Runtime {
     /// defined location.
     pub fn ensure_startup_scripts(
         &self,
-        tmpdir_value_for_child_process: Option<&String>,
+        environment_overrides_for_child_process: &[EnvKeyValue],
     ) -> Result<()> {
         #[cfg(unix)]
         std::fs::write(
             &self.config.sh_startup_file,
-            startup_sh::source(tmpdir_value_for_child_process),
+            startup_sh::source(environment_overrides_for_child_process),
         )
         .map_err(|err| Error::RuntimeWriteError(self.config.sh_startup_file.clone(), err))?;
         #[cfg(unix)]
         std::fs::write(
             &self.config.csh_startup_file,
-            startup_csh::source(tmpdir_value_for_child_process),
+            startup_csh::source(environment_overrides_for_child_process),
         )
         .map_err(|err| Error::RuntimeWriteError(self.config.csh_startup_file.clone(), err))?;
         #[cfg(windows)]
         std::fs::write(
             &self.config.ps_startup_file,
-            startup_ps::source(tmpdir_value_for_child_process),
+            startup_ps::source(environment_overrides_for_child_process),
         )
         .map_err(|err| Error::RuntimeWriteError(self.config.ps_startup_file.clone(), err))?;
         Ok(())
@@ -953,13 +960,13 @@ impl Storage {
                 Some(code) => {
                     return Err(Error::String(format!(
                         "spfs-clean --remove-durable returned non-zero exit status: {code}"
-                    )))
+                    )));
                 }
                 None => {
                     return Err(Error::String(
                         "spfs-clean --remove-durable failed unexpectedly with no return code"
                             .to_string(),
-                    ))
+                    ));
                 }
             }
         }

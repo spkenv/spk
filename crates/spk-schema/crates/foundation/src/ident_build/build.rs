@@ -12,7 +12,7 @@ use thiserror::Error;
 use super::BuildId;
 use crate::ident_component::{Component, Components};
 use crate::ident_ops::parsing::IdentPartsBuf;
-use crate::ident_ops::{MetadataPath, TagPath, TagPathStrategy};
+use crate::ident_ops::{MetadataPath, TagPath};
 
 #[cfg(test)]
 #[path = "./build_test.rs"]
@@ -130,6 +130,10 @@ impl Build {
         }
     }
 
+    pub fn is_buildid(&self) -> bool {
+        matches!(self, Build::BuildId(_))
+    }
+
     pub fn is_source(&self) -> bool {
         matches!(self, Build::Source)
     }
@@ -153,7 +157,14 @@ impl MetadataPath for Build {
 }
 
 impl TagPath for Build {
-    fn tag_path<S: TagPathStrategy>(&self) -> RelativePathBuf {
+    fn tag_path(&self) -> RelativePathBuf {
+        self.metadata_path()
+    }
+
+    fn verbatim_tag_path(&self) -> RelativePathBuf {
+        // No difference between verbatim and non-verbatim for builds, which
+        // don't hold a version number (except for embedded, where it doesn't
+        // matter(?)).
         self.metadata_path()
     }
 }
@@ -167,6 +178,14 @@ impl std::fmt::Debug for Build {
 impl std::fmt::Display for Build {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.write_str(self.digest().as_str())
+    }
+}
+
+impl TryFrom<String> for Build {
+    type Error = super::Error;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::from_str(&value)
     }
 }
 

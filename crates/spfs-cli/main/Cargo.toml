@@ -1,14 +1,14 @@
 [package]
 authors = { workspace = true }
 default-run = "spfs"
-edition = { workspace = true }
-name = "spfs-cli-main"
-version = { workspace = true }
-license-file = { workspace = true }
-homepage = { workspace = true }
-repository = { workspace = true }
-readme = { workspace = true }
 description = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license-file = { workspace = true }
+name = "spfs-cli-main"
+readme = { workspace = true }
+repository = { workspace = true }
+version = { workspace = true }
 
 [lints]
 workspace = true
@@ -18,19 +18,27 @@ name = "spfs"
 path = "src/bin.rs"
 
 [features]
-sentry = ["spfs-cli-common/sentry"]
-server = ["spfs/server", "dep:hyper", "dep:tonic", "dep:url"]
 fuse = ["spfs/fuse-backend"]
+sentry = ["spfs-cli-common/sentry"]
+server = [
+    "dep:hyper",
+    "dep:hyper-util",
+    "dep:tonic",
+    "dep:url",
+    "hyper/server",
+    "spfs/server",
+]
 
 [dependencies]
 async-recursion = "1.0.2"
-clap = { workspace = true }
 chrono = { workspace = true }
+clap = { workspace = true }
 colored = "2.0"
 dunce = { workspace = true }
 futures = { workspace = true }
-hyper = { version = "0.14.16", optional = true }
-itertools = "0.10.3"
+hyper = { workspace = true, optional = true, features = ["http1"] }
+hyper-util = { workspace = true, optional = true }
+itertools = { workspace = true }
 libc = { workspace = true }
 miette = { workspace = true, features = ["fancy"] }
 nix = { workspace = true, features = ["signal"] }
@@ -41,7 +49,7 @@ serde_yaml = { workspace = true }
 spfs = { workspace = true }
 spfs-cli-common = { workspace = true }
 strum = { workspace = true, features = ["derive"] }
-tokio = { version = "1.20", features = ["io-util", "rt", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["io-util", "rt", "rt-multi-thread"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 tonic = { workspace = true, optional = true }
 tracing = { workspace = true }
@@ -52,12 +60,12 @@ url = { version = "2.2", optional = true }
 procfs = { workspace = true }
 
 [target.'cfg(windows)'.dependencies.windows]
-version = "0.51"
 features = [
     "Win32_Foundation",
     "Win32_System_SystemInformation",
     "Win32_System_Threading",
 ]
+version = "0.51"
 
 [dev-dependencies]
 rstest = { workspace = true }

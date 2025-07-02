@@ -7,7 +7,6 @@ use std::sync::Arc;
 use clap::Args;
 use miette::Result;
 use spk_cli_common::{CommandArgs, PublishLabel, Publisher, Run};
-use spk_schema::ident_ops::{NormalizedTagStrategy, VerbatimTagStrategy};
 use spk_schema::AnyIdent;
 use spk_storage as storage;
 
@@ -51,15 +50,6 @@ pub struct Publish {
     /// single, specific build.
     #[clap(name = "PKG", required = true)]
     pub packages: Vec<AnyIdent>,
-
-    /// Turn on publishing packages using legacy version tags.
-    ///
-    /// This is enabled by default if built with the
-    /// `legacy-spk-version-tags-for-writes` feature flag. It is only needed if
-    /// writing to a repository that may be read by older versions of spk that
-    /// do not implement version tag normalization.
-    #[clap(long, hide = true, default_value_t = cfg!(feature = "legacy-spk-version-tags-for-writes"))]
-    pub legacy_spk_version_tags_for_writes: bool,
 }
 
 #[async_trait::async_trait]
@@ -68,16 +58,9 @@ impl Run for Publish {
 
     async fn run(&mut self) -> Result<Self::Output> {
         let (source, target) = tokio::try_join!(storage::local_repository(), async {
-            if self.legacy_spk_version_tags_for_writes {
-                Ok(Into::<storage::RepositoryHandle>::into(
-                    storage::remote_repository::<_, VerbatimTagStrategy>(&self.target_repo).await?,
-                ))
-            } else {
-                Ok(Into::<storage::RepositoryHandle>::into(
-                    storage::remote_repository::<_, NormalizedTagStrategy>(&self.target_repo)
-                        .await?,
-                ))
-            }
+            Ok(Into::<storage::RepositoryHandle>::into(
+                storage::remote_repository(&self.target_repo).await?,
+            ))
         })?;
 
         let publisher = Publisher::new(Arc::new(source.into()), Arc::new(target))

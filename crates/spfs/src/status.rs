@@ -10,7 +10,7 @@ pub use os::*;
 
 use super::config::get_config;
 use crate::storage::FromConfig;
-use crate::{runtime, tracking, Error, Result};
+use crate::{Error, Result, runtime, tracking};
 
 static SPFS_RUNTIME: &str = "SPFS_RUNTIME";
 const RUNTIME_REPO_NAME: &str = "<runtime>";

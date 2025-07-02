@@ -3,25 +3,13 @@
 // https://github.com/imageworks/spk
 
 use super::OptionMap;
-use crate::option_map::{OptNameBuf, HOST_OPTIONS};
+use crate::option_map::{HOST_OPTIONS, OptNameBuf};
 
 /// Option filter for matching against the options in an option map
 #[derive(Debug, Clone)]
 pub struct OptFilter {
     pub name: OptNameBuf,
     pub value: String,
-}
-
-impl OptFilter {
-    pub fn matches(&self, options: &OptionMap) -> bool {
-        if let Some(v) = options.get(&self.name) {
-            self.value == *v
-        } else {
-            // Not having an option with the filter's name is
-            // considered a match.
-            true
-        }
-    }
 }
 
 /// Constructs a list of filters from the current host's host options,

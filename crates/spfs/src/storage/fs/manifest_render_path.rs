@@ -4,7 +4,7 @@
 
 use std::path::PathBuf;
 
-use crate::{graph, Result};
+use crate::{Result, graph};
 
 /// A trait for types that can map a manifest to a render path on disk.
 pub trait ManifestRenderPath {

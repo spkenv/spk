@@ -9,12 +9,15 @@ use std::convert::From;
 use std::sync::Arc;
 
 use clap::{Args, ValueEnum, ValueHint};
-use miette::{bail, miette, Context, IntoDiagnostic, Result};
+use miette::{Context, IntoDiagnostic, Result, bail, miette};
 use solve::{
+    DEFAULT_SOLVER_RUN_FILE_PREFIX,
     DecisionFormatter,
     DecisionFormatterBuilder,
     MultiSolverKind,
-    DEFAULT_SOLVER_RUN_FILE_PREFIX,
+    SolverExt,
+    SolverImpl,
+    SolverMut,
 };
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::ident_build::Build;
@@ -23,32 +26,25 @@ use spk_schema::foundation::name::OptName;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::CompatRule;
 use spk_schema::ident::{
-    parse_ident,
     AnyIdent,
     AsVersionIdent,
     PkgRequest,
+    RangeIdent,
     Request,
     RequestedBy,
     VarRequest,
+    parse_ident,
 };
 use spk_schema::option_map::HOST_OPTIONS;
-use spk_schema::{
-    Recipe,
-    SpecFileData,
-    SpecRecipe,
-    SpecTemplate,
-    Template,
-    TemplateExt,
-    TestStage,
-    VariantExt,
-};
+use spk_schema::{Recipe, SpecFileData, SpecRecipe, Template, TestStage, VariantExt};
 #[cfg(feature = "statsd")]
-use spk_solve::{get_metrics_client, SPK_RUN_TIME_METRIC};
+use spk_solve::{SPK_RUN_TIME_METRIC, get_metrics_client};
+use spk_workspace::{FindOrLoadPackageTemplateError, FindPackageTemplateError};
 pub use variant::{Variant, VariantBuildStatus, VariantLocation};
 use {spk_solve as solve, spk_storage as storage};
 
-use crate::parsing::{stage_specifier, VariantIndex};
-use crate::Error;
+use crate::parsing::{VariantIndex, stage_specifier};
+use crate::{CommandArgs, Error};
 
 #[cfg(test)]
 #[path = "./flags_test.rs"]
@@ -199,7 +195,7 @@ impl Runtime {
             );
             args.insert(
                 0,
-                std::ffi::CString::new("--name").expect("should never fail"),
+                std::ffi::CString::new("--runtime-name").expect("should never fail"),
             );
         }
 
@@ -239,6 +235,9 @@ pub struct Solver {
     #[clap(flatten)]
     pub repos: Repositories,
 
+    #[clap(flatten)]
+    pub decision_formatter_settings: DecisionFormatterSettings,
+
     /// If true, build packages from source if needed
     #[clap(long)]
     pub allow_builds: bool,
@@ -264,10 +263,30 @@ pub struct Solver {
 }
 
 impl Solver {
-    pub async fn get_solver(&self, options: &Options) -> Result<solve::Solver> {
+    pub async fn get_solver(
+        &self,
+        options: &Options,
+    ) -> Result<impl SolverExt + SolverMut + Clone + 'static> {
         let option_map = options.get_options()?;
 
-        let mut solver = solve::Solver::default();
+        let mut solver = match self.decision_formatter_settings.solver_to_run {
+            SolverToRun::Resolvo => SolverImpl::Resolvo(solve::ResolvoSolver::default()),
+            _ => {
+                let mut solver = solve::StepSolver::default();
+                // These settings are only applicable to the Step solver.
+                solver.set_initial_request_impossible_checks(
+                    self.check_impossible_initial || self.check_impossible_all,
+                );
+                solver.set_resolve_validation_impossible_checks(
+                    self.check_impossible_validation || self.check_impossible_all,
+                );
+                solver.set_build_key_impossible_checks(
+                    self.check_impossible_builds || self.check_impossible_all,
+                );
+                SolverImpl::Step(solver)
+            }
+        };
+
         solver.update_options(option_map);
 
         for (name, repo) in self.repos.get_repos_for_non_destructive_operation().await? {
@@ -275,15 +294,10 @@ impl Solver {
             solver.add_repository(repo);
         }
         solver.set_binary_only(!self.allow_builds);
-        solver.set_initial_request_impossible_checks(
-            self.check_impossible_initial || self.check_impossible_all,
-        );
-        solver.set_resolve_validation_impossible_checks(
-            self.check_impossible_validation || self.check_impossible_all,
-        );
-        solver.set_build_key_impossible_checks(
-            self.check_impossible_builds || self.check_impossible_all,
-        );
+
+        for r in options.get_var_requests()? {
+            solver.add_request(r.into());
+        }
 
         Ok(solver)
     }
@@ -361,6 +375,9 @@ pub struct Requests {
     /// Allow pre-releases for all command line package requests
     #[clap(long)]
     pub pre: bool,
+
+    #[clap(flatten)]
+    pub workspace: Workspace,
 }
 
 impl Requests {
@@ -372,9 +389,18 @@ impl Requests {
         repos: &[Arc<storage::RepositoryHandle>],
     ) -> Result<Vec<AnyIdent>> {
         let mut idents = Vec::new();
+        let mut workspace = None;
         for package in packages {
             if package.contains('@') {
-                let (recipe, _, stage, _) = parse_stage_specifier(package, options, repos).await?;
+                if workspace.is_none() {
+                    workspace = Some(self.workspace.load_or_default()?);
+                }
+                let Some(ws) = workspace.as_mut() else {
+                    unreachable!();
+                };
+
+                let (recipe, _, stage, _) =
+                    parse_stage_specifier(package, options, ws, repos).await?;
 
                 match stage {
                     TestStage::Sources => {
@@ -384,20 +410,29 @@ impl Requests {
                     }
                     _ => {
                         bail!(
-                        "Unsupported stage '{stage}', can only be empty or 'source' in this context"
-                    );
+                            "Unsupported stage '{stage}', can only be empty or 'source' in this context"
+                        );
                     }
                 }
             }
 
             let path = std::path::Path::new(package);
             if path.is_file() {
-                let (filename, template) = find_package_template(Some(&package))?.must_be_found();
-                let rendered_data = template.render(options)?;
+                if workspace.is_none() {
+                    workspace = Some(self.workspace.load_or_default()?);
+                }
+                let Some(ws) = workspace.as_mut() else {
+                    unreachable!();
+                };
+
+                let configured = ws
+                    .find_or_load_package_template(package)
+                    .wrap_err("did not find recipe template")?;
+                let rendered_data = configured.template.render(options)?;
                 let recipe = rendered_data.into_recipe().wrap_err_with(|| {
                     format!(
                         "{filename} was expected to contain a recipe",
-                        filename = filename.to_string_lossy()
+                        filename = configured.template.file_path().to_string_lossy()
                     )
                 })?;
                 idents.push(recipe.ident().to_any_ident(None));
@@ -445,6 +480,7 @@ impl Requests {
         let override_options = options.get_options()?;
         let mut templating_options = override_options.clone();
         let mut extra_options = OptionMap::default();
+        let mut workspace = None;
 
         // From the positional REQUESTS arg
         for r in requests.into_iter() {
@@ -452,10 +488,21 @@ impl Requests {
 
             // Is it a filepath to a package requests yaml file?
             if r.ends_with(".spk.yaml") {
-                let (spec, filename) =
-                    find_package_recipe_from_template_or_repo(Some(&r), &templating_options, repos)
-                        .await
-                        .wrap_err_with(|| format!("finding requests file {r}"))?;
+                if workspace.is_none() {
+                    workspace = Some(self.workspace.load_or_default()?);
+                }
+                let Some(ws) = workspace.as_mut() else {
+                    unreachable!();
+                };
+
+                let (spec, filename) = find_package_recipe_from_workspace_or_repo(
+                    Some(&r),
+                    &templating_options,
+                    ws,
+                    repos,
+                )
+                .await
+                .wrap_err_with(|| format!("finding requests file {r}"))?;
                 let requests_from_file = spec.into_requests().wrap_err_with(|| {
                     format!(
                         "{filename} was expected to contain a list of requests",
@@ -481,7 +528,7 @@ impl Requests {
             }
 
             let reqs = self
-                .parse_cli_or_pkg_file_request(r, &templating_options, repos)
+                .parse_cli_or_pkg_file_request(r, &templating_options, &mut workspace, repos)
                 .await?;
             out.extend(reqs);
         }
@@ -500,6 +547,7 @@ impl Requests {
         &self,
         request: &str,
         options: &OptionMap,
+        workspace: &mut Option<spk_workspace::Workspace>,
         repos: &[Arc<storage::RepositoryHandle>],
     ) -> Result<Vec<Request>> {
         // Parses a command line request into one or more requests.
@@ -507,11 +555,19 @@ impl Requests {
         let mut out = Vec::<Request>::new();
 
         if request.contains('@') {
-            let (recipe, _, stage, build_variant) = parse_stage_specifier(request, options, repos)
-                .await
-                .wrap_err_with(|| {
-                    format!("parsing {request} as a filename with stage specifier")
-                })?;
+            if workspace.is_none() {
+                *workspace = Some(self.workspace.load_or_default()?);
+            }
+            let Some(ws) = workspace.as_mut() else {
+                unreachable!();
+            };
+
+            let (recipe, _, stage, build_variant) =
+                parse_stage_specifier(request, options, ws, repos)
+                    .await
+                    .wrap_err_with(|| {
+                        format!("parsing {request} as a filename with stage specifier")
+                    })?;
 
             match stage {
                 TestStage::Sources => {
@@ -590,7 +646,7 @@ impl Requests {
         let mut req = serde_yaml::from_value::<Request>(request_data.into())
             .into_diagnostic()
             .wrap_err_with(|| format!("Failed to parse request {request}"))?
-            .into_pkg()
+            .pkg()
             .ok_or_else(|| miette!("Expected a package request, got None"))?;
         req.add_requester(RequestedBy::CommandLine);
 
@@ -650,6 +706,7 @@ fn parse_package_stage_and_variant(
 pub async fn parse_stage_specifier(
     specifier: &str,
     options: &OptionMap,
+    workspace: &mut spk_workspace::Workspace,
     repos: &[Arc<storage::RepositoryHandle>],
 ) -> Result<(
     Arc<SpecRecipe>,
@@ -660,7 +717,7 @@ pub async fn parse_stage_specifier(
     let (package, stage, build_variant) = parse_package_stage_and_variant(specifier)
         .wrap_err_with(|| format!("parsing {specifier} as a stage name and optional variant"))?;
     let (spec, filename) =
-        find_package_recipe_from_template_or_repo(Some(&package), options, repos)
+        find_package_recipe_from_workspace_or_repo(Some(&package), options, workspace, repos)
             .await
             .wrap_err_with(|| format!("finding package recipe for {package}"))?;
 
@@ -674,148 +731,150 @@ pub async fn parse_stage_specifier(
     Ok((recipe, filename, stage, build_variant))
 }
 
-/// The result of the [`find_package_template`] function.
-// We are okay with the large variant here because it's specifically
-// used as the positive result of the function, with the others simply
-// denoting unique error cases.
-#[allow(clippy::large_enum_variant)]
-pub enum FindPackageTemplateResult {
-    /// A non-ambiguous package template file was found
-    Found {
-        path: std::path::PathBuf,
-        template: Arc<SpecTemplate>,
-    },
-    /// No package was specifically requested, and there are multiple
-    /// files in the current repository.
-    MultipleTemplateFiles(Vec<std::path::PathBuf>),
-    /// No package was specifically requested, and there no template
-    /// files in the current repository.
-    NoTemplateFiles,
-    NotFound(String),
+#[derive(Args, Default, Clone)]
+pub struct Workspace {
+    /// The location of the spk workspace to find spec files in
+    #[clap(long, default_value = ".")]
+    pub workspace: std::path::PathBuf,
 }
 
-impl FindPackageTemplateResult {
-    pub fn is_found(&self) -> bool {
-        matches!(self, Self::Found { .. })
-    }
+impl Workspace {
+    pub fn load_or_default(&self) -> Result<spk_workspace::Workspace> {
+        match spk_workspace::Workspace::builder().load_from_dir(&self.workspace) {
+            Ok(w) => {
+                tracing::debug!(workspace = ?self.workspace, "Loading workspace");
+                w.build().into_diagnostic()
+            }
+            Err(spk_workspace::error::FromPathError::LoadWorkspaceFileError(
+                spk_workspace::error::LoadWorkspaceFileError::NoWorkspaceFile(_),
+            ))
+            | Err(spk_workspace::error::FromPathError::LoadWorkspaceFileError(
+                spk_workspace::error::LoadWorkspaceFileError::WorkspaceNotFound(_),
+            )) => {
+                let mut builder = spk_workspace::Workspace::builder();
 
-    /// Prints error messages and exits if no template file was found
-    pub fn must_be_found(self) -> (std::path::PathBuf, Arc<SpecTemplate>) {
+                if self.workspace.is_dir() {
+                    tracing::debug!(
+                        "Using virtual workspace in {d}",
+                        d = self.workspace.to_string_lossy()
+                    );
+                    builder = builder.with_root(&self.workspace);
+                } else {
+                    tracing::debug!("Using virtual workspace in current dir");
+                }
+
+                builder
+                    .with_glob_pattern("*.spk.yaml")?
+                    .build()
+                    .into_diagnostic()
+                    .wrap_err("loading *.spk.yaml")
+            }
+            Err(err) => Err(err.into()),
+        }
+    }
+}
+
+/// Specifies a package, allowing for more details when being invoked
+/// programmatically instead of by a user on the command line.
+#[derive(Clone, Debug)]
+pub enum PackageSpecifier {
+    Plain(String),
+    WithSourceIdent((String, RangeIdent)),
+}
+
+impl PackageSpecifier {
+    // Return the package spec or filename string.
+    pub fn get_specifier(&self) -> &String {
         match self {
-            Self::Found { path, template } => return (path, template),
-            Self::MultipleTemplateFiles(files) => {
-                tracing::error!("Multiple package specs in current directory:");
-                for file in files {
-                    tracing::error!("- {}", file.into_os_string().to_string_lossy());
-                }
-                tracing::error!(" > please specify a package name or filepath");
-            }
-            Self::NoTemplateFiles => {
-                tracing::error!("No package specs found in current directory");
-                tracing::error!(" > please specify a filepath");
-            }
-            Self::NotFound(request) => {
-                tracing::error!("Spec file not found for '{request}', or the file does not exist");
-            }
+            PackageSpecifier::Plain(s) => s,
+            PackageSpecifier::WithSourceIdent((s, _)) => s,
         }
-        std::process::exit(1);
+    }
+
+    // Extract the package spec or filename string.
+    pub fn into_specifier(self) -> String {
+        match self {
+            PackageSpecifier::Plain(s) => s,
+            PackageSpecifier::WithSourceIdent((s, _)) => s,
+        }
     }
 }
 
-/// Find a package template file for the requested package, if any.
-///
-/// This function will use the current directory and the provided
-/// package name or filename to try and discover the matching
-/// yaml template file.
-pub fn find_package_template<S>(package: Option<&S>) -> Result<FindPackageTemplateResult>
-where
-    S: AsRef<str>,
-{
-    use FindPackageTemplateResult::*;
+impl std::str::FromStr for PackageSpecifier {
+    type Err = clap::Error;
 
-    // Lazily process the glob. This closure is expected to be called at
-    // most once, but there are two code paths that might need to call it.
-    let find_packages = || {
-        glob::glob("*.spk.yaml")
-            .into_diagnostic()?
-            .collect::<std::result::Result<Vec<_>, _>>()
-            .into_diagnostic()
-            .wrap_err("Failed to discover spec files in current directory")
-    };
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // On the command line, only `Plain` is possible.
+        Ok(PackageSpecifier::Plain(s.to_owned()))
+    }
+}
 
-    // This must catch and convert all the errors into the appropriate
-    // FindPackageTemplateResult, e.g. NotFound(error_message), so
-    // that find_package_recipe_from_template_or_repo() can operate
-    // correctly.
-    let package = match package {
-        None => {
-            let mut packages = find_packages()?;
-            return match packages.len() {
-                1 => {
-                    let path = packages.pop().unwrap();
-                    let template = match SpecTemplate::from_file(&path) {
-                        Ok(t) => t,
-                        Err(spk_schema::Error::InvalidPath(_, err)) => {
-                            return Ok(NotFound(format!("{err}")));
-                        }
-                        Err(spk_schema::Error::FileOpenError(_, err)) => {
-                            return Ok(NotFound(format!("{err}")));
-                        }
-                        Err(err) => {
-                            return Err(err.into());
-                        }
-                    };
-                    Ok(Found {
-                        path,
-                        template: Arc::new(template),
-                    })
-                }
-                2.. => Ok(MultipleTemplateFiles(packages)),
-                _ => Ok(NoTemplateFiles),
-            };
-        }
-        Some(package) => package,
-    };
+#[derive(Args, Default, Clone)]
+pub struct Packages {
+    /// The package names or yaml spec files to operate on
+    ///
+    /// Package requests may also come with a version when multiple
+    /// versions might be found in the local workspace or configured
+    /// repositories.
+    #[clap(name = "PKG|SPEC_FILE")]
+    pub packages: Vec<PackageSpecifier>,
 
-    match SpecTemplate::from_file(package.as_ref().as_ref()) {
-        Err(spk_schema::Error::InvalidPath(_, _err)) => {}
-        Err(spk_schema::Error::FileOpenError(_, err))
-            if err.kind() == std::io::ErrorKind::NotFound => {}
-        Err(err) => {
-            return Err(err.into());
-        }
-        Ok(res) => {
-            return Ok(Found {
-                path: package.as_ref().into(),
-                template: Arc::new(res),
-            });
-        }
+    #[clap(flatten)]
+    pub workspace: Workspace,
+}
+
+impl CommandArgs for Packages {
+    fn get_positional_args(&self) -> Vec<String> {
+        self.packages
+            .iter()
+            .map(|ps| ps.get_specifier())
+            .cloned()
+            .collect()
+    }
+}
+
+impl Packages {
+    /// Create clones of these arguments where each instance
+    /// has only one package specified.
+    ///
+    /// Useful for running multiple package operations for each
+    /// entry in order.
+    pub fn split(&self) -> Vec<Self> {
+        self.packages
+            .iter()
+            .cloned()
+            .map(|p| Self {
+                packages: vec![p],
+                ..self.clone()
+            })
+            .collect()
     }
 
-    for path in find_packages()? {
-        let template = match SpecTemplate::from_file(&path) {
-            Ok(t) => t,
-            Err(spk_schema::Error::InvalidPath(_, _)) => {
-                continue;
-            }
-            Err(spk_schema::Error::FileOpenError(_, _)) => {
-                continue;
-            }
-            Err(err) => {
-                return Err(err.into());
-            }
-        };
-        if let Some(name) = template.name() {
-            if name.as_str() == package.as_ref() {
-                return Ok(Found {
-                    path,
-                    template: Arc::new(template),
-                });
-            }
+    pub async fn find_all_recipes(
+        &self,
+        options: &OptionMap,
+        repos: &[Arc<storage::RepositoryHandle>],
+    ) -> Result<Vec<(Option<PackageSpecifier>, SpecFileData, std::path::PathBuf)>> {
+        let mut packages: Vec<_> = self.packages.iter().cloned().map(Some).collect();
+        if packages.is_empty() {
+            packages.push(None)
         }
-    }
 
-    Ok(NotFound(package.as_ref().to_owned()))
+        let mut workspace = self.workspace.load_or_default()?;
+
+        let mut results = Vec::with_capacity(packages.len());
+        for package in packages {
+            let (file_data, path) = find_package_recipe_from_workspace_or_repo(
+                package.as_ref().map(|p| p.get_specifier()),
+                options,
+                &mut workspace,
+                repos,
+            )
+            .await?;
+            results.push((package, file_data, path));
+        }
+        Ok(results)
+    }
 }
 
 // TODO: rename this because it is more than package recipe spec now?
@@ -827,48 +886,46 @@ where
 /// will try to find the matching package/version in the repo and use
 /// the recipe published for that.
 ///
-pub async fn find_package_recipe_from_template_or_repo<S>(
+pub async fn find_package_recipe_from_workspace_or_repo<S>(
     package_name: Option<&S>,
     options: &OptionMap,
+    workspace: &mut spk_workspace::Workspace,
     repos: &[Arc<storage::RepositoryHandle>],
 ) -> Result<(SpecFileData, std::path::PathBuf)>
 where
     S: AsRef<str>,
 {
-    match find_package_template(package_name).wrap_err_with(|| {
-        format!(
-            "finding package template for {package_name}",
-            package_name = {
-                match &package_name {
-                    Some(package_name) => package_name.as_ref(),
-                    None => "something named *.spk.yaml in the current directory",
-                }
-            }
-        )
-    })? {
-        FindPackageTemplateResult::Found { path, template } => {
-            let found = template.render(options).wrap_err_with(|| {
-                format!(
-                    "{filename} was expected to contain a valid spk yaml data file",
-                    filename = path.to_string_lossy()
-                )
-            })?;
-            tracing::debug!("Rendered template from the data in {path:?}");
-            Ok((found, path))
+    let from_workspace = match package_name {
+        Some(package_name) => workspace.find_or_load_package_template(package_name),
+        None => workspace.default_package_template().map_err(From::from),
+    };
+    let configured = match from_workspace {
+        Ok(template) => template,
+        res @ Err(FindOrLoadPackageTemplateError::FindPackageTemplateError(
+            FindPackageTemplateError::MultipleTemplates(_),
+        ))
+        | res @ Err(FindOrLoadPackageTemplateError::BuildError(_)) => {
+            res.wrap_err("did not find recipe template")?
         }
-        FindPackageTemplateResult::MultipleTemplateFiles(files) => {
-            // must_be_found() will exit the program when called on MultipleTemplateFiles
-            FindPackageTemplateResult::MultipleTemplateFiles(files).must_be_found();
-            unreachable!()
-        }
-        FindPackageTemplateResult::NoTemplateFiles | FindPackageTemplateResult::NotFound(_) => {
+        res @ Err(FindOrLoadPackageTemplateError::FindPackageTemplateError(
+            FindPackageTemplateError::NoTemplateFiles,
+        ))
+        | res @ Err(FindOrLoadPackageTemplateError::FindPackageTemplateError(
+            FindPackageTemplateError::NotFound(..),
+        )) => {
+            drop(res); // promise that we don't hold data from the workspace anymore
+
             // If couldn't find a template file, maybe there's an
             // existing package/version that's been published
-            match package_name {
+            match package_name.map(AsRef::as_ref) {
+                Some(name) if std::path::Path::new(name).is_file() => {
+                    tracing::debug!(?name, "Loading anonymous template file into workspace...");
+                    workspace.load_template_file(name)?
+                }
                 Some(name) => {
-                    tracing::debug!("Unable to find package file: {}", name.as_ref());
+                    tracing::debug!("Unable to find package file: {}", name);
                     // there will be at least one item for any string
-                    let name_version = name.as_ref().split('@').next().unwrap();
+                    let name_version = name.split('@').next().unwrap();
 
                     // If the package name can't be parsed as a valid name,
                     // don't return the parse error. It's possible that the
@@ -890,7 +947,7 @@ where
                                     );
                                     return Ok((
                                         SpecFileData::Recipe(recipe),
-                                        std::path::PathBuf::from(&name.as_ref()),
+                                        std::path::PathBuf::from(name),
                                     ));
                                 }
 
@@ -902,8 +959,7 @@ where
 
                     miette::bail!(
                         help = "Check that file path, or package/version request, is correct",
-                        "Unable to find {:?} as a file, or existing package/version recipe in any repo",
-                        name.as_ref()
+                        "Unable to find {name:?} as a file, or existing package/version recipe in any repo",
                     );
                 }
                 None => {
@@ -914,7 +970,18 @@ where
                 }
             }
         }
-    }
+    };
+    let found = configured.template.render(options).wrap_err_with(|| {
+        format!(
+            "{filename} was expected to contain a valid spk yaml data file",
+            filename = configured.template.file_path().to_string_lossy()
+        )
+    })?;
+    tracing::debug!(
+        "Rendered configured.template from the data in {:?}",
+        configured.template.file_path()
+    );
+    Ok((found, configured.template.file_path().to_owned()))
 }
 
 #[derive(Args, Clone)]
@@ -1122,17 +1189,22 @@ pub enum SolverToRun {
     Cli,
     /// Run and show output from the "impossible requests" checking solver
     Checks,
-    /// Run both solvers, showing the output from the basic solver,
-    /// unless overridden with --solver-to-run
+    /// Run both "cli" and "checks" solvers, showing the output from the "cli"
+    /// solver, unless overridden with --solver-to-run
     All,
+    /// Run the Resolvo-based SAT solver
+    Resolvo,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum SolverToShow {
-    /// Show output from the basic solver
+    /// Show output from the basic solver.
     Cli,
-    /// Show output from the "impossible requests" checking solver
+    /// Show output from the "impossible requests" checking solver.
     Checks,
+    /// Show output from the Resolvo SAT solver. This is only possible when
+    /// running with that solver.
+    Resolvo,
 }
 
 impl From<SolverToRun> for MultiSolverKind {
@@ -1141,6 +1213,7 @@ impl From<SolverToRun> for MultiSolverKind {
             SolverToRun::Cli => MultiSolverKind::Unchanged,
             SolverToRun::Checks => MultiSolverKind::AllImpossibleChecks,
             SolverToRun::All => MultiSolverKind::All,
+            SolverToRun::Resolvo => MultiSolverKind::Resolvo,
         }
     }
 }
@@ -1150,6 +1223,7 @@ impl From<SolverToShow> for MultiSolverKind {
         match item {
             SolverToShow::Cli => MultiSolverKind::Unchanged,
             SolverToShow::Checks => MultiSolverKind::AllImpossibleChecks,
+            SolverToShow::Resolvo => MultiSolverKind::Resolvo,
         }
     }
 }

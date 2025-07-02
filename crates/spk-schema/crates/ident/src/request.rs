@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::format::{
     FormatBuild,
     FormatChangeOptions,
@@ -21,14 +22,14 @@ use spk_schema_foundation::ident_component::ComponentSet;
 use spk_schema_foundation::name::{OptName, OptNameBuf, PkgName};
 use spk_schema_foundation::option_map::Stringified;
 use spk_schema_foundation::version::{
+    API_STR,
+    BINARY_STR,
     CompatRule,
     Compatibility,
     InclusionPolicyProblem,
     IncompatibleReason,
     VarRequestProblem,
     Version,
-    API_STR,
-    BINARY_STR,
 };
 use spk_schema_foundation::version_range::{
     DoubleEqualsVersion,
@@ -37,8 +38,8 @@ use spk_schema_foundation::version_range::{
     RestrictMode,
     VersionFilter,
 };
-use spk_schema_foundation::IsDefault;
 use tap::Tap;
+use variantly::Variantly;
 
 use super::AnyIdent;
 use crate::{BuildIdent, Error, RangeIdent, Result, Satisfy, VersionIdent};
@@ -48,7 +49,18 @@ use crate::{BuildIdent, Error, RangeIdent, Result, Satisfy, VersionIdent};
 mod request_test;
 
 #[derive(
-    Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord, Default,
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    Deserialize,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+    Variantly,
 )]
 pub enum PreReleasePolicy {
     #[default]
@@ -176,41 +188,18 @@ impl<'de> Deserialize<'de> for PinPolicy {
 }
 
 /// Represents a constraint added to a resolved environment.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Variantly)]
 #[serde(untagged)]
 pub enum Request {
     Pkg(PkgRequest),
     Var(VarRequest<PinnableValue>),
 }
 
-impl Request {
-    /// Return the canonical name of this request."""
-    pub fn name(&self) -> &OptName {
+impl spk_schema_foundation::spec_ops::Named<OptName> for Request {
+    fn name(&self) -> &OptName {
         match self {
             Request::Var(r) => &r.var,
             Request::Pkg(r) => r.pkg.name.as_opt_name(),
-        }
-    }
-
-    pub fn is_pkg(&self) -> bool {
-        matches!(self, Self::Pkg(_))
-    }
-
-    pub fn into_pkg(self) -> Option<PkgRequest> {
-        match self {
-            Self::Pkg(p) => Some(p),
-            _ => None,
-        }
-    }
-
-    pub fn is_var(&self) -> bool {
-        matches!(self, Self::Var(_))
-    }
-
-    pub fn into_var(self) -> Option<VarRequest> {
-        match self {
-            Self::Var(v) => Some(v),
-            _ => None,
         }
     }
 }
@@ -313,11 +302,15 @@ impl<'de> Deserialize<'de> for Request {
                 }
 
                 match (self.pkg, self.var) {
-                    (Some(pkg), None) if self.pin.as_ref().map(PinValue::is_some).unwrap_or_default() && !pkg.version.is_empty() => {
-                        Err(serde::de::Error::custom(
-                            format!("request for `{}` cannot specify a value `/{:#}` when `fromBuildEnv` is specified", pkg.name, pkg.version)
-                        ))
-                    },
+                    (Some(pkg), None)
+                        if self.pin.as_ref().map(PinValue::is_some).unwrap_or_default()
+                            && !pkg.version.is_empty() =>
+                    {
+                        Err(serde::de::Error::custom(format!(
+                            "request for `{}` cannot specify a value `/{:#}` when `fromBuildEnv` is specified",
+                            pkg.name, pkg.version
+                        )))
+                    }
                     (Some(pkg), None) => Ok(Request::Pkg(PkgRequest {
                         pkg,
                         prerelease_policy: self.prerelease_policy,
@@ -328,8 +321,13 @@ impl<'de> Deserialize<'de> for Request {
                         requested_by: Default::default(),
                     })),
                     (None, Some(var)) => {
-                        let mut value = self.pin.unwrap_or_default().into_var_pin(&var, self.value.take())?;
-                        if !value.is_pinned() && matches!(self.pin_policy, Some(PinPolicy::IfPresentInBuildEnv)) {
+                        let mut value = self
+                            .pin
+                            .unwrap_or_default()
+                            .into_var_pin(&var, self.value.take())?;
+                        if !value.is_pinned()
+                            && matches!(self.pin_policy, Some(PinPolicy::IfPresentInBuildEnv))
+                        {
                             value = PinnableValue::FromBuildEnvIfPresent;
                         }
                         Ok(Request::Var(VarRequest {
@@ -337,14 +335,13 @@ impl<'de> Deserialize<'de> for Request {
                             value,
                             description: self.description.clone(),
                         }))
-                    },
+                    }
                     (Some(_), Some(_)) => Err(serde::de::Error::custom(
-                        "could not determine request type, it may only contain one of the `pkg` or `var` fields"
+                        "could not determine request type, it may only contain one of the `pkg` or `var` fields",
                     )),
                     (None, None) => Err(serde::de::Error::custom(
-                        "could not determine request type, it must include either a `pkg` or `var` field"
-                    )
-                    ),
+                        "could not determine request type, it must include either a `pkg` or `var` field",
+                    )),
                 }
             }
         }
@@ -1121,10 +1118,25 @@ pub fn is_false(value: &bool) -> bool {
 /// A deserializable name and optional value where
 /// the value it identified by its position following
 /// a forward slash (eg: `/<value>`)
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct NameAndValue<Name = OptNameBuf>(pub Name, pub Option<String>)
 where
     Name: FromStr,
     <Name as FromStr>::Err: std::fmt::Display;
+
+impl<Name> std::str::FromStr for NameAndValue<Name>
+where
+    Name: FromStr,
+    <Name as FromStr>::Err: std::fmt::Display,
+{
+    type Err = Name::Err;
+
+    fn from_str(v: &str) -> std::result::Result<Self, Self::Err> {
+        let mut parts = v.splitn(2, '/');
+        let name = parts.next().unwrap().parse()?;
+        Ok(Self(name, parts.next().map(String::from)))
+    }
+}
 
 impl<'de, Name> Deserialize<'de> for NameAndValue<Name>
 where
@@ -1145,7 +1157,7 @@ where
             Name: FromStr,
             <Name as FromStr>::Err: std::fmt::Display,
         {
-            type Value = (Name, Option<String>);
+            type Value = NameAndValue<Name>;
 
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 f.write_str("a var name an optional value (eg, `my-var`, `my-var/value`)")
@@ -1155,19 +1167,28 @@ where
             where
                 E: serde::de::Error,
             {
-                let mut parts = v.splitn(2, '/');
-                let name = parts
-                    .next()
-                    .unwrap()
-                    .parse()
-                    .map_err(serde::de::Error::custom)?;
-                Ok((name, parts.next().map(String::from)))
+                NameAndValue::from_str(v).map_err(serde::de::Error::custom)
             }
         }
 
-        deserializer
-            .deserialize_str(NameAndValueVisitor::<Name>(PhantomData))
-            .map(|(n, v)| NameAndValue(n, v))
+        deserializer.deserialize_str(NameAndValueVisitor::<Name>(PhantomData))
+    }
+}
+
+impl<Name> serde::ser::Serialize for NameAndValue<Name>
+where
+    Name: FromStr + std::fmt::Display,
+    <Name as FromStr>::Err: std::fmt::Display,
+{
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let out = match &self.1 {
+            Some(v) => format!("{}/{v}", self.0),
+            None => self.0.to_string(),
+        };
+        serializer.serialize_str(&out)
     }
 }
 
@@ -1206,21 +1227,17 @@ impl PinValue {
         E: serde::de::Error,
     {
         match (value, self) {
-            (Some(value), Self::True)  => {
-                Err(E::custom(
-                    format!("request for `{var}` cannot specify a value `/{value}` when `fromBuildEnv` is true")
-                ))
-            }
-            (None, Self::None) => Err(E::custom(
-                format!("request for `{var}` must specify a value (eg: {var}/<value>) when `fromBuildEnv` is false or omitted")
-            )),
-            (Some(value), Self::None) => {
-                Ok(PinnableValue::Pinned(Arc::from(value)))
-            }
+            (Some(value), Self::True) => Err(E::custom(format!(
+                "request for `{var}` cannot specify a value `/{value}` when `fromBuildEnv` is true"
+            ))),
+            (None, Self::None) => Err(E::custom(format!(
+                "request for `{var}` must specify a value (eg: {var}/<value>) when `fromBuildEnv` is false or omitted"
+            ))),
+            (Some(value), Self::None) => Ok(PinnableValue::Pinned(Arc::from(value))),
             (None, Self::True) => Ok(PinnableValue::FromBuildEnv),
             (_, Self::String(s)) => Err(E::custom(format!(
                 "`fromBuildEnv` for var request `{var}` must be a boolean, found `{s}`"
-            )))
+            ))),
         }
     }
 

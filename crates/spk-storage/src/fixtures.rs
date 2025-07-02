@@ -7,20 +7,14 @@ use std::sync::Arc;
 
 use once_cell::sync::Lazy;
 use rstest::fixture;
+use spfs::Result;
 use spfs::config::Remote;
 use spfs::prelude::*;
-use spfs::Result;
 use spk_schema::foundation::fixtures::*;
-use spk_schema::ident_ops::{
-    NormalizedTagStrategy,
-    TagPathStrategy,
-    TagPathStrategyType,
-    VerbatimTagStrategy,
-};
 use tokio::sync::{Mutex, MutexGuard};
 
 use crate as storage;
-use crate::NameAndRepositoryWithTagStrategy;
+use crate::NameAndRepository;
 
 static SPFS_RUNTIME_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
@@ -44,7 +38,10 @@ impl RuntimeLock {
 
 impl Drop for RuntimeLock {
     fn drop(&mut self) {
-        std::env::remove_var("SPFS_STORAGE_ROOT");
+        // Safety: this is unsafe.
+        unsafe {
+            std::env::remove_var("SPFS_STORAGE_ROOT");
+        }
         self.original_config
             .clone()
             .make_current()
@@ -96,21 +93,11 @@ pub fn tmprepo() -> storage::RepositoryHandle {
 /// for use in generating test data to sync around.
 #[fixture]
 pub async fn spfsrepo() -> TempRepo {
-    spfsrepo_with_tag_strategy::<NormalizedTagStrategy>().await
-}
-
-pub async fn spfsrepo_with_tag_strategy<TagStrategy>() -> TempRepo
-where
-    TagStrategy: TagPathStrategy,
-{
-    make_repo_with_tag_strategy::<TagStrategy>(RepoKind::Spfs).await
+    make_repo(RepoKind::Spfs).await
 }
 
 /// Create a temporary repository of the desired flavor
-async fn make_repo_with_tag_strategy<S>(kind: RepoKind) -> TempRepo
-where
-    S: TagPathStrategy,
-{
+pub async fn make_repo(kind: RepoKind) -> TempRepo {
     tracing::trace!(?kind, "creating repo for test...");
 
     let tmpdir = tempfile::Builder::new()
@@ -120,7 +107,7 @@ where
     let repo = match kind {
         RepoKind::Spfs => {
             let storage_root = tmpdir.path().join("repo");
-            let spfs_repo = spfs::storage::fs::FsRepository::create(&storage_root)
+            let spfs_repo = spfs::storage::fs::MaybeOpenFsRepository::create(&storage_root)
                 .await
                 .expect("failed to establish temporary local repo for test");
             let written = spfs_repo
@@ -138,26 +125,13 @@ where
                 .await
                 .expect("failed to save empty manifest to spfs repo");
             assert_eq!(written, spfs::encoding::EMPTY_DIGEST.into());
-            match S::strategy_type() {
-                TagPathStrategyType::Normalized => storage::RepositoryHandle::SPFS(
-                    storage::SpfsRepository::<NormalizedTagStrategy>::try_from(
-                        NameAndRepositoryWithTagStrategy::<_, _, NormalizedTagStrategy>::new(
-                            format!("temp-repo-{}", ulid::Ulid::new().to_string().to_lowercase()),
-                            spfs_repo,
-                        ),
-                    )
-                    .unwrap(),
-                ),
-                TagPathStrategyType::Verbatim => storage::RepositoryHandle::SPFSWithVerbatimTags(
-                    storage::SpfsRepository::<VerbatimTagStrategy>::try_from(
-                        NameAndRepositoryWithTagStrategy::<_, _, VerbatimTagStrategy>::new(
-                            format!("temp-repo-{}", ulid::Ulid::new().to_string().to_lowercase()),
-                            spfs_repo,
-                        ),
-                    )
-                    .unwrap(),
-                ),
-            }
+            storage::RepositoryHandle::SPFS(
+                storage::SpfsRepository::try_from(NameAndRepository::new(
+                    format!("temp-repo-{}", ulid::Ulid::new().to_string().to_lowercase()),
+                    spfs_repo,
+                ))
+                .unwrap(),
+            )
         }
         RepoKind::Mem => storage::RepositoryHandle::new_mem(),
     };
@@ -166,24 +140,12 @@ where
     TempRepo { tmpdir, repo }
 }
 
-/// Create a temporary repository of the desired flavor
-pub async fn make_repo(kind: RepoKind) -> TempRepo {
-    make_repo_with_tag_strategy::<NormalizedTagStrategy>(kind).await
-}
-
 /// Establishes a segregated spfs runtime for use in the test.
 ///
 /// This is a managed resource, and will cause all tests that use
 /// it to run serially.
 #[fixture]
 pub async fn spfs_runtime() -> RuntimeLock {
-    spfs_runtime_with_tag_strategy::<NormalizedTagStrategy>().await
-}
-
-pub async fn spfs_runtime_with_tag_strategy<TagStrategy>() -> RuntimeLock
-where
-    TagStrategy: TagPathStrategy,
-{
     init_logging();
 
     // because these tests are all async, anything that is interacting
@@ -198,7 +160,7 @@ where
         .as_ref()
         .clone();
 
-    let tmprepo = spfsrepo_with_tag_strategy::<TagStrategy>().await;
+    let tmprepo = spfsrepo().await;
     let storage_root = tmprepo.tmpdir.path().join("repo");
 
     let mut new_config = original_config.clone();
@@ -208,7 +170,10 @@ where
     new_config.remote.clear();
 
     // update the config to use our temp dir for local storage
-    std::env::set_var("SPFS_STORAGE_ROOT", &storage_root);
+    // Safety: this is unsafe.
+    unsafe {
+        std::env::set_var("SPFS_STORAGE_ROOT", &storage_root);
+    }
     new_config.storage.root = storage_root;
 
     let config = new_config

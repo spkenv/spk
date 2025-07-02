@@ -6,8 +6,8 @@ use std::fs;
 
 use rstest::rstest;
 
-use super::fixtures::*;
 use super::Annotation;
+use super::fixtures::*;
 
 // Test - --extra-data field1:value1 --extra-data field2:value2
 // Test - --extra-data field1=value1 --extra-data field2=value2

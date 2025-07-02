@@ -6,7 +6,7 @@ use std::cmp::{Ord, Ordering};
 
 use rstest::rstest;
 
-use super::{parse_version, TagSet, Version};
+use super::{TagSet, Version, parse_version};
 
 #[rstest]
 fn test_version_nonzero() {

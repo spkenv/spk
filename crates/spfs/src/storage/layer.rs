@@ -8,7 +8,7 @@ use encoding::prelude::*;
 use futures::Stream;
 use tokio_stream::StreamExt;
 
-use crate::{encoding, graph, tracking, Result};
+use crate::{Result, encoding, graph, tracking};
 
 pub type LayerStreamItem = Result<(encoding::Digest, graph::Layer)>;
 

@@ -13,7 +13,7 @@ use ring::digest::{Context, SHA256};
 use serde::Deserialize;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use super::{binary, Digest};
+use super::{Digest, binary};
 use crate::{Error, Result};
 
 #[cfg(test)]
@@ -330,11 +330,7 @@ impl PartialDigest {
 
     /// If this partial digest is actually a full digest, convert it
     pub fn to_digest(&self) -> Option<Digest> {
-        if let Ok(d) = Digest::from_bytes(self.as_slice()) {
-            Some(d)
-        } else {
-            None
-        }
+        Digest::from_bytes(self.as_slice()).ok()
     }
 }
 

@@ -8,9 +8,9 @@ use std::path::PathBuf;
 
 use clap::Args;
 use miette::Result;
+use spfs::Error;
 use spfs::prelude::*;
 use spfs::tracking::BlobReadExt;
-use spfs::Error;
 
 /// Store an arbitrary blob of data in spfs
 #[derive(Debug, Args)]

@@ -8,9 +8,9 @@ use std::sync::Arc;
 use clap::Args;
 use colored::Colorize;
 use miette::Result;
-use spk_cli_common::{flags, CommandArgs, Run};
+use spk_cli_common::{CommandArgs, Run, flags};
 use spk_schema::foundation::format::FormatIdent;
-use spk_schema::ident::{parse_ident, AnyIdent};
+use spk_schema::ident::{AnyIdent, parse_ident};
 use spk_schema::{Deprecate, DeprecateMut, Package, Recipe, Spec, SpecRecipe};
 use spk_storage as storage;
 
@@ -164,7 +164,9 @@ pub(crate) async fn change_deprecation_state(
             return Ok(2);
         }
         if name.ends_with('/') {
-            tracing::error!("A trailing '/' isn't a valid version number or build digest in '{name}'. Please remove the trailing '/', or specify a version number or build digest after it.");
+            tracing::error!(
+                "A trailing '/' isn't a valid version number or build digest in '{name}'. Please remove the trailing '/', or specify a version number or build digest after it."
+            );
             return Ok(3);
         }
 
@@ -182,8 +184,8 @@ pub(crate) async fn change_deprecation_state(
                             // It's a package version, so find and add its
                             // builds from this repo
                             print!(
-                            "{ident} is a package version, adding its builds from {repo_name}... "
-                        );
+                                "{ident} is a package version, adding its builds from {repo_name}... "
+                            );
                             let mut count = 0;
                             let builds = match repo.list_package_builds(&ident).await {
                                 Ok(idents) => idents,
@@ -202,8 +204,8 @@ pub(crate) async fn change_deprecation_state(
                                     Ok(b) => b,
                                     Err(err) => {
                                         tracing::debug!(
-                                        "Unable to read {build} build spec from {repo_name}: {err}"
-                                    );
+                                            "Unable to read {build} build spec from {repo_name}: {err}"
+                                        );
                                         continue;
                                     }
                                 };

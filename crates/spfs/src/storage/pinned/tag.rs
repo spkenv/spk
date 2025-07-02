@@ -13,7 +13,7 @@ use relative_path::RelativePath;
 use super::PinnedRepository;
 use crate::storage::tag::{EntryType, TagSpecAndTagStream, TagStream};
 use crate::storage::{TagNamespace, TagStorage};
-use crate::{encoding, tracking, Error, Result};
+use crate::{Error, Result, encoding, tracking};
 
 #[cfg(test)]
 #[path = "./tag_test.rs"]

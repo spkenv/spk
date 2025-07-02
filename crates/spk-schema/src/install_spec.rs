@@ -3,9 +3,9 @@
 // https://github.com/spkenv/spk
 
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::spec_ops::Named;
-use spk_schema_foundation::IsDefault;
 use spk_schema_ident::{BuildIdent, OptVersionIdent};
 
 use crate::component_embedded_packages::ComponentEmbeddedPackage;

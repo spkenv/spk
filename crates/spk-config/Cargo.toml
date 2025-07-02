@@ -18,14 +18,14 @@ migration-to-components = []
 [dependencies]
 config = { workspace = true }
 dirs = { workspace = true }
+miette = { workspace = true }
+once_cell = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 spfs = { workspace = true }
-once_cell = { workspace = true }
 thiserror = { workspace = true }
-miette = { workspace = true }
 tokio = { workspace = true }
 whoami = { workspace = true }
 
 [dev-dependencies]
-rstest = "0.15.0"
+rstest = { workspace = true }

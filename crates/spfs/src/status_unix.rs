@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use crate::resolve::{resolve_and_render_overlay_dirs, RenderResult};
+use crate::resolve::{RenderResult, resolve_and_render_overlay_dirs};
 use crate::storage::fs::RenderSummary;
-use crate::{bootstrap, env, runtime, Error, Result};
+use crate::{Error, Result, bootstrap, env, runtime};
 
 /// Remount the given runtime as configured.
 pub async fn remount_runtime(rt: &runtime::Runtime) -> Result<()> {
@@ -85,8 +85,14 @@ pub async fn make_runtime_durable(rt: &runtime::Runtime) -> Result<()> {
 
 /// Change the current spfs runtime into a durable rt and reinitialize it
 /// (after runtime config changes, and syncing anys edits over).
-pub async fn change_to_durable_runtime(rt: &mut runtime::Runtime) -> Result<RenderSummary> {
-    let in_namespace = env::RuntimeConfigurator::default().current_runtime(rt)?;
+///
+/// # Safety
+///
+/// This function sets environment variables, see [`std::env::set_var`] for
+/// more details on safety.
+pub async unsafe fn change_to_durable_runtime(rt: &mut runtime::Runtime) -> Result<RenderSummary> {
+    // Safety: the responsibility of the caller.
+    let in_namespace = unsafe { env::RuntimeConfigurator::default().current_runtime(rt)? };
     let with_root = in_namespace.become_root()?;
 
     with_root.change_runtime_to_durable(rt).await?;
@@ -125,7 +131,12 @@ pub async fn change_to_durable_runtime(rt: &mut runtime::Runtime) -> Result<Rend
 ///
 /// This function will run blocking IO on the current thread. Although this is not ideal,
 /// the mount namespacing operated per-thread and so restricts our ability to move execution.
-pub async fn reinitialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSummary> {
+///
+/// # Safety
+///
+/// This function sets environment variables, see [`std::env::set_var`] for
+/// more details on safety.
+pub async unsafe fn reinitialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSummary> {
     let render_result = match rt.config.mount_backend {
         runtime::MountBackend::OverlayFsWithRenders => {
             resolve_and_render_overlay_dirs(rt, false).await?
@@ -139,7 +150,8 @@ pub async fn reinitialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSum
         }
     };
 
-    let in_namespace = env::RuntimeConfigurator::default().current_runtime(rt)?;
+    // Safety: the responsibility of the caller.
+    let in_namespace = unsafe { env::RuntimeConfigurator::default().current_runtime(rt)? };
 
     tracing::debug!("computing runtime manifest");
     let manifest = super::compute_runtime_manifest(rt).await?;
@@ -176,7 +188,7 @@ pub async fn reinitialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSum
             return Err(Error::String(format!(
                 "This binary was not compiled with support for {}",
                 rt.config.mount_backend
-            )))
+            )));
         }
     }
     with_root.become_original_user()?;
@@ -250,7 +262,7 @@ pub async fn initialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSumma
             return Err(Error::String(format!(
                 "This binary was not compiled with support for {}",
                 rt.config.mount_backend
-            )))
+            )));
         }
     }
     with_root.become_original_user()?;

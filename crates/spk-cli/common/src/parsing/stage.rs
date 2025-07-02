@@ -4,14 +4,14 @@
 
 use std::str::FromStr;
 
+use nom::IResult;
 use nom::bytes::complete::take_while1;
 use nom::character::complete::{char, digit1};
 use nom::combinator::{map, map_res, opt};
 use nom::error::{ContextError, FromExternalError, ParseError};
 use nom::sequence::{pair, preceded, separated_pair};
-use nom::IResult;
-use nom_supreme::tag::complete::tag;
 use nom_supreme::tag::TagError;
+use nom_supreme::tag::complete::tag;
 use spk_schema::TestStage;
 
 /// Variant specified by its 0-based index into the list of variants of a

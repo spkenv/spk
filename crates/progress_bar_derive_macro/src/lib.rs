@@ -135,7 +135,7 @@ fn impl_proc_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
         }
     };
 
-    let gen = quote! {
+    let impls = quote! {
         impl Default for #name {
             fn default() -> Self {
                 static TICK_STRINGS: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -150,5 +150,5 @@ fn impl_proc_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
             }
         }
     };
-    gen.into()
+    impls.into()
 }

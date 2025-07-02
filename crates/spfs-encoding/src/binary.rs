@@ -5,7 +5,7 @@
 use std::io::{BufRead, Read, Write};
 use std::iter::FromIterator;
 
-use crate::{Digest, Error, Result, DIGEST_SIZE, NULL_DIGEST};
+use crate::{DIGEST_SIZE, Digest, Error, NULL_DIGEST, Result};
 
 const INT64_SIZE: usize = std::mem::size_of::<u64>();
 const INT8_SIZE: usize = std::mem::size_of::<u8>();

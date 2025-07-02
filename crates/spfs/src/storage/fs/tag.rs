@@ -10,6 +10,7 @@ use std::mem::size_of;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::Poll;
 
 use close_err::Closable;
@@ -19,24 +20,24 @@ use futures::{Future, Stream, StreamExt, TryFutureExt};
 use relative_path::RelativePath;
 use tokio::io::{AsyncRead, AsyncSeek, AsyncWriteExt, ReadBuf};
 
-use super::{FsRepository, OpenFsRepository};
+use super::{MaybeOpenFsRepository, OpenFsRepository};
 use crate::storage::tag::{EntryType, TagSpecAndTagStream, TagStream};
 use crate::storage::{
+    TAG_NAMESPACE_MARKER,
     TagNamespace,
     TagNamespaceBuf,
     TagStorage,
     TagStorageMut,
-    TAG_NAMESPACE_MARKER,
 };
-use crate::{encoding, tracking, Error, OsError, OsErrorExt, Result};
+use crate::{Error, OsError, OsErrorExt, Result, encoding, tracking};
 
 const TAG_EXT: &str = "tag";
 
 #[async_trait::async_trait]
-impl TagStorage for FsRepository {
+impl TagStorage for MaybeOpenFsRepository {
     #[inline]
     fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
-        Self::get_tag_namespace(self)
+        self.fs_impl.get_tag_namespace()
     }
 
     fn ls_tags_in_namespace(
@@ -130,7 +131,7 @@ impl TagStorage for FsRepository {
     }
 }
 
-impl FsRepository {
+impl MaybeOpenFsRepository {
     /// Forcefully remove any lock file for the identified tag.
     ///
     /// # Safety
@@ -194,7 +195,7 @@ impl OpenFsRepository {
 impl TagStorage for OpenFsRepository {
     #[inline]
     fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
-        Self::get_tag_namespace(self)
+        self.fs_impl.get_tag_namespace()
     }
 
     fn ls_tags_in_namespace(
@@ -214,7 +215,7 @@ impl TagStorage for OpenFsRepository {
                             filepath,
                             err,
                         ))
-                    }))
+                    }));
                 }
             },
         };
@@ -226,7 +227,7 @@ impl TagStorage for OpenFsRepository {
                         "entry of tags path",
                         filepath.clone(),
                         err,
-                    )))
+                    )));
                 }
                 Ok(entry) => entry,
             };
@@ -238,7 +239,7 @@ impl TagStorage for OpenFsRepository {
                 path.file_name().map(|s| {
                     let s = s.to_string_lossy();
                     match s.split_once(TAG_NAMESPACE_MARKER) {
-                        Some((name, _)) => Ok(EntryType::Namespace(name.to_owned())),
+                        Some((name, _)) => Ok(EntryType::Namespace(name.into())),
                         None => Ok(EntryType::Folder(s.to_string())),
                     }
                 })
@@ -367,7 +368,7 @@ impl TagStorage for OpenFsRepository {
             Ok(lock) => lock,
             Err(err) => match err.os_error() {
                 Some(libc::ENOENT) | Some(libc::ENOTDIR) => {
-                    return Err(Error::UnknownReference(tag.to_string()))
+                    return Err(Error::UnknownReference(tag.to_string()));
                 }
                 _ => return Err(err),
             },
@@ -383,7 +384,7 @@ impl TagStorage for OpenFsRepository {
                         filepath,
                         err,
                     ))
-                }
+                };
             }
         }
         // the lock file needs to be removed if the directory has any hope of being empty
@@ -412,7 +413,7 @@ impl TagStorage for OpenFsRepository {
                             "remove_dir on tag stream parent dir",
                             parent.to_owned(),
                             err,
-                        ))
+                        ));
                     }
                 },
             }
@@ -447,12 +448,12 @@ impl TagStorage for OpenFsRepository {
     }
 }
 
-impl TagStorageMut for FsRepository {
+impl TagStorageMut for MaybeOpenFsRepository {
     fn try_set_tag_namespace(
         &mut self,
         tag_namespace: Option<TagNamespaceBuf>,
     ) -> Result<Option<TagNamespaceBuf>> {
-        Ok(Self::set_tag_namespace(self, tag_namespace))
+        Ok(Arc::make_mut(&mut self.fs_impl).set_tag_namespace(tag_namespace))
     }
 }
 
@@ -491,7 +492,7 @@ impl Stream for TagStreamIter {
         use TagStreamIterState::*;
         match self.state.take() {
             // TODO: this walkdir loop is not actually async and should be fixed
-            Some(WalkingTree) => loop {
+            Some(WalkingTree) => 'entry: loop {
                 let entry = self.inner.next();
                 match entry {
                     None => break Ready(None),
@@ -500,7 +501,7 @@ impl Stream for TagStreamIter {
                             "entry in tags stream",
                             self.root.clone(),
                             err.into(),
-                        ))))
+                        ))));
                     }
                     Some(Ok(entry)) => {
                         if !entry.file_type().is_file() {
@@ -510,6 +511,28 @@ impl Stream for TagStreamIter {
                         if path.extension() != Some(OsStr::new(TAG_EXT)) {
                             continue;
                         }
+
+                        // This iterator skips over any namespaces; since the
+                        // walkdir iterator will descend into any directory,
+                        // the whole parent hierarchy needs to be checked for
+                        // the namespace marker.
+                        //
+                        // The root itself may be a namespace.
+                        let mut parent = path.parent();
+                        while let Some(p) = parent {
+                            if p == self.root {
+                                break;
+                            }
+                            if p.file_name()
+                                .and_then(|s| s.to_str())
+                                .map(|p| p.ends_with(TAG_NAMESPACE_MARKER))
+                                .unwrap_or_default()
+                            {
+                                continue 'entry;
+                            }
+                            parent = p.parent();
+                        }
+
                         let spec = match tag_from_path(&path, &self.root) {
                             Err(err) => break Ready(Some(Err(err))),
                             Ok(spec) => spec,
@@ -745,7 +768,7 @@ impl Stream for TagIter {
                             Err(err) => {
                                 return Ready(Some(Err(Error::String(format!(
                                     "tag file contains invalid size index: {err}",
-                                )))))
+                                )))));
                             }
                         }
                         match Pin::new(&mut reader).start_seek(SeekFrom::Current(size)) {
@@ -798,7 +821,7 @@ impl Stream for TagIter {
                             Err(err) => {
                                 return Ready(Some(Err(Error::String(format!(
                                     "tag is too large to be loaded: {err}",
-                                )))))
+                                )))));
                             }
                         }
                         self.state = Some(ReadingTag {
@@ -845,7 +868,7 @@ impl Stream for TagIter {
                                                 "start_seek in ReadingTag",
                                                 self.filename.clone(),
                                                 err,
-                                            ))))
+                                            ))));
                                         }
                                         Ok(_) => self.state = Some(SeekingTag { reader, size }),
                                     }
@@ -866,7 +889,7 @@ fn tag_from_path<P: AsRef<Path>, R: AsRef<Path>>(path: P, root: R) -> Result<tra
     let filename = match path.file_stem() {
         Some(stem) => stem.to_owned(),
         None => {
-            return Err(format!("Path must end with '.{TAG_EXT}' to be considered a tag").into())
+            return Err(format!("Path must end with '.{TAG_EXT}' to be considered a tag").into());
         }
     };
     path.set_file_name(filename);
@@ -985,13 +1008,17 @@ impl TagWorkingFile {
         }
         if let Err(err) = write_tags_to_path(&working, tags).await {
             if let Err(err) = tokio::fs::remove_file(&working).await {
-                tracing::warn!("failed to clean up tag working file after failing to write tags to path: {err}");
+                tracing::warn!(
+                    "failed to clean up tag working file after failing to write tags to path: {err}"
+                );
             }
             return Err(err);
         }
         if let Err(err) = tokio::fs::rename(&working, &self.original).await {
             if let Err(err) = tokio::fs::remove_file(&working).await {
-                tracing::warn!("failed to clean up tag working file after failing to finalize the working file: {err}");
+                tracing::warn!(
+                    "failed to clean up tag working file after failing to finalize the working file: {err}"
+                );
             }
             return Err(Error::StorageWriteError(
                 "rename of tag stream file",

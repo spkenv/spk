@@ -26,17 +26,22 @@ pub use render_reporter::{
 };
 pub use render_summary::{RenderSummary, RenderSummaryReporter};
 pub use renderer::{
-    RenderType,
-    Renderer,
+    CliRenderType,
     DEFAULT_MAX_CONCURRENT_BLOBS,
     DEFAULT_MAX_CONCURRENT_BRANCHES,
+    HardLinkRenderType,
+    RenderType,
+    Renderer,
 };
+#[cfg(test)]
+pub use repository::MaybeOpenFsRepositoryImpl;
 pub use repository::{
-    read_last_migration_version,
     Config,
-    FsRepository,
+    DURABLE_EDITS_DIR,
+    FsRepositoryOps,
+    MaybeOpenFsRepository,
     OpenFsRepository,
     Params,
     RenderStore,
-    DURABLE_EDITS_DIR,
+    read_last_migration_version,
 };

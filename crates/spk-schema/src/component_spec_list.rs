@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
 
 use super::ComponentSpec;
-use crate::foundation::ident_component::Component;
 use crate::ComponentFileMatchMode;
+use crate::foundation::ident_component::Component;
 
 #[cfg(test)]
 #[path = "./component_spec_list_test.rs"]
@@ -60,6 +60,30 @@ impl ComponentSpecList {
         // the all component is not a real component that can be used
         visited.remove(&Component::All);
         visited
+    }
+
+    /// Retrieve the component with the provided name
+    pub fn get<C>(&self, name: C) -> Option<&ComponentSpec>
+    where
+        C: std::cmp::PartialEq<Component>,
+    {
+        self.iter().find(|c| name == c.name)
+    }
+
+    /// Retrieve a component with the provided name or build and insert new one
+    pub fn get_or_insert_with(
+        &mut self,
+        name: Component,
+        default: impl FnOnce() -> ComponentSpec,
+    ) -> &mut ComponentSpec {
+        let position = match self.iter().position(|c| c.name == name) {
+            Some(p) => p,
+            None => {
+                self.push(default());
+                self.len() - 1
+            }
+        };
+        &mut self[position]
     }
 }
 

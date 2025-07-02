@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::io::Write;
+
 use rstest::rstest;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::ident::build_ident;
-use spk_schema::{v0, GitSource, LocalSource, ScriptSource, SourceSpec, Spec, TarSource};
+use spk_schema::{GitSource, LocalSource, ScriptSource, SourceSpec, Spec, TarSource, v0};
 use spk_storage::fixtures::*;
 
 use super::{collect_sources, validate_source_changeset};
@@ -47,8 +49,44 @@ fn test_validate_sources_changeset_ok() {
 
 #[rstest]
 #[tokio::test]
-async fn test_sources_subdir(_tmpdir: tempfile::TempDir) {
+async fn test_sources_subdir(tmpdir: tempfile::TempDir) {
     let rt = spfs_runtime().await;
+
+    // Create a small git working copy at tmpdir so this test does not depend on
+    // this working copy using git.
+    {
+        std::process::Command::new("git")
+            .args(["init", "--quiet"])
+            .current_dir(&tmpdir)
+            .output()
+            .unwrap();
+        tmpdir.path().join("file_a.txt").ensure();
+        tmpdir.path().join("file_b.txt").ensure();
+        let output = std::process::Command::new("git")
+            .args(["add", "file_a.txt", "file_b.txt"])
+            .current_dir(&tmpdir)
+            .output()
+            .unwrap();
+        std::io::stderr().write_all(&output.stderr).unwrap();
+        assert!(output.status.success());
+        let output = std::process::Command::new("git")
+            .args([
+                "-c",
+                "user.name=Test User",
+                "-c",
+                "user.email=<testuser@invalid.invalid>",
+                "commit",
+                "--author",
+                "Test User <testuser@invalid.invalid>",
+                "-m",
+                "test commit",
+            ])
+            .current_dir(&tmpdir)
+            .output()
+            .unwrap();
+        std::io::stderr().write_all(&output.stderr).unwrap();
+        assert!(output.status.success());
+    }
 
     let tar_file = rt.tmpdir.path().join("archive.tar.gz");
     let writer = std::fs::OpenOptions::new()
@@ -67,16 +105,7 @@ async fn test_sources_subdir(_tmpdir: tempfile::TempDir) {
         subdir: Some("/archive/src".to_string()),
     };
     let git_source = GitSource {
-        git: std::env::current_dir()
-            .unwrap()
-            // Now that we're in a sub-crate, to find the root of the git
-            // project we need to pop two directories.
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .to_string_lossy()
-            .to_string(),
+        git: tmpdir.path().to_string_lossy().to_string(),
         subdir: Some("git_repo".to_string()),
         depth: 1,
         reference: String::new(),
@@ -102,7 +131,8 @@ async fn test_sources_subdir(_tmpdir: tempfile::TempDir) {
     assert!(dest_dir.join("git_repo").is_dir());
     assert!(dest_dir.join("archive/src").is_dir());
     assert!(dest_dir.join("archive/src/src/lib.rs").is_file());
-    assert!(dest_dir.join("git_repo/crates/spk/src/cli.rs").is_file());
+    assert!(dest_dir.join("git_repo/file_a.txt").is_file());
+    assert!(dest_dir.join("git_repo/file_b.txt").is_file());
     assert!(
         !dest_dir.join("local/.git").exists(),
         "should exclude git repo"

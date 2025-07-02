@@ -4,9 +4,9 @@
 
 use clap::Args;
 use miette::Result;
-use spk_cli_common::{flags, CommandArgs, Run};
+use spk_cli_common::{CommandArgs, Run, flags};
 
-use super::cmd_deprecate::{change_deprecation_state, ChangeAction};
+use super::cmd_deprecate::{ChangeAction, change_deprecation_state};
 
 #[cfg(test)]
 #[path = "./cmd_undeprecate_test.rs"]

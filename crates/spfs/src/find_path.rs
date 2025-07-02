@@ -4,11 +4,11 @@
 
 use async_recursion::async_recursion;
 use relative_path::RelativePath;
-use spfs_encoding::prelude::*;
 use spfs_encoding::Digest;
+use spfs_encoding::prelude::*;
 
 use crate::graph::{self, DatabaseView, Object};
-use crate::{env, status, storage, tracking, Error, Result};
+use crate::{Error, Result, env, status, storage, tracking};
 
 /// Used for items in a list of spfs objects that contain a filepath.
 /// The parent containers down to the filepath will be graph objects.

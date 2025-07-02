@@ -6,8 +6,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use serde::{Deserialize, Serialize};
 
-use super::render_reporter::RenderBlobResult;
 use super::RenderReporter;
+use super::render_reporter::RenderBlobResult;
 
 /// Statistics on the file copying and hard linking performed during a render.
 #[derive(Debug, Default, Deserialize, Serialize)]

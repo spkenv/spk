@@ -13,10 +13,10 @@ use futures::{Stream, StreamExt, TryFutureExt};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::graph::{DatabaseView, Object, ObjectProto};
-use crate::{encoding, graph, Error, Result};
+use crate::{Error, Result, encoding, graph};
 
 #[async_trait::async_trait]
-impl DatabaseView for super::FsRepository {
+impl DatabaseView for super::MaybeOpenFsRepository {
     async fn has_object(&self, digest: encoding::Digest) -> bool {
         let Ok(opened) = self.opened().await else {
             return false;
@@ -55,7 +55,7 @@ impl DatabaseView for super::FsRepository {
 }
 
 #[async_trait::async_trait]
-impl graph::Database for super::FsRepository {
+impl graph::Database for super::MaybeOpenFsRepository {
     async fn remove_object(&self, digest: encoding::Digest) -> crate::Result<()> {
         self.opened().await?.remove_object(digest).await
     }
@@ -73,7 +73,7 @@ impl graph::Database for super::FsRepository {
 }
 
 #[async_trait::async_trait]
-impl graph::DatabaseExt for super::FsRepository {
+impl graph::DatabaseExt for super::MaybeOpenFsRepository {
     async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
         self.opened().await?.write_object(obj).await
     }

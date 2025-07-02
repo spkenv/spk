@@ -203,6 +203,12 @@ macro_rules! parsed {
             }
         }
 
+        impl std::convert::AsRef<str> for $type_name {
+            fn as_ref(&self) -> &str {
+                self.as_str()
+            }
+        }
+
         impl std::convert::AsRef<str> for $owned_type_name {
             fn as_ref(&self) -> &str {
                 &self.0

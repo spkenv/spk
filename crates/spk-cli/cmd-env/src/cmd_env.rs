@@ -9,10 +9,11 @@ use clap::Args;
 use miette::{Context, Result};
 use spfs::tracking::SpecFile;
 use spfs_cli_common::Progress;
-use spk_cli_common::{build_required_packages, flags, CommandArgs, Run};
+use spk_cli_common::{CommandArgs, Run, build_required_packages, flags};
 use spk_exec::setup_runtime_with_reporter;
 #[cfg(feature = "statsd")]
-use spk_solve::{get_metrics_client, SPK_RUN_TIME_METRIC};
+use spk_solve::{SPK_RUN_TIME_METRIC, get_metrics_client};
+use spk_solve::{Solver, SolverMut};
 
 /// Resolve and run an environment on-the-fly
 ///
@@ -32,9 +33,6 @@ pub struct Env {
 
     #[clap(short, long, global = true, action = clap::ArgAction::Count)]
     pub verbose: u8,
-
-    #[clap(flatten)]
-    pub formatter_settings: flags::DecisionFormatterSettings,
 
     /// The requests to resolve and run
     #[clap(name = "REQUESTS")]
@@ -86,10 +84,13 @@ impl Run for Env {
             solver.add_request(request)
         }
 
-        let formatter = self.formatter_settings.get_formatter(self.verbose)?;
-        let (solution, _) = formatter.run_and_print_resolve(&solver).await?;
+        let formatter = self
+            .solver
+            .decision_formatter_settings
+            .get_formatter(self.verbose)?;
+        let solution = solver.run_and_print_resolve(&formatter).await?;
 
-        let solution = build_required_packages(&solution).await?;
+        let solution = build_required_packages(&solution, solver).await?;
 
         rt.status.editable =
             self.runtime.editable() || self.requests.any_build_stage_requests(&self.requested)?;

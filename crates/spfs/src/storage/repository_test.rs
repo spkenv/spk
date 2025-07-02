@@ -68,7 +68,7 @@ async fn test_commit_mode_fs(tmpdir: tempfile::TempDir) {
     init_logging();
     let dir = tmpdir.path();
     let tmprepo = Arc::new(
-        fs::FsRepository::create(dir.join("repo"))
+        fs::MaybeOpenFsRepository::create(dir.join("repo"))
             .await
             .unwrap()
             .into(),
@@ -94,7 +94,7 @@ async fn test_commit_mode_fs(tmpdir: tempfile::TempDir) {
         _ => panic!("Unexpected tmprepo type!"),
     };
 
-    let rendered_dir = fs::Renderer::new(&*tmprepo)
+    let rendered_dir = fs::Renderer::new(&tmprepo)
         .render_manifest(&manifest.to_graph_manifest(), None)
         .await
         .expect("failed to render manifest");
@@ -105,7 +105,10 @@ async fn test_commit_mode_fs(tmpdir: tempfile::TempDir) {
     let symlink_entry = manifest
         .get_path(symlink_path)
         .expect("symlink not in manifest");
-    let symlink_blob = tmprepo.payloads.build_digest_path(&symlink_entry.object);
+    let symlink_blob = tmprepo
+        .fs_impl
+        .payloads
+        .build_digest_path(&symlink_entry.object);
     let blob_mode = symlink_blob.symlink_metadata().unwrap().mode();
     assert!(
         !unix_mode::is_symlink(blob_mode),

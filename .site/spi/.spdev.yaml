@@ -1,4 +1,4 @@
-version: 0.42.0
+version: 0.44.0
 release_notes: |
   - convert api module to rust
   - update to latest spfs
@@ -6,7 +6,7 @@ release_notes: |
 
 toolchain:
   - kind: Rust
-    toolchain: 1.82.0
+    toolchain: 1.87.0
     additional_toolchains:
       - nightly
   - kind: Shell
@@ -24,7 +24,7 @@ components:
       tags:
         - proxy
       variables:
-        FEATURES: migration-to-components,sentry,spfs/protobuf-src,legacy-spk-version-tags,legacy-spk-version-tags-for-writes
+        FEATURES: migration-to-components,sentry,spfs/protobuf-src,legacy-spk-version-tags
 
   - kind: RustCrate
     name: spk-no-sentry
@@ -33,7 +33,7 @@ components:
       tags:
         - proxy
       variables:
-        FEATURES: migration-to-components,spfs/protobuf-src,legacy-spk-version-tags,legacy-spk-version-tags-for-writes
+        FEATURES: migration-to-components,spfs/protobuf-src,legacy-spk-version-tags
 
   - kind: HugoDocs
     name: docs

@@ -6,7 +6,7 @@ use std::io::BufRead;
 use std::str::FromStr;
 use std::string::ToString;
 
-use crate::{encoding, Error, Result};
+use crate::{Error, Result, encoding};
 
 #[cfg(test)]
 #[path = "./entry_test.rs"]

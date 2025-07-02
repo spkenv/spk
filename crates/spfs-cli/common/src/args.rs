@@ -364,7 +364,13 @@ impl Logging {
         self.verbose > 2
     }
 
-    pub fn configure(&self) {
+    /// Configure logging based on the command line flags.
+    ///
+    /// # Safety
+    ///
+    /// This function sets environment variables, see [`std::env::set_var`] for
+    /// more details on safety.
+    pub unsafe fn configure(&self) {
         let mut config = match self.verbose {
             0 => {
                 if let Ok(existing) = std::env::var(SPFS_LOG) {
@@ -378,7 +384,10 @@ impl Logging {
             3 => "spfs=trace,debug".to_string(),
             _ => "trace".to_string(),
         };
-        std::env::set_var(SPFS_LOG, &config);
+        // Safety: the responsibility of the caller.
+        unsafe {
+            std::env::set_var(SPFS_LOG, &config);
+        }
         if let Ok(overrides) = std::env::var("RUST_LOG") {
             config.push(',');
             config.push_str(&overrides);
@@ -592,7 +601,11 @@ macro_rules! configure {
         #[cfg(not(feature = "sentry"))]
         let sentry_guard = ();
         $opt.logging.syslog = $syslog;
-        $opt.logging.configure();
+        // Safety: unless sentry is enabled, the process is single threaded
+        // still and it is safe to set environment variables.
+        unsafe {
+            $opt.logging.configure();
+        }
 
         match spfs::get_config() {
             Err(err) => {

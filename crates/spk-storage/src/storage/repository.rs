@@ -5,6 +5,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use relative_path::RelativePathBuf;
 use spfs::find_path::ObjectPathEntry;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName};
@@ -58,6 +59,38 @@ pub trait Storage: Sync {
     ///
     /// This method should only return embedded package stub builds.
     async fn get_embedded_package_builds(&self, pkg: &VersionIdent) -> Result<HashSet<BuildIdent>>;
+
+    /// Return the set of concrete builds for the given package name and version.
+    ///
+    /// The tag spec of where the build was found is included if applicable.
+    ///
+    /// This method should not return any embedded package stub builds.
+    async fn get_concrete_package_builds_with_tag_specs(
+        &self,
+        pkg: &VersionIdent,
+    ) -> Result<HashMap<BuildIdent, Option<RelativePathBuf>>> {
+        // Repository types that have tag specs are expected to override this
+        // implementation.
+        self.get_concrete_package_builds(pkg)
+            .await
+            .map(|set| HashMap::from_iter(set.into_iter().map(|ident| (ident, None))))
+    }
+
+    /// Return the set of embedded stub builds for the given package name and version.
+    ///
+    /// The tag spec of where the build was found is included if applicable.
+    ///
+    /// This method should only return embedded package stub builds.
+    async fn get_embedded_package_builds_with_tag_specs(
+        &self,
+        pkg: &VersionIdent,
+    ) -> Result<HashMap<BuildIdent, Option<RelativePathBuf>>> {
+        // Repository types that have tag specs are expected to override this
+        // implementation.
+        self.get_embedded_package_builds(pkg)
+            .await
+            .map(|set| HashMap::from_iter(set.into_iter().map(|ident| (ident, None))))
+    }
 
     /// Publish an embed stub to this repository.
     ///
@@ -261,13 +294,24 @@ pub trait Repository: Storage + Sync {
 
     /// Return the set of builds for the given package name and version.
     async fn list_package_builds(&self, pkg: &VersionIdent) -> Result<Vec<BuildIdent>> {
+        self.list_package_builds_with_tag_specs(pkg)
+            .await
+            .map(|vec| vec.into_iter().map(|(ident, _)| ident).collect())
+    }
+
+    /// Return the set of builds for the given package name and version, paired
+    /// with the tag spec from where the build was found, if available.
+    async fn list_package_builds_with_tag_specs(
+        &self,
+        pkg: &VersionIdent,
+    ) -> Result<Vec<(BuildIdent, Option<RelativePathBuf>)>> {
         // Note: This isn't cached. Neither get_concrete_package_builds() nor
         // get_embedded_package_builds() are cached. But the underlying
         // ls_tags() calls they both make are cached.
         // TODO: could be worth caching, depending on the average
         // builds per version.
-        let concrete_builds = self.get_concrete_package_builds(pkg);
-        let embedded_builds = self.get_embedded_package_builds(pkg);
+        let concrete_builds = self.get_concrete_package_builds_with_tag_specs(pkg);
+        let embedded_builds = self.get_embedded_package_builds_with_tag_specs(pkg);
         let (mut concrete, embedded) = tokio::try_join!(concrete_builds, embedded_builds)?;
         concrete.extend(embedded);
         Ok(concrete.into_iter().collect())

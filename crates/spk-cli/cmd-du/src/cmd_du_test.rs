@@ -8,14 +8,16 @@ use std::sync::Mutex;
 use clap::Parser;
 use colored::Colorize;
 use itertools::Itertools;
+use rstest::rstest;
+use spfs::RemoteAddress;
 use spfs::config::Remote;
 use spfs::encoding::EMPTY_DIGEST;
-use spfs::RemoteAddress;
 use spk_build::{BinaryPackageBuilder, BuildSource};
+use spk_config::Config;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map;
 use spk_schema::recipe;
-use spk_solve::spec;
+use spk_solve::{SolverImpl, spec};
 use spk_storage::fixtures::*;
 
 use super::{Du, Output, Run};
@@ -42,8 +44,31 @@ struct Opt {
     du: Du<OutputToVec>,
 }
 
+fn disable_external_metadata() {
+    // These tests have hard-coded expectations about file sizes.
+    // Disable any configured external metadata command to avoid that changing
+    // the size of spec.yaml unpredictably.
+    let mut config = Config::default();
+    config.metadata.global.clear();
+    config.make_current().unwrap();
+}
+
+fn step_solver() -> SolverImpl {
+    SolverImpl::Step(spk_solve::StepSolver::default())
+}
+
+fn resolvo_solver() -> SolverImpl {
+    SolverImpl::Resolvo(spk_solve::ResolvoSolver::default())
+}
+
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_du_trivially_works() {
+#[serial_test::serial(config)]
+async fn test_du_trivially_works(#[case] solver: SolverImpl) {
+    disable_external_metadata();
+
     let mut rt = spfs_runtime().await;
     let remote_repo = spfsrepo().await;
     rt.add_remote_repo(
@@ -65,7 +90,7 @@ async fn test_du_trivially_works() {
 
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
 
-    let (_spec, _) = BinaryPackageBuilder::from_recipe(spec)
+    let (_spec, _) = BinaryPackageBuilder::from_recipe_with_solver(spec, solver)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build_and_publish(&option_map! {}, &*rt.tmprepo)
@@ -132,8 +157,11 @@ async fn test_du_warnings_when_object_is_tree_or_blob() {
     assert_eq!(opt.du.output.warnings.lock().unwrap().len(), 2);
 }
 
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_du_non_existing_version() {
+async fn test_du_non_existing_version(#[case] solver: SolverImpl) {
     let mut rt = spfs_runtime().await;
     let remote_repo = spfsrepo().await;
     rt.add_remote_repo(
@@ -150,7 +178,7 @@ async fn test_du_non_existing_version() {
 
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
 
-    let (_spec, _) = BinaryPackageBuilder::from_recipe(spec)
+    let (_spec, _) = BinaryPackageBuilder::from_recipe_with_solver(spec, solver)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build_and_publish(&option_map! {}, &*rt.tmprepo)
@@ -162,8 +190,11 @@ async fn test_du_non_existing_version() {
     assert_eq!(opt.du.output.vec.lock().unwrap().len(), 0);
 }
 
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_du_out_of_range_input() {
+async fn test_du_out_of_range_input(#[case] solver: SolverImpl) {
     let mut rt = spfs_runtime().await;
     let remote_repo = spfsrepo().await;
     rt.add_remote_repo(
@@ -180,7 +211,7 @@ async fn test_du_out_of_range_input() {
 
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
 
-    let (_spec, _) = BinaryPackageBuilder::from_recipe(spec)
+    let (_spec, _) = BinaryPackageBuilder::from_recipe_with_solver(spec, solver)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build_and_publish(&option_map! {}, &*rt.tmprepo)
@@ -196,8 +227,11 @@ async fn test_du_out_of_range_input() {
     assert_eq!(opt.du.output.vec.lock().unwrap().len(), 0);
 }
 
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_du_is_not_counting_links() {
+async fn test_du_is_not_counting_links(#[case] solver: SolverImpl) {
     let mut rt = spfs_runtime().await;
     let remote_repo = spfsrepo().await;
     rt.add_remote_repo(
@@ -219,7 +253,7 @@ async fn test_du_is_not_counting_links() {
 
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
 
-    let (_spec, _) = BinaryPackageBuilder::from_recipe(spec)
+    let (_spec, _) = BinaryPackageBuilder::from_recipe_with_solver(spec, solver)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build_and_publish(&option_map! {}, &*rt.tmprepo)
@@ -239,8 +273,11 @@ async fn test_du_is_not_counting_links() {
     assert_ne!(build_component_output[0].parse::<i32>().unwrap(), 0);
 }
 
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_du_is_counting_links() {
+async fn test_du_is_counting_links(#[case] solver: SolverImpl) {
     let mut rt = spfs_runtime().await;
     let remote_repo = spfsrepo().await;
     rt.add_remote_repo(
@@ -262,7 +299,7 @@ async fn test_du_is_counting_links() {
 
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
 
-    let (_spec, _) = BinaryPackageBuilder::from_recipe(spec)
+    let (_spec, _) = BinaryPackageBuilder::from_recipe_with_solver(spec, solver)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build_and_publish(&option_map! {}, &*rt.tmprepo)
@@ -284,8 +321,11 @@ async fn test_du_is_counting_links() {
     );
 }
 
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_du_total_size() {
+async fn test_du_total_size(#[case] solver: SolverImpl) {
     let mut rt = spfs_runtime().await;
     let remote_repo = spfsrepo().await;
     rt.add_remote_repo(
@@ -302,7 +342,7 @@ async fn test_du_total_size() {
 
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
 
-    let (_spec, _) = BinaryPackageBuilder::from_recipe(spec)
+    let (_spec, _) = BinaryPackageBuilder::from_recipe_with_solver(spec, solver)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build_and_publish(&option_map! {}, &*rt.tmprepo)
@@ -330,8 +370,14 @@ async fn test_du_total_size() {
     assert_eq!(total, calculated_total_size_from_output);
 }
 
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_du_summarize_output_enabled() {
+#[serial_test::serial(config)]
+async fn test_du_summarize_output_enabled(#[case] solver: SolverImpl) {
+    disable_external_metadata();
+
     let mut rt = spfs_runtime().await;
     let remote_repo = spfsrepo().await;
     rt.add_remote_repo(
@@ -353,7 +399,7 @@ async fn test_du_summarize_output_enabled() {
 
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
 
-    let (_spec, _) = BinaryPackageBuilder::from_recipe(spec)
+    let (_spec, _) = BinaryPackageBuilder::from_recipe_with_solver(spec, solver)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build_and_publish(&option_map! {}, &*rt.tmprepo)
@@ -370,8 +416,14 @@ async fn test_du_summarize_output_enabled() {
     assert_eq!(generated_output, expected_output);
 }
 
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_du_summarize_output_is_not_enabled() {
+#[serial_test::serial(config)]
+async fn test_du_summarize_output_is_not_enabled(#[case] solver: SolverImpl) {
+    disable_external_metadata();
+
     let mut rt = spfs_runtime().await;
     let remote_repo = spfsrepo().await;
     rt.add_remote_repo(
@@ -393,7 +445,7 @@ async fn test_du_summarize_output_is_not_enabled() {
 
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
 
-    let (_spec, _) = BinaryPackageBuilder::from_recipe(spec)
+    let (_spec, _) = BinaryPackageBuilder::from_recipe_with_solver(spec, solver)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build_and_publish(&option_map! {}, &*rt.tmprepo)
@@ -425,8 +477,14 @@ async fn test_du_summarize_output_is_not_enabled() {
     assert_eq!(expected_output.len(), 0);
 }
 
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_deprecate_flag() {
+#[serial_test::serial(config)]
+async fn test_deprecate_flag(#[case] solver: SolverImpl) {
+    disable_external_metadata();
+
     let mut rt = spfs_runtime().await;
     let remote_repo = spfsrepo().await;
     rt.add_remote_repo(
@@ -448,7 +506,7 @@ async fn test_deprecate_flag() {
 
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
 
-    let (_spec, _) = BinaryPackageBuilder::from_recipe(spec)
+    let (_spec, _) = BinaryPackageBuilder::from_recipe_with_solver(spec, solver)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build_and_publish(&option_map! {}, &*rt.tmprepo)
@@ -476,8 +534,11 @@ async fn test_deprecate_flag() {
     assert_eq!(expected_output, generated_output);
 }
 
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_human_readable_flag() {
+async fn test_human_readable_flag(#[case] solver: SolverImpl) {
     let mut rt = spfs_runtime().await;
     let remote_repo = spfsrepo().await;
     rt.add_remote_repo(
@@ -499,7 +560,7 @@ async fn test_human_readable_flag() {
 
     rt.tmprepo.publish_recipe(&spec).await.unwrap();
 
-    let (_spec, _) = BinaryPackageBuilder::from_recipe(spec)
+    let (_spec, _) = BinaryPackageBuilder::from_recipe_with_solver(spec, solver)
         .with_source(BuildSource::LocalPath(".".into()))
         .with_repository(rt.tmprepo.clone())
         .build_and_publish(&option_map! {}, &*rt.tmprepo)
@@ -510,12 +571,13 @@ async fn test_human_readable_flag() {
     opt.du.run().await.unwrap();
 
     let units = ["B", "Ki", "Mi", "Gi", "Ti"];
-    assert!(opt
-        .du
-        .output
-        .vec
-        .lock()
-        .unwrap()
-        .iter()
-        .any(|i| units.iter().any(|&u| i.contains(u))));
+    assert!(
+        opt.du
+            .output
+            .vec
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|i| units.iter().any(|&u| i.contains(u)))
+    );
 }

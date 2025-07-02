@@ -7,51 +7,26 @@ use std::sync::Arc;
 use clap::Args;
 use futures::TryFutureExt;
 use itertools::Itertools;
-use miette::{bail, miette, Context, IntoDiagnostic, Report, Result};
+use miette::{Context, IntoDiagnostic, Report, Result, bail, miette};
 use spk_build::{BinaryPackageBuilder, BuildSource};
-use spk_cli_common::{flags, spk_exe, BuildArtifact, BuildResult, CommandArgs, Run};
+use spk_cli_common::{BuildArtifact, BuildResult, CommandArgs, Run, flags, spk_exe};
+use spk_schema::OptionMap;
 use spk_schema::foundation::format::FormatIdent;
-use spk_schema::ident::{PkgRequest, RangeIdent, RequestedBy};
+use spk_schema::ident::{PkgRequest, RequestedBy};
 use spk_schema::option_map::HOST_OPTIONS;
 use spk_schema::prelude::*;
-use spk_schema::OptionMap;
 use spk_storage as storage;
 
 #[cfg(test)]
 #[path = "./cmd_make_binary_test.rs"]
 mod cmd_make_binary_test;
 
-#[derive(Clone, Debug)]
-pub enum PackageSpecifier {
-    Plain(String),
-    WithSourceIdent((String, RangeIdent)),
-}
-
-impl PackageSpecifier {
-    // Return the package spec or filename string.
-    fn get_specifier(&self) -> &String {
-        match self {
-            PackageSpecifier::Plain(s) => s,
-            PackageSpecifier::WithSourceIdent((s, _)) => s,
-        }
-    }
-}
-
-impl std::str::FromStr for PackageSpecifier {
-    type Err = clap::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // On the command line, only `Plain` is possible.
-        Ok(PackageSpecifier::Plain(s.to_owned()))
-    }
-}
-
 /// Build a binary package from a spec file or source package.
 #[derive(Args)]
 #[clap(visible_aliases = &["mkbinary", "mkbin", "mkb"])]
 pub struct MakeBinary {
     #[clap(flatten)]
-    pub repos: flags::Repositories,
+    pub solver: flags::Solver,
     #[clap(flatten)]
     pub options: flags::Options,
     #[clap(flatten)]
@@ -72,16 +47,12 @@ pub struct MakeBinary {
     #[clap(long, short)]
     pub env: bool,
 
-    /// The local yaml spec files or published package/versions to build or rebuild
-    #[clap(name = "SPEC_FILE|PKG/VER")]
-    pub packages: Vec<PackageSpecifier>,
+    #[clap(flatten)]
+    pub packages: flags::Packages,
 
     /// Build only the specified variants
     #[clap(flatten)]
     pub variant: flags::Variant,
-
-    #[clap(flatten)]
-    pub formatter_settings: flags::DecisionFormatterSettings,
 
     /// Allow dependencies of the package being built to have a dependency on
     /// this package.
@@ -96,11 +67,7 @@ pub struct MakeBinary {
 impl CommandArgs for MakeBinary {
     // The important positional args for a make-binary are the packages
     fn get_positional_args(&self) -> Vec<String> {
-        self.packages
-            .iter()
-            .map(|ps| ps.get_specifier())
-            .cloned()
-            .collect()
+        self.packages.get_positional_args()
     }
 }
 
@@ -123,28 +90,19 @@ impl Run for MakeBinary {
         let (_runtime, local, repos) = tokio::try_join!(
             self.runtime.ensure_active_runtime(&["make-binary", "mkbinary", "mkbin", "mkb"]),
             storage::local_repository().map_ok(storage::RepositoryHandle::from).map_err(miette::Error::from),
-            async { self.repos.get_repos_for_non_destructive_operation().await }
+            async { self.solver.repos.get_repos_for_non_destructive_operation().await }
         )?;
         let repos = repos
             .into_iter()
             .map(|(_, r)| Arc::new(r))
             .collect::<Vec<_>>();
 
-        let mut packages: Vec<_> = self.packages.iter().cloned().map(Some).collect();
-        if packages.is_empty() {
-            packages.push(None)
-        }
-
         let opt_host_options =
             (!self.options.no_host).then(|| HOST_OPTIONS.get().unwrap_or_default());
 
-        for package in packages {
-            let (spec_data, filename) = flags::find_package_recipe_from_template_or_repo(
-                package.as_ref().map(|p| p.get_specifier()),
-                &options,
-                &repos,
-            )
-            .await?;
+        for (package, spec_data, filename) in
+            self.packages.find_all_recipes(&options, &repos).await?
+        {
             let recipe = spec_data.into_recipe().wrap_err_with(|| {
                 format!(
                     "{filename} was expected to contain a recipe",
@@ -173,11 +131,18 @@ impl Run for MakeBinary {
                 let variant = match &variant_info.build_status {
                     flags::VariantBuildStatus::Enabled(variant) => variant,
                     flags::VariantBuildStatus::FilteredOut(mismatches) => {
-                        tracing::debug!("Skipping variant that was filtered out:\n{this_location} didn't match on {mismatches}", this_location = variant_info.location, mismatches = mismatches.keys().join(", "));
+                        tracing::debug!(
+                            "Skipping variant that was filtered out:\n{this_location} didn't match on {mismatches}",
+                            this_location = variant_info.location,
+                            mismatches = mismatches.keys().join(", ")
+                        );
                         continue;
                     }
                     flags::VariantBuildStatus::Duplicate(location) => {
-                        tracing::debug!("Skipping variant that was already built:\n{this_location} is a duplicate of {location}", this_location = variant_info.location);
+                        tracing::debug!(
+                            "Skipping variant that was already built:\n{this_location} is a duplicate of {location}",
+                            this_location = variant_info.location
+                        );
                         continue;
                     }
                 };
@@ -196,7 +161,8 @@ impl Run for MakeBinary {
 
                 // Always show the solution packages for the solves
                 let mut fmt_builder = self
-                    .formatter_settings
+                    .solver
+                    .decision_formatter_settings
                     .get_formatter_builder(self.verbose)?;
                 let src_formatter = fmt_builder
                     .with_solution(true)
@@ -207,12 +173,14 @@ impl Run for MakeBinary {
                     .with_header("Build Resolver ")
                     .build();
 
-                let mut builder = BinaryPackageBuilder::from_recipe((*recipe).clone());
+                let solver = self.solver.get_solver(&self.options).await?;
+                let mut builder =
+                    BinaryPackageBuilder::from_recipe_with_solver((*recipe).clone(), solver);
                 builder
                     .with_repositories(repos.iter().cloned())
                     .set_interactive(self.interactive)
-                    .with_source_resolver(&src_formatter)
-                    .with_build_resolver(&build_formatter)
+                    .with_source_formatter(src_formatter)
+                    .with_build_formatter(build_formatter)
                     .with_allow_circular_dependencies(self.allow_circular_dependencies);
 
                 if self.here {
@@ -220,7 +188,9 @@ impl Run for MakeBinary {
                         .into_diagnostic()
                         .wrap_err("Failed to get current directory")?;
                     builder.with_source(BuildSource::LocalPath(here));
-                } else if let Some(PackageSpecifier::WithSourceIdent((_, ref ident))) = package {
+                } else if let Some(flags::PackageSpecifier::WithSourceIdent((_, ref ident))) =
+                    package
+                {
                     // Use the source package `AnyIdent` if the caller supplied one.
                     builder.with_source(BuildSource::SourcePackage(ident.clone()));
                 }

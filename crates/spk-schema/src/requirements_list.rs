@@ -4,11 +4,13 @@
 
 use std::collections::HashSet;
 use std::fmt::Write;
+use std::marker::PhantomData;
 
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::name::{OptName, PkgName};
-use spk_schema_foundation::version::{Compatibility, IncompatibleReason};
 use spk_schema_foundation::IsDefault;
+use spk_schema_foundation::name::{OptName, PkgName};
+use spk_schema_foundation::spec_ops::Named;
+use spk_schema_foundation::version::{Compatibility, IncompatibleReason};
 use spk_schema_ident::{BuildIdent, PinPolicy};
 
 use crate::foundation::option_map::OptionMap;
@@ -24,30 +26,51 @@ mod requirements_list_test;
 /// Requirements lists cannot contain multiple requests with the
 /// same name, requiring instead that they be combined into a single
 /// request as needed.
-#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
-pub struct RequirementsList(Vec<Request>);
+pub struct RequirementsList<R = Request>(Vec<R>);
 
-impl IsDefault for RequirementsList {
+impl<R> Default for RequirementsList<R> {
+    fn default() -> Self {
+        Self(Vec::new())
+    }
+}
+
+impl<R> IsDefault for RequirementsList<R> {
     fn is_default(&self) -> bool {
         self.is_empty()
     }
 }
 
-impl std::ops::Deref for RequirementsList {
-    type Target = Vec<Request>;
+impl<R> std::ops::Deref for RequirementsList<R> {
+    type Target = Vec<R>;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl RequirementsList {
+impl<R> RequirementsList<R> {
+    /// Remove all requests from this list
+    pub fn clear(&mut self) {
+        self.0.clear()
+    }
+}
+
+impl<R> RequirementsList<R>
+where
+    R: Named<OptName>,
+{
+    /// Get a reference to the first request with the given name
+    pub fn get(&self, name: impl AsRef<str>) -> Option<&R> {
+        self.0.iter().find(|r| r.name() == name.as_ref())
+    }
+
     /// Add or update a requirement in this list.
     ///
     /// If a request exists for the same name, it is replaced with the
     /// given one. Otherwise the new request is appended to the list.
     /// Returns the replaced request, if any.
-    pub fn insert_or_replace(&mut self, request: Request) -> Option<Request> {
+    pub fn insert_or_replace(&mut self, request: R) -> Option<R> {
         let name = request.name();
         for existing in self.0.iter_mut() {
             if existing.name() == name {
@@ -58,6 +81,20 @@ impl RequirementsList {
         None
     }
 
+    /// Remove a requirement from this list.
+    ///
+    /// All requests with the same name as the given name are removed
+    /// from the list. Typically, there can only be one entry for any
+    /// given name, but this function does not rely on that assumption.
+    pub fn remove_all<N>(&mut self, name: &N)
+    where
+        N: AsRef<OptName> + ?Sized,
+    {
+        self.0.retain(|existing| existing.name() != name.as_ref());
+    }
+}
+
+impl RequirementsList<Request> {
     /// Add a requirement in this list, or merge it in.
     ///
     /// If a request exists for the same name, it is updated with the
@@ -71,12 +108,18 @@ impl RequirementsList {
             }
             match (existing, &request) {
                 (Request::Pkg(existing), Request::Pkg(request)) => {
-                    if let incompatible @ Compatibility::Incompatible(_) = existing.restrict(request) {
-                        return Err(Error::String(format!("Cannot insert requirement: {incompatible}")))
+                    if let incompatible @ Compatibility::Incompatible(_) =
+                        existing.restrict(request)
+                    {
+                        return Err(Error::String(format!(
+                            "Cannot insert requirement: {incompatible}"
+                        )));
                     }
                 }
                 (existing, _) => {
-                    return Err(Error::String(format!("Cannot insert requirement: one already exists and only pkg requests can be merged: {existing} + {request}")))
+                    return Err(Error::String(format!(
+                        "Cannot insert requirement: one already exists and only pkg requests can be merged: {existing} + {request}"
+                    )));
                 }
             }
             return Ok(());
@@ -125,17 +168,6 @@ impl RequirementsList {
         Compatibility::Incompatible(IncompatibleReason::RequirementsNotSuperset {
             name: theirs.name().to_owned(),
         })
-    }
-
-    /// Remove a requirement from this list.
-    ///
-    /// All requests with the same name as the given name are removed
-    /// from the list.
-    pub fn remove_all<N>(&mut self, name: &N)
-    where
-        N: AsRef<OptName> + ?Sized,
-    {
-        self.0.retain(|existing| existing.name() != name.as_ref());
     }
 
     /// Render all requests with a package pin using the given resolved packages.
@@ -212,14 +244,12 @@ impl RequirementsList {
         }
         Ok(out)
     }
-
-    /// Remove all requests from this list
-    pub fn clear(&mut self) {
-        self.0.clear()
-    }
 }
 
-impl std::fmt::Display for RequirementsList {
+impl<R> std::fmt::Display for RequirementsList<R>
+where
+    R: std::fmt::Display,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_char('[')?;
         let mut entries = self.0.iter().peekable();
@@ -233,24 +263,30 @@ impl std::fmt::Display for RequirementsList {
     }
 }
 
-impl IntoIterator for RequirementsList {
-    type Item = Request;
-    type IntoIter = std::vec::IntoIter<Request>;
+impl<R> IntoIterator for RequirementsList<R> {
+    type Item = R;
+    type IntoIter = std::vec::IntoIter<R>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
     }
 }
 
-impl<'de> Deserialize<'de> for RequirementsList {
+impl<'de, R> Deserialize<'de> for RequirementsList<R>
+where
+    R: serde::de::DeserializeOwned + Named<OptName>,
+{
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        struct RequirementsListVisitor;
+        struct RequirementsListVisitor<R>(PhantomData<fn() -> R>);
 
-        impl<'de> serde::de::Visitor<'de> for RequirementsListVisitor {
-            type Value = RequirementsList;
+        impl<'de, R> serde::de::Visitor<'de> for RequirementsListVisitor<R>
+        where
+            R: serde::de::DeserializeOwned + Named<OptName>,
+        {
+            type Value = RequirementsList<R>;
 
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 f.write_str("a list of requirements")
@@ -263,7 +299,7 @@ impl<'de> Deserialize<'de> for RequirementsList {
                 let size_hint = seq.size_hint().unwrap_or(0);
                 let mut requirements = Vec::with_capacity(size_hint);
                 let mut requirement_names = HashSet::with_capacity(size_hint);
-                while let Some(request) = seq.next_element::<Request>()? {
+                while let Some(request) = seq.next_element::<R>()? {
                     let name = request.name();
                     if !requirement_names.insert(name.to_owned()) {
                         return Err(serde::de::Error::custom(format!(
@@ -276,6 +312,6 @@ impl<'de> Deserialize<'de> for RequirementsList {
             }
         }
 
-        deserializer.deserialize_seq(RequirementsListVisitor)
+        deserializer.deserialize_seq(RequirementsListVisitor(PhantomData))
     }
 }

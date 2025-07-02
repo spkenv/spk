@@ -8,7 +8,7 @@ use std::str::FromStr;
 use spk_schema_foundation::name::{PkgName, PkgNameBuf};
 use spk_schema_foundation::version::Version;
 
-use crate::{parsing, Ident, Result, VersionIdent};
+use crate::{Ident, Result, VersionIdent, parsing};
 
 /// Identifies a package name and number version.
 pub type OptVersionIdent = Ident<PkgNameBuf, Option<Version>>;

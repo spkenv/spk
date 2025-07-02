@@ -6,7 +6,7 @@ use std::io::BufRead;
 
 use super::{Entry, HasKind, ObjectKind};
 use crate::encoding::prelude::*;
-use crate::{encoding, Result};
+use crate::{Result, encoding};
 
 #[cfg(test)]
 #[path = "./tree_test.rs"]

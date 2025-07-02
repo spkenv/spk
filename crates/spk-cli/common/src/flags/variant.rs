@@ -7,7 +7,7 @@ use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
 use clap::Args;
-use miette::{miette, Result};
+use miette::{Result, miette};
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::name::OptNameBuf;

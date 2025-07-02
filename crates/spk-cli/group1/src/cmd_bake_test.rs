@@ -4,10 +4,10 @@
 
 use clap::Parser;
 use rstest::rstest;
-use spfs::config::Remote;
 use spfs::RemoteAddress;
+use spfs::config::Remote;
 use spk_cli_common::Run;
-use spk_solve::{recipe, spec, Component};
+use spk_solve::{Component, recipe, spec};
 use spk_storage::fixtures::{empty_layer_digest, spfs_runtime, spfsrepo};
 
 use super::Bake;

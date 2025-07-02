@@ -8,10 +8,8 @@ use rstest::rstest;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::pkg_name;
 use spk_schema::foundation::spec_ops::Named;
-use spk_schema::ident::{parse_build_ident, parse_version_ident, AsVersionIdent};
+use spk_schema::ident::{AsVersionIdent, parse_build_ident, parse_version_ident};
 use spk_schema::{
-    recipe,
-    spec,
     Deprecate,
     DeprecateMut,
     Package,
@@ -19,10 +17,12 @@ use spk_schema::{
     Spec,
     SpecRecipe,
     VersionIdent,
+    recipe,
+    spec,
 };
 
-use crate::fixtures::*;
 use crate::Error;
+use crate::fixtures::*;
 
 #[rstest]
 #[case::mem(RepoKind::Mem)]
@@ -168,11 +168,12 @@ async fn test_repo_publish_package(#[case] repo: RepoKind) {
     );
     assert_eq!(*repo.read_recipe(recipe.ident()).await.unwrap(), recipe);
     repo.remove_package(spec.ident()).await.unwrap();
-    assert!(repo
-        .list_package_builds(spec.ident().as_version_ident())
-        .await
-        .unwrap()
-        .is_empty());
+    assert!(
+        repo.list_package_builds(spec.ident().as_version_ident())
+            .await
+            .unwrap()
+            .is_empty()
+    );
 }
 
 async fn create_repo_for_embed_stubs_test(repo: &TempRepo) -> (SpecRecipe, Spec) {
@@ -234,19 +235,22 @@ async fn test_repo_publish_spec_updates_embed_stubs(#[case] repo: RepoKind) {
     });
     repo.update_package(&spec).await.unwrap();
     // The original stub should be gone.
-    assert!(!repo
-        .list_packages()
-        .await
-        .unwrap()
-        .iter()
-        .any(|pkg| pkg == "my-embedded-pkg"));
+    assert!(
+        !repo
+            .list_packages()
+            .await
+            .unwrap()
+            .iter()
+            .any(|pkg| pkg == "my-embedded-pkg")
+    );
     // The new stub should exist.
-    assert!(repo
-        .list_packages()
-        .await
-        .unwrap()
-        .iter()
-        .any(|pkg| pkg == "my-embedded-pkg2"));
+    assert!(
+        repo.list_packages()
+            .await
+            .unwrap()
+            .iter()
+            .any(|pkg| pkg == "my-embedded-pkg2")
+    );
 }
 
 #[rstest]
@@ -268,11 +272,12 @@ async fn test_repo_deprecate_spec_updates_embed_stubs(#[case] repo: RepoKind) {
         .await
         .unwrap();
     assert!(!builds.is_empty());
-    assert!(repo
-        .read_embed_stub(&builds[0])
-        .await
-        .unwrap()
-        .is_deprecated())
+    assert!(
+        repo.read_embed_stub(&builds[0])
+            .await
+            .unwrap()
+            .is_deprecated()
+    )
 }
 
 #[rstest]
@@ -336,31 +341,35 @@ async fn test_repo_update_and_deprecate_spec_updates_embed_stubs(#[case] repo: R
     spec.deprecate().unwrap();
     repo.update_package(&spec).await.unwrap();
     // The original stub should be gone.
-    assert!(!repo
-        .list_packages()
-        .await
-        .unwrap()
-        .iter()
-        .any(|pkg| pkg == "my-embedded-pkg"));
-    for pkg_name in ["my-embedded-pkg2", "my-embedded-pkg3"] {
-        // The new stubs should exist.
-        assert!(repo
+    assert!(
+        !repo
             .list_packages()
             .await
             .unwrap()
             .iter()
-            .any(|pkg| pkg == pkg_name));
+            .any(|pkg| pkg == "my-embedded-pkg")
+    );
+    for pkg_name in ["my-embedded-pkg2", "my-embedded-pkg3"] {
+        // The new stubs should exist.
+        assert!(
+            repo.list_packages()
+                .await
+                .unwrap()
+                .iter()
+                .any(|pkg| pkg == pkg_name)
+        );
         // The new stubs should be deprecated.
         let builds = repo
             .list_package_builds(&VersionIdent::from_str(&format!("{pkg_name}/1.0.0")).unwrap())
             .await
             .unwrap();
         assert!(!builds.is_empty());
-        assert!(repo
-            .read_embed_stub(&builds[0])
-            .await
-            .unwrap()
-            .is_deprecated())
+        assert!(
+            repo.read_embed_stub(&builds[0])
+                .await
+                .unwrap()
+                .is_deprecated()
+        )
     }
 }
 
@@ -371,12 +380,13 @@ async fn test_repo_update_and_deprecate_spec_updates_embed_stubs(#[case] repo: R
 async fn test_repo_publish_package_creates_embed_stubs(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
     let _ = create_repo_for_embed_stubs_test(&repo).await;
-    assert!(repo
-        .list_packages()
-        .await
-        .unwrap()
-        .iter()
-        .any(|pkg| pkg == "my-embedded-pkg"));
+    assert!(
+        repo.list_packages()
+            .await
+            .unwrap()
+            .iter()
+            .any(|pkg| pkg == "my-embedded-pkg")
+    );
 }
 
 #[rstest]
@@ -389,10 +399,12 @@ async fn test_repo_remove_package_removes_embed_stubs(#[case] repo: RepoKind) {
     // `test_repo_publish_package_creates_embed_stubs` proves that the stub
     // would exist at this point.
     repo.remove_package(spec.ident()).await.unwrap();
-    assert!(!repo
-        .list_packages()
-        .await
-        .unwrap()
-        .iter()
-        .any(|pkg| pkg == "my-embedded-pkg"));
+    assert!(
+        !repo
+            .list_packages()
+            .await
+            .unwrap()
+            .iter()
+            .any(|pkg| pkg == "my-embedded-pkg")
+    );
 }

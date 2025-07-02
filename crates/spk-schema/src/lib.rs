@@ -23,6 +23,7 @@ mod spec;
 mod template;
 mod test;
 pub mod v0;
+pub mod v1;
 pub mod validation;
 pub mod variant;
 
@@ -56,6 +57,7 @@ pub use spec::{ApiVersion, Spec, SpecFileData, SpecRecipe, SpecTemplate, SpecVar
 pub use spk_schema_foundation::option_map::{self, OptionMap};
 pub use spk_schema_foundation::{
     self as foundation,
+    FromYaml,
     env,
     ident_build,
     ident_component,
@@ -65,7 +67,6 @@ pub use spk_schema_foundation::{
     spec_ops,
     version,
     version_range,
-    FromYaml,
 };
 pub use spk_schema_ident::{self as ident, AnyIdent, BuildIdent, Request, VersionIdent};
 pub use template::{Template, TemplateData, TemplateExt};

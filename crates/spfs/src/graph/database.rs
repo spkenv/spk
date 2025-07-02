@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use futures::{Future, Stream, StreamExt, TryStreamExt};
 
 use super::{FlatObject, Object, ObjectProto};
-use crate::{encoding, Error, Result};
+use crate::{Error, Result, encoding};
 
 /// Walks an object tree depth-first starting at some root digest
 #[allow(clippy::type_complexity)]

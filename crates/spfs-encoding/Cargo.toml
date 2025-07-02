@@ -17,10 +17,10 @@ data-encoding = { workspace = true }
 ring = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 spfs-proto = { path = "../spfs-proto" }
-tokio = { version = "1.20", features = ["io-util", "io-std"] }
+tokio = { workspace = true, features = ["io-util", "io-std"] }
 thiserror = { workspace = true }
 miette = { workspace = true }
 
 [dev-dependencies]
-rstest = { version = "0.15.0", default-features = false }
+rstest = { workspace = true }
 rand = { workspace = true }

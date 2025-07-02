@@ -14,7 +14,7 @@ use crate::proto::tag_service_client::TagServiceClient;
 use crate::proto::{self, RpcResult};
 use crate::storage::tag::TagSpecAndTagStream;
 use crate::storage::{self, EntryType, TagNamespace, TagNamespaceBuf};
-use crate::{encoding, tracking, Result};
+use crate::{Result, encoding, tracking};
 
 #[async_trait::async_trait]
 impl storage::TagStorage for super::RpcRepository {

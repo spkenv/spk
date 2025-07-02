@@ -7,7 +7,7 @@ use std::io::{BufWriter, Write};
 use std::sync::Arc;
 use std::time::Duration;
 
-use criterion::{criterion_group, criterion_main, Criterion, Throughput};
+use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use spfs::prelude::*;
 
 pub fn commit_benchmark(c: &mut Criterion) {
@@ -44,7 +44,7 @@ pub fn commit_benchmark(c: &mut Criterion) {
         .expect("create a temp directory for spfs repo");
     let repo: Arc<RepositoryHandle> = Arc::new(
         tokio_runtime
-            .block_on(spfs::storage::fs::FsRepository::create(
+            .block_on(spfs::storage::fs::MaybeOpenFsRepository::create(
                 repo_path.path().join("repo"),
             ))
             .expect("create spfs repo")

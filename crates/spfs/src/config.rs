@@ -15,7 +15,7 @@ use tokio_stream::StreamExt;
 
 use crate::graph::DEFAULT_SPFS_ANNOTATION_LAYER_MAX_STRING_VALUE_SIZE;
 use crate::storage::{TagNamespaceBuf, TagStorageMut};
-use crate::{graph, runtime, storage, tracking, Error, Result};
+use crate::{Error, Result, graph, runtime, storage, tracking};
 
 #[cfg(test)]
 #[path = "./config_test.rs"]
@@ -266,7 +266,7 @@ impl RemoteConfig {
                     builder.when(tracking::TimeSpec::parse(v)?);
                 }
                 "tag_namespace" => {
-                    builder.tag_namespace(TagNamespaceBuf::new(RelativePath::new(&v)));
+                    builder.tag_namespace(TagNamespaceBuf::new(RelativePath::new(&v))?);
                 }
                 _ => (),
             }
@@ -311,9 +311,9 @@ impl RemoteConfig {
             inner,
         } = self;
         let mut handle: storage::RepositoryHandle = match inner.clone() {
-            RepositoryConfig::Fs(config) => {
-                storage::fs::FsRepository::from_config(config).await?.into()
-            }
+            RepositoryConfig::Fs(config) => storage::fs::MaybeOpenFsRepository::from_config(config)
+                .await?
+                .into(),
             RepositoryConfig::Tar(config) => storage::tar::TarRepository::from_config(config)
                 .await?
                 .into(),
@@ -464,6 +464,24 @@ pub struct Sentry {
     pub email_domain: Option<String>,
 }
 
+#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct Environment {
+    /// Environment variables names to preserve when creating an spfs
+    /// environment.
+    ///
+    /// Most environment variables are preserved by default but a few are
+    /// cleared for security purposes. Known values include `TMPDIR` and
+    /// `LD_LIBRARY_PATH`. Any variable listed here will be propagated into a
+    /// new spfs runtime by capturing their values before running spfs-enter and
+    /// then setting them back to the captured values from inside the spfs
+    /// runtime startup script.
+    ///
+    /// Any variables listed here that are not present in the environment will
+    /// remain unset in the new spfs environment.
+    pub variable_names_to_preserve: Vec<String>,
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Config {
@@ -474,6 +492,7 @@ pub struct Config {
     pub fuse: Fuse,
     pub monitor: Monitor,
     pub sentry: Sentry,
+    pub environment: Environment,
 }
 
 impl Config {
@@ -555,7 +574,8 @@ impl Config {
             source,
         })?;
 
-        local_repo.set_tag_namespace(self.storage.tag_namespace.clone());
+        Arc::make_mut(&mut local_repo.fs_impl)
+            .set_tag_namespace(self.storage.tag_namespace.clone());
 
         Ok(local_repo)
     }
@@ -564,8 +584,8 @@ impl Config {
     ///
     /// The returned repo is guaranteed to be created, valid and open already. Ie
     /// the local repository is not allowed to be lazily opened.
-    pub async fn get_local_repository(&self) -> Result<storage::fs::FsRepository> {
-        self.get_opened_local_repository().await.map(Into::into)
+    pub async fn get_local_repository(&self) -> Result<storage::fs::OpenFsRepository> {
+        self.get_opened_local_repository().await
     }
 
     /// Get the local repository handle as configured,  creating it if needed.

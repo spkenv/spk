@@ -34,7 +34,7 @@ use spk_schema_foundation::version_range::{
     WildcardRange,
 };
 
-use crate::{parse_ident, parse_ident_range_list, AnyIdent, RangeIdent, VersionIdent};
+use crate::{AnyIdent, RangeIdent, VersionIdent, parse_ident, parse_ident_range_list};
 
 macro_rules! arb_version_range_struct {
     ($arb_name:ident, $type_name:ident, $($var:ident in $strategy:expr),+ $(,)?) => {

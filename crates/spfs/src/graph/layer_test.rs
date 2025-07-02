@@ -8,7 +8,7 @@ use super::Layer;
 use crate::encoding::prelude::*;
 use crate::graph::object::{DigestStrategy, EncodingFormat};
 use crate::graph::{AnnotationValue, Object};
-use crate::{encoding, Config};
+use crate::{Config, encoding};
 
 #[rstest]
 fn test_layer_encoding_manifest_only() {

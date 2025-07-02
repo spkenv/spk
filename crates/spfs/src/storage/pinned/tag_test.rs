@@ -10,9 +10,9 @@ use relative_path::RelativePath;
 use rstest::rstest;
 
 use super::PinnedRepository;
+use crate::Error;
 use crate::fixtures::*;
 use crate::storage::TagStorage;
-use crate::Error;
 
 #[rstest]
 #[tokio::test]

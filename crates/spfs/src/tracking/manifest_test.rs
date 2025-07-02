@@ -4,7 +4,7 @@
 
 use rstest::rstest;
 
-use super::{compute_manifest, EntryKind, Manifest};
+use super::{EntryKind, Manifest, compute_manifest};
 use crate::encoding::prelude::*;
 use crate::fixtures::*;
 

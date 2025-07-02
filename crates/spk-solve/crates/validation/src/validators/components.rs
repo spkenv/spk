@@ -7,8 +7,8 @@ use std::collections::BTreeSet;
 use spk_schema::version::{CommaSeparated, ComponentsMissingProblem, IncompatibleReason};
 
 use super::prelude::*;
-use crate::validators::EmbeddedPackageValidator;
 use crate::ValidatorT;
+use crate::validators::EmbeddedPackageValidator;
 
 /// Ensures that all of the requested components are available.
 #[derive(Clone, Copy)]

@@ -7,14 +7,13 @@ use std::str::FromStr;
 
 use rstest::rstest;
 use spfs::prelude::*;
+use spk_schema::BuildIdent;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::version::Version;
-use spk_schema::ident_ops::NormalizedTagStrategy;
-use spk_schema::BuildIdent;
 
 use super::SpfsRepository;
+use crate::NameAndRepository;
 use crate::storage::{CachePolicy, Repository};
-use crate::NameAndRepositoryWithTagStrategy;
 
 #[rstest]
 fn test_repo_meta_tag_is_valid() {
@@ -33,13 +32,9 @@ fn test_repo_version_is_valid() {
 async fn test_metadata_io(tmpdir: tempfile::TempDir) {
     init_logging();
     let repo_root = tmpdir.path();
-    let repo = SpfsRepository::try_from(NameAndRepositoryWithTagStrategy::<
-        _,
-        _,
-        NormalizedTagStrategy,
-    >::new(
+    let repo = SpfsRepository::try_from(NameAndRepository::new(
         "test-repo",
-        spfs::storage::fs::FsRepository::create(repo_root)
+        spfs::storage::fs::MaybeOpenFsRepository::create(repo_root)
             .await
             .unwrap(),
     ))
@@ -57,13 +52,9 @@ async fn test_upgrade_sets_version(tmpdir: tempfile::TempDir) {
     init_logging();
     let current_version = Version::from_str(super::REPO_VERSION).unwrap();
     let repo_root = tmpdir.path();
-    let repo = SpfsRepository::try_from(NameAndRepositoryWithTagStrategy::<
-        _,
-        _,
-        NormalizedTagStrategy,
-    >::new(
+    let repo = SpfsRepository::try_from(NameAndRepository::new(
         "test-repo",
-        spfs::storage::fs::FsRepository::create(repo_root)
+        spfs::storage::fs::MaybeOpenFsRepository::create(repo_root)
             .await
             .unwrap(),
     ))
@@ -84,35 +75,25 @@ async fn test_upgrade_sets_version(tmpdir: tempfile::TempDir) {
 async fn test_upgrade_changes_tags(tmpdir: tempfile::TempDir) {
     init_logging();
     let repo_root = tmpdir.path();
-    let spfs_repo = spfs::storage::fs::FsRepository::create(repo_root)
+    let spfs_repo = spfs::storage::fs::MaybeOpenFsRepository::create(repo_root)
         .await
         .unwrap();
-    let repo = SpfsRepository::<NormalizedTagStrategy>::new(
-        "test-repo",
-        &format!("file://{}", repo_root.display()),
-    )
-    .await
-    .unwrap();
+    let repo = SpfsRepository::new("test-repo", &format!("file://{}", repo_root.display()))
+        .await
+        .unwrap();
 
     let ident = BuildIdent::from_str("mypkg/1.0.0/src").unwrap();
 
     // publish an "old style" package spec and build
-    let mut old_path = spfs::tracking::TagSpec::from_str(
-        SpfsRepository::<NormalizedTagStrategy>::build_package_tag::<NormalizedTagStrategy, _>(
-            &ident,
-        )
-        .as_str(),
-    )
-    .unwrap();
+    let mut old_path =
+        spfs::tracking::TagSpec::from_str(SpfsRepository::build_package_tag(&ident).as_str())
+            .unwrap();
     spfs_repo
         .push_tag(&old_path, &spfs::encoding::EMPTY_DIGEST.into())
         .await
         .unwrap();
-    old_path = spfs::tracking::TagSpec::from_str(
-        SpfsRepository::<NormalizedTagStrategy>::build_spec_tag::<NormalizedTagStrategy, _>(&ident)
-            .as_str(),
-    )
-    .unwrap();
+    old_path =
+        spfs::tracking::TagSpec::from_str(SpfsRepository::build_spec_tag(&ident).as_str()).unwrap();
     spfs_repo
         .push_tag(&old_path, &spfs::encoding::EMPTY_DIGEST.into())
         .await

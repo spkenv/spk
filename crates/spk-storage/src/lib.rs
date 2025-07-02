@@ -6,20 +6,19 @@ mod error;
 pub mod fixtures;
 mod storage;
 
-pub use error::{Error, Result};
+pub use error::{Error, InvalidPackageSpec, Result};
 pub use storage::{
+    CachePolicy,
+    MemRepository,
+    NameAndRepository,
+    Repository,
+    RepositoryHandle,
+    RuntimeRepository,
+    SpfsRepository,
+    Storage,
     export_package,
     find_path_providers,
     local_repository,
     pretty_print_filepath,
     remote_repository,
-    CachePolicy,
-    MemRepository,
-    NameAndRepositoryWithTagStrategy,
-    Repository,
-    RepositoryHandle,
-    RuntimeRepository,
-    SpfsRepository,
-    SpfsRepositoryHandle,
-    Storage,
 };

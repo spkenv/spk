@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use nom::IResult;
 use nom::character::complete::char;
 use nom::combinator::{map, opt};
 use nom::error::{ContextError, FromExternalError, ParseError};
 use nom::sequence::preceded;
-use nom::IResult;
 use nom_supreme::tag::TagError;
 use spk_schema_foundation::ident_ops::parsing::{version_and_build, version_and_required_build};
 use spk_schema_foundation::name::parsing::package_name;

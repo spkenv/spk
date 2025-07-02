@@ -61,7 +61,7 @@ pub enum Error {
     #[error(transparent)]
     Utf8Error(#[from] Utf8Error),
     #[error("Error communicating with the server: {0:?}")]
-    Tonic(#[from] tonic::Status),
+    Tonic(Box<tonic::Status>),
     #[error(transparent)]
     TokioJoinError(#[from] tokio::task::JoinError),
     #[error("Failed to spawn {0}")]
@@ -121,12 +121,16 @@ pub enum Error {
     },
     #[error("Runtime already exists: {0}")]
     RuntimeExists(String),
-    #[error("An existing runtime is using the same upper name ({upper_name}).\nTry another name, or connect to the runtime by running:\n\n   spfs join {runtime_name} <command>")]
+    #[error(
+        "An existing runtime is using the same upper name ({upper_name}).\nTry another name, or connect to the runtime by running:\n\n   spfs join {runtime_name} <command>"
+    )]
     RuntimeUpperDirAlreadyInUse {
         upper_name: String,
         runtime_name: String,
     },
-    #[error("This kind of repository does not support durable runtime paths. A FSRepository is required for that.")]
+    #[error(
+        "This kind of repository does not support durable runtime paths. A FSRepository is required for that."
+    )]
     DoesNotSupportDurableRuntimePath,
     #[error("Runtime is already editable")]
     RuntimeAlreadyEditable,
@@ -166,7 +170,9 @@ pub enum Error {
     #[error("OverlayFS mount backend is not supported on windows.")]
     OverlayFsUnsupportedOnWindows,
 
-    #[error("Found duplicate spec file ({0}). Spec files can only be given once and must not contain circular references.")]
+    #[error(
+        "Found duplicate spec file ({0}). Spec files can only be given once and must not contain circular references."
+    )]
     DuplicateSpecFileReference(PathBuf),
 
     #[error("{context}")]
@@ -223,7 +229,7 @@ impl Error {
 
     /// Create an [`Error::FailedToOpenRepository`] instance for
     /// a repository using its address and root cause.
-    pub fn failed_to_open_repository<R: storage::Repository>(
+    pub fn failed_to_open_repository<R: storage::Address>(
         repo: &R,
         source: storage::OpenRepositoryError,
     ) -> Self {
@@ -281,6 +287,12 @@ impl From<std::path::StripPrefixError> for Error {
 impl From<spfs_proto::digest::Error> for Error {
     fn from(err: spfs_proto::digest::Error) -> Self {
         Error::Encoding(err.into())
+    }
+}
+
+impl From<tonic::Status> for Error {
+    fn from(value: tonic::Status) -> Self {
+        Error::Tonic(Box::new(value))
     }
 }
 

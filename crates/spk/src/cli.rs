@@ -11,7 +11,7 @@ use colored::Colorize;
 use miette::{Context, Result};
 #[cfg(feature = "sentry")]
 use spk_cli_common::configure_sentry;
-use spk_cli_common::{configure_logging, CommandArgs, Error, Run};
+use spk_cli_common::{CommandArgs, Error, Run, configure_logging};
 use spk_cli_group1::{cmd_bake, cmd_completion, cmd_deprecate, cmd_undeprecate};
 use spk_cli_group2::{cmd_ls, cmd_new, cmd_num_variants, cmd_publish, cmd_remove};
 use spk_cli_group3::{cmd_export, cmd_import};
@@ -32,10 +32,10 @@ use spk_cmd_test::cmd_test;
 use spk_schema::foundation::format::FormatError;
 #[cfg(feature = "statsd")]
 use spk_solve::{
-    get_metrics_client,
     SPK_ERROR_COUNT_METRIC,
     SPK_RUN_COUNT_METRIC,
     SPK_RUN_TIME_METRIC,
+    get_metrics_client,
 };
 
 /// A Package Manager for SPFS
@@ -63,7 +63,10 @@ impl Opt {
             client
         };
 
-        let res = configure_logging(self.verbose).wrap_err("Failed to initialize output log");
+        let res =
+            // Safety: unless sentry is enabled, the process is single threaded
+            // still and it is safe to set environment variables.
+            unsafe { configure_logging(self.verbose) }.wrap_err("Failed to initialize output log");
         if let Err(err) = res {
             eprintln!("{}", err.to_string().red());
             #[cfg(feature = "statsd")]
@@ -90,7 +93,9 @@ impl Opt {
             // out of scope and close the connection. The error will
             // be output for the user in 'main()' below.
             match err.root_cause().downcast_ref::<Error>() {
-                Some(Error::SpkSolverError(spk_solve::Error::SolverInterrupted(_))) => {
+                Some(Error::SpkSolverError(solver_error))
+                    if matches!(&**solver_error, spk_solve::Error::SolverInterrupted(_)) =>
+                {
                     // SolverInterrupted errors are not sent to sentry
                     // here. A message has already been sent to sentry
                     // from io::Decision::Formatter before it returns

@@ -6,7 +6,7 @@
 
 use std::io::Write;
 
-use clap::{value_parser, Command, Parser};
+use clap::{Command, Parser, value_parser};
 use clap_complete;
 use clap_complete::Shell;
 use miette::Result;

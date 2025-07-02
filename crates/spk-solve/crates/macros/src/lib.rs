@@ -35,9 +35,7 @@ macro_rules! make_repo {
 
 #[macro_export(local_inner_macros)]
 macro_rules! make_package {
-    ($repo:ident, ($build_spec:expr, $components:expr), $opts:expr) => {{
-        ($build_spec, $components)
-    }};
+    ($repo:ident, ($build_spec:expr, $components:expr), $opts:expr) => {{ ($build_spec, $components) }};
     ($repo:ident, $build_spec:ident, $opts:expr) => {{
         use spk_schema::Package;
         let s = $build_spec.clone();

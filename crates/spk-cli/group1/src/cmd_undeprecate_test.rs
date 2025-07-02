@@ -3,11 +3,11 @@
 // https://github.com/spkenv/spk
 
 use rstest::rstest;
-use spk_schema::ident::parse_version_ident;
 use spk_schema::Deprecate;
+use spk_schema::ident::parse_version_ident;
 use spk_solve_macros::make_repo;
 
-use super::{change_deprecation_state, ChangeAction};
+use super::{ChangeAction, change_deprecation_state};
 
 #[rstest]
 #[tokio::test]

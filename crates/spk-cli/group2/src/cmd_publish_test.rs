@@ -6,16 +6,15 @@ use clap::Parser;
 use futures::prelude::*;
 use relative_path::RelativePathBuf;
 use rstest::rstest;
+use spfs::RemoteAddress;
 use spfs::config::Remote;
 use spfs::prelude::*;
 use spfs::storage::EntryType;
-use spfs::RemoteAddress;
 use spk_schema::foundation::ident_component::Component;
-use spk_schema::ident_ops::{NormalizedTagStrategy, VerbatimTagStrategy};
 use spk_schema::recipe;
 use spk_solve::spec;
-use spk_storage::fixtures::*;
 use spk_storage::RepositoryHandle;
+use spk_storage::fixtures::*;
 
 use super::{Publish, Run};
 
@@ -25,17 +24,22 @@ struct Opt {
     publish: Publish,
 }
 
-/// When the legacy-spk-version-tags-on-write feature is enabled, when a
-/// package is published it is expected that the package will be saved with
-/// non-normalized version tags.
+/// Test when publishing a package that normalized tags are used when writing to
+/// storage.
+///
+/// The publish command does not require that the number is written verbatim
+/// compared to the version in the spec, as long as the version is considered
+/// equal.
 #[rstest]
 #[tokio::test]
-async fn test_publish_writes_with_legacy_version_tags(
+async fn test_publish_writes_with_normalized_version_tags(
     #[values("1", "1.0", "1.0.0", "1.0.0.0", "1.0.0.0.0")] version_to_create: &str,
     #[values("1", "1.0", "1.0.0", "1.0.0.0", "1.0.0.0.0")] version_to_publish: &str,
 ) {
-    let mut rt = spfs_runtime_with_tag_strategy::<NormalizedTagStrategy>().await;
-    let remote_repo = spfsrepo_with_tag_strategy::<VerbatimTagStrategy>().await;
+    const VERSION_NORMALIZED: &str = "1.0.0";
+
+    let mut rt = spfs_runtime().await;
+    let remote_repo = spfsrepo().await;
 
     rt.add_remote_repo(
         "origin",
@@ -102,61 +106,57 @@ async fn test_publish_writes_with_legacy_version_tags(
             );
         }
         _ => panic!("expected SPFS"),
-    }
+    };
 
-    let mut opt = Opt::try_parse_from([
-        "publish",
-        "--legacy-spk-version-tags-for-writes",
-        &format!("my-local-pkg/{version_to_publish}"),
-    ])
-    .unwrap();
+    let mut opt =
+        Opt::try_parse_from(["publish", &format!("my-local-pkg/{version_to_publish}")]).unwrap();
     opt.publish.run().await.unwrap();
 
-    // Confirm that the tags were created with the legacy version tag strategy
-    // in the destination repository.
+    // Confirm that the tags were created with the normalized version tag
+    // strategy in the destination repository.
     for (tag_path, entry_type_filter) in [
         (
             "spk/spec/my-local-pkg",
-            Box::new(|tag: &_| matches!(tag, Ok(EntryType::Tag(tag)) if tag == version_to_create))
+            Box::new(|tag: &_| matches!(tag, Ok(EntryType::Tag(tag)) if tag == VERSION_NORMALIZED))
                 as Box<dyn for<'a> Fn(&'a Result<EntryType, spfs::Error>) -> bool>,
         ),
         (
             "spk/pkg/my-local-pkg",
-            Box::new(|tag| matches!(tag, Ok(EntryType::Folder(tag)) if tag == version_to_create)),
+            Box::new(|tag| matches!(tag, Ok(EntryType::Folder(tag)) if tag == VERSION_NORMALIZED)),
         ),
     ]
     .iter()
     {
         match &*remote_repo.repo {
-            RepositoryHandle::SPFSWithVerbatimTags(spfs) => {
+            RepositoryHandle::SPFS(spfs) => {
                 assert!(
                     spfs.ls_tags(&RelativePathBuf::from(tag_path))
                         .filter(|tag| { future::ready(entry_type_filter(tag)) })
                         .next()
                         .await
                         .is_some(),
-                    "expected \"{tag_path}/{version_to_create}\" tag to be found"
+                    "expected \"{tag_path}/{VERSION_NORMALIZED}\" tag to be found"
                 );
             }
-            _ => panic!("expected SPFSWithVerbatimTags"),
+            _ => panic!("expected SPFS"),
         }
     }
 
     match &*remote_repo.repo {
-        RepositoryHandle::SPFSWithVerbatimTags(spfs) => {
+        RepositoryHandle::SPFS(spfs) => {
             assert!(
                 spfs.ls_tags(&RelativePathBuf::from("spk/spec/my-local-pkg"))
                     .filter(|tag| {
                         future::ready(
-                            matches!(tag, Ok(EntryType::Tag(tag)) if tag == version_to_create),
+                            matches!(tag, Ok(EntryType::Tag(tag)) if tag == VERSION_NORMALIZED),
                         )
                     })
                     .next()
                     .await
                     .is_some(),
-                "expected \"{version_to_create}\" tag to be found"
+                "expected \"{VERSION_NORMALIZED}\" tag to be found"
             );
         }
-        _ => panic!("expected SPFSWithVerbatimTags"),
+        _ => panic!("expected SPFS"),
     }
 }

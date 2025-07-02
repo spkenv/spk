@@ -12,7 +12,7 @@ use tonic::{Request, Response, Status};
 
 use crate::prelude::*;
 use crate::proto::database_service_server::DatabaseServiceServer;
-use crate::proto::{self, convert_digest, convert_to_datetime, RpcResult};
+use crate::proto::{self, RpcResult, convert_digest, convert_to_datetime};
 use crate::storage;
 
 #[derive(Debug, Clone)]

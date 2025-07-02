@@ -9,11 +9,11 @@ use std::os::windows::process::CommandExt;
 use std::sync::Arc;
 
 use clap::{Args, Parser, Subcommand};
-use miette::{bail, Context, IntoDiagnostic, Result};
+use miette::{Context, IntoDiagnostic, Result, bail};
 use spfs::tracking::EnvSpec;
 use spfs_cli_common as cli;
 #[cfg(windows)]
-use spfs_vfs::{proto, Service};
+use spfs_vfs::{Service, proto};
 #[cfg(windows)]
 use tonic::Request;
 #[cfg(windows)]
@@ -34,7 +34,11 @@ fn main2() -> Result<i32> {
     //     .log_file
     //     .get_or_insert("/tmp/spfs-runtime/fuse.log".into());
     opt.logging.syslog = true;
-    opt.logging.configure();
+    // Safety: it is documented to be safe to set environment variables on
+    // Windows.
+    unsafe {
+        opt.logging.configure();
+    }
 
     let config = match spfs::get_config() {
         Err(err) => {
@@ -242,7 +246,7 @@ struct CmdMount {
 
     /// The tag or id of the files to mount
     ///
-    /// Use '-' or '' to request an empty environment
+    /// Use '-' or an empty string to request an empty environment
     #[clap(name = "REF")]
     reference: EnvSpec,
 }

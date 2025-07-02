@@ -22,7 +22,7 @@ use crate::storage::{
     TagStorageMut,
 };
 use crate::tracking::BlobRead;
-use crate::{encoding, graph, storage, tracking, Result};
+use crate::{Result, encoding, graph, storage, tracking};
 
 #[cfg(test)]
 #[path = "./repository_test.rs"]

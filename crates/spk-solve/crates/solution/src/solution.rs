@@ -112,7 +112,7 @@ impl PartialOrd for PackageSource {
 }
 
 /// Represents a package request that has been resolved.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct SolvedRequest {
     pub request: PkgRequest,
     pub spec: Arc<Spec>,
@@ -196,7 +196,11 @@ impl SolvedRequest {
             }
             PackageSource::BuildFromSource { .. } => {
                 // Packages that need building do not have layers yet.
-                return Err(Error::String(format!("Cannot bake, solution requires packages that need building - Request for: {}, Resolved to: {}", self.request.pkg, self.spec.ident())));
+                return Err(Error::String(format!(
+                    "Cannot bake, solution requires packages that need building - Request for: {}, Resolved to: {}",
+                    self.request.pkg,
+                    self.spec.ident()
+                )));
             }
             PackageSource::Repository {
                 repo: _,
@@ -248,6 +252,28 @@ impl SolvedRequest {
             } => Some(repo.name().into()),
             PackageSource::SpkInternalTest => None,
         }
+    }
+}
+
+impl std::fmt::Debug for SolvedRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SolvedRequest")
+            .field("request", &self.request.to_string())
+            .field("spec", &format!("{}", self.spec.ident()))
+            .field(
+                "source",
+                &match &self.source {
+                    PackageSource::Repository { repo, .. } => {
+                        format!("Repository={}", repo.name())
+                    }
+                    PackageSource::BuildFromSource { recipe } => {
+                        format!("BuildFromSource={}", recipe.ident())
+                    }
+                    PackageSource::Embedded { parent, .. } => format!("Embedded={parent}"),
+                    PackageSource::SpkInternalTest => "SpkInternalTest".to_string(),
+                },
+            )
+            .finish()
     }
 }
 

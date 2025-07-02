@@ -20,7 +20,7 @@ use tokio::sync::Semaphore;
 
 use super::entry::{Entry, EntryKind};
 use super::{BlobRead, BlobReadExt, Diff};
-use crate::{encoding, graph, runtime, Error, Result};
+use crate::{Error, Result, encoding, graph, runtime};
 
 #[cfg(test)]
 #[path = "./manifest_test.rs"]
@@ -123,11 +123,7 @@ impl<T> Manifest<T> {
         }
         for step in path.split('/') {
             if let EntryKind::Tree = entry.kind {
-                let next = entry.entries.get(step);
-                entry = match next {
-                    Some(entry) => entry,
-                    None => return None,
-                };
+                entry = entry.entries.get(step)?;
             } else {
                 return None;
             }
@@ -638,14 +634,14 @@ where
                             "Unexpected directory file type {:?}: {}",
                             meta.file_type(),
                             path.as_ref().display()
-                        )))
+                        )));
                     }
                     Err(err) => {
                         return Err(Error::StorageReadError(
                             "file_type of node dir_entry",
                             path.as_ref().to_owned(),
                             err,
-                        ))
+                        ));
                     }
                 }
             }
@@ -654,7 +650,7 @@ where
                     "symlink_metadata of node path",
                     path.as_ref().to_owned(),
                     err,
-                ))
+                ));
             }
         };
 

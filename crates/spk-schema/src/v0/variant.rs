@@ -13,8 +13,8 @@ use spk_schema_foundation::option_map::OptionMap;
 use spk_schema_foundation::version_range::{VersionFilter, VersionRange};
 use spk_schema_ident::{PkgRequest, RangeIdent, VarRequest};
 
-use super::variant_spec::VariantSpecEntryKey;
 use super::VariantSpec;
+use super::variant_spec::VariantSpecEntryKey;
 use crate::{Error, Opt, RequirementsList, Result};
 
 /// A simple build variant used by v0 recipes.
@@ -163,7 +163,7 @@ impl std::fmt::Display for Variant {
         let pad = if f.alternate() { "" } else { "  " };
         f.write_str("options: ")?;
         self.options.fmt(f)?;
-        if self.requirements.len() > 0 {
+        if !self.requirements.is_empty() {
             f.write_fmt(format_args!("{br}additional requirements:{br}"))?;
             for r in self.requirements.iter() {
                 f.write_str(pad)?;

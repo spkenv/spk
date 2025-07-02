@@ -5,13 +5,13 @@
 use std::pin::Pin;
 use std::sync::Arc;
 
-use futures::{Stream, StreamExt};
+use futures::{Stream, StreamExt, TryStreamExt};
 use prost::Message;
 use tonic::{Request, Response, Status};
 
 use crate::prelude::*;
 use crate::proto::payload_service_server::PayloadServiceServer;
-use crate::proto::{self, convert_digest, RpcResult};
+use crate::proto::{self, RpcResult, convert_digest};
 use crate::storage;
 
 /// The payload service is both a gRPC service AND an http server
@@ -101,27 +101,25 @@ impl proto::payload_service_server::PayloadService for PayloadService {
     }
 }
 
-impl hyper::service::Service<hyper::http::Request<hyper::Body>> for PayloadService {
-    type Response = hyper::http::Response<hyper::Body>;
+impl<B> hyper::service::Service<hyper::http::Request<B>> for PayloadService
+where
+    B: hyper::body::Body + Send + Sync + 'static,
+    B::Error: std::error::Error,
+    B::Data: AsRef<[u8]> + Send + Sync,
+{
+    type Response = hyper::http::Response<ResponseBody>;
     type Error = crate::Error;
     type Future =
         std::pin::Pin<Box<dyn futures::Future<Output = crate::Result<Self::Response>> + Send>>;
 
-    fn poll_ready(
-        &mut self,
-        _cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
-        std::task::Poll::Ready(Ok(()))
-    }
-
-    fn call(&mut self, req: hyper::http::Request<hyper::Body>) -> Self::Future {
+    fn call(&self, req: hyper::http::Request<B>) -> Self::Future {
         match *req.method() {
             hyper::Method::POST => Box::pin(handle_upload(self.repo.clone(), req)),
             hyper::Method::GET => Box::pin(handle_download(self.repo.clone(), req)),
             _ => Box::pin(futures::future::ready(
                 hyper::Response::builder()
                     .status(hyper::http::StatusCode::METHOD_NOT_ALLOWED)
-                    .body(hyper::Body::empty())
+                    .body(http_body_util::StreamBody::new(FramedReader::default()))
                     .map_err(|e| crate::Error::String(e.to_string())),
             )),
         }
@@ -148,10 +146,15 @@ impl PayloadService {
     }
 }
 
-async fn handle_upload(
+async fn handle_upload<B>(
     repo: Arc<storage::RepositoryHandle>,
-    mut req: hyper::http::Request<hyper::Body>,
-) -> crate::Result<hyper::http::Response<hyper::Body>> {
+    mut req: hyper::http::Request<B>,
+) -> crate::Result<hyper::Response<ResponseBody>>
+where
+    B: hyper::body::Body + Send + Sync + 'static,
+    B::Error: std::error::Error,
+    B::Data: AsRef<[u8]> + Send + Sync,
+{
     let content_type = req.headers_mut().remove(hyper::http::header::CONTENT_TYPE);
     let reader = body_to_reader(req.into_body());
     match content_type.as_ref().map(|v| v.to_str()) {
@@ -166,7 +169,9 @@ async fn handle_upload(
         }
         _ => hyper::http::Response::builder()
             .status(hyper::http::StatusCode::UNSUPPORTED_MEDIA_TYPE)
-            .body(hyper::Body::from("Invalid or unsupported Content-Type"))
+            .body(http_body_util::StreamBody::new(FramedReader::from(
+                "Invalid or unsupported Content-Type",
+            )))
             .map_err(|e| crate::Error::String(e.to_string())),
     }
 }
@@ -174,7 +179,7 @@ async fn handle_upload(
 async fn handle_uncompressed_upload(
     repo: Arc<storage::RepositoryHandle>,
     reader: Pin<Box<dyn crate::tracking::BlobRead>>,
-) -> crate::Result<hyper::http::Response<hyper::Body>> {
+) -> crate::Result<hyper::Response<ResponseBody>> {
     // Safety: it is unsafe to create a payload without its corresponding
     // blob, but this payload http server is part of a larger repository
     // and does not intend to be responsible for ensuring the integrity
@@ -194,23 +199,34 @@ async fn handle_uncompressed_upload(
     let bytes = result.encode_to_vec();
     hyper::Response::builder()
         .status(hyper::http::StatusCode::OK)
-        .body(bytes.into())
+        .body(http_body_util::StreamBody::new(FramedReader::from(bytes)))
         .map_err(|e| crate::Error::String(e.to_string()))
 }
 
-fn body_to_reader(body: hyper::Body) -> Pin<Box<impl crate::tracking::BlobRead>> {
+fn body_to_reader<B>(body: B) -> Pin<Box<impl crate::tracking::BlobRead>>
+where
+    B: hyper::body::Body + Send + Sync + 'static,
+    B::Error: std::error::Error,
+    B::Data: AsRef<[u8]> + Send + Sync,
+{
     // the stream must return io errors in order to be converted to a reader
-    let mapped_stream =
-        body.map(|chunk| chunk.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)));
-    let stream_reader = tokio_util::io::StreamReader::new(mapped_stream);
+    let mapped_stream = http_body_util::BodyDataStream::new(body)
+        .map_err(|err| std::io::Error::other(format!("Failed to read response body: {err:?}")))
+        .into_async_read();
+    let stream_reader = tokio_util::compat::FuturesAsyncReadCompatExt::compat(mapped_stream);
     let buffered_reader = tokio::io::BufReader::new(stream_reader);
     Box::pin(buffered_reader)
 }
 
-async fn handle_download(
+async fn handle_download<B>(
     repo: Arc<storage::RepositoryHandle>,
-    mut req: hyper::http::Request<hyper::Body>,
-) -> crate::Result<hyper::http::Response<hyper::Body>> {
+    mut req: hyper::http::Request<B>,
+) -> crate::Result<hyper::http::Response<ResponseBody>>
+where
+    B: hyper::body::Body + Send + Sync + 'static,
+    B::Error: std::error::Error,
+    B::Data: AsRef<[u8]> + Send + Sync,
+{
     let relative_path = req.uri().path().trim_start_matches('/');
     let digest = crate::encoding::Digest::parse(relative_path)?;
     let (uncompressed_reader, _) = repo.open_payload(digest).await?;
@@ -218,7 +234,7 @@ async fn handle_download(
         .headers_mut()
         .get_all(hyper::http::header::ACCEPT)
         .into_iter();
-    let get_body_and_content_type = move || -> (hyper::Body, hyper::http::HeaderValue) {
+    let get_body_and_content_type = move || -> (FramedReader, hyper::http::HeaderValue) {
         for accepted in accepted {
             match accepted.to_str() {
                 Ok("application/octet-stream") => {
@@ -227,24 +243,90 @@ async fn handle_download(
                 }
                 Ok("application/x-bzip2") => {
                     return (
-                        hyper::Body::wrap_stream(tokio_util::io::ReaderStream::new(
-                            async_compression::tokio::bufread::BzEncoder::new(uncompressed_reader),
+                        FramedReader::from(async_compression::tokio::bufread::BzEncoder::new(
+                            uncompressed_reader,
                         )),
                         accepted.to_owned(),
-                    )
+                    );
                 }
                 _ => continue,
             }
         }
         (
-            hyper::Body::wrap_stream(tokio_util::io::ReaderStream::new(uncompressed_reader)),
+            FramedReader::from(uncompressed_reader),
             hyper::http::HeaderValue::from_static("application/octet-stream"),
         )
     };
-    let (body, content_type) = get_body_and_content_type();
+    let (stream, content_type) = get_body_and_content_type();
     hyper::Response::builder()
         .status(hyper::http::StatusCode::OK)
         .header(hyper::http::header::CONTENT_TYPE, content_type)
-        .body(body)
+        .body(http_body_util::StreamBody::new(stream))
         .map_err(|e| crate::Error::String(e.to_string()))
+}
+
+/// The body of the response to a payload upload or download request
+type ResponseBody = http_body_util::StreamBody<FramedReader>;
+
+pub struct FramedReader {
+    inner: tokio_util::io::ReaderStream<Pin<Box<dyn tokio::io::AsyncRead + Send + Sync + 'static>>>,
+}
+
+impl Default for FramedReader {
+    fn default() -> Self {
+        Self::from("")
+    }
+}
+
+impl From<&'static str> for FramedReader {
+    fn from(value: &'static str) -> Self {
+        Self {
+            inner: tokio_util::io::ReaderStream::new(Box::pin(std::io::Cursor::new(value))),
+        }
+    }
+}
+
+impl From<Vec<u8>> for FramedReader {
+    fn from(value: Vec<u8>) -> Self {
+        Self {
+            inner: tokio_util::io::ReaderStream::new(Box::pin(std::io::Cursor::new(value))),
+        }
+    }
+}
+
+impl From<Pin<Box<dyn BlobRead>>> for FramedReader {
+    fn from(value: Pin<Box<dyn BlobRead>>) -> Self {
+        Self {
+            inner: tokio_util::io::ReaderStream::new(value),
+        }
+    }
+}
+
+impl<T> From<async_compression::tokio::bufread::BzEncoder<T>> for FramedReader
+where
+    async_compression::tokio::bufread::BzEncoder<T>: tokio::io::AsyncRead + Send + Sync + 'static,
+{
+    fn from(value: async_compression::tokio::bufread::BzEncoder<T>) -> Self {
+        Self {
+            inner: tokio_util::io::ReaderStream::new(Box::pin(value)),
+        }
+    }
+}
+
+impl Stream for FramedReader {
+    type Item = Result<hyper::body::Frame<bytes::Bytes>, std::io::Error>;
+    fn poll_next(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        match Pin::new(&mut self.inner).poll_next(cx) {
+            std::task::Poll::Ready(Some(Ok(data))) => {
+                let frame = hyper::body::Frame::data(data);
+                std::task::Poll::Ready(Some(Ok(frame)))
+            }
+            std::task::Poll::Pending => std::task::Poll::Pending,
+            std::task::Poll::Ready(None) => std::task::Poll::Ready(None),
+            std::task::Poll::Ready(Some(Err(err))) => std::task::Poll::Ready(Some(Err(err))),
+        }
+    }
 }

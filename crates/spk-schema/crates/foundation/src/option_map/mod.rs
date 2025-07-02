@@ -21,7 +21,7 @@ mod filters;
 mod format;
 
 pub use error::{Error, Result};
-pub use filters::{get_host_options_filters, OptFilter};
+pub use filters::{OptFilter, get_host_options_filters};
 
 #[cfg(test)]
 #[path = "./option_map_test.rs"]
@@ -101,10 +101,12 @@ impl HostOptions {
     /// Change [`HOST_OPTIONS`] to return the provided substitute options for
     /// the duration of the given future.
     ///
-    /// There is no guarantee that some other concurrent task doesn't also
-    /// change the options before the given future completes.
-    ///
     /// This method is intended to only be used by tests.
+    ///
+    /// There is no guarantee that some other concurrent task doesn't also
+    /// change the options before the given future completes. It is recommended
+    /// to use [`serial_test::serial`] and include the key "host_options" when
+    /// using this function.
     pub async fn scoped_options<T>(
         &self,
         substitute_host_options: Result<OptionMap>,

@@ -5,7 +5,7 @@
 use std::borrow::Cow;
 use std::fmt::Display;
 
-use crate::{encoding, Result};
+use crate::{Result, encoding};
 
 #[cfg(test)]
 #[path = "./annotation_test.rs"]

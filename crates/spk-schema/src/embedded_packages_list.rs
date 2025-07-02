@@ -3,15 +3,15 @@
 // https://github.com/spkenv/spk
 
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident_build::EmbeddedSource;
 use spk_schema_foundation::spec_ops::Named;
-use spk_schema_foundation::IsDefault;
 use spk_schema_ident::AnyIdent;
 
 use super::{BuildSpec, InstallSpec, Spec};
+use crate::Package;
 use crate::component_embedded_packages::ComponentEmbeddedPackage;
 use crate::foundation::ident_build::Build;
-use crate::Package;
 
 #[cfg(test)]
 #[path = "./embedded_packages_list_test.rs"]

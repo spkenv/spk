@@ -4,7 +4,7 @@
 
 use encoding::Digest;
 
-use crate::{encoding, Error, Result};
+use crate::{Error, Result, encoding};
 
 #[cfg(test)]
 #[path = "./stack_test.rs"]

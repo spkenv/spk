@@ -15,7 +15,8 @@ use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 
 pub use compat::{
-    parse_compat,
+    API_STR,
+    BINARY_STR,
     BuildIdProblem,
     CommaSeparated,
     Compat,
@@ -37,8 +38,7 @@ pub use compat::{
     VersionNotDifferentProblem,
     VersionNotEqualProblem,
     VersionRangeProblem,
-    API_STR,
-    BINARY_STR,
+    parse_compat,
 };
 pub use error::{Error, Result};
 use itertools::Itertools;
@@ -48,7 +48,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
 
 use self::parts_iter::{MinimumPartsPartIter, NormalizedPartsIter};
-use crate::ident_ops::{MetadataPath, TagPath, TagPathStrategy};
+use crate::ident_ops::{MetadataPath, TagPath};
 use crate::name::validate_tag_name;
 
 #[cfg(test)]
@@ -188,7 +188,7 @@ pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> Result<TagSet> {
             ("", _) | (_, "") => {
                 return Err(InvalidVersionError::new_error(format!(
                     "Version tag segment must be of the form <name>.<int>, got [{tag}]"
-                )))
+                )));
             }
             _ => {
                 if tag_set.tags.contains_key(name) {
@@ -204,7 +204,7 @@ pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> Result<TagSet> {
                     Err(_) => {
                         return Err(InvalidVersionError::new_error(format!(
                             "Version tag segment must be of the form <name>.<int>, got [{tag}]"
-                        )))
+                        )));
                     }
                 }
             }
@@ -485,21 +485,9 @@ impl Version {
                 .iter_for_storage()
                 .map(|p| p.to_string())
                 .join(VERSION_SEP),
-            {
-                if self.pre.is_empty() {
-                    ""
-                } else {
-                    "-"
-                }
-            },
+            { if self.pre.is_empty() { "" } else { "-" } },
             self.pre,
-            {
-                if self.post.is_empty() {
-                    ""
-                } else {
-                    "+"
-                }
-            },
+            { if self.post.is_empty() { "" } else { "+" } },
             self.post,
         )
     }
@@ -512,20 +500,32 @@ impl MetadataPath for Version {
 }
 
 impl TagPath for Version {
-    fn tag_path<S: TagPathStrategy>(&self) -> RelativePathBuf {
+    fn tag_path(&self) -> RelativePathBuf {
         RelativePathBuf::from(format!(
             "{base}{pre_sep}{pre}{post_sep}{post}",
-            base = if S::strategy_type().is_normalized() {
-                self.parts
-                    .iter_for_storage()
-                    .map(|p| p.to_string())
-                    .join(VERSION_SEP)
-            } else {
-                self.parts
-                    .iter_for_display(1)
-                    .map(|p| p.to_string())
-                    .join(VERSION_SEP)
-            },
+            base = self
+                .parts
+                .iter_for_storage()
+                .map(|p| p.to_string())
+                .join(VERSION_SEP),
+            pre_sep = if self.pre.is_empty() { "" } else { "-" },
+            pre = self.pre,
+            // the "+" character is not a valid spfs tag character,
+            // so we 'encode' it with two dots, which is not a valid sequence
+            // for spk package names
+            post_sep = if self.post.is_empty() { "" } else { ".." },
+            post = self.post,
+        ))
+    }
+
+    fn verbatim_tag_path(&self) -> RelativePathBuf {
+        RelativePathBuf::from(format!(
+            "{base}{pre_sep}{pre}{post_sep}{post}",
+            base = self
+                .parts
+                .iter_for_display(1)
+                .map(|p| p.to_string())
+                .join(VERSION_SEP),
             pre_sep = if self.pre.is_empty() { "" } else { "-" },
             pre = self.pre,
             // the "+" character is not a valid spfs tag character,
@@ -550,6 +550,14 @@ impl TryFrom<&str> for Version {
     type Error = Error;
 
     fn try_from(value: &str) -> Result<Self> {
+        parse_version(value)
+    }
+}
+
+impl TryFrom<String> for Version {
+    type Error = Error;
+
+    fn try_from(value: String) -> Result<Self> {
         parse_version(value)
     }
 }
@@ -659,7 +667,7 @@ pub fn parse_version<S: AsRef<str>>(version: S) -> Result<Version> {
             Err(_) => {
                 return Err(InvalidVersionError::new_error(format!(
                     "Version must be a sequence of integers, got '{p}' in position {i} [{version}]"
-                )))
+                )));
             }
         }
     }

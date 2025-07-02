@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 use super::config::get_config;
 use crate::prelude::*;
 use crate::storage::fallback::FallbackProxy;
-use crate::storage::fs::{ManifestRenderPath, RenderSummary};
-use crate::{graph, runtime, storage, tracking, Error, Result};
+use crate::storage::fs::{CliRenderType, ManifestRenderPath, RenderSummary};
+use crate::{Error, Result, graph, runtime, storage, tracking};
 
 #[cfg(test)]
 #[path = "./resolve_test.rs"]
@@ -52,7 +52,7 @@ async fn render_via_subcommand(
         // of overlayfs. To avoid any issues editing files and
         // hardlinks the rendering for them switches to Copy.
         cmd.arg("--strategy");
-        cmd.arg::<&str>(crate::storage::fs::RenderType::Copy.into());
+        cmd.arg::<&str>(CliRenderType::Copy.into());
     }
     cmd.arg(spec.to_string());
     tracing::debug!("{:?}", cmd);
@@ -75,10 +75,7 @@ async fn render_via_subcommand(
         }
         _ => Err(Error::process_spawn_error(
             "spfs-render",
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "process exited with non-zero status",
-            ),
+            std::io::Error::other("process exited with non-zero status"),
             None,
         )),
     };
@@ -340,11 +337,11 @@ where
 
     // Note the layers we manufactured here via flattening so they will have a
     // strong reference in the runtime.
-    if !skip_runtime_save && runtime.status.flattened_layers != flattened_layers {
-        // If the additional layers has changed, then the runtime needs to be
-        // re-saved.
+    if runtime.status.flattened_layers != flattened_layers {
         runtime.status.flattened_layers = flattened_layers;
-        runtime.save_state_to_storage().await?;
+        if !skip_runtime_save {
+            runtime.save_state_to_storage().await?;
+        }
     }
 
     Ok(resolved_manifests)
@@ -388,9 +385,9 @@ pub(crate) async fn resolve_and_render_overlay_dirs(
 }
 
 /// Given a sequence of tags and digests, resolve to the set of underlying layers.
-pub async fn resolve_stack_to_layers<'repo>(
+pub async fn resolve_stack_to_layers(
     stack: &graph::Stack,
-    mut repo: Option<&'repo storage::RepositoryHandle>,
+    mut repo: Option<&storage::RepositoryHandle>,
 ) -> Result<Vec<graph::Layer>> {
     let owned_handle;
     let repo = match repo.take() {
@@ -442,7 +439,7 @@ where
                     "Cannot resolve object into a mountable filesystem layer: {:?}",
                     obj.kind()
                 )
-                .into())
+                .into());
             }
         }
     }

@@ -8,7 +8,7 @@ use std::io;
 use std::time::Instant;
 
 use clap::{ArgGroup, Args};
-use miette::{miette, Context, IntoDiagnostic, Result};
+use miette::{Context, IntoDiagnostic, Result, miette};
 use spfs::graph::object::EncodingFormat;
 use spfs::prelude::*;
 use spfs::runtime::KeyValuePairBuf;
@@ -151,7 +151,7 @@ pub struct CmdRun {
 
     /// The tag or id of the desired runtime
     ///
-    /// Use '-' to request an empty environment
+    /// Use '-' to or an empty string to request an empty environment
     pub reference: Option<spfs::tracking::EnvSpec>,
 
     /// The command to run in the environment and its arguments
@@ -342,14 +342,14 @@ impl CmdRun {
 
         tracing::debug!("resolving entry process");
 
-        let cmd =
+        let mut cmd =
             spfs::build_command_for_runtime(runtime, command, self.command.drain(..).skip(1))?;
 
         let sync_time = start_time.elapsed();
-        std::env::set_var(
-            "SPFS_METRICS_SYNC_TIME_SECS",
-            sync_time.as_secs_f64().to_string(),
-        );
+        cmd.vars.push((
+            "SPFS_METRICS_SYNC_TIME_SECS".into(),
+            sync_time.as_secs_f64().to_string().into(),
+        ));
 
         cmd.exec()
             .map(|_| 0)

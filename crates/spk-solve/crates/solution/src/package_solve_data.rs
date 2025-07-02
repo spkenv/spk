@@ -4,8 +4,8 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
-use spk_schema::ident::RequestedBy;
 use spk_schema::BuildIdent;
+use spk_schema::ident::RequestedBy;
 
 /// Key for extra data stored in spfs runtimes by spk when creating a
 /// runtime and read back in by spk commands run inside that spfs/spk
@@ -42,7 +42,9 @@ where
 {
     let version = u32::deserialize(derserializer)?;
     if version != PACKAGE_TO_SOLVE_DATA_VERSION {
-        return Err(serde::de::Error::custom(format!("PackagesToSolveData version mismatch. Required version {PACKAGE_TO_SOLVE_DATA_VERSION} but data is version {version}")));
+        return Err(serde::de::Error::custom(format!(
+            "PackagesToSolveData version mismatch. Required version {PACKAGE_TO_SOLVE_DATA_VERSION} but data is version {version}"
+        )));
     }
     Ok(version)
 }
