@@ -23,7 +23,7 @@ SPFS provides a powerful set of tools for capturing and isolating process filesy
 
 ## Usage
 
-See the main [docs](docs/) for details on using spk, starting with the [index](docs/_index.md).
+See the main [docs](https://spkenv.dev/) for details on using spk, starting with the [index](https://spkenv.dev/).
 
 ## License
 
@@ -48,7 +48,7 @@ Please read [Contributing to SPK](CONTRIBUTING.md).
 
 Both SPK and SPFS are written in Rust and use cargo. The best way to get started with Rust development is to install the latest stable Rust toolchain using [rustup](https://rustup.rs).
 
-For details on architecture and design of the codebase, see the [developer docs](docs/develop).
+For details on architecture and design of the codebase, see the [developer docs](https://spkenv.dev/develop/).
 
 ```sh
 # once cargo is installed, you can build and install both projects with
