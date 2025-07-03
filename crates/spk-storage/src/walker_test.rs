@@ -6,7 +6,6 @@ use std::sync::Arc;
 use futures::TryStreamExt;
 use spfs::RemoteAddress;
 use spfs::config::Remote;
-use spk_schema;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::ident::parse_version_ident;
 use spk_schema::ident_build::Build;

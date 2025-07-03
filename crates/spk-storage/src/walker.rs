@@ -20,7 +20,6 @@ use spk_schema::ident::{AnyIdent, AsVersionIdent};
 use spk_schema::ident_ops::parsing::ident_parts_with_components;
 use spk_schema::option_map::OptFilter;
 use spk_schema::spec_ops::WithVersion;
-use spk_schema::version::Version;
 use spk_schema::{BuildIdent, Deprecate, Package, Spec, VersionIdent};
 
 use crate::{RepositoryHandle, storage};
@@ -38,14 +37,14 @@ pub struct WalkedRepo<'a> {
 }
 
 /// A package in a repo the RepoWalker is processing
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct WalkedPackage<'a> {
     pub repo_name: &'a str,
     pub name: Arc<PkgNameBuf>,
 }
 
 /// A version of a package the RepoWalker is processing
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct WalkedVersion<'a> {
     pub repo_name: &'a str,
     /// This doesn't include the package name as a separate field
@@ -54,7 +53,7 @@ pub struct WalkedVersion<'a> {
 }
 
 /// A build of a version the RepoWalker is processing
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct WalkedBuild<'a> {
     pub repo_name: &'a str,
     /// This doesn't include the build ident, because the spec.ident()
@@ -63,7 +62,7 @@ pub struct WalkedBuild<'a> {
 }
 
 /// A component of a build the RepoWalker is processing
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct WalkedComponent<'a> {
     pub repo_name: &'a str,
     pub build: Arc<BuildIdent>,
@@ -79,13 +78,6 @@ pub struct WalkedFile<'a> {
     pub component: Component,
     pub path_pieces: Vec<Arc<String>>,
     pub entry: spfs::tracking::Entry,
-}
-
-// An internal file object emitted from the internal file stream
-#[derive(Debug)]
-struct FileItem {
-    parent_paths: Vec<Arc<String>>,
-    entry: spfs::tracking::Entry,
 }
 
 /// The items a RepoWalker can find and return during a walk
@@ -107,22 +99,19 @@ pub enum RepoWalkerItem<'a> {
 }
 
 /// Package filters will be given the repository name, and the package name
-pub type PackageFilterFunc<'a> = dyn Fn(&str, &PkgNameBuf) -> bool + Send + Sync + 'a;
+pub type PackageFilterFunc<'a> = dyn Fn(&WalkedPackage) -> bool + Send + Sync + 'a;
 /// Version filters will be  given the version object
-pub type VersionFilterFunc<'a> = dyn Fn(&PkgNameBuf, &Arc<Version>) -> bool + Send + Sync + 'a;
+pub type VersionFilterFunc<'a> = dyn Fn(&WalkedVersion) -> bool + Send + Sync + 'a;
 // TODO: We don't have a use case for this at the moment do we? It could be added for completeness
 // pub type VersionRecipeFilterFunc<'a> = dyn Fn(&Arc<Recipe>) -> bool + Send + Sync + 'a;
 /// Build ident filters will be given the build's Ident
 pub type BuildIdentFilterFunc<'a> = dyn Fn(&BuildIdent) -> bool + Send + Sync + 'a;
 /// Build spec filters will be given the build's spec
-pub type BuildSpecFilterFunc<'a> = dyn Fn(&Arc<Spec>) -> bool + Send + Sync + 'a;
+pub type BuildSpecFilterFunc<'a> = dyn Fn(&WalkedBuild) -> bool + Send + Sync + 'a;
 /// Component filters will be given the component object
-pub type ComponentFilterFunc<'a> = dyn Fn(&BuildIdent, &Component) -> bool + Send + Sync + 'a;
+pub type ComponentFilterFunc<'a> = dyn Fn(&WalkedComponent) -> bool + Send + Sync + 'a;
 /// File filters will be given the spfs entry object, and a list of the parent path fragments to the entry
-pub type FileFilterFunc<'a> = dyn Fn(&Arc<BuildIdent>, &Component, &Digest, &spfs::tracking::Entry, &[Arc<String>]) -> bool
-    + Send
-    + Sync
-    + 'a;
+pub type FileFilterFunc<'a> = dyn Fn(&WalkedFile) -> bool + Send + Sync + 'a;
 
 /// A place to keep the default and commonly used filter functions
 /// that the RepoWalkerBuilder and callers may use to configure a
@@ -132,12 +121,12 @@ pub struct RepoWalkerFilter;
 
 impl RepoWalkerFilter {
     /// Match any package and repo name
-    pub fn no_package_filter(_repo_name: &str, _package_name: &PkgNameBuf) -> bool {
+    pub fn no_package_filter(_package: &WalkedPackage) -> bool {
         true
     }
 
     /// Match any version and package name
-    pub fn no_version_filter(_package_name: &PkgNameBuf, _version: &Arc<Version>) -> bool {
+    pub fn no_version_filter(_version: &WalkedVersion) -> bool {
         true
     }
 
@@ -147,24 +136,18 @@ impl RepoWalkerFilter {
     }
 
     /// Match match any build spec
-    pub fn no_build_spec_filter(_build_spec: &Arc<Spec>) -> bool {
+    pub fn no_build_spec_filter(_build: &WalkedBuild) -> bool {
         true
     }
 
     /// Match any component and build ident
-    pub fn no_component_filter(_build: &BuildIdent, _component: &Component) -> bool {
+    pub fn no_component_filter(_component: &WalkedComponent) -> bool {
         true
     }
 
     /// Match any (file) entry, under any parent path, from any build,
     /// component or digest
-    pub fn no_file_filter(
-        _build: &Arc<BuildIdent>,
-        _component: &Component,
-        _digest: &Digest,
-        _entry: &spfs::tracking::Entry,
-        _parent_filepaths: &[Arc<String>],
-    ) -> bool {
+    pub fn no_file_filter(_file: &WalkedFile) -> bool {
         true
     }
 
@@ -172,29 +155,28 @@ impl RepoWalkerFilter {
     /// being looked for, and that the repository name, if specified,
     /// matches as well.
     pub fn exact_package_name_filter(
-        repo_name: &str,
-        package_name: &PkgNameBuf,
+        package: &WalkedPackage,
         repository_name_to_match: Option<String>,
         pkg_name_to_match: String,
     ) -> bool {
         if let Some(rn) = repository_name_to_match {
-            if *repo_name != rn {
+            if *package.repo_name != rn {
                 // A repo name given and it didn't match, so don't
                 // need to check any further.
                 return false;
             }
         }
-        ***package_name == pkg_name_to_match
+        ***package.name == pkg_name_to_match
     }
 
     /// Returns true if the given substring is in the package name
-    pub fn substring_package_name_filter(package_name: &PkgNameBuf, substring: String) -> bool {
-        package_name.contains(&substring)
+    pub fn substring_package_name_filter(package: &WalkedPackage, substring: String) -> bool {
+        package.name.contains(&substring)
     }
 
     /// Returns true if the version, as a string, matches the given version string
-    pub fn exact_match_version_filter(v: &Arc<Version>, version_to_match: String) -> bool {
-        v.to_string() == version_to_match
+    pub fn exact_match_version_filter(version: &WalkedVersion, version_to_match: String) -> bool {
+        *version.ident.version() == version_to_match
     }
 
     /// Returns true if the build ident, as a string, matches the given build string
@@ -204,29 +186,26 @@ impl RepoWalkerFilter {
 
     /// Returns true if the build spec contains matches for all the
     /// given build options OptFilters
-    pub fn match_build_options_filter(
-        build_spec: &Arc<Spec>,
-        build_options: Vec<OptFilter>,
-    ) -> bool {
-        build_spec.matches_all_filters(&Some(build_options))
+    pub fn match_build_options_filter(build: &WalkedBuild, build_options: Vec<OptFilter>) -> bool {
+        build.spec.matches_all_filters(&Some(build_options))
     }
 
     /// Returns true if the component is in the set of allowed components
     pub fn allowed_components_filter(
-        component: &Component,
+        component: &WalkedComponent,
         allowed_components: &BTreeSet<Component>,
     ) -> bool {
         if allowed_components.is_empty() {
             true
         } else {
-            allowed_components.contains(component)
+            allowed_components.contains(&component.name)
         }
     }
 
     /// Returns true if the parent filepath pieces match up with the
     /// given list of filepath pieces, as far as they are specified.
-    pub fn parent_paths_match(parent_filepaths: &[Arc<String>], filepaths: &Vec<String>) -> bool {
-        for (path_fragment, search_fragment) in zip(parent_filepaths, filepaths) {
+    pub fn parent_paths_match(file: &WalkedFile, filepaths: &Vec<String>) -> bool {
+        for (path_fragment, search_fragment) in zip(file.path_pieces.clone(), filepaths) {
             if **path_fragment != **search_fragment {
                 return false;
             }
@@ -279,7 +258,7 @@ pub struct RepoWalker<'a> {
     /// Whether to turn errors into warning and continue the walking
     /// from the next object instead of stopping when an error occurs.
     continue_on_error: bool,
-    /// Whether to sort objects at each level before walking them.
+    //// Whether to sort objects at each level before walking them.
     sort_objects: bool,
 }
 
@@ -307,19 +286,24 @@ impl std::fmt::Debug for RepoWalker<'_> {
 
 impl RepoWalker<'_> {
     // Get all the filtered packages from the repo
-    async fn get_matching_packages(
+    async fn get_matching_packages<'a>(
         &self,
-        repository_name: &str,
+        repository_name: &'a str,
         repo: &RepositoryHandle,
-    ) -> Result<Vec<PkgNameBuf>> {
+    ) -> Result<Vec<WalkedPackage<'a>>> {
         let mut packages = match repo.list_packages().await {
             Ok(pkgs) => pkgs
                 .into_iter()
-                .filter_map(|package| {
+                .filter_map(|p| {
                     // Filter on matching packages, which can check
                     // both the package name and the repo name. This
                     // comes from the spk ls usage.
-                    if (self.package_filter_func)(repository_name, &package) {
+                    let package = WalkedPackage {
+                        repo_name: repository_name,
+                        name: Arc::new(p),
+                    };
+
+                    if (self.package_filter_func)(&package) {
                         Some(package)
                     } else {
                         None
@@ -337,17 +321,18 @@ impl RepoWalker<'_> {
         };
 
         if self.sort_objects {
-            packages.sort();
+            packages.sort_by_cached_key(|p| p.name.clone());
         }
         Ok(packages)
     }
 
     // Get the filtered versions, if enabled
-    async fn get_matching_versions(
+    async fn get_matching_versions<'a>(
         &self,
+        repository_name: &'a str,
         repo: &RepositoryHandle,
         package_name: &PkgNameBuf,
-    ) -> Result<Vec<AnyIdent>> {
+    ) -> Result<Vec<WalkedVersion<'a>>> {
         // If this walker is configured to stop at packages, don't
         // return any versions.
         if !self.report_on_versions {
@@ -359,8 +344,15 @@ impl RepoWalker<'_> {
             Ok(vers) => vers
                 .iter()
                 .filter_map(|v| {
-                    if (self.version_filter_func)(package_name, v) {
-                        Some(base.with_version((**v).clone()))
+                    let v_id: VersionIdent =
+                        base.with_version((**v).clone()).as_version_ident().clone();
+                    let version = WalkedVersion {
+                        repo_name: repository_name,
+                        ident: Arc::new(v_id),
+                    };
+
+                    if (self.version_filter_func)(&version) {
+                        Some(version)
                     } else {
                         None
                     }
@@ -376,22 +368,22 @@ impl RepoWalker<'_> {
             }
         };
 
-        // TODO: any matching on a version's recipe could go here if
-        // needed.
+        // TODO: any matching on a version's recipe could go here if needed.
 
         if self.sort_objects {
-            versions.sort();
+            versions.sort_by_cached_key(|v| v.ident.clone());
             versions.reverse();
         }
         Ok(versions)
     }
 
     // Get the filtered builds, if enabled
-    async fn get_matching_builds(
+    async fn get_matching_builds<'a>(
         &self,
+        repository_name: &'a str,
         repo: &RepositoryHandle,
         version_ident: &VersionIdent,
-    ) -> Result<Vec<(BuildIdent, Arc<Spec>)>> {
+    ) -> Result<Vec<WalkedBuild<'a>>> {
         // If this walker is configured to stop at versions, don't
         // return any builds.
         if !self.report_on_builds {
@@ -417,8 +409,8 @@ impl RepoWalker<'_> {
         // Only keep the matching builds
         let mut results = Vec::new();
         for build_id in build_idents.into_iter() {
-            if let Some(build_spec) = self.build_matches(repo, &build_id).await? {
-                results.push((build_id, build_spec))
+            if let Some(b) = self.build_matches(repository_name, repo, &build_id).await? {
+                results.push(b)
             }
         }
 
@@ -429,11 +421,12 @@ impl RepoWalker<'_> {
     // the two configurable build filtering functions: one on idents,
     // and one on specs. If the build ident and spec pass all the
     // checks, this returns the build's spec.
-    async fn build_matches(
+    async fn build_matches<'a>(
         &self,
+        repository_name: &'a str,
         repo: &RepositoryHandle,
         build: &BuildIdent,
-    ) -> Result<Option<Arc<Spec>>> {
+    ) -> Result<Option<WalkedBuild<'a>>> {
         // Check the build ident against the ident level filter
         if !(self.build_ident_filter_func)(build) {
             return Ok(None);
@@ -468,30 +461,43 @@ impl RepoWalker<'_> {
             return Ok(None);
         }
 
-        if !(self.build_spec_filter_func)(&spec) {
+        let b = WalkedBuild {
+            repo_name: repository_name,
+            spec: Arc::clone(&spec),
+        };
+
+        if !(self.build_spec_filter_func)(&b) {
             // Filter out builds that don't match the option/host os filters
             return Ok(None);
         }
 
-        Ok(Some(spec))
+        Ok(Some(b))
     }
 
     // Get the filtered components, if enabled
-    async fn get_matching_components(
+    async fn get_matching_components<'a>(
         &self,
+        repository_name: &'a str,
         repo: &RepositoryHandle,
-        build: &BuildIdent,
-    ) -> Result<Vec<(Component, Digest)>> {
+        build_ident: Arc<BuildIdent>,
+    ) -> Result<Vec<WalkedComponent<'a>>> {
         // If this walker is configured to stop at builds, don't
         // return any components.
         if !self.report_on_components {
             return Ok(Vec::new());
         }
 
-        let components = match repo.read_components(build).await {
-            Ok(cs) => cs.into_iter().filter_map(|(c, d)| {
-                if (self.component_filter_func)(build, &c) {
-                    Some((c, d))
+        let components = match repo.read_components(&build_ident).await {
+            Ok(cs) => cs.into_iter().filter_map(|(name, digest)| {
+                let component = WalkedComponent {
+                    repo_name: repository_name,
+                    build: Arc::clone(&build_ident),
+                    name,
+                    digest: Arc::new(digest),
+                };
+
+                if (self.component_filter_func)(&component) {
+                    Some(component)
                 } else {
                     None
                 }
@@ -507,9 +513,10 @@ impl RepoWalker<'_> {
         };
 
         if self.sort_objects {
+            // Walked components are sorted only by their component name
             Ok(components
                 .into_iter()
-                .sorted_by_cached_key(|(k, _)| k.clone())
+                .sorted_by_cached_key(|c| c.name.clone())
                 .collect())
         } else {
             Ok(components.into_iter().collect())
@@ -518,7 +525,10 @@ impl RepoWalker<'_> {
 
     // Helper to wrap the file stream output to check for errors, and
     // if configured convert then into warnings.
-    fn convert_file_error(&self, file_item: Result<Option<FileItem>>) -> Result<Option<FileItem>> {
+    fn convert_file_error<'a>(
+        &self,
+        file_item: Result<Option<WalkedFile<'a>>>,
+    ) -> Result<Option<WalkedFile<'a>>> {
         match file_item {
             Ok(f) => Ok(f),
             Err(err) => {
@@ -533,15 +543,13 @@ impl RepoWalker<'_> {
     }
 
     // TODO: This could be a spfs level storage walker, or use one in
-    // future. It processes spfs objects, but only returns file things
-    // that spk wants to know about, i.e. FileItems.
+    // future. This processes spfs objects, but only returns file things
+    // that spk wants to know about, i.e. WalkedFiles.
     fn file_stream<'a>(
         &'a self,
         repo: &'a RepositoryHandle,
-        build: Arc<BuildIdent>,
-        component: Component,
-        digest: &'a Digest,
-    ) -> impl Stream<Item = Result<FileItem>> + 'a {
+        component: WalkedComponent<'a>,
+    ) -> impl Stream<Item = Result<WalkedFile<'a>>> + 'a {
         Box::pin(try_stream! {
             // If this walker is configured to stop at component, don't
             // return any files.
@@ -555,16 +563,13 @@ impl RepoWalker<'_> {
             };
 
             // Prime the processing list with the item behind the given digest
-            let mut item = spfs_repo.read_object(*digest).await?;
+            let mut item = spfs_repo.read_object(*component.digest).await?;
             let mut items_to_process: Vec<spfs::graph::Object> = vec![item];
 
             while !items_to_process.is_empty() {
                 let mut next_iter_objects: Vec<spfs::graph::Object> = Vec::new();
 
                 for object in items_to_process.iter() {
-                    // TODO: this doesn't emit things for all the spfs
-                    // objects, just the dir/files entries, but should
-                    // it, maybe a spfs level walker should?
                     match object.to_enum() {
                         Enum::Platform(object) => {
                             for digest in object.iter_bottom_up() {
@@ -601,17 +606,21 @@ impl RepoWalker<'_> {
                                             stack.push(next_children);
                                         }
 
-                                        if !(self.file_filter_func)(&build, &component, digest, &next_child_entry, &parent_paths) {
+                                        let f = WalkedFile {
+                                            repo_name: repo.name(),
+                                            build: Arc::clone(&component.build),
+                                            component: component.name.clone(),
+                                            path_pieces: parent_paths.clone(),
+                                            entry: next_child_entry.clone(),
+                                        };
+                                        if !(self.file_filter_func)(&f) {
                                             // Filter out entries (dirs/files) that don't match
                                             continue;
                                         }
 
                                         if next_child_entry.kind.is_blob() {
                                             // A Blob entry in a Manifest represents a file - emit it
-                                            yield FileItem {
-                                                parent_paths: parent_paths.clone(),
-                                                entry: next_child_entry.clone(),
-                                            };
+                                            yield f;
                                         }
 
                                         // Make a stack of this entry's children, pair it and the parent paths,
@@ -654,74 +663,53 @@ impl RepoWalker<'_> {
 
                 let packages = self.get_matching_packages(repository_name, repo).await?;
                 for package in packages.iter() {
-                    let package_name = Arc::new(package.clone());
-                    yield RepoWalkerItem::Package(WalkedPackage{ repo_name,
-                                                                 name: Arc::clone(&package_name) });
+                    yield RepoWalkerItem::Package(package.clone());
 
-                    let versions = self.get_matching_versions(repo, package).await?;
+                    let package_name = Arc::clone(&package.name);
+
+                    let versions = self.get_matching_versions(repository_name, repo, &package_name).await?;
                     for package_version in versions.iter() {
-                        let ident = package_version.as_version_ident().clone();
-                        let version_ident = Arc::new(ident.clone());
-                        yield RepoWalkerItem::Version(WalkedVersion { repo_name,
-                                                                      ident: Arc::clone(&version_ident) });
+                        yield RepoWalkerItem::Version(package_version.clone());
 
-                        let builds = self.get_matching_builds(repo, &ident).await?;
-                        for (build, build_spec) in builds.iter() {
-                            yield RepoWalkerItem::Build(WalkedBuild { repo_name,
-                                                                      spec: Arc::clone(build_spec) });
+                        let ident = Arc::clone(&package_version.ident);
 
-                            let build_ident = Arc::new(build.clone());
-                            let components = self.get_matching_components(repo, build).await?;
-                            for (component, digest) in components.iter() {
-                                let component_digest = Arc::new(*digest);
-                                yield RepoWalkerItem::Component(WalkedComponent{ repo_name,
-                                                                                 build: Arc::clone(&build_ident),
-                                                                                 name: component.clone(),
-                                                                                 digest: Arc::clone(&component_digest)
-                                });
+                        let builds = self.get_matching_builds(repository_name, repo, &ident).await?;
+                        for build in builds.iter() {
+                            yield RepoWalkerItem::Build(build.clone());
+
+                            let build_ident = Arc::new(build.spec.ident().clone());
+                            let components = self.get_matching_components(repository_name, repo, build_ident).await?;
+                            for component in components.iter() {
+                                yield RepoWalkerItem::Component(component.clone());
 
                                 let mut at_least_one_file = false;
-                                let mut file_stream = self.file_stream(repo, build_ident.clone(), component.clone(), digest);
+                                let mut file_stream = self.file_stream(repo, component.clone());
                                 while let Some(file_item) = self.convert_file_error(file_stream.try_next().await)? {
-                                    yield RepoWalkerItem::File(WalkedFile { repo_name,
-                                                                            build: Arc::clone(&build_ident),
-                                                                            component: component.clone(),
-                                                                            path_pieces: file_item.parent_paths.clone(),
-                                                                            entry: file_item.entry.clone() });
-                                   at_least_one_file = true;
+                                    yield RepoWalkerItem::File(file_item);
+                                    at_least_one_file = true;
                                 }
 
                                 if self.emit_end_of_markers && at_least_one_file {
-                                    // Report the end of this component (after all the files in it)
-                                    yield RepoWalkerItem::EndOfComponent(
-                                        WalkedComponent {
-                                            repo_name,
-                                            build: Arc::clone(&build_ident),
-                                            name: component.clone(),
-                                            digest: component_digest }
-                                    )
+                                    // Report the end of this component (after all its files and if it had any files)
+                                    yield RepoWalkerItem::EndOfComponent(component.clone())
                                 }
                             }
 
                             if self.emit_end_of_markers && !components.is_empty() {
                                 // Report the end of this build (after all the components in it)
-                                yield RepoWalkerItem::EndOfBuild(WalkedBuild { repo_name,
-                                                                               spec: Arc::clone(build_spec)
-                                })
+                                yield RepoWalkerItem::EndOfBuild(build.clone())
                             }
                         }
 
                         if self.emit_end_of_markers && !builds.is_empty() {
                             // Report the end of this version (after all its builds)
-                            yield RepoWalkerItem::EndOfVersion(WalkedVersion { repo_name,
-                                                                               ident: Arc::clone(&version_ident) })
+                            yield RepoWalkerItem::EndOfVersion(package_version.clone())
                         }
                     }
 
                     if self.emit_end_of_markers && !versions.is_empty() {
                         // Report the end of this package (after all its versions)
-                        yield RepoWalkerItem::EndOfPackage(WalkedPackage{ repo_name,
-                                                                          name: Arc::clone(&package_name) })
+                        yield RepoWalkerItem::EndOfPackage(package.clone())
                     }
                 }
 
@@ -734,26 +722,13 @@ impl RepoWalker<'_> {
     }
 }
 
-// The '# Ok::<(), Box<dyn std::error::Error>>(())' lines below trip
-// 'invalid_html_tags', but we want the example code to compile as
-// documentation tests. So have to allow invalid html tags here.
-#[allow(rustdoc::invalid_html_tags)]
 /// A builder for constructing a RepoWalker from various settings.
 ///
 /// A default RepoWalker can made with:
-/// ```
-///   # use std::error::Error;
-///   # use futures::executor::block_on;
-///   # use spk_storage::RepositoryHandle;
-///   use spk_storage::RepoWalkerBuilder;
 ///
-///   # let local_repo = block_on(spk_storage::local_repository())?;
-///   # let repos = vec!(("local".to_string(), RepositoryHandle::SPFS(local_repo)));
+///   let repo_walker_builder = RepoWalkerBuilder::new(repos);
+///   let repo_walker = builder.build();
 ///
-///   let repo_walker_builder = RepoWalkerBuilder::new(&repos);
-///   let repo_walker = repo_walker_builder.build();
-///   # Ok::<(), Box<dyn std::error::Error>>(())
-/// ```
 /// That makes a RepoWalker that will: walk the given list of
 /// repositories to report on all packages, all versions, all builds
 /// that aren't /src or /deprecated builds, and will emit the package,
@@ -770,29 +745,20 @@ impl RepoWalker<'_> {
 /// RepoWalkerBuilder to configure it before calling build() and
 /// making the RepoWalker, e.g.
 ///
-///   # use std::error::Error;
-///   # use futures::executor::block_on;
-///   # use spk_storage::RepositoryHandle;
-///   use spk_storage::RepoWalkerBuilder;
-///
-///   # let local_repo = block_on(spk_storage::local_repository())?;
-///   # let repos = vec!(("local".to_string(), RepositoryHandle::SPFS(local_repo)));
-///
-///   let repo_walker_builder = RepoWalkerBuilder::new(&repos);
-///   let repo_walker = repo_walker_builder
-///         .try_with_package_equals(&Some("local/python/3.9.7".to_string()))?
+///   let repo_walker_builder = RepoWalkerBuilder::new(repos);
+///   let repo_walker = builder
+///         .try_with_package_equals(some_package)?
 ///         .with_report_on_versions(true)
 ///         .with_report_on_builds(true)
 ///         .with_report_src_builds(true)
 ///         .with_report_deprecated_builds(true)
 ///         .with_report_embedded_builds(false)
 ///         .with_report_on_components(true)
-///         .with_build_options_matching(None)
+///         .with_build_options_matching(host_options)
 ///         .with_report_on_files(true)
-///         .with_file_path(Some("lib/python/".to_string()))
+///         .with_file_path(some_file_path)
 ///         .with_continue_on_error(true)
 ///         .build();
-///   # Ok::<(), Box<dyn std::error::Error>>(())
 ///
 /// That makes a RepoWalker that will: walk down to files, but only
 /// for packages that match the given package identifier. It will
@@ -836,15 +802,15 @@ pub struct RepoWalkerBuilder<'a> {
 impl<'a> RepoWalkerBuilder<'a> {
     /// Create a new RepoWalkerBuilder with the given repositories and
     /// these defaults:
-    /// - no custom filters, so will emit everything it finds except where stated below,
-    /// - it will report on: packages, versions, and builds (non-embedded and embedded)
+    /// - no filter functions, so will emit everything it finds except where stated below,
+    /// - it will report on: packages, versions, normal and embedded builds
     /// - it will not report on /src or deprecated builds
-    /// - it will not report on, or walk to, components and files
+    /// - it will not report on, or walk, components and files
     /// - it will not emit EndOf markers
     /// - it will stop if it encounters an error
-    /// - it will sort the objects it find before emitting them
+    /// - it will sort the objects i it find before emitting them
     ///
-    /// Effectively this will walk all the active builds in the given repositories.
+    /// Effectively this will walk all the active builds in the repos.
     pub fn new(repos: &'a Vec<(String, storage::RepositoryHandle)>) -> Self {
         Self {
             repos,
@@ -881,8 +847,8 @@ impl<'a> RepoWalkerBuilder<'a> {
     /// search command. The same filter could be set up directly using
     /// with_package_filter().
     pub fn with_package_name_substring_matching(&mut self, search_substring: String) -> &mut Self {
-        self.with_package_filter(move |_rn, pn| {
-            RepoWalkerFilter::substring_package_name_filter(pn, search_substring.clone())
+        self.with_package_filter(move |wp| {
+            RepoWalkerFilter::substring_package_name_filter(wp, search_substring.clone())
         });
         self
     }
@@ -934,15 +900,15 @@ impl<'a> RepoWalkerBuilder<'a> {
                 // Set up a filter function for matching the repo, if
                 // any, and package name.
                 let pkg_name = parts.pkg_name.to_string();
-                self.with_package_filter(move |rn, pn| {
-                    RepoWalkerFilter::exact_package_name_filter(rn, pn, None, pkg_name.clone())
+                self.with_package_filter(move |wp| {
+                    RepoWalkerFilter::exact_package_name_filter(wp, None, pkg_name.clone())
                 });
 
                 // Set up a filter function matching for the version, if any
                 if let Some(version_number) = parts.version_str {
-                    self.with_version_filter(move |_pkg, ver| {
+                    self.with_version_filter(move |version| {
                         RepoWalkerFilter::exact_match_version_filter(
-                            ver,
+                            version,
                             version_number.to_string().clone(),
                         )
                     });
@@ -960,7 +926,7 @@ impl<'a> RepoWalkerBuilder<'a> {
 
                 // Set up a filter function for matching the components, if any
                 if !components.is_empty() {
-                    self.with_component_filter(move |_b, c| {
+                    self.with_component_filter(move |c| {
                         RepoWalkerFilter::allowed_components_filter(c, &components)
                     });
                 }
@@ -985,9 +951,7 @@ impl<'a> RepoWalkerBuilder<'a> {
     pub fn with_file_path(&mut self, file_path: Option<String>) -> &mut Self {
         if let Some(path) = file_path {
             let path_pieces: Vec<String> = path.split("/").map(ToString::to_string).collect();
-            self.with_file_filter(move |_build, _component, _digest, _e, pfp| {
-                RepoWalkerFilter::parent_paths_match(pfp, &path_pieces)
-            });
+            self.with_file_filter(move |f| RepoWalkerFilter::parent_paths_match(f, &path_pieces));
         }
         self
     }
@@ -995,7 +959,7 @@ impl<'a> RepoWalkerBuilder<'a> {
     /// Set up a filter function for packages based on their name.
     pub fn with_package_filter(
         &mut self,
-        func: impl Fn(&str, &PkgNameBuf) -> bool + Send + Sync + 'a,
+        func: impl Fn(&WalkedPackage) -> bool + Send + Sync + 'a,
     ) -> &mut Self {
         self.package_filter_func = Arc::new(func);
         self
@@ -1005,7 +969,7 @@ impl<'a> RepoWalkerBuilder<'a> {
     /// number.
     pub fn with_version_filter(
         &mut self,
-        func: impl Fn(&PkgNameBuf, &Arc<Version>) -> bool + Send + Sync + 'a,
+        func: impl Fn(&WalkedVersion) -> bool + Send + Sync + 'a,
     ) -> &mut Self {
         self.version_filter_func = Arc::new(func);
         self
@@ -1030,7 +994,7 @@ impl<'a> RepoWalkerBuilder<'a> {
     /// e.g. deprecation status or install requirements.
     pub fn with_build_spec_filter(
         &mut self,
-        func: impl Fn(&Arc<Spec>) -> bool + Send + Sync + 'a,
+        func: impl Fn(&WalkedBuild) -> bool + Send + Sync + 'a,
     ) -> &mut Self {
         self.build_spec_filter_func = Arc::new(func);
         self
@@ -1040,7 +1004,7 @@ impl<'a> RepoWalkerBuilder<'a> {
     /// name.
     pub fn with_component_filter(
         &mut self,
-        func: impl Fn(&BuildIdent, &Component) -> bool + Send + Sync + 'a,
+        func: impl Fn(&WalkedComponent) -> bool + Send + Sync + 'a,
     ) -> &mut Self {
         self.component_filter_func = Arc::new(func);
         self
@@ -1050,16 +1014,7 @@ impl<'a> RepoWalkerBuilder<'a> {
     /// the spfs entry and its parent path.
     pub fn with_file_filter(
         &mut self,
-        func: impl Fn(
-            &Arc<BuildIdent>,
-            &Component,
-            &Digest,
-            &spfs::tracking::Entry,
-            &[Arc<String>],
-        ) -> bool
-        + Send
-        + Sync
-        + 'a,
+        func: impl Fn(&WalkedFile) -> bool + Send + Sync + 'a,
     ) -> &mut Self {
         self.file_filter_func = Arc::new(func);
         self
