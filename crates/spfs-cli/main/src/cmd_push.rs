@@ -15,9 +15,8 @@ pub struct CmdPush {
     #[clap(short, long, action = clap::ArgAction::Count)]
     verbose: u8,
 
-    /// The name or address of the remote server to push to
-    #[clap(long, short, default_value = "origin")]
-    remote: String,
+    #[clap(flatten)]
+    pub(crate) repos: cli::Repositories,
 
     /// The reference(s) to push
     ///
@@ -31,7 +30,7 @@ impl CmdPush {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let (repo, remote) = tokio::try_join!(
             config.get_local_repository_handle(),
-            spfs::config::open_repository_from_string(config, Some(&self.remote)),
+            spfs::config::open_repository_from_string(config, self.repos.remote.as_ref()),
         )?;
 
         let env_spec = self.refs.iter().cloned().collect();

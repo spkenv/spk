@@ -9,9 +9,8 @@ use spfs_cli_common as cli;
 /// Show the complete state of a runtime
 #[derive(Debug, Args)]
 pub struct CmdRuntimeInfo {
-    /// Load a runtime in a remote or alternate repository
-    #[clap(short, long)]
-    remote: Option<String>,
+    #[clap(flatten)]
+    pub(crate) repos: cli::Repositories,
 
     #[clap(flatten)]
     annotation: cli::AnnotationViewing,
@@ -23,7 +22,7 @@ pub struct CmdRuntimeInfo {
 
 impl CmdRuntimeInfo {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
-        let runtime_storage = match &self.remote {
+        let runtime_storage = match &self.repos.remote {
             Some(remote) => {
                 let repo = config.get_remote(remote).await?;
                 spfs::runtime::Storage::new(repo)?

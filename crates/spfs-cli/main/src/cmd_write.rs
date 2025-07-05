@@ -11,6 +11,7 @@ use miette::Result;
 use spfs::Error;
 use spfs::prelude::*;
 use spfs::tracking::BlobReadExt;
+use spfs_cli_common as cli;
 
 /// Store an arbitrary blob of data in spfs
 #[derive(Debug, Args)]
@@ -22,9 +23,8 @@ pub struct CmdWrite {
     #[clap(long = "tag", short)]
     tags: Vec<String>,
 
-    /// Write to a remote repository instead of the local one
-    #[clap(long, short)]
-    remote: Option<String>,
+    #[clap(flatten)]
+    pub(crate) repos: cli::Repositories,
 
     /// Store the contents of this file instead of reading from stdin
     #[clap(long, short)]
@@ -33,7 +33,8 @@ pub struct CmdWrite {
 
 impl CmdWrite {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
-        let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
+        let repo =
+            spfs::config::open_repository_from_string(config, self.repos.remote.as_ref()).await?;
 
         let reader: std::pin::Pin<Box<dyn spfs::tracking::BlobRead>> = match &self.file {
             Some(file) => {
