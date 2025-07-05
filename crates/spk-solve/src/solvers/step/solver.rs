@@ -20,7 +20,16 @@ use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{PkgRequest, Request, RequestedBy, Satisfy, VarRequest};
 use spk_schema::ident_build::EmbeddedSource;
 use spk_schema::version::{ComponentsMissingProblem, IncompatibleReason, IsSameReasonAs};
-use spk_schema::{BuildIdent, Deprecate, Package, Recipe, Spec, SpecRecipe, try_recipe};
+use spk_schema::{
+    BuildIdent,
+    Deprecate,
+    Package,
+    Recipe,
+    Spec,
+    SpecRecipe,
+    VersionIdent,
+    try_recipe,
+};
 use spk_solve_graph::{
     Change,
     DEAD_STATE,
@@ -118,6 +127,9 @@ pub struct Solver {
     // highlight problem areas in a solve and help user home in on
     // what might be causing issues.
     problem_packages: HashMap<String, u64>,
+    // Set of package/versions the solver has decided to try to build
+    // from source as part of a solve
+    new_builds_started: HashSet<VersionIdent>,
 }
 
 impl Default for Solver {
@@ -136,6 +148,7 @@ impl Default for Solver {
             number_of_steps_back: Arc::new(AtomicU64::new(0)),
             error_frequency: HashMap::new(),
             problem_packages: HashMap::new(),
+            new_builds_started: HashSet::new(),
         }
     }
 }
@@ -313,7 +326,17 @@ impl Solver {
     /// validate that a build is possible and to generate the resulting
     /// spec.
     #[async_recursion::async_recursion]
-    async fn resolve_new_build(&self, recipe: &SpecRecipe, state: &State) -> Result<Arc<Spec>> {
+    async fn resolve_new_build(&mut self, recipe: &SpecRecipe, state: &State) -> Result<Arc<Spec>> {
+        // Check if the package/version is one that the solver has
+        // already started to resolve a new build for, and error out
+        // if it is. The new_build_started set's insert will return
+        // true if the set did not contain the value before the insert.
+        if !self.new_builds_started.insert(recipe.ident().clone()) {
+            return Err(Error::SolverBuildFromSourceDependencyLoopError(
+                recipe.ident().clone(),
+            ));
+        }
+
         let mut opts = state.get_option_map().clone();
         for pkg_request in state.get_pkg_requests() {
             if !opts.contains_key(pkg_request.pkg.name.as_opt_name()) {
@@ -341,6 +364,12 @@ impl Solver {
             ..Default::default()
         };
         solver.update_options(opts.clone());
+
+        // Prime the new solver with the builds that have already been
+        // started so that it can detect long dependency loops in the
+        // things it might try to build from source in its solve.
+        solver.add_new_builds_started(self.new_builds_started.clone());
+
         let solution = solver.solve_build_environment(recipe).await?;
         recipe
             .generate_binary_build(&opts, &solution)
@@ -1024,6 +1053,12 @@ impl Solver {
         SolverRuntime::new(self.clone())
     }
 
+    /// Add the given set of package/versions to the solver's new
+    /// builds started records
+    fn add_new_builds_started(&mut self, new_builds: HashSet<VersionIdent>) {
+        self.new_builds_started.extend(new_builds);
+    }
+
     /// Enable or disable running impossible checks on the initial requests
     /// before the solve starts
     pub fn set_initial_request_impossible_checks(&mut self, enabled: bool) {
@@ -1146,6 +1181,7 @@ impl SolverMut for Solver {
         self.number_of_steps_back.store(0, Ordering::SeqCst);
         self.error_frequency.clear();
         self.problem_packages.clear();
+        self.new_builds_started.clear();
     }
 
     async fn run_and_log_resolve(&mut self, formatter: &DecisionFormatter) -> Result<Solution> {
