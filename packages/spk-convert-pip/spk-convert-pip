@@ -305,23 +305,11 @@ class PipImporter:
         assert not info.requires_external, "No support for external requirements"
         assert not info.supported_platforms, "No support for supported platforms field"
 
-        # The spk default is "Unlicensed", which seems odd
-        package_license = "Unknown"
-        if hasattr(info, "license"):
-            if info.license is not None:
-                package_license = str(info.license)
-                if len(package_license) > LICENSE_FIELD_TRUNCATION_POINT:
-                    package_license = (
-                        package_license[:LICENSE_FIELD_TRUNCATION_POINT]
-                        + TRUNCATED_VALUE_INDICATOR
-                    )
-
         spec = {
             "pkg": f"{_to_spk_name(info.name)}/{_to_spk_version(info.version)}",
             "api": "v0/package",
             "sources": [],
             "meta": {
-                "license": package_license,
                 "labels": {
                     SPK_GENERATED_BY_LABEL: SPK_GENERATED_BY_VALUE,
                     "spk-convert-pip:cli": self._cli_args,
@@ -340,6 +328,16 @@ class PipImporter:
                 "requirements": [],
             },
         }
+
+        # TODO: if info.license exists, add it into meta.license but
+        # need a way to disable the SpdxLicense validation.
+        if hasattr(info, "license"):
+            package_license = str(info.license)
+            if len(package_license) > LICENSE_FIELD_TRUNCATION_POINT:
+                package_license = (
+                    package_license[:LICENSE_FIELD_TRUNCATION_POINT]
+                    + TRUNCATED_VALUE_INDICATOR
+                )
 
         if info.name == "pip":
             spec["build"]["validation"] = {"rules": [{"allow": "RecursiveBuild"}]}
