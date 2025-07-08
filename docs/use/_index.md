@@ -45,6 +45,8 @@ For more detailed information on the build process, check the [Package Build Pro
 $ spk publish my-pkg/0.1.0
 ```
 
+For more detailed information on the publishing process, check out [Publishing Packages]({{< ref "./publishing_packages" >}})
+
 ### Run an Environment In The Past
 
 For debugging and recovery workflows, the `--when` flag can be provided to run spk commands
