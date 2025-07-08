@@ -270,21 +270,33 @@ impl<T: Output> Ls<T> {
                     let any_deprecated = deprecated_builds.contains(version_number);
                     let all_deprecated = any_deprecated && !any_available;
 
+                    let presentation_version_number = if any_available {
+                        match active_builds.get(version_number) {
+                            Some(vn) => vn,
+                            None => version_number,
+                        }
+                    } else {
+                        version_number
+                    };
+
                     if self.deprecated {
                         // Show deprecated versions with an indication
                         // of how many builds were also deprecated.
                         if all_deprecated {
-                            lines.push(format!("{version_number} {}", "DEPRECATED".red()));
+                            lines.push(format!(
+                                "{presentation_version_number} {}",
+                                "DEPRECATED".red()
+                            ));
                         } else if any_deprecated {
                             lines.push(format!(
-                                "{version_number} {}",
+                                "{presentation_version_number} {}",
                                 "(partially) DEPRECATED".red()
                             ));
                         } else {
-                            lines.push(version_number.to_string());
+                            lines.push(presentation_version_number.to_string());
                         }
                     } else if any_available {
-                        lines.push(version_number.to_string());
+                        lines.push(presentation_version_number.to_string());
                     }
                 }
                 _ => {}
