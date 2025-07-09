@@ -14,6 +14,7 @@ use spk_schema::foundation::version::Version;
 use spk_schema::foundation::version_range::{Ranged, parse_version_range};
 use spk_schema::ident_build::{Build, EmbeddedSource};
 use spk_schema::ident_ops::parsing::IdentPartsBuf;
+use spk_schema::version::Epsilon;
 
 use crate::Result;
 
@@ -396,8 +397,9 @@ impl BuildKeyExpandedVersionRange {
 struct BuildKeyVersionNumber {
     /// The major, minor, patch, and tail digits, e.g. [6, 4, 0]
     digits: Vec<BuildKeyVersionNumberPiece>,
-    /// If the version in `digits` should be treated as infinitesimally larger
-    plus_epsilon: bool,
+    /// If the version in `digits` should be treated as infinitesimally
+    /// larger/smaller
+    epsilon: Epsilon,
     /// Any post-release tag pieces, e.g. Some(['r', 1]) or None
     posttag: Option<Vec<BuildKeyVersionNumberPiece>>,
     /// Marker for a version number without any pre or post tags, to
@@ -498,7 +500,7 @@ impl BuildKeyVersionNumber {
         // last, i.e.  1.0+e > 1.0+r.1 > 1.0 > 1.0-r.1
         BuildKeyVersionNumber {
             digits,
-            plus_epsilon: v.parts.plus_epsilon,
+            epsilon: v.parts.epsilon,
             posttag,
             notags,
             pretag,
