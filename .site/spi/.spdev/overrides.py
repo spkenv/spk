@@ -56,6 +56,7 @@ class RustCrate(spdev.stdlib.components.RustCrate):
 
         return inject_credentials(
             [
+                spdev.shell.Command("cargo", "install", "--locked", "ast-grep"),
                 spdev.shell.Chdir(self.path()),
                 spdev.shell.Command("make", "lint"),
             ]
@@ -67,6 +68,7 @@ class RustCrate(spdev.stdlib.components.RustCrate):
 
         return inject_credentials(
             [
+                spdev.shell.Command("cargo", "install", "--locked", "ast-grep"),
                 spdev.shell.Command("mkdir", "-p", self.build_dir("debug")),
                 spdev.shell.Chdir(self.path()),
                 spdev.shell.Command(
@@ -90,6 +92,7 @@ class RustCrate(spdev.stdlib.components.RustCrate):
 
         return inject_credentials(
             [
+                spdev.shell.Command("cargo", "install", "--locked", "ast-grep"),
                 spdev.shell.Chdir(self.path()),
                 spdev.shell.Command("make", "test"),
             ]
