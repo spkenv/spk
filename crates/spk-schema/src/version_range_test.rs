@@ -2,10 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::str::FromStr;
+
 use proptest::collection::{btree_map, vec};
 use proptest::option::weighted;
 use proptest::prelude::*;
 use rstest::rstest;
+use spk_schema_foundation::version::Epsilon;
 
 use super::{Spec, spec};
 use crate::foundation::version::{CompatRule, TagSet, Version, VersionParts, parse_version};
@@ -39,7 +42,12 @@ fn test_parse_version_range_carat() {
 fn test_parse_version_range_tilde() {
     let vr = parse_version_range("~1.0.1").unwrap();
     assert_eq!(vr.greater_or_equal_to().expect("some version"), "1.0.1");
-    assert_eq!(vr.less_than().expect("some version"), "1.1.0");
+    assert_eq!(
+        vr.less_than().expect("some version"),
+        Version::from_str("1.1.0")
+            .expect("valid version")
+            .minus_epsilon()
+    );
 
     assert!(parse_version_range("~2").is_err());
 }
@@ -119,6 +127,15 @@ fn test_version_range_is_applicable(
 #[case("!==1.0+r.1", recipe!({"pkg": "test/1.0.0+r.1"}), false)]
 // negative exact post release compatible with different one: YES
 #[case("!=1.0.0+r.2", recipe!({"pkg": "test/1.0.0+r.1"}), true)]
+// tilde operator with prerelease package lower than requested version: NO
+#[case("~3.1.170", recipe!({"pkg": "test/3.1.170-pre.1"}), false)]
+// tilde operator with prerelease package higher than requested version: YES
+#[case("~3.1.170", recipe!({"pkg": "test/3.1.171-pre.1"}), true)]
+// tilde operator with prerelease package with next minor version and 0 patch
+// version: NO
+#[case("~3.1.170", recipe!({"pkg": "test/3.2.0-pre.1"}), false)]
+// tilde operator with package with next minor version and 0 patch version: NO
+#[case("~3.1.170", recipe!({"pkg": "test/3.2.0"}), false)]
 fn test_version_range_is_satisfied_recipe(
     #[case] range: &str,
     #[case] spec: SpecRecipe,
@@ -226,7 +243,7 @@ fn arb_version_min_len(min_len: usize) -> impl Strategy<Value = Version> {
         .prop_map(|(parts, pre, post)| Version {
             parts: VersionParts {
                 parts,
-                plus_epsilon: false,
+                epsilon: Epsilon::None,
             },
             pre,
             post,

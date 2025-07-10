@@ -214,11 +214,25 @@ pub fn parse_tag_set<S: AsRef<str>>(tags: S) -> Result<TagSet> {
     Ok(tag_set)
 }
 
+/// How the version is nudged when comparing it to other versions.
+#[derive(
+    Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize,
+)]
+pub enum Epsilon {
+    /// The version is nudged down by an infinitesimal amount.
+    Minus,
+    /// The version is not nudged.
+    #[default]
+    None,
+    /// The version is nudged up by an infinitesimal amount.
+    Plus,
+}
+
 /// The numeric portion of a version.
 #[derive(Clone, Debug, Default)]
 pub struct VersionParts {
     pub parts: Vec<u32>,
-    pub plus_epsilon: bool,
+    pub epsilon: Epsilon,
 }
 
 impl VersionParts {
@@ -277,11 +291,11 @@ impl VersionParts {
                     .take(index_of_last_non_zero + 1)
                     .copied()
                     .collect(),
-                plus_epsilon: self.plus_epsilon,
+                epsilon: self.epsilon,
             }),
             None => Cow::Owned(VersionParts {
                 parts: vec![0],
-                plus_epsilon: self.plus_epsilon,
+                epsilon: self.epsilon,
             }),
         }
     }
@@ -305,14 +319,14 @@ impl From<Vec<u32>> for VersionParts {
     fn from(parts: Vec<u32>) -> Self {
         Self {
             parts,
-            plus_epsilon: false,
+            epsilon: Epsilon::None,
         }
     }
 }
 
 impl std::cmp::PartialEq for VersionParts {
     fn eq(&self, other: &Self) -> bool {
-        if self.plus_epsilon != other.plus_epsilon {
+        if self.epsilon != other.epsilon {
             return false;
         }
 
@@ -337,7 +351,7 @@ impl std::hash::Hash for VersionParts {
         if let Some(last_nonzero) = self.parts.iter().rposition(|d| d != &0) {
             self.parts[..=last_nonzero].hash(state)
         };
-        self.plus_epsilon.hash(state);
+        self.epsilon.hash(state);
     }
 }
 
@@ -388,6 +402,21 @@ impl Version {
         self.parts.get(1).copied().unwrap_or_default()
     }
 
+    /// Enable the `minus_epsilon` bit on this Version.
+    ///
+    /// For purposes of comparing versions, a version with this bit
+    /// enabled is considered infinitesimally smaller than the stated
+    /// version.
+    ///
+    /// Therefore, an expression like "~2.2.2" can be have an upper bound
+    /// using a `Version` with parts `[2, 3, 0]` and `epsilon: Epsilon::Minus`
+    /// and not include a pre-release version like `2.3.0-pre.1`.
+    #[inline]
+    pub fn minus_epsilon(mut self) -> Self {
+        self.parts.epsilon = Epsilon::Minus;
+        self
+    }
+
     /// Enable the `plus_epsilon` bit on this Version.
     ///
     /// For purposes of comparing versions, a version with this bit
@@ -395,11 +424,12 @@ impl Version {
     /// version.
     ///
     /// Therefore, an expression like "<2.0" can be represented
-    /// by a `Version` with parts `[2, 0]` and `plus_epsilon: true`.
+    /// by a `Version` with parts `[2, 0]` and `epsilon: Epsilon::Plus`.
     /// Using parts `[2, 1]` is *not* accurate because
     /// `2.0 < 2.0.1 < 2.1`.
+    #[inline]
     pub fn plus_epsilon(mut self) -> Self {
-        self.parts.plus_epsilon = true;
+        self.parts.epsilon = Epsilon::Plus;
         self
     }
 
@@ -462,8 +492,10 @@ impl Version {
         // `Ranged::intersects` and should generally not show up in
         // other contexts. If it does end up leaking out in other
         // places then some code refactoring is needed here.
-        if self.parts.plus_epsilon {
-            s.push_str("+ε")
+        match self.parts.epsilon {
+            Epsilon::None => {}
+            Epsilon::Plus => s.push_str("+ε"),
+            Epsilon::Minus => s.push_str("-ε"),
         }
         s
     }
@@ -625,6 +657,16 @@ impl Ord for Version {
             }
         }
 
+        // Compare epsilon _before_ pre/post release:
+        //
+        //     1.73.0 < 1.73.0+r.1 < 1.73.0+ε
+        //     1.73.0-ε < 1.73.0-pre.1 < 1.73.0
+        //
+        match self.parts.epsilon.cmp(&other.parts.epsilon) {
+            Ordering::Equal => (),
+            cmp => return cmp,
+        }
+
         match (self.pre.is_empty(), other.pre.is_empty()) {
             (true, true) => (),
             (true, false) => return Ordering::Greater,
@@ -633,16 +675,6 @@ impl Ord for Version {
                 Ordering::Equal => (),
                 cmp => return cmp,
             },
-        }
-
-        // Compare epsilon _before_ post release:
-        //
-        //     1.73.0 < 1.73.0+r.1 < 1.73.0+ε
-        //
-        match (self.parts.plus_epsilon, other.parts.plus_epsilon) {
-            (true, false) => return Ordering::Greater,
-            (false, true) => return Ordering::Less,
-            _ => (),
         }
 
         self.post.cmp(&other.post)

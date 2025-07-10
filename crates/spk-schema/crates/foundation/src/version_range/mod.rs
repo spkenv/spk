@@ -613,7 +613,7 @@ impl Ranged for LowestSpecifiedRange {
         if let Some(last) = parts.last_mut() {
             *last += 1;
         }
-        Some(Version::from_parts(parts.clone()))
+        Some(Version::from_parts(parts.clone()).minus_epsilon())
     }
 }
 

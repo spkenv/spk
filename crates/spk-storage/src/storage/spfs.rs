@@ -1027,7 +1027,7 @@ impl SpfsRepository {
                 pkg.with_version(Version {
                     parts: VersionParts {
                         parts: new_parts,
-                        plus_epsilon: pkg.version().parts.plus_epsilon,
+                        epsilon: pkg.version().parts.epsilon,
                     },
                     pre: pkg.version().pre.clone(),
                     post: pkg.version().post.clone(),

@@ -21,7 +21,7 @@ impl ParseVersion {
     pub const FIELD_PATCH: &'static str = "patch";
     pub const FIELD_BASE: &'static str = "base";
     pub const FIELD_PARTS: &'static str = "parts";
-    pub const FIELD_PLUS_EPSILON: &'static str = "plus_epsilon";
+    pub const FIELD_EPSILON: &'static str = "epsilon";
     pub const FIELD_PRE: &'static str = "pre";
     pub const FIELD_POST: &'static str = "post";
     pub const FIELDS: &'static [&'static str] = &[
@@ -30,7 +30,7 @@ impl ParseVersion {
         Self::FIELD_PATCH,
         Self::FIELD_BASE,
         Self::FIELD_PARTS,
-        Self::FIELD_PLUS_EPSILON,
+        Self::FIELD_EPSILON,
         Self::FIELD_PRE,
         Self::FIELD_POST,
     ];
@@ -60,7 +60,7 @@ impl tera::Filter for ParseVersion {
             Self::FIELD_PATCH: version.patch(),
             Self::FIELD_BASE: version.base_normalized(),
             Self::FIELD_PARTS: version.parts.parts,
-            Self::FIELD_PLUS_EPSILON: version.parts.plus_epsilon,
+            Self::FIELD_EPSILON: version.parts.epsilon,
             Self::FIELD_PRE: version.pre.deref(),
             Self::FIELD_POST: version.post.deref(),
         });
