@@ -15,6 +15,7 @@ BuildRequires: fuse-devel
 BuildRequires: m4
 BuildRequires: cmake3
 BuildRequires: make
+BuildRequires: devtoolset-9
 
 BuildRequires: spdev >= 0.28.2
 
@@ -36,7 +37,9 @@ export SPDEV_CONFIG_FILE=.site/spi/.spdev.yaml
 dev toolchain install
 source ~/.bashrc
 # Install ast-grep
-cargo install --locked ast-grep
+echo -e '#! /bin/bash\n\nexec cc -D_BSD_SOURCE "$@"' > cc_wrapper
+chmod +x cc_wrapper
+scl enable devtoolset-9 -- env CC=`pwd`/cc_wrapper cargo install --locked ast-grep
 # Include `--all` to also build spk-launcher
 dev env -- cargo build --release --features "migration-to-components,sentry,spfs/protobuf-src,statsd,fuse-backend-rhel-7-6,legacy-spk-version-tags" --all
 

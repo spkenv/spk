@@ -50,13 +50,40 @@ class RustCrate(spdev.stdlib.components.RustCrate):
 
     schema = {}
 
+    @staticmethod
+    def _install_ast_grep() -> Sequence[spdev.shell.Action]:
+        return [
+            # inspired by https://github.com/neovim/neovim/discussions/32340#discussioncomment-12075723
+            # to get tree-sitter to compile on unsupported rhel 7.
+            spdev.shell.RawCommand(
+                "echo",
+                "-e",
+                """'#! /bin/bash\\n\\nexec cc -D_BSD_SOURCE "$@"'""",
+                ">",
+                "cc_wrapper",
+            ),
+            spdev.shell.Command("chmod", "+x", "cc_wrapper"),
+            spdev.shell.Command(
+                "scl",
+                "enable",
+                "devtoolset-9",
+                "--",
+                "env",
+                "CC=`pwd`/cc_wrapper",
+                "cargo",
+                "install",
+                "--locked",
+                "ast-grep",
+            ),
+        ]
+
     def compile_lint_script(self) -> spdev.shell.Script:
         if self.name not in RustCrate.SPK_COMPONENT_NAMES:
             return inject_credentials(super().compile_lint_script())
 
         return inject_credentials(
             [
-                spdev.shell.Command("cargo", "install", "--locked", "ast-grep"),
+                *RustCrate._install_ast_grep(),
                 spdev.shell.Chdir(self.path()),
                 spdev.shell.Command("make", "lint"),
             ]
@@ -68,7 +95,7 @@ class RustCrate(spdev.stdlib.components.RustCrate):
 
         return inject_credentials(
             [
-                spdev.shell.Command("cargo", "install", "--locked", "ast-grep"),
+                *RustCrate._install_ast_grep(),
                 spdev.shell.Command("mkdir", "-p", self.build_dir("debug")),
                 spdev.shell.Chdir(self.path()),
                 spdev.shell.Command(
@@ -92,7 +119,7 @@ class RustCrate(spdev.stdlib.components.RustCrate):
 
         return inject_credentials(
             [
-                spdev.shell.Command("cargo", "install", "--locked", "ast-grep"),
+                *RustCrate._install_ast_grep(),
                 spdev.shell.Chdir(self.path()),
                 spdev.shell.Command("make", "test"),
             ]
