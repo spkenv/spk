@@ -1,0 +1,6 @@
+id: replace-digest-bytes-debug
+language: rust
+rule:
+  pattern: '$F.debug_struct("Digest").field("bytes", &self.bytes()).finish()'
+fix: |-
+  $F.debug_tuple("Digest").field(&format!("{self}")).finish()

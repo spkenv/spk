@@ -35,6 +35,8 @@ Package manager and a software runtime for studio environments
 export SPDEV_CONFIG_FILE=.site/spi/.spdev.yaml
 dev toolchain install
 source ~/.bashrc
+# Install ast-grep
+cargo install --locked ast-grep
 # Include `--all` to also build spk-launcher
 dev env -- cargo build --release --features "migration-to-components,sentry,spfs/protobuf-src,statsd,fuse-backend-rhel-7-6,legacy-spk-version-tags" --all
 
