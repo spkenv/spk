@@ -54,6 +54,7 @@ pub async fn get_runtime_backing_repo(
                 .iter()
                 .map(ToString::to_string)
                 .collect(),
+            include_secondary_tags: rt.config.include_secondary_tags,
         };
         crate::storage::ProxyRepository::from_config(proxy_config)
             .await

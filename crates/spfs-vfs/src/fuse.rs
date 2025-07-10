@@ -57,6 +57,9 @@ pub struct Config {
     /// These are in addition to the local repository and
     /// are searched in order to find data.
     pub remotes: Vec<String>,
+    /// Whether to have the tags in the secondary repos included in
+    /// the lookup methods.
+    pub include_secondary_tags: bool,
 }
 
 /// Handles the allocation of inodes, and async responses to all FUSE requests
@@ -737,6 +740,7 @@ impl SessionInner {
                 let proxy_config = spfs::storage::proxy::Config {
                     primary: config.storage.root.to_string_lossy().to_string(),
                     secondary: self.opts.remotes.clone(),
+                    include_secondary_tags: self.opts.include_secondary_tags,
                 };
                 let repo = spfs::storage::ProxyRepository::from_config(proxy_config)
                     .await

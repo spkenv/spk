@@ -317,6 +317,7 @@ impl CmdRun {
                         .iter()
                         .map(ToString::to_string)
                         .collect(),
+                    include_secondary_tags: runtime.config.include_secondary_tags,
                 };
                 let repo = spfs::storage::ProxyRepository::from_config(proxy_config)
                     .await

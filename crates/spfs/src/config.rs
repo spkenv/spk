@@ -71,6 +71,14 @@ const fn default_fuse_heartbeat_grace_period_seconds() -> NonZeroU64 {
     unsafe { NonZeroU64::new_unchecked(300) }
 }
 
+const fn default_fuse_include_secondary_tags() -> bool {
+    true
+}
+
+pub fn default_proxy_repo_include_secondary_tags() -> bool {
+    true
+}
+
 static CONFIG: OnceCell<RwLock<Arc<Config>>> = OnceCell::new();
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -521,6 +529,9 @@ pub struct Fuse {
     /// seconds
     #[serde(default = "default_fuse_heartbeat_grace_period_seconds")]
     pub heartbeat_grace_period_seconds: NonZeroU64,
+    /// Whether to include tags from secondary repos in lookup methods
+    #[serde(default = "default_fuse_include_secondary_tags")]
+    pub include_secondary_tags: bool,
 }
 
 impl Fuse {
@@ -540,6 +551,7 @@ impl Default for Fuse {
             enable_heartbeat: false,
             heartbeat_interval_seconds: default_fuse_heartbeat_interval_seconds(),
             heartbeat_grace_period_seconds: default_fuse_heartbeat_grace_period_seconds(),
+            include_secondary_tags: default_fuse_include_secondary_tags(),
         }
     }
 }
