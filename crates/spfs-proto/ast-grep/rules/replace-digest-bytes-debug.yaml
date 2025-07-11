@@ -1,0 +1,9 @@
+id: replace-digest-bytes-debug
+language: rust
+rule:
+  pattern: "&self.bytes()"
+  inside:
+    pattern: '$F.debug_struct("Digest").field("bytes", $$$).finish()'
+    stopBy: end
+fix: |-
+  &self.bytes().iter().map(|b| format!("{b:02x}")).collect::<String>()
