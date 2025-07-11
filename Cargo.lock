@@ -4215,6 +4215,7 @@ dependencies = [
  "futures",
  "itertools 0.14.0",
  "miette",
+ "nom-supreme",
  "rstest",
  "serial_test",
  "spfs",
