@@ -348,11 +348,51 @@ impl RemoteConfig {
     }
 }
 
+/// Return true
+#[inline]
+fn bool_true() -> bool {
+    true
+}
+
+/// Options for enabling or controlling OverlayFs features.
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct OverlayFsOptions {
+    /// When true, inodes are indexed in the mount so that
+    /// files which share the same inode (hardlinks) are broken
+    /// in the final mount and changes to one file don't affect
+    /// the other.
+    ///
+    /// This is the desired default behavior for
+    /// spfs, since we rely on hardlinks for deduplication but
+    /// expect that file to be able to appear in multiple places
+    /// as separate files that just so happen to share the same content.
+    ///
+    /// When disabled, there will be additional restrictions on
+    /// remounting the environment since the filesystem will hold
+    /// additional handles and may not unmount while files remain held
+    ///
+    /// It needs to be disabled for durable runtimes because the
+    /// overlayfs index option it enables prevents sharing across
+    /// subsequent invocations of durable runtimes.
+    /// <https://www.kernel.org/doc/html/latest/filesystems/overlayfs.html#sharing-and-copying-layers>
+    #[serde(default = "bool_true")]
+    pub break_hardlinks: bool,
+    /// When true, overlayfs will use extended file attributes to avoid
+    /// copying file data when only the metadata of a file has changed.
+    /// <https://www.kernel.org/doc/html/latest/filesystems/overlayfs.html#metadata-only-copy-up>
+    #[serde(default = "bool_true")]
+    pub metadata_copy_up: bool,
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Filesystem {
     /// The default mount backend to be used for new runtimes.
     pub backend: crate::runtime::MountBackend,
+
+    /// OverlayFs options to use if the backend uses OverlayFs.
+    pub overlayfs_options: OverlayFsOptions,
+
     /// The named remotes that can be used by the runtime
     /// file systems to find object data (if possible)
     ///

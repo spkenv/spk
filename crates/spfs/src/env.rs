@@ -20,6 +20,7 @@ use linux_syscall::{
 };
 
 use super::runtime;
+use crate::config::OverlayFsOptions;
 use crate::{Error, Result, which};
 
 pub const SPFS_DIR: &str = "/spfs";
@@ -512,14 +513,15 @@ where
     /// the slice will provide the contents of that file.
     pub(crate) async fn mount_env_overlayfs<P: AsRef<Path>>(
         &self,
+        global_overlayfs_options: &OverlayFsOptions,
         rt: &runtime::Runtime,
         layer_dirs: &[P],
     ) -> Result<()> {
         let spfs_config = crate::Config::current()?;
         if spfs_config.filesystem.use_mount_syscalls {
-            mount_overlayfs_syscalls(rt, layer_dirs)?;
+            mount_overlayfs_syscalls(global_overlayfs_options, rt, layer_dirs)?;
         } else {
-            mount_overlayfs_command(rt, layer_dirs).await?;
+            mount_overlayfs_command(global_overlayfs_options, rt, layer_dirs).await?;
         }
         mount_live_layers(rt).await
     }
@@ -1006,43 +1008,21 @@ const OVERLAY_ARGS_LOWERDIR_ASSIGN: &str = "lowerdir=";
 /// in the overlayfs mount command when mounting an environment.
 #[derive(Default)]
 pub(crate) struct OverlayMountOptions {
+    /// Global OverlayFs options
+    pub global_options: OverlayFsOptions,
     /// Specifies that the overlay file system is mounted as read-only
     pub read_only: bool,
     /// The lowerdir+ mount option will be used to append layers when true.
     pub lowerdir_append: bool,
-    /// When true, inodes are indexed in the mount so that
-    /// files which share the same inode (hardlinks) are broken
-    /// in the final mount and changes to one file don't affect
-    /// the other.
-    ///
-    /// This is the desired default behavior for
-    /// spfs, since we rely on hardlinks for deduplication but
-    /// expect that file to be able to appear in multiple places
-    /// as separate files that just so happen to share the same content.
-    ///
-    /// When disabled, there will be additional restrictions on
-    /// remounting the environment since the filesystem will hold
-    /// additional handles and may not unmount while files remain held
-    ///
-    /// It needs to be disabled for durable runtimes because the
-    /// overlayfs index option it enables prevents sharing across
-    /// subsequent invocations of durable runtimes.
-    /// https://www.kernel.org/doc/html/latest/filesystems/overlayfs.html#sharing-and-copying-layers
-    break_hardlinks: bool,
-    /// When true, overlayfs will use extended file attributes to avoid
-    /// copying file data when only the metadata of a file has changed.
-    /// https://www.kernel.org/doc/html/latest/filesystems/overlayfs.html#metadata-only-copy-up
-    metadata_copy_up: bool,
 }
 
 impl OverlayMountOptions {
     /// Create the mount options for a runtime state
-    fn new(rt: &runtime::Runtime) -> Self {
+    fn new(global_options: OverlayFsOptions, rt: &runtime::Runtime) -> Self {
         Self {
+            global_options,
             read_only: !rt.status.editable,
             lowerdir_append: true,
-            break_hardlinks: true,
-            metadata_copy_up: true,
         }
     }
 
@@ -1063,10 +1043,10 @@ impl OverlayMountOptions {
         if self.read_only {
             opts.push(OVERLAY_ARGS_RO_PREFIX);
         }
-        if !self.break_hardlinks && params.contains(OVERLAY_ARGS_INDEX) {
+        if !self.global_options.break_hardlinks && params.contains(OVERLAY_ARGS_INDEX) {
             opts.push(OVERLAY_ARGS_INDEX_ON);
         }
-        if self.metadata_copy_up && params.contains(OVERLAY_ARGS_METACOPY) {
+        if self.global_options.metadata_copy_up && params.contains(OVERLAY_ARGS_METACOPY) {
             opts.push(OVERLAY_ARGS_METACOPY_ON);
         }
         opts
@@ -1103,13 +1083,14 @@ impl Drop for CloseFd {
 /// the one that is later in the slice will provide the contents of
 /// that file.
 pub(crate) fn get_overlay_args<P: AsRef<Path>>(
+    global_overlayfs_options: &OverlayFsOptions,
     rt: &runtime::Runtime,
     layer_dirs: &[P],
 ) -> Result<String> {
     // Allocate a large buffer up front to avoid resizing/copying.
     let mut args = String::with_capacity(4096);
 
-    let mount_options = OverlayMountOptions::new(rt).query();
+    let mount_options = OverlayMountOptions::new(global_overlayfs_options.clone(), rt).query();
     for option in mount_options.to_options() {
         args.push_str(option);
         args.push(',');
@@ -1216,11 +1197,12 @@ pub fn option_to_string(option: &fuser::MountOption) -> String {
 
 /// Mount overlayfs layers using the mount command.
 async fn mount_overlayfs_command<P: AsRef<Path>>(
+    global_overlayfs_options: &OverlayFsOptions,
     rt: &runtime::Runtime,
     layer_dirs: &[P],
 ) -> Result<()> {
     tracing::debug!("mounting the overlay filesystem using mount...");
-    let overlay_args = get_overlay_args(rt, layer_dirs)?;
+    let overlay_args = get_overlay_args(global_overlayfs_options, rt, layer_dirs)?;
     let mount = super::resolve::which("mount").unwrap_or_else(|| "/usr/bin/mount".into());
     tracing::debug!("{mount:?} -t overlay -o {overlay_args} none {SPFS_DIR}",);
     // for some reason, the overlay mount process creates a bad filesystem if the
@@ -1243,10 +1225,14 @@ async fn mount_overlayfs_command<P: AsRef<Path>>(
 }
 
 /// Mount overlayfs layers using mount syscalls.
-fn mount_overlayfs_syscalls<P: AsRef<Path>>(rt: &runtime::Runtime, layer_dirs: &[P]) -> Result<()> {
+fn mount_overlayfs_syscalls<P: AsRef<Path>>(
+    global_overlayfs_options: &OverlayFsOptions,
+    rt: &runtime::Runtime,
+    layer_dirs: &[P],
+) -> Result<()> {
     tracing::debug!("mounting the overlay filesystem using syscalls...");
 
-    let mount_options = OverlayMountOptions::new(rt);
+    let mount_options = OverlayMountOptions::new(global_overlayfs_options.clone(), rt);
     let params = runtime::overlayfs::overlayfs_available_options();
 
     // Safety: filesystem name is null-terminated and fd will be closed on exec.
@@ -1301,7 +1287,7 @@ fn mount_overlayfs_syscalls<P: AsRef<Path>>(rt: &runtime::Runtime, layer_dirs: &
         }
     }
 
-    if !mount_options.break_hardlinks && params.contains(OVERLAY_ARGS_INDEX) {
+    if !mount_options.global_options.break_hardlinks && params.contains(OVERLAY_ARGS_INDEX) {
         // Safety: fd is valid and arguments are null-terminated.
         let rc = unsafe {
             syscall!(
@@ -1323,7 +1309,7 @@ fn mount_overlayfs_syscalls<P: AsRef<Path>>(rt: &runtime::Runtime, layer_dirs: &
         }
     }
 
-    if mount_options.metadata_copy_up && params.contains(OVERLAY_ARGS_METACOPY) {
+    if mount_options.global_options.metadata_copy_up && params.contains(OVERLAY_ARGS_METACOPY) {
         // Safety: fd is valid and arguments are null-terminated.
         let rc = unsafe {
             syscall!(
