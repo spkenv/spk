@@ -28,8 +28,6 @@ use crate::{RepositoryHandle, storage};
 #[path = "./walker_test.rs"]
 mod walker_test;
 
-// Objects returned in RepoWalkerItems from walking a set of repositories
-
 /// A repository the RepoWalker is processing
 #[derive(Debug)]
 pub struct WalkedRepo<'a> {
@@ -845,7 +843,7 @@ impl<'a> RepoWalkerBuilder<'a> {
     /// Given a string, use it to set up substring matching for
     /// package names. This is a helper function used by the spk
     /// search command. The same filter could be set up directly using
-    /// with_package_filter().
+    /// [Self::with_package_filter].
     pub fn with_package_name_substring_matching(&mut self, search_substring: String) -> &mut Self {
         self.with_package_filter(move |wp| {
             RepoWalkerFilter::substring_package_name_filter(wp, search_substring.clone())
@@ -875,8 +873,8 @@ impl<'a> RepoWalkerBuilder<'a> {
     ///
     /// This is a helper function used by the spk ls, du, and stats
     /// commands. The same kinds of filters could also be set up by
-    /// calling: with_package_filter(), with_version_filter(),
-    /// with_build_ident_filter(), and with_component_filter()
+    /// calling: [Self::with_package_filter], [Self::with_version_filter],
+    /// [Self::with_build_ident_filter], and [Self::with_component_filter]
     pub fn try_with_package_equals(
         &mut self,
         search_package: &'a Option<String>,
@@ -947,7 +945,7 @@ impl<'a> RepoWalkerBuilder<'a> {
     ///
     /// This is a helper function used by the spk du command. The same
     /// kind of filter could be setup directly by calling
-    /// with_file_filter().
+    /// [Self::with_file_filter].
     pub fn with_file_path(&mut self, file_path: Option<String>) -> &mut Self {
         if let Some(path) = file_path {
             let path_pieces: Vec<String> = path.split("/").map(ToString::to_string).collect();
@@ -976,7 +974,7 @@ impl<'a> RepoWalkerBuilder<'a> {
     }
 
     /// Set up a filter function for builds based on their build ident
-    /// (digest). This is separate from with_build_spec_filter()
+    /// (digest). This is separate from [Self::with_build_spec_filter]
     /// because checking a build's ident is cheaper than reading in
     /// the build's spec to use in filtering.
     pub fn with_build_ident_filter(
@@ -988,7 +986,7 @@ impl<'a> RepoWalkerBuilder<'a> {
     }
 
     /// Set up a filter function for builds based on their build spec.
-    /// This is separate from with_build_ident_filter() because
+    /// This is separate from [Self::with_build_ident_filter] because
     /// reading a build's spec in is more expensive than just checking
     /// a build's ident. But it needed to access some data,
     /// e.g. deprecation status or install requirements.
@@ -1072,7 +1070,7 @@ impl<'a> RepoWalkerBuilder<'a> {
     /// build spec filter function to match build's options against.
     /// This is a helper function used by the spk ls, stats and search
     /// commands. The same filter could be set up directly using
-    /// with_build_spec_filter().
+    /// [Self::with_build_spec_filter].
     pub fn with_build_options_matching(
         &mut self,
         build_filters: Option<Vec<OptFilter>>,
