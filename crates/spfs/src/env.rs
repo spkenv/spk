@@ -1043,12 +1043,19 @@ impl OverlayMountOptions {
         if self.read_only {
             opts.push(OVERLAY_ARGS_RO_PREFIX);
         }
-        if !self.global_options.break_hardlinks && params.contains(OVERLAY_ARGS_INDEX) {
+        if !self.global_options.break_hardlinks
+            && params.contains(OVERLAY_ARGS_INDEX)
+            && self.global_options.redirect_dir.allow_break_hardlinks()
+        {
             opts.push(OVERLAY_ARGS_INDEX_ON);
         }
-        if self.global_options.metadata_copy_up && params.contains(OVERLAY_ARGS_METACOPY) {
+        if self.global_options.metadata_copy_up
+            && params.contains(OVERLAY_ARGS_METACOPY)
+            && self.global_options.redirect_dir.allow_metadata_copy_up()
+        {
             opts.push(OVERLAY_ARGS_METACOPY_ON);
         }
+        opts.push(self.global_options.redirect_dir.into());
         opts
     }
 }
@@ -1287,7 +1294,13 @@ fn mount_overlayfs_syscalls<P: AsRef<Path>>(
         }
     }
 
-    if !mount_options.global_options.break_hardlinks && params.contains(OVERLAY_ARGS_INDEX) {
+    if !mount_options.global_options.break_hardlinks
+        && params.contains(OVERLAY_ARGS_INDEX)
+        && mount_options
+            .global_options
+            .redirect_dir
+            .allow_break_hardlinks()
+    {
         // Safety: fd is valid and arguments are null-terminated.
         let rc = unsafe {
             syscall!(
@@ -1309,7 +1322,13 @@ fn mount_overlayfs_syscalls<P: AsRef<Path>>(
         }
     }
 
-    if mount_options.global_options.metadata_copy_up && params.contains(OVERLAY_ARGS_METACOPY) {
+    if mount_options.global_options.metadata_copy_up
+        && params.contains(OVERLAY_ARGS_METACOPY)
+        && mount_options
+            .global_options
+            .redirect_dir
+            .allow_metadata_copy_up()
+    {
         // Safety: fd is valid and arguments are null-terminated.
         let rc = unsafe {
             syscall!(
