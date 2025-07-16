@@ -354,6 +354,74 @@ fn bool_true() -> bool {
     true
 }
 
+/// Modes for OverlayFs redirects.
+///
+/// <https://www.kernel.org/doc/html/latest/filesystems/overlayfs.html#redirect-dir>
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    Deserialize,
+    Eq,
+    PartialEq,
+    Serialize,
+    strum::Display,
+    strum::EnumString,
+    strum::IntoStaticStr,
+    strum::VariantNames,
+)]
+#[strum(ascii_case_insensitive)]
+pub enum OverlayFsRedirectDir {
+    /// Redirects are enabled.
+    #[strum(to_string = "redirect_dir=on")]
+    On,
+    /// Redirects are not created, but followed.
+    ///
+    /// Redirects should not be created when using spk because files behind a
+    /// redirect are not detected and will be missing from built packages.
+    ///
+    /// If this option is selected, index and metacopy are forced off due to
+    /// conflicts.
+    #[strum(to_string = "redirect_dir=follow")]
+    #[default]
+    Follow,
+    /// Redirects are not created and not followed.
+    ///
+    /// If this option is selected, index and metacopy are forced off due to
+    /// conflicts.
+    #[strum(to_string = "redirect_dir=nofollow")]
+    NoFollow,
+    /// If "redirect_always_follow" is enabled in the kernel/module config, this
+    /// "off" translates to "follow", otherwise it translates to "nofollow".
+    ///
+    /// If this option is selected, index and metacopy are forced off due to
+    /// conflicts.
+    #[strum(to_string = "redirect_dir=off")]
+    Off,
+}
+
+impl OverlayFsRedirectDir {
+    /// Return if the redirect_dir setting allows break_hardlinks to be
+    /// enabled.
+    #[inline]
+    pub fn allow_break_hardlinks(&self) -> bool {
+        // Disabling redirect_dir while enabling index causes "stale
+        // filehandle" errors when remounting /spfs.
+        matches!(self, OverlayFsRedirectDir::On)
+    }
+
+    /// Return if the redirect_dir setting allows metadata_copy_up to be
+    /// enabled.
+    #[inline]
+    pub fn allow_metadata_copy_up(&self) -> bool {
+        // Only `On` doesn't conflict per kernel documentation. `Follow` is
+        // compatible only if no upperdir is used, but we're not situated to
+        // know if that will be the case.
+        matches!(self, OverlayFsRedirectDir::On)
+    }
+}
+
 /// Options for enabling or controlling OverlayFs features.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct OverlayFsOptions {
@@ -382,6 +450,8 @@ pub struct OverlayFsOptions {
     /// <https://www.kernel.org/doc/html/latest/filesystems/overlayfs.html#metadata-only-copy-up>
     #[serde(default = "bool_true")]
     pub metadata_copy_up: bool,
+    /// Redirect dir mode to use when mounting an overlayfs filesystem.
+    pub redirect_dir: OverlayFsRedirectDir,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]

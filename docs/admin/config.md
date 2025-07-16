@@ -165,6 +165,17 @@ break_hardlinks = true
 # Control if the "metadata" feature is used, if the kernel supports it.
 # Defaults to true.
 metadata_copy_up = true
+# Set the redirect_dir mode to use. If not using spk, setting this to "on" may
+# improve performance.
+#
+# Valid values are:
+# - on
+# - off
+# - follow
+# - nofollow
+#
+# Defaults to "follow".
+redirect_dir = "follow"
 
 [fuse]
 # the number of threads that the fuse filesystem process will create
