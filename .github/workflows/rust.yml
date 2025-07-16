@@ -31,6 +31,19 @@ jobs:
           $url = "https://github.com/google/flatbuffers/releases/download/v23.5.26/Windows.flatc.binary.zip"
           Invoke-WebRequest $url -OutFile C:\flatc.zip
           Expand-Archive C:\flatc.zip -DestinationPath C:\Windows
+      - name: Restore ast-grep cache
+        id: restore-ast-grep-windows
+        uses: actions/cache@v4
+        with:
+          path: C:\Users\runneradmin\.cargo\bin\ast-grep.exe
+          key: ast-grep-${{ runner.os }}
+          restore-keys: |
+            ast-grep-${{ runner.os }}
+      - name: Install ast-grep
+        if: steps.restore-ast-grep-windows.outputs.cache-hit != 'true'
+        # --force because cache-hit can be false (matched a partial key?) and
+        # then this command will fail if the previous step did restore the file.
+        run: cargo install --locked --force ast-grep
       - name: Install Debug SPFS
         run: |
           make install-debug-spfs
@@ -82,6 +95,19 @@ jobs:
           EOF
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Restore ast-grep cache
+        id: restore-ast-grep-linux
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/cargo/bin/ast-grep
+          key: ast-grep-${{ runner.os }}
+          restore-keys: |
+            ast-grep-${{ runner.os }}
+      - name: Install ast-grep
+        if: steps.restore-ast-grep-linux.outputs.cache-hit != 'true'
+        # --force because cache-hit can be false (matched a partial key?) and
+        # then this command will fail if the previous step did restore the file.
+        run: cargo install --locked --force ast-grep
         # Use the same FEATURES in these different steps to avoid recompiling
         # as much as possible. Consider using a separate workflow with its own
         # cache if there is a need to test building with a different set of
