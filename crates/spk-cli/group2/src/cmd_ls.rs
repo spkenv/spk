@@ -205,10 +205,9 @@ impl<T: Output> Ls<T> {
         while let Some(item) = traversal.try_next().await? {
             if let RepoWalkerItem::Build(build) = item {
                 let package = build.spec.ident().name().to_string();
-                if set.contains(&package) {
+                if !set.insert(package.clone()) {
                     continue;
                 }
-                set.insert(package.clone());
 
                 if self.verbose > 0 {
                     self.output
