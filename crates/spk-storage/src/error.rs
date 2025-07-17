@@ -3,7 +3,7 @@
 // https://github.com/spkenv/spk
 
 use miette::Diagnostic;
-use spk_schema::{AnyIdent, BuildIdent, VersionIdent};
+use spk_schema::{AnyIdent, VersionIdent};
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -64,9 +64,9 @@ pub enum Error {
     #[diagnostic(forward(0))]
     SpkSpecError(Box<spk_schema::Error>),
     #[error("No disk usage: version '{0}' not found")]
-    DiskUsageVersionNotFound(VersionIdent),
+    DiskUsageVersionNotFound(String),
     #[error("No disk usage: build '{0}' not found")]
-    DiskUsageBuildNotFound(BuildIdent),
+    DiskUsageBuildNotFound(String),
     #[error("{0}")]
     String(String),
 }

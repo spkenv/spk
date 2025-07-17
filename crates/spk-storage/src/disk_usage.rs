@@ -130,8 +130,7 @@ impl PackageDiskUsage {
         // The 5 comes from accounting for the repo, pkg, version,
         // build, and component fields/levels that each
         // PackageDiskUsage has.
-        let depth = 5 + self.entry.path().len();
-        depth
+        5 + self.entry.path().len()
     }
 
     /// Generates a partial path from the stored values from
@@ -636,7 +635,7 @@ pub async fn get_version_builds_disk_usage(
         // group by that version ident.
         Ok(grouped_entry.size)
     } else {
-        Err(Error::DiskUsageVersionNotFound(package_version.clone()).into())
+        Err(Error::DiskUsageVersionNotFound(package_version.to_string()).into())
     }
 }
 
@@ -663,7 +662,7 @@ pub async fn get_build_disk_usage(
         // group by that build ident.
         Ok(grouped_entry.size)
     } else {
-        Err(Error::DiskUsageBuildNotFound(build_ident.clone()).into())
+        Err(Error::DiskUsageBuildNotFound(build_ident.to_string()).into())
     }
 }
 
