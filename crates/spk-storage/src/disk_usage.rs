@@ -224,7 +224,7 @@ impl DiskUsageRepoWalker<'_> {
             let mut visited_digests = HashSet::new();
 
             let mut current_repo_name = "";
-            let mut pkg_name = Arc::new(PkgNameBuf::try_from("xyzzy").unwrap());
+            let mut pkg_name = Arc::new(PkgNameBuf::try_from("place-holder-package-name").unwrap());
             let mut version = Arc::from(Version::new(0, 0, 0));
             let mut build = Build::Source;
             let mut component_name = Component::Run;
@@ -508,7 +508,7 @@ impl<'a> DiskUsageRepoWalkerBuilder<'a> {
     }
 
     /// Set a package disk usage filter function for disk usage
-    /// results based on the PackageDiskUage object and initial input
+    /// results based on the PackageDiskUsage object and initial input
     /// depth. The default filter is to include things for sizing at,
     /// or below, the configured input_depth.
     pub fn with_package_du_filter(

@@ -86,7 +86,7 @@ impl<T: Output> Run for Du<T> {
     async fn run(&mut self) -> Result<Self::Output> {
         // Work out how the user want to limit du
         let du_spec = extract_du_spec_from_path(&self.path)?;
-        tracing::debug!("Disk udage spec: {:?}", du_spec);
+        tracing::debug!("Disk usage spec: {:?}", du_spec);
 
         if let Some(ref rn) = du_spec.repo_name {
             // There was a repo name given in the search path so
