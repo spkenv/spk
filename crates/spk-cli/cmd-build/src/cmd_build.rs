@@ -6,6 +6,9 @@ use clap::Args;
 use miette::Result;
 use spk_cli_common::flags::{self, PackageSpecifier};
 use spk_cli_common::{CommandArgs, Run};
+use spk_schema::foundation::format::FormatIdent;
+use spk_schema::{BuildIdent, VersionIdent};
+use spk_storage;
 
 #[cfg(test)]
 #[path = "./cmd_build_test/mod.rs"]
@@ -124,15 +127,129 @@ impl Run for Build {
             }
         }
 
+        // Get the local repo, where the builds currently are, for the
+        // disk usage calculations.
+        let local_repo = spk_storage::local_repository().await?;
+        let repos: Vec<(String, spk_storage::RepositoryHandle)> =
+            vec![("local".into(), local_repo.into())];
+
+        let mut idents: Vec<BuildIdent> = Vec::new();
+        let mut current_package = None;
+        let mut number_of_packages = 0;
+        // Total disk usage of all the builds on their own (includes
+        // double counting within versions)
+        let mut total_builds_size = 0;
+        // Total disk usage of all package/versions' disk usage (not
+        // double counted within versions or builds)
+        let mut total_packages_size = 0;
+
         println!("Completed builds:");
         for (_, artifact) in builds_for_summary.iter() {
-            println!("   {artifact}");
+            let ident = artifact.build_ident();
+            if current_package.is_none() {
+                current_package = Some(ident.clone().to_version_ident());
+                number_of_packages += 1;
+            }
+
+            let package_version = ident.clone().to_version_ident();
+            if let Some(ref current_package_version) = current_package {
+                if package_version == *current_package_version {
+                    idents.push(ident.clone());
+                } else {
+                    // Package has changed, show the total disk usage
+                    // for the current package's builds that were just
+                    // built. This will not double count shared
+                    // objects between those builds.
+                    let version_builds_size = spk_storage::get_version_builds_disk_usage(
+                        &repos,
+                        current_package_version,
+                        &idents,
+                    )
+                    .await?;
+                    total_packages_size += version_builds_size;
+                    self.print_total_size(current_package_version, version_builds_size)
+                        .await;
+
+                    // Update the current package to the next one and
+                    // start collecting its builds.
+                    current_package = Some(package_version);
+                    number_of_packages += 1;
+                    idents.clear();
+                    idents.push(ident.clone());
+                }
+            }
+
+            // Build sizes are calculated separately because we want
+            // to show the disk usage of each build on its own.
+            let size = spk_storage::get_build_disk_usage(&repos, ident).await?;
+
+            // This total will include some double counting in some packages
+            total_builds_size += size;
+            if self.verbose > 0 {
+                println!(
+                    "   {artifact}  [{size} b or {}]",
+                    spk_storage::human_readable(size),
+                );
+            } else {
+                println!("   {artifact}  [{}]", spk_storage::human_readable(size));
+            }
+        }
+
+        // Show the total disk usage for the last package's build. This
+        // will not double count shared things between those builds.
+        if let Some(ref current_package_version) = current_package {
+            let version_builds_size = spk_storage::get_version_builds_disk_usage(
+                &repos,
+                current_package_version,
+                &idents,
+            )
+            .await?;
+            total_packages_size += version_builds_size;
+            self.print_total_size(current_package_version, version_builds_size)
+                .await;
+        }
+
+        // Only show the total of the builds, the double counting one,
+        // when the user wants more info for comparisons or debugging.
+        if self.verbose > 0 {
+            println!(
+                "Total disk usage of all builds:  {total_builds_size} b or {}",
+                spk_storage::human_readable(total_builds_size)
+            );
+        }
+
+        // Output the total of all the packages' sizes when multiple
+        // package/versions were built.
+        if number_of_packages > 1 {
+            println!(
+                "Total disk usage for all packages built: {total_packages_size} b or {}",
+                spk_storage::human_readable(total_packages_size),
+            );
         }
 
         Ok(BuildResult {
             exit_status: 0,
             created_builds: builds_for_summary,
         })
+    }
+}
+
+impl Build {
+    async fn print_total_size(&self, package_version: &VersionIdent, size: u64) {
+        if self.verbose > 0 {
+            println!(
+                "Total disk usage for these {} builds:  {} b or {}",
+                package_version.format_ident(),
+                size,
+                spk_storage::human_readable(size)
+            );
+        } else {
+            println!(
+                "Total disk usage for these {} builds:  {}",
+                package_version.format_ident(),
+                spk_storage::human_readable(size)
+            );
+        }
     }
 }
 

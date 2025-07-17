@@ -26,5 +26,6 @@ serde = { workspace = true, features = ["derive"] }
 spfs = { workspace = true }
 spk-schema = { workspace = true }
 spk-storage = { workspace = true }
+tracing = { workspace = true }
 thiserror = { workspace = true }
 miette = { workspace = true }
