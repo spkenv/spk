@@ -348,11 +348,121 @@ impl RemoteConfig {
     }
 }
 
+/// Return true
+#[inline]
+fn bool_true() -> bool {
+    true
+}
+
+/// Modes for OverlayFs redirects.
+///
+/// <https://www.kernel.org/doc/html/latest/filesystems/overlayfs.html#redirect-dir>
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    Deserialize,
+    Eq,
+    PartialEq,
+    Serialize,
+    strum::Display,
+    strum::EnumString,
+    strum::IntoStaticStr,
+    strum::VariantNames,
+)]
+#[strum(ascii_case_insensitive)]
+pub enum OverlayFsRedirectDir {
+    /// Redirects are enabled.
+    #[strum(to_string = "redirect_dir=on")]
+    On,
+    /// Redirects are not created, but followed.
+    ///
+    /// Redirects should not be created when using spk because files behind a
+    /// redirect are not detected and will be missing from built packages.
+    ///
+    /// If this option is selected, index and metacopy are forced off due to
+    /// conflicts.
+    #[strum(to_string = "redirect_dir=follow")]
+    #[default]
+    Follow,
+    /// Redirects are not created and not followed.
+    ///
+    /// If this option is selected, index and metacopy are forced off due to
+    /// conflicts.
+    #[strum(to_string = "redirect_dir=nofollow")]
+    NoFollow,
+    /// If "redirect_always_follow" is enabled in the kernel/module config, this
+    /// "off" translates to "follow", otherwise it translates to "nofollow".
+    ///
+    /// If this option is selected, index and metacopy are forced off due to
+    /// conflicts.
+    #[strum(to_string = "redirect_dir=off")]
+    Off,
+}
+
+impl OverlayFsRedirectDir {
+    /// Return if the redirect_dir setting allows break_hardlinks to be
+    /// enabled.
+    #[inline]
+    pub fn allow_break_hardlinks(&self) -> bool {
+        // Disabling redirect_dir while enabling index causes "stale
+        // filehandle" errors when remounting /spfs.
+        matches!(self, OverlayFsRedirectDir::On)
+    }
+
+    /// Return if the redirect_dir setting allows metadata_copy_up to be
+    /// enabled.
+    #[inline]
+    pub fn allow_metadata_copy_up(&self) -> bool {
+        // Only `On` doesn't conflict per kernel documentation. `Follow` is
+        // compatible only if no upperdir is used, but we're not situated to
+        // know if that will be the case.
+        matches!(self, OverlayFsRedirectDir::On)
+    }
+}
+
+/// Options for enabling or controlling OverlayFs features.
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct OverlayFsOptions {
+    /// When true, inodes are indexed in the mount so that
+    /// files which share the same inode (hardlinks) are broken
+    /// in the final mount and changes to one file don't affect
+    /// the other.
+    ///
+    /// This is the desired default behavior for
+    /// spfs, since we rely on hardlinks for deduplication but
+    /// expect that file to be able to appear in multiple places
+    /// as separate files that just so happen to share the same content.
+    ///
+    /// When disabled, there will be additional restrictions on
+    /// remounting the environment since the filesystem will hold
+    /// additional handles and may not unmount while files remain held
+    ///
+    /// It needs to be disabled for durable runtimes because the
+    /// overlayfs index option it enables prevents sharing across
+    /// subsequent invocations of durable runtimes.
+    /// <https://www.kernel.org/doc/html/latest/filesystems/overlayfs.html#sharing-and-copying-layers>
+    #[serde(default = "bool_true")]
+    pub break_hardlinks: bool,
+    /// When true, overlayfs will use extended file attributes to avoid
+    /// copying file data when only the metadata of a file has changed.
+    /// <https://www.kernel.org/doc/html/latest/filesystems/overlayfs.html#metadata-only-copy-up>
+    #[serde(default = "bool_true")]
+    pub metadata_copy_up: bool,
+    /// Redirect dir mode to use when mounting an overlayfs filesystem.
+    pub redirect_dir: OverlayFsRedirectDir,
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Filesystem {
     /// The default mount backend to be used for new runtimes.
     pub backend: crate::runtime::MountBackend,
+
+    /// OverlayFs options to use if the backend uses OverlayFs.
+    pub overlayfs_options: OverlayFsOptions,
+
     /// The named remotes that can be used by the runtime
     /// file systems to find object data (if possible)
     ///

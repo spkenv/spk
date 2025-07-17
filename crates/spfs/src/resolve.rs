@@ -11,6 +11,7 @@ use nonempty::NonEmpty;
 use serde::{Deserialize, Serialize};
 
 use super::config::get_config;
+use crate::config::OverlayFsOptions;
 use crate::prelude::*;
 use crate::storage::fallback::FallbackProxy;
 use crate::storage::fs::{CliRenderType, ManifestRenderPath, RenderSummary};
@@ -205,6 +206,7 @@ pub async fn compute_object_manifest(
 /// runtime is unconditionally saved shortly after calling this function.
 #[cfg(unix)]
 pub(crate) async fn resolve_overlay_dirs<R>(
+    global_overlayfs_options: &OverlayFsOptions,
     runtime: &mut runtime::Runtime,
     repo: R,
     skip_runtime_save: bool,
@@ -275,7 +277,7 @@ where
             let rendered_dir = repo.manifest_render_path(manifest.manifest())?;
             overlay_dirs.push(rendered_dir);
         }
-        if crate::env::get_overlay_args(runtime, &overlay_dirs).is_ok() {
+        if crate::env::get_overlay_args(global_overlayfs_options, runtime, &overlay_dirs).is_ok() {
             break;
         }
         // Cut the number of layers in half...
@@ -365,7 +367,13 @@ pub(crate) async fn resolve_and_render_overlay_dirs(
         tokio::try_join!(config.get_opened_local_repository(), config.list_remotes())?;
     let fallback_repo = FallbackProxy::new(repo, remotes);
 
-    let manifests = resolve_overlay_dirs(runtime, &fallback_repo, skip_runtime_save).await?;
+    let manifests = resolve_overlay_dirs(
+        &config.filesystem.overlayfs_options,
+        runtime,
+        &fallback_repo,
+        skip_runtime_save,
+    )
+    .await?;
     let to_render = manifests.iter().map(|m| m.digest()).try_collect()?;
     match render_via_subcommand(to_render, runtime.config.durable).await? {
         Some(render_result) => Ok(render_result),

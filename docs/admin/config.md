@@ -152,6 +152,31 @@ use_mount_syscalls = false
 # systems that can perform read-through lookups, such as FUSE.
 secondary_repositories = ["origin"]
 
+# OverlayFs related settings.
+#
+# See kernel.org/doc/html/latest/filesystems/overlayfs.html for details.
+#
+# It is not recommended to change the default setting, doing so may lead to
+# incorrect behavior when using spk.
+[filesystem.overlayfs_options]
+# Control if the "index" feature is used, if the kernel supports it.
+# Defaults to true.
+break_hardlinks = true
+# Control if the "metadata" feature is used, if the kernel supports it.
+# Defaults to true.
+metadata_copy_up = true
+# Set the redirect_dir mode to use. If not using spk, setting this to "on" may
+# improve performance.
+#
+# Valid values are:
+# - on
+# - off
+# - follow
+# - nofollow
+#
+# Defaults to "follow".
+redirect_dir = "follow"
+
 [fuse]
 # the number of threads that the fuse filesystem process will create
 # in order to operate. More threads may improve performance of the
