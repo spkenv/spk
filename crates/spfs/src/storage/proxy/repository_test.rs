@@ -184,6 +184,7 @@ async fn test_proxy_tag_ls_config_for_primary_only(tmpdir: tempfile::TempDir) {
     let proxy = super::ProxyRepository {
         primary: primary.into(),
         secondary: vec![secondary.into()],
+        // This is the configuration change for that sets up this test
         include_secondary_tags: false,
     };
 
@@ -262,6 +263,57 @@ async fn test_proxy_tag_find(tmpdir: tempfile::TempDir) {
 
 #[rstest]
 #[tokio::test]
+async fn test_proxy_tag_find_for_primary_only(tmpdir: tempfile::TempDir) {
+    init_logging();
+
+    let primary = crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("primary"))
+        .await
+        .unwrap();
+
+    let payload1 = primary
+        .commit_blob(Box::pin(b"some data".as_slice()))
+        .await
+        .unwrap();
+    let tag_spec = crate::tracking::TagSpec::parse("spfs-test/proxy-read-through").unwrap();
+    primary.push_tag(&tag_spec, &payload1).await.unwrap();
+
+    let secondary =
+        crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("secondary"))
+            .await
+            .unwrap();
+
+    let payload2 = secondary
+        .commit_blob(Box::pin(b"some data".as_slice()))
+        .await
+        .unwrap();
+    let tag_spec2 = crate::tracking::TagSpec::parse("spfs-test/proxy-read-through2").unwrap();
+    secondary.push_tag(&tag_spec2, &payload2).await.unwrap();
+
+    let proxy = super::ProxyRepository {
+        primary: primary.into(),
+        secondary: vec![secondary.into()],
+        // This is the configuration change for that sets up this test
+        include_secondary_tags: false,
+    };
+
+    let mut tags = proxy.find_tags_in_namespace(None, &payload2);
+
+    let mut seen = HashSet::new();
+    while let Some(item) = tags.next().await {
+        let tag = match item {
+            Ok(t) => t,
+            Err(err) => panic!("ls_tags errored: {err} - but I think it should?"),
+        };
+        seen.insert(tag.to_string());
+    }
+
+    println!("seen: {seen:?}");
+    assert_eq!(seen.contains(&tag_spec.to_string()), true);
+    assert_eq!(seen.contains(&tag_spec2.to_string()), false);
+}
+
+#[rstest]
+#[tokio::test]
 async fn test_proxy_tag_iter_streams(tmpdir: tempfile::TempDir) {
     init_logging();
 
@@ -306,4 +358,54 @@ async fn test_proxy_tag_iter_streams(tmpdir: tempfile::TempDir) {
             panic!("duplicate tag found: '{tag}'. duplicates should not be returned");
         }
     }
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_proxy_tag_iter_streams_for_primary_only(tmpdir: tempfile::TempDir) {
+    init_logging();
+
+    let primary = crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("primary"))
+        .await
+        .unwrap();
+
+    let payload1 = primary
+        .commit_blob(Box::pin(b"some data".as_slice()))
+        .await
+        .unwrap();
+    let tag_spec = crate::tracking::TagSpec::parse("spfs-test/proxy-read-through").unwrap();
+    primary.push_tag(&tag_spec, &payload1).await.unwrap();
+
+    let secondary =
+        crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("secondary"))
+            .await
+            .unwrap();
+
+    let payload2 = secondary
+        .commit_blob(Box::pin(b"some data".as_slice()))
+        .await
+        .unwrap();
+    let tag_spec2 = crate::tracking::TagSpec::parse("spfs-test/proxy-read-through2").unwrap();
+    secondary.push_tag(&tag_spec2, &payload2).await.unwrap();
+
+    let proxy = super::ProxyRepository {
+        primary: primary.into(),
+        secondary: vec![secondary.into()],
+        // This is the configuration change for that sets up this test
+        include_secondary_tags: false,
+    };
+
+    let mut tags = proxy.iter_tag_streams_in_namespace(None);
+
+    let mut seen = HashSet::new();
+    while let Some(item) = tags.next().await {
+        let tag = match item {
+            Ok((t, _ts)) => t,
+            Err(err) => panic!("ls_tags errored: {err}"),
+        };
+        seen.insert(tag.to_string());
+    }
+    println!("seen: {seen:?}");
+    assert_eq!(seen.contains(&tag_spec.to_string()), true);
+    assert_eq!(seen.contains(&tag_spec2.to_string()), false);
 }
