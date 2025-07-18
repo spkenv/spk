@@ -151,6 +151,13 @@ impl CmdFuse {
                         Some(("remote", name)) => {
                             opts.remotes.push(name.to_owned());
                         }
+                        Some(("incl_sec_tags", value)) => {
+                            opts.include_secondary_tags = value.parse::<bool>().map_err(|err| {
+                                Error::String(format!(
+                                    "Invalid parameter value for incl_sec_tags={value}: {err}"
+                                ))
+                            })?
+                        }
                         Some(("uid", num)) if calling_uid.is_root() => {
                             opts.uid = num.parse::<u32>().map(nix::unistd::Uid::from_raw).map_err(
                                 |err| {
