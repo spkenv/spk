@@ -308,8 +308,8 @@ async fn test_proxy_tag_find_for_primary_only(tmpdir: tempfile::TempDir) {
     }
 
     println!("seen: {seen:?}");
-    assert_eq!(seen.contains(&tag_spec.to_string()), true);
-    assert_eq!(seen.contains(&tag_spec2.to_string()), false);
+    assert!(seen.contains(&tag_spec.to_string()));
+    assert!(!seen.contains(&tag_spec2.to_string()));
 }
 
 #[rstest]
@@ -406,6 +406,6 @@ async fn test_proxy_tag_iter_streams_for_primary_only(tmpdir: tempfile::TempDir)
         seen.insert(tag.to_string());
     }
     println!("seen: {seen:?}");
-    assert_eq!(seen.contains(&tag_spec.to_string()), true);
-    assert_eq!(seen.contains(&tag_spec2.to_string()), false);
+    assert!(seen.contains(&tag_spec.to_string()));
+    assert!(!seen.contains(&tag_spec2.to_string()));
 }
