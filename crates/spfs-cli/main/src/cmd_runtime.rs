@@ -40,12 +40,12 @@ impl Command {
     }
 
     // Helper to get the repos.repo_path for the subcommand
-    pub fn add_proxy_repo_arg(&self) -> &Option<PathBuf> {
+    pub fn wrap_origin_arg(&self) -> &Option<PathBuf> {
         match self {
-            Self::Info(cmd) => &cmd.repos.add_proxy_repo,
-            Self::List(cmd) => &cmd.repos.add_proxy_repo,
-            Self::Prune(cmd) => &cmd.repos.add_proxy_repo,
-            Self::Remove(cmd) => &cmd.repos.add_proxy_repo,
+            Self::Info(cmd) => &cmd.repos.wrap_origin,
+            Self::List(cmd) => &cmd.repos.wrap_origin,
+            Self::Prune(cmd) => &cmd.repos.wrap_origin,
+            Self::Remove(cmd) => &cmd.repos.wrap_origin,
         }
     }
 }
