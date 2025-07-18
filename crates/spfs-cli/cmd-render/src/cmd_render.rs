@@ -8,8 +8,7 @@ use miette::{Context, Result};
 use spfs::prelude::*;
 use spfs::storage::fallback::FallbackProxy;
 use spfs::{Error, RenderResult, graph};
-use spfs_cli_common as cli;
-use spfs_cli_common::CommandName;
+use spfs_cli_common::{self as cli, CommandName, HasRepositoryArgs};
 use strum::VariantNames;
 
 cli::main!(CmdRender);
@@ -42,6 +41,8 @@ pub struct CmdRender {
     /// Alternate path to render the manifest into (defaults to the local repository)
     target: Option<std::path::PathBuf>,
 }
+
+impl HasRepositoryArgs for CmdRender {}
 
 impl CommandName for CmdRender {
     fn command_name(&self) -> &'static str {
