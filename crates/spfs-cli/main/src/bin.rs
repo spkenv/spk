@@ -122,29 +122,29 @@ impl HasRepositoryArgs for Opt {
         config: Arc<spfs::Config>,
     ) -> Result<Arc<spfs::Config>> {
         match &self.cmd {
-            Command::Check(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
-            Command::Commit(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
-            Command::Info(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
-            Command::Layers(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
-            Command::Log(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
-            Command::Ls(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
-            Command::LsTags(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
-            Command::Platforms(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
-            Command::Pull(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
-            Command::Push(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
-            Command::Read(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
-            Command::Run(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
+            Command::Check(cmd) => add_proxy_repo_to_config(&cmd.repos.wrap_origin, config),
+            Command::Commit(cmd) => add_proxy_repo_to_config(&cmd.repos.wrap_origin, config),
+            Command::Info(cmd) => add_proxy_repo_to_config(&cmd.repos.wrap_origin, config),
+            Command::Layers(cmd) => add_proxy_repo_to_config(&cmd.repos.wrap_origin, config),
+            Command::Log(cmd) => add_proxy_repo_to_config(&cmd.repos.wrap_origin, config),
+            Command::Ls(cmd) => add_proxy_repo_to_config(&cmd.repos.wrap_origin, config),
+            Command::LsTags(cmd) => add_proxy_repo_to_config(&cmd.repos.wrap_origin, config),
+            Command::Platforms(cmd) => add_proxy_repo_to_config(&cmd.repos.wrap_origin, config),
+            Command::Pull(cmd) => add_proxy_repo_to_config(&cmd.repos.wrap_origin, config),
+            Command::Push(cmd) => add_proxy_repo_to_config(&cmd.repos.wrap_origin, config),
+            Command::Read(cmd) => add_proxy_repo_to_config(&cmd.repos.wrap_origin, config),
+            Command::Run(cmd) => add_proxy_repo_to_config(&cmd.repos.wrap_origin, config),
             Command::Runtime(cmd) => {
-                add_proxy_repo_to_config(cmd.command.add_proxy_repo_arg(), config)
+                add_proxy_repo_to_config(cmd.command.wrap_origin_arg(), config)
             }
-            Command::Search(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
+            Command::Search(cmd) => add_proxy_repo_to_config(&cmd.repos.wrap_origin, config),
             #[cfg(feature = "server")]
-            Command::Server(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
-            Command::Shell(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
-            Command::Tag(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
-            Command::Tags(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
-            Command::Untag(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
-            Command::Write(cmd) => add_proxy_repo_to_config(&cmd.repos.add_proxy_repo, config),
+            Command::Server(cmd) => add_proxy_repo_to_config(&cmd.repos.wrap_origin, config),
+            Command::Shell(cmd) => add_proxy_repo_to_config(&cmd.repos.wrap_origin, config),
+            Command::Tag(cmd) => add_proxy_repo_to_config(&cmd.repos.wrap_origin, config),
+            Command::Tags(cmd) => add_proxy_repo_to_config(&cmd.repos.wrap_origin, config),
+            Command::Untag(cmd) => add_proxy_repo_to_config(&cmd.repos.wrap_origin, config),
+            Command::Write(cmd) => add_proxy_repo_to_config(&cmd.repos.wrap_origin, config),
             _ => Ok(config),
         }
     }

@@ -124,7 +124,7 @@ impl HasRepositoryArgs for CmdClean {
         &self,
         config: Arc<spfs::Config>,
     ) -> Result<Arc<spfs::Config>> {
-        let result = if let Some(repo_path) = &self.repos.add_proxy_repo {
+        let result = if let Some(repo_path) = &self.repos.wrap_origin {
             match config.add_proxy_repo_over_origin(repo_path) {
                 Ok(c) => c,
                 Err(e) => return Err(e.into()),

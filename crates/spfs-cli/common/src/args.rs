@@ -537,15 +537,15 @@ pub struct Repositories {
     /// 'origin' remote repo inside a proxy repo.
     ///
     /// The repo at the given filepath becomes the primary repo in an
-    /// 'origin' proxy repo that wraps the original origin repo as the
-    /// proxy's secondary repo. If things aren't found in the primary
-    /// repo, it will fall through to the secondary repo.
+    /// 'origin' proxy repo that contains the original 'origin' repo
+    /// as the proxy's secondary repo. If things aren't found in the
+    /// primary repo, it will try the secondary repo.
     ///
     /// This allows repos that are not in the normal config files to
     /// be interacted with by individual commands, such as siloed
     /// per-job or per-show repos.
-    #[clap(long, alias = "insert-proxy-repo")]
-    pub add_proxy_repo: Option<PathBuf>,
+    #[clap(long)]
+    pub wrap_origin: Option<PathBuf>,
 }
 
 /// Trait all spfs cli command parsers must implement to allow extra

@@ -1039,14 +1039,15 @@ pub struct Repositories {
     /// Add the path as a spfs filesystem repo ahead of the existing
     /// 'origin' remote repo.
     ///
-    /// The filepath becomes the 'origin' repo wraps the original
-    /// origin repo as a proxy, passing through for packages and
-    /// objects it does not contain.
+    /// The filepath becomes the primary repo in a new 'origin' repo
+    /// repo that contains the original origin repo as a secondary
+    /// repo. If packages aren't found in the primary repo, it will
+    /// try the secondary repo.
     ///
     /// This allows repos that are not in the normal config files to
     /// be interacted with, by individual commands, such as siloed
     /// per-job or per-show repos.
-    #[clap(long, alias = "proxy-repo-path")]
+    #[clap(long)]
     pub wrap_origin: Option<std::path::PathBuf>,
 }
 
