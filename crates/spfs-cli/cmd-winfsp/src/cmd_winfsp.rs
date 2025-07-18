@@ -149,6 +149,7 @@ impl CmdService {
         let config = spfs_vfs::Config {
             mountpoint: self.mountpoint.clone(),
             remotes: config.filesystem.secondary_repositories.clone(),
+            include_secondary_tags: config.fuse.include_secondary_tags,
         };
         let service = Service::new(config)
             .await

@@ -71,10 +71,6 @@ const fn default_fuse_heartbeat_grace_period_seconds() -> NonZeroU64 {
     unsafe { NonZeroU64::new_unchecked(300) }
 }
 
-const fn default_fuse_include_secondary_tags() -> bool {
-    true
-}
-
 pub fn default_proxy_repo_include_secondary_tags() -> bool {
     true
 }
@@ -530,7 +526,7 @@ pub struct Fuse {
     #[serde(default = "default_fuse_heartbeat_grace_period_seconds")]
     pub heartbeat_grace_period_seconds: NonZeroU64,
     /// Whether to include tags from secondary repos in lookup methods
-    #[serde(default = "default_fuse_include_secondary_tags")]
+    #[serde(default = "default_proxy_repo_include_secondary_tags")]
     pub include_secondary_tags: bool,
 }
 
@@ -551,7 +547,7 @@ impl Default for Fuse {
             enable_heartbeat: false,
             heartbeat_interval_seconds: default_fuse_heartbeat_interval_seconds(),
             heartbeat_grace_period_seconds: default_fuse_heartbeat_grace_period_seconds(),
-            include_secondary_tags: default_fuse_include_secondary_tags(),
+            include_secondary_tags: default_proxy_repo_include_secondary_tags(),
         }
     }
 }
