@@ -217,7 +217,7 @@ impl Config {
             mount_namespace: None,
             mount_backend: MountBackend::OverlayFsWithRenders,
             secondary_repositories: Vec::new(),
-            include_secondary_tags: true,
+            include_secondary_tags: default_proxy_repo_include_secondary_tags(),
             durable: false,
             live_layers: Vec::new(),
         }
