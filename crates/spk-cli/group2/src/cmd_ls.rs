@@ -19,7 +19,7 @@ use spk_schema::name::OptNameBuf;
 use spk_schema::option_map::get_host_options_filters;
 use spk_schema::{Deprecate, OptionMap, Package, Spec, VersionIdent};
 use spk_storage::RepoWalker;
-use spk_storage::walker::{RepoWalkerBuilder, RepoWalkerItem, WalkedBuild};
+use spk_storage::walker::{DeprecationState, RepoWalkerBuilder, RepoWalkerItem, WalkedBuild};
 use {spk_config, spk_storage as storage};
 
 #[cfg(test)]
@@ -189,7 +189,10 @@ impl<T: Output> Run for Ls<T> {
             }
             Some(package) if !package.contains('/') => {
                 // Given a package name, list all the versions of the package
-                let repo_walker = repo_walker_builder.with_end_of_markers(true).build();
+                let repo_walker = repo_walker_builder
+                    .with_end_of_markers(true)
+                    .with_calculate_deprecated_versions(true)
+                    .build();
                 self.get_versions_listing(&repo_walker).await?
             }
             Some(_package) => {
@@ -279,7 +282,6 @@ impl<T: Output> Ls<T> {
         // Returns a list of output lines that list all the versions
         // of a package founds by the walker.
         let mut active_builds = HashSet::new();
-        let mut deprecated_builds = HashSet::new();
         let mut lines = Vec::new();
 
         let mut traversal = repo_walker.walk();
@@ -287,18 +289,13 @@ impl<T: Output> Ls<T> {
         while let Some(item) = traversal.try_next().await? {
             match item {
                 RepoWalkerItem::Build(build) => {
-                    if build.spec.is_deprecated() {
-                        deprecated_builds.insert(build.spec.ident().version().clone());
-                    } else {
+                    if !build.spec.is_deprecated() {
                         active_builds.insert(build.spec.ident().version().clone());
                     }
                 }
                 RepoWalkerItem::EndOfVersion(version) => {
                     let version_number = version.ident.version();
-
                     let any_available = active_builds.contains(version_number);
-                    let any_deprecated = deprecated_builds.contains(version_number);
-                    let all_deprecated = any_deprecated && !any_available;
 
                     let presentation_version_number = if any_available {
                         match active_builds.get(version_number) {
@@ -312,18 +309,20 @@ impl<T: Output> Ls<T> {
                     if self.deprecated {
                         // Show deprecated versions with an indication
                         // of how many builds were also deprecated.
-                        if all_deprecated {
-                            lines.push(format!(
-                                "{presentation_version_number} {}",
-                                "DEPRECATED".red()
-                            ));
-                        } else if any_deprecated {
-                            lines.push(format!(
-                                "{presentation_version_number} {}",
-                                "(partially) DEPRECATED".red()
-                            ));
-                        } else {
-                            lines.push(presentation_version_number.to_string());
+                        match version.deprecation_state {
+                            DeprecationState::Deprecated => {
+                                lines.push(format!(
+                                    "{presentation_version_number} {}",
+                                    "DEPRECATED".red()
+                                ));
+                            }
+                            DeprecationState::PartiallyDeprecated => {
+                                lines.push(format!(
+                                    "{presentation_version_number} {}",
+                                    "(partially) DEPRECATED".red()
+                                ));
+                            }
+                            _ => lines.push(presentation_version_number.to_string()),
                         }
                     } else if any_available {
                         lines.push(presentation_version_number.to_string());
