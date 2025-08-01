@@ -28,6 +28,16 @@ use crate::{RepositoryHandle, storage};
 #[path = "./walker_test.rs"]
 mod walker_test;
 
+/// Deprecation states for walked versions (based on their deprecated builds)
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
+pub enum DeprecationState {
+    #[default]
+    NotCalculated,
+    Active,
+    PartiallyDeprecated,
+    Deprecated,
+}
+
 /// A repository the RepoWalker is processing
 #[derive(Debug)]
 pub struct WalkedRepo<'a> {
@@ -48,6 +58,7 @@ pub struct WalkedVersion<'a> {
     /// This doesn't include the package name as a separate field
     /// because it is included in the version ident.
     pub ident: Arc<VersionIdent>,
+    pub deprecation_state: DeprecationState,
 }
 
 /// A build of a version the RepoWalker is processing
@@ -256,8 +267,12 @@ pub struct RepoWalker<'a> {
     /// Whether to turn errors into warning and continue the walking
     /// from the next object instead of stopping when an error occurs.
     continue_on_error: bool,
-    //// Whether to sort objects at each level before walking them.
+    /// Whether to sort objects at each level before walking them.
     sort_objects: bool,
+    /// Whether to only walk the highest version and then move on to the next package
+    highest_version_only: bool,
+    /// Whether to work out if a version is deprecated before emitting it
+    calculate_deprecated_versions: bool,
 }
 
 impl std::fmt::Debug for RepoWalker<'_> {
@@ -347,6 +362,7 @@ impl RepoWalker<'_> {
                     let version = WalkedVersion {
                         repo_name: repository_name,
                         ident: Arc::new(v_id),
+                        deprecation_state: DeprecationState::NotCalculated,
                     };
 
                     if (self.version_filter_func)(&version) {
@@ -369,9 +385,14 @@ impl RepoWalker<'_> {
         // TODO: any matching on a version's recipe could go here if needed.
 
         if self.sort_objects {
-            versions.sort_by_cached_key(|v| v.ident.clone());
-            versions.reverse();
+            versions.sort_by_cached_key(|v| std::cmp::Reverse(v.ident.clone()));
         }
+
+        if self.highest_version_only {
+            // Replace the versions with the highest numbered one only
+            versions = versions.into_iter().take(1).collect();
+        }
+
         Ok(versions)
     }
 
@@ -381,11 +402,11 @@ impl RepoWalker<'_> {
         repository_name: &'a str,
         repo: &RepositoryHandle,
         version_ident: &VersionIdent,
-    ) -> Result<Vec<WalkedBuild<'a>>> {
+    ) -> Result<(Vec<WalkedBuild<'a>>, DeprecationState)> {
         // If this walker is configured to stop at versions, don't
         // return any builds.
         if !self.report_on_builds {
-            return Ok(Vec::new());
+            return Ok((Vec::new(), DeprecationState::NotCalculated));
         }
 
         let mut build_idents = match repo.list_package_builds(version_ident).await {
@@ -404,6 +425,10 @@ impl RepoWalker<'_> {
             build_idents.sort();
         }
 
+        let version_deprecation = self
+            .calculate_version_deprecation_state(repo, &build_idents)
+            .await;
+
         // Only keep the matching builds
         let mut results = Vec::new();
         for build_id in build_idents.into_iter() {
@@ -412,7 +437,47 @@ impl RepoWalker<'_> {
             }
         }
 
-        Ok(results)
+        Ok((results, version_deprecation))
+    }
+
+    async fn calculate_version_deprecation_state(
+        &self,
+        repo: &RepositoryHandle,
+        build_idents: &Vec<BuildIdent>,
+    ) -> DeprecationState {
+        if self.calculate_deprecated_versions {
+            // Check deprecation status of each build to work out the
+            // version's deprecation state.
+            let mut any_deprecated = false;
+            let mut any_not_deprecated = false;
+
+            for build_id in build_idents {
+                if let Ok(spec) = repo.read_package(build_id).await {
+                    if spec.is_deprecated() {
+                        any_deprecated = true;
+                    } else {
+                        any_not_deprecated = true;
+                    }
+                }
+                if any_deprecated && any_not_deprecated {
+                    // Have checked enough builds to work out the
+                    // version's deprecation state
+                    break;
+                }
+            }
+
+            let all_deprecated = any_deprecated && !any_not_deprecated;
+
+            if all_deprecated {
+                DeprecationState::Deprecated
+            } else if any_deprecated {
+                DeprecationState::PartiallyDeprecated
+            } else {
+                DeprecationState::Active
+            }
+        } else {
+            DeprecationState::NotCalculated
+        }
     }
 
     // Check the build against the walker's global builds settings and
@@ -667,11 +732,17 @@ impl RepoWalker<'_> {
 
                     let versions = self.get_matching_versions(repository_name, repo, &package_name).await?;
                     for package_version in versions.iter() {
-                        yield RepoWalkerItem::Version(package_version.clone());
-
                         let ident = Arc::clone(&package_version.ident);
 
-                        let builds = self.get_matching_builds(repository_name, repo, &ident).await?;
+                        let (builds, version_deprecation_state) = self.get_matching_builds(repository_name, repo, &ident).await?;
+                        if self.calculate_deprecated_versions {
+                            let mut version = package_version.clone();
+                            version.deprecation_state = version_deprecation_state.clone();
+                            yield RepoWalkerItem::Version(version);
+                        } else {
+                            yield RepoWalkerItem::Version(package_version.clone());
+                        }
+
                         for build in builds.iter() {
                             yield RepoWalkerItem::Build(build.clone());
 
@@ -701,7 +772,13 @@ impl RepoWalker<'_> {
 
                         if self.emit_end_of_markers && !builds.is_empty() {
                             // Report the end of this version (after all its builds)
-                            yield RepoWalkerItem::EndOfVersion(package_version.clone())
+                            if self.calculate_deprecated_versions {
+                                let mut version = package_version.clone();
+                                version.deprecation_state = version_deprecation_state;
+                                yield RepoWalkerItem::EndOfVersion(version)
+                            } else {
+                                yield RepoWalkerItem::EndOfVersion(package_version.clone())
+                            }
                         }
                     }
 
@@ -817,6 +894,11 @@ pub struct RepoWalkerBuilder<'a> {
     continue_on_error: bool,
     /// Whether to sort the objects returned from walker
     sort_objects: bool,
+    /// Whether to only emit the highest version, and things beneath it, for each package
+    highest_version_only: bool,
+    /// Whether to work out if a version is deprecated before emitting it
+    /// This requires processing the version's builds before emitting the version.
+    calculate_deprecated_versions: bool,
 }
 
 impl<'a> RepoWalkerBuilder<'a> {
@@ -859,6 +941,10 @@ impl<'a> RepoWalkerBuilder<'a> {
             continue_on_error: false,
             // Sort objects before emitting them by default
             sort_objects: true,
+            // Include all the versions by default
+            highest_version_only: false,
+            // Do not calculated deprecated versions by default
+            calculate_deprecated_versions: false,
         }
     }
 
@@ -1197,6 +1283,23 @@ impl<'a> RepoWalkerBuilder<'a> {
         self
     }
 
+    /// Whether to have the walker only emit the highest version (and
+    /// the things beneath it) and then move on to the next package.
+    pub fn with_highest_version_only(&mut self, highest_version_only: bool) -> &mut Self {
+        self.highest_version_only = highest_version_only;
+        self
+    }
+
+    /// Whether to calculate if each version is deprecate before emitting it.
+    /// This requires processing the version's builds before emitting the version.
+    pub fn with_calculate_deprecated_versions(
+        &mut self,
+        calculate_deprecated_versions: bool,
+    ) -> &mut Self {
+        self.calculate_deprecated_versions = calculate_deprecated_versions;
+        self
+    }
+
     /// Creates a RepoWalker using the builder's current settings.
     pub fn build(&self) -> RepoWalker {
         RepoWalker {
@@ -1217,6 +1320,8 @@ impl<'a> RepoWalkerBuilder<'a> {
             emit_end_of_markers: self.end_of_markers,
             continue_on_error: self.continue_on_error,
             sort_objects: self.sort_objects,
+            highest_version_only: self.highest_version_only,
+            calculate_deprecated_versions: self.calculate_deprecated_versions,
         }
     }
 }

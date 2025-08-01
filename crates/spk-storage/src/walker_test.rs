@@ -15,6 +15,7 @@ use spk_schema::{Spec, recipe, spec};
 use super::RepoWalkerBuilder;
 use crate::fixtures::{empty_layer_digest, spfs_runtime, spfsrepo};
 use crate::walker::{
+    DeprecationState,
     RepoWalkerFilter,
     WalkedBuild,
     WalkedComponent,
@@ -67,6 +68,8 @@ async fn test_walker_builder_with_calls() {
         .with_end_of_markers(true)
         .with_continue_on_error(true)
         .with_sort_objects(true)
+        .with_highest_version_only(false)
+        .with_calculate_deprecated_versions(false)
         .build();
 }
 
@@ -114,6 +117,7 @@ async fn test_walker_builder_walker_walk() {
         RepoWalkerItem::Version(WalkedVersion {
             repo_name,
             ident: ident.clone(),
+            deprecation_state: DeprecationState::NotCalculated,
         }),
         RepoWalkerItem::Build(WalkedBuild {
             repo_name,
@@ -135,6 +139,7 @@ async fn test_walker_builder_walker_walk() {
         RepoWalkerItem::EndOfVersion(WalkedVersion {
             repo_name,
             ident: ident.clone(),
+            deprecation_state: DeprecationState::NotCalculated,
         }),
         RepoWalkerItem::EndOfPackage(WalkedPackage {
             repo_name,
@@ -164,6 +169,112 @@ async fn test_walker_builder_walker_walk() {
         );
 
         count += 1;
+    }
+
+    assert_eq!(count, expected.len());
+}
+
+#[tokio::test]
+async fn test_walker_builder_walker_walk_with_calc_deprecated_versions() {
+    // Set up a test repo in the runtime
+    let mut rt = spfs_runtime().await;
+    let remote_repo = spfsrepo().await;
+    rt.add_remote_repo(
+        "origin",
+        Remote::Address(RemoteAddress {
+            address: remote_repo.address().clone(),
+        }),
+    )
+    .unwrap();
+
+    let recipe = recipe!({"pkg": "my-pkg/1.0.0"});
+    remote_repo.publish_recipe(&recipe).await.unwrap();
+    let spec = spec!({"pkg": "my-pkg/1.0.0/BGSHW3CN"});
+    remote_repo
+        .publish_package(
+            &spec,
+            &vec![(Component::Run, empty_layer_digest())]
+                .into_iter()
+                .collect(),
+        )
+        .await
+        .unwrap();
+
+    // Setup the list of repos to walk
+    let repo_name: &str = "origin";
+    let repo = remote_repository(repo_name).await.unwrap();
+    let repos = vec![(repo_name.to_string(), RepositoryHandle::SPFS(repo))];
+
+    // Set up expected items in the order they should be walked.
+    let pkg_name = Arc::new(unsafe { PkgNameBuf::from_string("my-pkg".to_string()) });
+    let ident = Arc::new(parse_version_ident("my-pkg/1.0.0").unwrap());
+    let build_ident = ident.to_build_ident(Build::Source);
+    let expected = vec![
+        RepoWalkerItem::Repo(WalkedRepo { name: repo_name }),
+        RepoWalkerItem::Package(WalkedPackage {
+            repo_name,
+            name: pkg_name.clone(),
+        }),
+        RepoWalkerItem::Version(WalkedVersion {
+            repo_name,
+            ident: ident.clone(),
+            deprecation_state: DeprecationState::Active,
+        }),
+        RepoWalkerItem::Build(WalkedBuild {
+            repo_name,
+            spec: Arc::new(Spec::V0Package(spk_schema::v0::Spec::new(
+                build_ident.clone(),
+            ))),
+        }),
+        RepoWalkerItem::EndOfVersion(WalkedVersion {
+            repo_name,
+            ident: ident.clone(),
+            deprecation_state: DeprecationState::Active,
+        }),
+        RepoWalkerItem::EndOfPackage(WalkedPackage {
+            repo_name,
+            name: pkg_name,
+        }),
+        RepoWalkerItem::EndOfRepo(WalkedRepo { name: repo_name }),
+    ];
+
+    // Make and test the walker
+    let mut builder = RepoWalkerBuilder::new(&repos);
+    let walker = builder
+        .with_end_of_markers(true)
+        .with_report_on_builds(true)
+        .with_calculate_deprecated_versions(true)
+        .build();
+    let mut traversal = walker.walk();
+
+    let mut count = 0;
+    while let Some(item) = traversal.try_next().await.unwrap() {
+        // Should encounter the same kinds of items in the same order.
+        // This doesn't check for exact matches, it just verifies the
+        // walk order.
+        println!("Comparing: {:?}\nwith     : {:?}\n", item, expected[count]);
+        assert_eq!(
+            std::mem::discriminant(&item),
+            std::mem::discriminant(&expected[count]),
+        );
+        count += 1;
+
+        // Testing the deprecation status of the version objects that
+        // are walked.
+        if let RepoWalkerItem::Version(ref version) = item {
+            assert_eq!(
+                version.deprecation_state,
+                DeprecationState::Active,
+                "version's deprecation state should be active"
+            )
+        }
+        if let RepoWalkerItem::EndOfVersion(ref version) = item {
+            assert_eq!(
+                version.deprecation_state,
+                DeprecationState::Active,
+                "version's deprecation state should be active"
+            )
+        }
     }
 
     assert_eq!(count, expected.len());
