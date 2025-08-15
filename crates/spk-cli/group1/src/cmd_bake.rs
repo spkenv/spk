@@ -6,7 +6,7 @@ use clap::Args;
 use futures::TryFutureExt;
 use miette::IntoDiagnostic;
 use serde::Serialize;
-use spk_cli_common::{CommandArgs, Run, current_env, flags};
+use spk_cli_common::{CommandArgs, Run, current_env, flags, remove_ansi_escapes};
 use spk_schema::Package;
 use spk_schema::ident::RequestedBy;
 use spk_solve::solution::{LayerPackageAndComponents, PackageSource, get_spfs_layers_to_packages};
@@ -26,19 +26,6 @@ const BUILD_FORMAT: &str = "builds";
 const YAML_FORMAT: &str = "yaml";
 const JSON_FORMAT: &str = "json";
 const OUTPUT_FORMATS: [&str; 4] = [LAYER_FORMAT, BUILD_FORMAT, YAML_FORMAT, JSON_FORMAT];
-
-// TODO: a duplicate of this exists in spk-cli/common/src hidden
-// behind the "sentry" feature. Might want consider refactoring these
-// two functions to a single place not hidden behind any feature.
-/// Utility for removing ansi-colour/terminal escape codes from a String
-fn remove_ansi_escapes(message: String) -> String {
-    if let Ok(b) = strip_ansi_escapes::strip(message.clone())
-        && let Ok(s) = std::str::from_utf8(&b)
-    {
-        return s.to_string();
-    }
-    message
-}
 
 /// Bake an executable environment from a set of requests or the current environment.
 #[derive(Args)]

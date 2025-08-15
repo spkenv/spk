@@ -280,7 +280,7 @@ fn get_spk_context() -> (
     (command, data)
 }
 
-#[cfg(feature = "sentry")]
+/// Utility for removing ansi-colour/terminal escape codes from a String
 fn remove_ansi_escapes(message: String) -> String {
     if let Ok(b) = strip_ansi_escapes::strip(message.clone())
         && let Ok(s) = std::str::from_utf8(&b)
