@@ -10,6 +10,7 @@ use std::sync::Arc;
 use clap::Args;
 use colored::Colorize;
 use futures::{StreamExt, TryStreamExt};
+use itertools::Itertools;
 use miette::{Context, IntoDiagnostic, Result, bail};
 use serde::Serialize;
 use spfs::Digest;
@@ -17,7 +18,14 @@ use spfs::find_path::ObjectPathEntry;
 use spfs::graph::{HasKind, ObjectKind};
 use spfs::io::Pluralize;
 use spk_cli_common::with_version_and_build_set::WithVersionSet;
-use spk_cli_common::{CommandArgs, DefaultVersionStrategy, Run, current_env, flags};
+use spk_cli_common::{
+    CommandArgs,
+    DefaultVersionStrategy,
+    Run,
+    current_env,
+    flags,
+    remove_ansi_escapes,
+};
 use spk_schema::foundation::format::{FormatChangeOptions, FormatRequest};
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::spec_ops::Named;
@@ -27,6 +35,7 @@ use spk_schema::version::Version;
 use spk_schema::{
     AnyIdent,
     BuildIdent,
+    Package,
     RequirementsList,
     Spec,
     Template,
@@ -35,8 +44,9 @@ use spk_schema::{
     VersionIdent,
 };
 use spk_solve::solution::{LayerPackageAndComponents, get_spfs_layers_to_packages};
-use spk_solve::{Recipe, Solver, SolverMut};
+use spk_solve::{PackageSource, Recipe, Solution, Solver, SolverMut};
 use spk_storage;
+use spk_storage::RepositoryHandle;
 use strum::{Display, EnumString, IntoEnumIterator, VariantNames};
 
 #[cfg(test)]
@@ -211,20 +221,148 @@ struct PrintVariantWithTests<'a> {
     tests: BTreeMap<TestStage, u32>,
 }
 
+/// A helper for outputting solution data in non-pretty printed formats
+#[derive(Serialize)]
+struct ResolvedPackage {
+    package: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    repo_name: Option<String>,
+    name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    components: Option<Vec<String>>,
+    version: String,
+    highest: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    size: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    requesters: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    options: Option<OptionMap>,
+}
+
 impl View {
+    async fn solved_packages_output_data(
+        &self,
+        solution: &Solution,
+        repos: &[Arc<RepositoryHandle>],
+    ) -> Result<Vec<ResolvedPackage>> {
+        let mut solved_packages = Vec::new();
+
+        let resolved_items = if self.sort {
+            solution.items().sorted_by_key(|item| item.spec.name())
+        } else {
+            // Convert back to vec once so that we can get an into_iter type
+            solution.items().collect_vec().into_iter()
+        };
+
+        let highest_versions = solution.get_all_highest_package_versions(repos).await?;
+
+        // Assemble output data structure, a subset of a full
+        // solution. Should contain the same information as the
+        // normal spk info output.
+        for req in resolved_items {
+            let package = remove_ansi_escapes(req.format_as_installed_package());
+            let (repo_name, components) =
+                if let PackageSource::Repository { repo, components } = &req.source {
+                    (
+                        Some(repo.name().to_string()),
+                        Some(components.keys().map(ToString::to_string).collect()),
+                    )
+                } else {
+                    (None, None)
+                };
+            let name = req.spec.ident().name().to_string();
+            let version = req.spec.ident().version().to_string();
+            let highest = match highest_versions.get(req.spec.name()) {
+                Some(hv) => hv.to_string(),
+                None => Version::default().to_string(),
+            };
+
+            let mut resolved_request = ResolvedPackage {
+                package,
+                repo_name,
+                name,
+                components,
+                version,
+                highest,
+                size: None,
+                requesters: None,
+                options: None,
+            };
+
+            if self.verbose > 0 {
+                let size = match &req.source {
+                    PackageSource::Repository { repo, components } => {
+                        match spk_storage::get_components_disk_usage(
+                            repo.clone(),
+                            Arc::new(req.spec.ident().clone()),
+                            components,
+                        )
+                        .await
+                        {
+                            Ok(disk_usage) => disk_usage.size,
+                            Err(err) => {
+                                tracing::warn!(
+                                    "Problem working out disk size of {}: {err}",
+                                    req.spec.ident().to_string()
+                                );
+                                0
+                            }
+                        }
+                    }
+                    // Other package sources are ignored for disk usage
+                    _ => 0,
+                };
+                let requesters = req
+                    .request
+                    .get_requesters()
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<String>>();
+                let options = req.spec.option_values();
+
+                resolved_request.size = Some(size);
+                resolved_request.requesters = Some(requesters);
+                resolved_request.options = Some(options);
+            }
+
+            solved_packages.push(resolved_request);
+        }
+
+        Ok(solved_packages)
+    }
+
     async fn print_current_env(&self) -> Result<i32> {
         let solution = current_env().await?;
         let solver = self.solver.get_solver(&self.options).await?;
-        println!(
-            "{}",
-            solution
-                .format_solution_with_highest_versions(
-                    self.verbose,
-                    solver.repositories(),
-                    self.sort
-                )
-                .await?
-        );
+
+        if let Some(format) = &self.format {
+            let solved_packages = self
+                .solved_packages_output_data(&solution, solver.repositories())
+                .await?;
+
+            match format {
+                OutputFormat::Yaml => serde_yaml::to_writer(std::io::stdout(), &solved_packages)
+                    .into_diagnostic()
+                    .wrap_err("Failed to serialize loaded spec")?,
+                OutputFormat::Json => serde_json::to_writer(std::io::stdout(), &solved_packages)
+                    .into_diagnostic()
+                    .wrap_err("Failed to serialize loaded spec")?,
+            }
+        } else {
+            // Solver solution output format
+            println!(
+                "{}",
+                solution
+                    .format_solution_with_highest_versions(
+                        self.verbose,
+                        solver.repositories(),
+                        self.sort
+                    )
+                    .await?
+            );
+        }
+
         Ok(0)
     }
 
