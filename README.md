@@ -226,6 +226,14 @@ Remove-Item -Path "$Env:TEMP\flatc.zip"
     [EnvironmentVariableTarget]::Machine)
 ```
 
+### Other Dependencies
+
+ast-grep is also used when compiling, it can be installed with the following command:
+
+```powershell
+cargo install --locked ast-grep
+```
+
 ### Benchmarks
 
 Benchmark tests can be found in `benches/`. All benchmark tests can be run with `cargo bench`, but in order to successfully pass `criterion`-specific options to the `criterion`-based benchmarks, those types of benchmarks need to be filtered for.

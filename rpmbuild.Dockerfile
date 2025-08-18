@@ -22,6 +22,8 @@ ENV FB_REL=https://github.com/google/flatbuffers/releases/
 RUN curl --proto '=https' --tlsv1.2 -sSfL ${FB_REL}/download/v23.5.26/Linux.flatc.binary.g++-10.zip | funzip > /usr/bin/flatc
 RUN chmod +x /usr/bin/flatc
 ENV PATH $PATH:/root/.cargo/bin
+# install ast-grep
+RUN cargo install --locked ast-grep
 
 RUN mkdir -p /root/rpmbuild/{SOURCES,SPECS,RPMS,SRPMS}
 
