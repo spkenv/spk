@@ -4,27 +4,27 @@
 
 use std::any::Any;
 use std::borrow::Cow;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use clap::Args;
 use colored::Colorize;
 use futures::{StreamExt, TryStreamExt};
 use itertools::Itertools;
-use miette::{Context, IntoDiagnostic, Result, bail};
+use miette::{bail, Context, IntoDiagnostic, Result};
 use serde::Serialize;
-use spfs::Digest;
 use spfs::find_path::ObjectPathEntry;
 use spfs::graph::{HasKind, ObjectKind};
 use spfs::io::Pluralize;
+use spfs::Digest;
 use spk_cli_common::with_version_and_build_set::WithVersionSet;
 use spk_cli_common::{
-    CommandArgs,
-    DefaultVersionStrategy,
-    Run,
     current_env,
     flags,
     remove_ansi_escapes,
+    CommandArgs,
+    DefaultVersionStrategy,
+    Run,
 };
 use spk_schema::foundation::format::{FormatChangeOptions, FormatRequest};
 use spk_schema::foundation::option_map::OptionMap;
@@ -43,7 +43,7 @@ use spk_schema::{
     Variant,
     VersionIdent,
 };
-use spk_solve::solution::{LayerPackageAndComponents, get_spfs_layers_to_packages};
+use spk_solve::solution::{get_spfs_layers_to_packages, LayerPackageAndComponents};
 use spk_solve::{PackageSource, Recipe, Solution, Solver, SolverMut};
 use spk_storage;
 use spk_storage::RepositoryHandle;
@@ -60,6 +60,7 @@ pub enum OutputFormat {
     Json,
     #[default]
     Yaml,
+    EnvVars,
 }
 
 /// Show the spfs filepaths entry details at v > 0
@@ -348,6 +349,12 @@ impl View {
                 OutputFormat::Json => serde_json::to_writer(std::io::stdout(), &solved_packages)
                     .into_diagnostic()
                     .wrap_err("Failed to serialize loaded spec")?,
+                OutputFormat::EnvVars => {
+                    let env_vars = solution.to_environment::<HashMap<String, String>>(None);
+                    for (name, value) in env_vars {
+                        println!("{name}={value}");
+                    }
+                }
             }
         } else {
             // Solver solution output format
@@ -430,6 +437,7 @@ impl View {
                             .wrap_err("Failed to serialize variant info")?
                     }
                 }
+                OutputFormat::EnvVars => tracing::warn!("No env vars format for variants"),
             },
             None if show_variants_with_tests => {
                 tracing::warn!("--variants-with-tests requires json format");
@@ -602,6 +610,7 @@ impl View {
             OutputFormat::Json => serde_json::to_writer(std::io::stdout(), &*package_spec)
                 .into_diagnostic()
                 .wrap_err("Failed to serialize loaded spec")?,
+            OutputFormat::EnvVars => tracing::warn!("No env vars format for variants"),
         }
         Ok(0)
     }
@@ -676,6 +685,9 @@ impl View {
                                 serde_json::to_writer(std::io::stdout(), &*version_recipe)
                                     .into_diagnostic()
                                     .wrap_err("Failed to serialize loaded spec")?
+                            }
+                            OutputFormat::EnvVars => {
+                                tracing::warn!("No env vars format for variants")
                             }
                         }
                         return Ok(0);
