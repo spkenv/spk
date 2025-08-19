@@ -11,20 +11,20 @@ use clap::Args;
 use colored::Colorize;
 use futures::{StreamExt, TryStreamExt};
 use itertools::Itertools;
-use miette::{bail, Context, IntoDiagnostic, Result};
+use miette::{Context, IntoDiagnostic, Result, bail};
 use serde::Serialize;
+use spfs::Digest;
 use spfs::find_path::ObjectPathEntry;
 use spfs::graph::{HasKind, ObjectKind};
 use spfs::io::Pluralize;
-use spfs::Digest;
 use spk_cli_common::with_version_and_build_set::WithVersionSet;
 use spk_cli_common::{
-    current_env,
-    flags,
-    remove_ansi_escapes,
     CommandArgs,
     DefaultVersionStrategy,
     Run,
+    current_env,
+    flags,
+    remove_ansi_escapes,
 };
 use spk_schema::foundation::format::{FormatChangeOptions, FormatRequest};
 use spk_schema::foundation::option_map::OptionMap;
@@ -43,8 +43,8 @@ use spk_schema::{
     Variant,
     VersionIdent,
 };
-use spk_solve::solution::{get_spfs_layers_to_packages, LayerPackageAndComponents};
-use spk_solve::{PackageSource, Recipe, Solution, Solver, SolverMut};
+use spk_solve::solution::{LayerPackageAndComponents, get_spfs_layers_to_packages};
+use spk_solve::{PackageSource, Recipe, RequestedBy, Solution, Solver, SolverMut};
 use spk_storage;
 use spk_storage::RepositoryHandle;
 use strum::{Display, EnumString, IntoEnumIterator, VariantNames};
@@ -222,6 +222,18 @@ struct PrintVariantWithTests<'a> {
     tests: BTreeMap<TestStage, u32>,
 }
 
+/// A helper for outputting requested by data in non-pretty printed formats
+#[derive(Serialize)]
+struct ResolvedRequestedBy {
+    package: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    build: Option<String>,
+}
+
 /// A helper for outputting solution data in non-pretty printed formats
 #[derive(Serialize)]
 struct ResolvedPackage {
@@ -236,7 +248,7 @@ struct ResolvedPackage {
     #[serde(skip_serializing_if = "Option::is_none")]
     size: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    requesters: Option<Vec<String>>,
+    requesters: Option<Vec<ResolvedRequestedBy>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     options: Option<OptionMap>,
 }
@@ -314,12 +326,25 @@ impl View {
                     // Other package sources are ignored for disk usage
                     _ => 0,
                 };
-                let requesters = req
+                let requesters: Vec<ResolvedRequestedBy> = req
                     .request
                     .get_requesters()
                     .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<String>>();
+                    .map(|r| match r {
+                        RequestedBy::PackageBuild(build_ident) => ResolvedRequestedBy {
+                            package: r.to_string(),
+                            name: Some(build_ident.name().to_string()),
+                            version: Some(build_ident.version().to_string()),
+                            build: Some(build_ident.build().to_string()),
+                        },
+                        _ => ResolvedRequestedBy {
+                            package: r.to_string(),
+                            name: None,
+                            version: None,
+                            build: None,
+                        },
+                    })
+                    .collect();
                 let options = req.spec.option_values();
 
                 resolved_request.size = Some(size);

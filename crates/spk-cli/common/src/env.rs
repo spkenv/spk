@@ -281,10 +281,9 @@ fn get_spk_context() -> (
 }
 
 /// Utility for removing ansi-colour/terminal escape codes from a String
-fn remove_ansi_escapes(message: String) -> String {
-    if let Ok(b) = strip_ansi_escapes::strip(message.clone())
-        && let Ok(s) = std::str::from_utf8(&b)
-    {
+pub fn remove_ansi_escapes(message: String) -> String {
+    let b = strip_ansi_escapes::strip(message.clone());
+    if let Ok(s) = std::str::from_utf8(&b) {
         return s.to_string();
     }
 
