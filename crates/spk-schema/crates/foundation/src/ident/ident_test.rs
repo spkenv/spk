@@ -7,11 +7,11 @@ use std::convert::TryInto;
 use std::str::FromStr;
 
 use rstest::rstest;
-use spk_schema_foundation::ident_build::Build;
-use spk_schema_foundation::version::{Version, parse_version};
-use spk_schema_foundation::version_range::{CompatRange, VersionFilter, VersionRange};
 
-use crate::RangeIdent;
+use crate::ident::RangeIdent;
+use crate::ident_build::Build;
+use crate::version::{Version, parse_version};
+use crate::version_range::{CompatRange, VersionFilter, VersionRange};
 
 trait IntoCompatRange {
     fn into_compat_range(self) -> VersionFilter;

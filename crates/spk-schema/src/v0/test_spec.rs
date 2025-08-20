@@ -3,7 +3,7 @@
 // https://github.com/spkenv/spk
 
 use serde::{Deserialize, Serialize};
-use spk_schema_ident::{RequestedBy, VersionIdent};
+use spk_schema_foundation::ident::{RequestedBy, VersionIdent};
 
 use crate::ident::Request;
 use crate::{Script, TestStage};

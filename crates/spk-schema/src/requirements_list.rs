@@ -8,10 +8,10 @@ use std::marker::PhantomData;
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
+use spk_schema_foundation::ident::{BuildIdent, PinPolicy};
 use spk_schema_foundation::name::{OptName, PkgName};
 use spk_schema_foundation::spec_ops::Named;
 use spk_schema_foundation::version::{Compatibility, IncompatibleReason};
-use spk_schema_ident::{BuildIdent, PinPolicy};
 
 use crate::foundation::option_map::OptionMap;
 use crate::ident::Request;

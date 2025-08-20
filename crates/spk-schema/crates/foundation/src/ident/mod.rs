@@ -2,12 +2,47 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+mod error;
+mod format;
+mod ident_any;
+mod ident_build;
+mod ident_located;
+mod ident_optversion;
+mod ident_version;
+pub mod parsing;
+mod range_ident;
+mod request;
+mod satisfy;
+
+pub use error::{Error, Result};
+pub use ident_any::{AnyIdent, ToAnyIdentWithoutBuild, parse_ident};
+pub use ident_build::{BuildIdent, parse_build_ident};
+pub use ident_located::{LocatedBuildIdent, LocatedVersionIdent};
+pub use ident_optversion::{OptVersionIdent, parse_optversion_ident};
+pub use ident_version::{VersionIdent, parse_version_ident};
+pub use range_ident::{RangeIdent, parse_ident_range, parse_ident_range_list};
+pub use request::{
+    InclusionPolicy,
+    NameAndValue,
+    PinPolicy,
+    PinnableValue,
+    PkgRequest,
+    PreReleasePolicy,
+    Request,
+    RequestedBy,
+    VarRequest,
+    is_false,
+};
+pub use satisfy::Satisfy;
+
+pub mod prelude {
+    pub use super::Satisfy;
+}
+
 use std::marker::PhantomData;
 use std::str::FromStr;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-use crate::VersionIdent;
 
 #[cfg(test)]
 #[path = "./ident_test.rs"]
@@ -20,7 +55,7 @@ mod ident_test;
 ///
 /// ```
 /// # #[macro_use]
-/// # pub extern crate spk_schema_ident;
+/// # pub extern crate spk_schema_foundation;
 /// # fn main() {
 /// version_ident!("my-pkg/1.0.0");
 /// # }
@@ -28,7 +63,7 @@ mod ident_test;
 #[macro_export]
 macro_rules! version_ident {
     ($ident:expr) => {
-        $crate::parse_version_ident($ident).unwrap()
+        $crate::ident::parse_version_ident($ident).unwrap()
     };
 }
 
@@ -39,7 +74,7 @@ macro_rules! version_ident {
 ///
 /// ```
 /// # #[macro_use]
-/// # pub extern crate spk_schema_ident;
+/// # pub extern crate spk_schema_foundation;
 /// # fn main() {
 /// build_ident!("my-pkg/1.0.0/src");
 /// # }
@@ -47,7 +82,7 @@ macro_rules! version_ident {
 #[macro_export]
 macro_rules! build_ident {
     ($ident:expr) => {
-        $crate::parse_build_ident($ident).unwrap()
+        $crate::ident::parse_build_ident($ident).unwrap()
     };
 }
 
@@ -59,7 +94,7 @@ macro_rules! build_ident {
 /// identifiers can be defined and composed to identify
 /// packages with varying levels of specificity.
 ///
-/// See: [`super::VersionIdent`], [`super::BuildIdent`], [`super::LocatedBuildIdent`]
+/// See: [`VersionIdent`], [`BuildIdent`], [`LocatedBuildIdent`]
 #[derive(Clone, Hash, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Ident<Base, Target> {
     pub(crate) base: Base,

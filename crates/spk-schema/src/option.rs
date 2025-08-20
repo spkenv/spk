@@ -8,10 +8,10 @@ use std::str::FromStr;
 use indexmap::set::IndexSet;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
+use spk_schema_foundation::ident::{NameAndValue, PinnableValue, RangeIdent};
 use spk_schema_foundation::ident_component::ComponentBTreeSetBuf;
 use spk_schema_foundation::option_map::Stringified;
 use spk_schema_foundation::version::{Compat, IncompatibleReason, VarOptionProblem};
-use spk_schema_ident::{NameAndValue, PinnableValue, RangeIdent};
 
 use crate::foundation::name::{OptName, OptNameBuf, PkgName, PkgNameBuf};
 use crate::foundation::version::{CompatRule, Compatibility};

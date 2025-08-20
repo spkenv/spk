@@ -11,17 +11,17 @@ use nom::error::{ContextError, FromExternalError, ParseError};
 use nom::multi::separated_list1;
 use nom::sequence::preceded;
 use nom_supreme::tag::TagError;
-use spk_schema_foundation::ident_build::Build;
-use spk_schema_foundation::ident_build::parsing::build;
-use spk_schema_foundation::ident_ops::parsing::{
+
+use crate::ident::RangeIdent;
+use crate::ident_build::Build;
+use crate::ident_build::parsing::build;
+use crate::ident_ops::parsing::{
     range_ident_pkg_name,
     repo_name_in_ident,
     version_and_optional_build,
 };
-use spk_schema_foundation::version_range::VersionFilter;
-use spk_schema_foundation::version_range::parsing::version_range;
-
-use crate::RangeIdent;
+use crate::version_range::VersionFilter;
+use crate::version_range::parsing::version_range;
 
 /// Parse a version filter in the context of a range identity.
 ///
@@ -37,9 +37,9 @@ pub fn range_ident_version_filter<'a, E>(input: &'a str) -> IResult<&'a str, Ver
 where
     E: ParseError<&'a str>
         + ContextError<&'a str>
-        + FromExternalError<&'a str, crate::error::Error>
-        + FromExternalError<&'a str, spk_schema_foundation::version::Error>
-        + FromExternalError<&'a str, spk_schema_foundation::version_range::Error>
+        + FromExternalError<&'a str, crate::ident::error::Error>
+        + FromExternalError<&'a str, crate::version::Error>
+        + FromExternalError<&'a str, crate::version_range::Error>
         + FromExternalError<&'a str, std::num::ParseIntError>
         + TagError<&'a str, &'static str>,
 {
@@ -62,10 +62,10 @@ pub fn range_ident<'a, 'b, E>(
 where
     E: ParseError<&'b str>
         + ContextError<&'b str>
-        + FromExternalError<&'b str, crate::error::Error>
-        + FromExternalError<&'b str, spk_schema_foundation::ident_build::Error>
-        + FromExternalError<&'b str, spk_schema_foundation::version::Error>
-        + FromExternalError<&'b str, spk_schema_foundation::version_range::Error>
+        + FromExternalError<&'b str, crate::ident::error::Error>
+        + FromExternalError<&'b str, crate::ident_build::Error>
+        + FromExternalError<&'b str, crate::version::Error>
+        + FromExternalError<&'b str, crate::version_range::Error>
         + FromExternalError<&'b str, std::num::ParseIntError>
         + TagError<&'b str, &'static str>,
 {
@@ -106,10 +106,10 @@ pub fn version_filter_and_build<'a, E>(
 where
     E: ParseError<&'a str>
         + ContextError<&'a str>
-        + FromExternalError<&'a str, crate::error::Error>
-        + FromExternalError<&'a str, spk_schema_foundation::ident_build::Error>
-        + FromExternalError<&'a str, spk_schema_foundation::version::Error>
-        + FromExternalError<&'a str, spk_schema_foundation::version_range::Error>
+        + FromExternalError<&'a str, crate::ident::error::Error>
+        + FromExternalError<&'a str, crate::ident_build::Error>
+        + FromExternalError<&'a str, crate::version::Error>
+        + FromExternalError<&'a str, crate::version_range::Error>
         + FromExternalError<&'a str, std::num::ParseIntError>
         + TagError<&'a str, &'static str>,
 {
@@ -134,14 +134,14 @@ where
 pub fn range_ident_comma_separated_list(
     known_repositories: &HashSet<&str>,
     input: &str,
-) -> Result<Vec<RangeIdent>, crate::Error> {
+) -> Result<Vec<RangeIdent>, crate::ident::Error> {
     let parsed_list = all_consuming(separated_list1(
         char(','),
         range_ident::<nom_supreme::error::ErrorTree<_>>(known_repositories),
     ))(input);
 
     parsed_list.map(|(_, l)| l).map_err(|err| match err {
-        nom::Err::Error(e) | nom::Err::Failure(e) => crate::Error::String(e.to_string()),
+        nom::Err::Error(e) | nom::Err::Failure(e) => crate::ident::Error::String(e.to_string()),
         nom::Err::Incomplete(_) => unreachable!(),
     })
 }
