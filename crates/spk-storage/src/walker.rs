@@ -39,20 +39,20 @@ pub enum DeprecationState {
 }
 
 /// A repository the RepoWalker is processing
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct WalkedRepo<'a> {
     pub name: &'a str,
 }
 
 /// A package in a repo the RepoWalker is processing
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct WalkedPackage<'a> {
     pub repo_name: &'a str,
     pub name: Arc<PkgNameBuf>,
 }
 
 /// A version of a package the RepoWalker is processing
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct WalkedVersion<'a> {
     pub repo_name: &'a str,
     /// This doesn't include the package name as a separate field
@@ -62,7 +62,7 @@ pub struct WalkedVersion<'a> {
 }
 
 /// A build of a version the RepoWalker is processing
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct WalkedBuild<'a> {
     pub repo_name: &'a str,
     /// This doesn't include the build ident, because the spec.ident()
@@ -71,7 +71,7 @@ pub struct WalkedBuild<'a> {
 }
 
 /// A component of a build the RepoWalker is processing
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct WalkedComponent<'a> {
     pub repo_name: &'a str,
     pub build: Arc<BuildIdent>,
@@ -80,7 +80,7 @@ pub struct WalkedComponent<'a> {
 }
 
 /// A file in a component the RepoWalker is processing
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct WalkedFile<'a> {
     pub repo_name: &'a str,
     pub build: Arc<BuildIdent>,
@@ -90,7 +90,7 @@ pub struct WalkedFile<'a> {
 }
 
 /// The items a RepoWalker can find and return during a walk
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum RepoWalkerItem<'a> {
     // Ones emitted during standard walks
     Repo(WalkedRepo<'a>),

@@ -4,13 +4,14 @@
 use std::sync::Arc;
 
 use futures::TryStreamExt;
+use itertools::zip_eq;
 use spfs::RemoteAddress;
 use spfs::config::Remote;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::ident::parse_version_ident;
 use spk_schema::ident_build::Build;
 use spk_schema::name::PkgNameBuf;
-use spk_schema::{Spec, recipe, spec};
+use spk_schema::{DeprecateMut, Spec, recipe, spec};
 
 use super::RepoWalkerBuilder;
 use crate::fixtures::{empty_layer_digest, spfs_runtime, spfsrepo};
@@ -187,12 +188,54 @@ async fn test_walker_builder_walker_walk_with_calc_deprecated_versions() {
     )
     .unwrap();
 
-    let recipe = recipe!({"pkg": "my-pkg/1.0.0"});
+    // An active package version, none of its builds are deprecated
+    let recipe = recipe!({"pkg": "my-pkg/3.0.0"});
     remote_repo.publish_recipe(&recipe).await.unwrap();
-    let spec = spec!({"pkg": "my-pkg/1.0.0/BGSHW3CN"});
+    let active_spec_three = spec!({"pkg": "my-pkg/3.0.0/BGSHW3CN"});
     remote_repo
         .publish_package(
-            &spec,
+            &active_spec_three,
+            &vec![(Component::Run, empty_layer_digest())]
+                .into_iter()
+                .collect(),
+        )
+        .await
+        .unwrap();
+
+    // A deprecated package version, because all its builds are deprecated
+    let recipe = recipe!({"pkg": "my-pkg/2.0.0"});
+    remote_repo.publish_recipe(&recipe).await.unwrap();
+    let mut deprecated_spec_two = spec!({"pkg": "my-pkg/2.0.0/BGSHW3CN"});
+    deprecated_spec_two.deprecate().unwrap();
+    remote_repo
+        .publish_package(
+            &deprecated_spec_two,
+            &vec![(Component::Run, empty_layer_digest())]
+                .into_iter()
+                .collect(),
+        )
+        .await
+        .unwrap();
+
+    // A partially deprecated package version, because some of its
+    // builds are deprecated.
+    let recipe = recipe!({"pkg": "my-pkg/1.0.0"});
+    remote_repo.publish_recipe(&recipe).await.unwrap();
+    let mut deprecated_spec_one = spec!({"pkg": "my-pkg/1.0.0/BGSHW3CN"});
+    deprecated_spec_one.deprecate().unwrap();
+    remote_repo
+        .publish_package(
+            &deprecated_spec_one,
+            &vec![(Component::Run, empty_layer_digest())]
+                .into_iter()
+                .collect(),
+        )
+        .await
+        .unwrap();
+    let active_spec_one = spec!({"pkg": "my-pkg/1.0.0/DWHSVGP2"});
+    remote_repo
+        .publish_package(
+            &active_spec_one,
             &vec![(Component::Run, empty_layer_digest())]
                 .into_iter()
                 .collect(),
@@ -207,29 +250,65 @@ async fn test_walker_builder_walker_walk_with_calc_deprecated_versions() {
 
     // Set up expected items in the order they should be walked.
     let pkg_name = Arc::new(unsafe { PkgNameBuf::from_string("my-pkg".to_string()) });
-    let ident = Arc::new(parse_version_ident("my-pkg/1.0.0").unwrap());
-    let build_ident = ident.to_build_ident(Build::Source);
-    let expected = vec![
+
+    let ident_one = Arc::new(parse_version_ident("my-pkg/1.0.0").unwrap());
+    let ident_two = Arc::new(parse_version_ident("my-pkg/2.0.0").unwrap());
+    let ident_three = Arc::new(parse_version_ident("my-pkg/3.0.0").unwrap());
+
+    let expected_items = vec![
         RepoWalkerItem::Repo(WalkedRepo { name: repo_name }),
         RepoWalkerItem::Package(WalkedPackage {
             repo_name,
             name: pkg_name.clone(),
         }),
+        // Version 3.0.0 is Active
         RepoWalkerItem::Version(WalkedVersion {
             repo_name,
-            ident: ident.clone(),
+            ident: ident_three.clone(),
             deprecation_state: DeprecationState::Active,
         }),
         RepoWalkerItem::Build(WalkedBuild {
             repo_name,
-            spec: Arc::new(Spec::V0Package(spk_schema::v0::Spec::new(
-                build_ident.clone(),
-            ))),
+            spec: Arc::new(active_spec_three),
         }),
         RepoWalkerItem::EndOfVersion(WalkedVersion {
             repo_name,
-            ident: ident.clone(),
+            ident: ident_three.clone(),
             deprecation_state: DeprecationState::Active,
+        }),
+        // Version 2.0.0 is deprecated
+        RepoWalkerItem::Version(WalkedVersion {
+            repo_name,
+            ident: ident_two.clone(),
+            deprecation_state: DeprecationState::Deprecated,
+        }),
+        RepoWalkerItem::Build(WalkedBuild {
+            repo_name,
+            spec: Arc::new(deprecated_spec_two),
+        }),
+        RepoWalkerItem::EndOfVersion(WalkedVersion {
+            repo_name,
+            ident: ident_two.clone(),
+            deprecation_state: DeprecationState::Deprecated,
+        }),
+        // Version 1.0.0 is partially-deprecated
+        RepoWalkerItem::Version(WalkedVersion {
+            repo_name,
+            ident: ident_one.clone(),
+            deprecation_state: DeprecationState::PartiallyDeprecated,
+        }),
+        RepoWalkerItem::Build(WalkedBuild {
+            repo_name,
+            spec: Arc::new(deprecated_spec_one),
+        }),
+        RepoWalkerItem::Build(WalkedBuild {
+            repo_name,
+            spec: Arc::new(active_spec_one),
+        }),
+        RepoWalkerItem::EndOfVersion(WalkedVersion {
+            repo_name,
+            ident: ident_one.clone(),
+            deprecation_state: DeprecationState::PartiallyDeprecated,
         }),
         RepoWalkerItem::EndOfPackage(WalkedPackage {
             repo_name,
@@ -238,44 +317,28 @@ async fn test_walker_builder_walker_walk_with_calc_deprecated_versions() {
         RepoWalkerItem::EndOfRepo(WalkedRepo { name: repo_name }),
     ];
 
-    // Make and test the walker
+    // Walk the repo to get the items
     let mut builder = RepoWalkerBuilder::new(&repos);
     let walker = builder
         .with_end_of_markers(true)
         .with_report_on_builds(true)
+        .with_report_deprecated_builds(true)
         .with_calculate_deprecated_versions(true)
         .build();
     let mut traversal = walker.walk();
 
-    let mut count = 0;
+    let mut walked_items = Vec::new();
     while let Some(item) = traversal.try_next().await.unwrap() {
-        // Should encounter the same kinds of items in the same order.
-        // This doesn't check for exact matches, it just verifies the
-        // walk order.
-        println!("Comparing: {:?}\nwith     : {:?}\n", item, expected[count]);
-        assert_eq!(
-            std::mem::discriminant(&item),
-            std::mem::discriminant(&expected[count]),
-        );
-        count += 1;
-
-        // Testing the deprecation status of the version objects that
-        // are walked.
-        if let RepoWalkerItem::Version(ref version) = item {
-            assert_eq!(
-                version.deprecation_state,
-                DeprecationState::Active,
-                "version's deprecation state should be active"
-            )
-        }
-        if let RepoWalkerItem::EndOfVersion(ref version) = item {
-            assert_eq!(
-                version.deprecation_state,
-                DeprecationState::Active,
-                "version's deprecation state should be active"
-            )
-        }
+        walked_items.push(item);
     }
 
-    assert_eq!(count, expected.len());
+    // Test the walked items are what was expected
+    for (item, expected) in zip_eq(walked_items.iter(), expected_items.iter()) {
+        println!("Comparing: {:?}\n     with: {:?}", item, expected);
+        println!("   equal?: {}\n", item == expected);
+        assert_eq!(
+            item, expected,
+            "Walked item did not match the expected item"
+        );
+    }
 }
