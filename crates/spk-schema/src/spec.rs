@@ -13,10 +13,10 @@ use enum_dispatch::enum_dispatch;
 use format_serde_error::SerdeError;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::SerdeYamlError;
+use spk_schema_foundation::ident::{BuildIdent, VersionIdent};
 use spk_schema_foundation::ident_build::{Build, BuildId};
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::option_map::OptFilter;
-use spk_schema_ident::{BuildIdent, VersionIdent};
 
 use crate::foundation::name::{PkgName, PkgNameBuf};
 use crate::foundation::option_map::OptionMap;

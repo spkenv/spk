@@ -5,10 +5,10 @@
 use std::collections::HashMap;
 
 use rstest::rstest;
+use spk_schema_foundation::ident::BuildIdent;
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::option_map;
 use spk_schema_foundation::option_map::HOST_OPTIONS;
-use spk_schema_ident::BuildIdent;
 
 use super::Platform;
 use crate::Opt::Var;

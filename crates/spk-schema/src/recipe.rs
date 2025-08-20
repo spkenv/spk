@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::Path;
 
-use spk_schema_ident::VersionIdent;
+use spk_schema_foundation::ident::VersionIdent;
 
 use crate::foundation::ident_build::BuildId;
 use crate::foundation::option_map::OptionMap;

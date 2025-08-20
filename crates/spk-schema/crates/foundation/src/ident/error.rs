@@ -23,16 +23,16 @@ pub enum Error {
     InvalidPinPolicy(#[source] serde_yaml::Error),
     #[error(transparent)]
     #[diagnostic(forward(0))]
-    SpkIdentBuildError(#[from] spk_schema_foundation::ident_build::Error),
+    SpkIdentBuildError(#[from] crate::ident_build::Error),
     #[error(transparent)]
     #[diagnostic(forward(0))]
-    SpkNameError(#[from] spk_schema_foundation::name::Error),
+    SpkNameError(#[from] crate::name::Error),
     #[error(transparent)]
     #[diagnostic(forward(0))]
-    SpkVersionError(#[from] spk_schema_foundation::version::Error),
+    SpkVersionError(#[from] crate::version::Error),
     #[error(transparent)]
     #[diagnostic(forward(0))]
-    SpkVersionRangeError(#[from] spk_schema_foundation::version_range::Error),
+    SpkVersionRangeError(#[from] crate::version_range::Error),
     #[error("Error: {0}")]
     String(String),
 }

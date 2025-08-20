@@ -11,17 +11,17 @@ use std::sync::Arc;
 
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::IsDefault;
-use spk_schema_foundation::format::{
-    FormatBuild,
-    FormatChangeOptions,
-    FormatComponents,
-    FormatRequest,
-};
-use spk_schema_foundation::ident_component::ComponentSet;
-use spk_schema_foundation::name::{OptName, OptNameBuf, PkgName};
-use spk_schema_foundation::option_map::Stringified;
-use spk_schema_foundation::version::{
+use tap::Tap;
+use variantly::Variantly;
+
+use super::AnyIdent;
+use crate::IsDefault;
+use crate::format::{FormatBuild, FormatChangeOptions, FormatComponents, FormatRequest};
+use crate::ident::{BuildIdent, Error, RangeIdent, Result, Satisfy, VersionIdent};
+use crate::ident_component::ComponentSet;
+use crate::name::{OptName, OptNameBuf, PkgName};
+use crate::option_map::Stringified;
+use crate::version::{
     API_STR,
     BINARY_STR,
     CompatRule,
@@ -31,18 +31,13 @@ use spk_schema_foundation::version::{
     VarRequestProblem,
     Version,
 };
-use spk_schema_foundation::version_range::{
+use crate::version_range::{
     DoubleEqualsVersion,
     EqualsVersion,
     Ranged,
     RestrictMode,
     VersionFilter,
 };
-use tap::Tap;
-use variantly::Variantly;
-
-use super::AnyIdent;
-use crate::{BuildIdent, Error, RangeIdent, Result, Satisfy, VersionIdent};
 
 #[cfg(test)]
 #[path = "./request_test.rs"]
@@ -81,8 +76,8 @@ impl std::fmt::Display for PreReleasePolicy {
 }
 
 impl std::str::FromStr for PreReleasePolicy {
-    type Err = crate::Error;
-    fn from_str(value: &str) -> crate::Result<Self> {
+    type Err = crate::ident::Error;
+    fn from_str(value: &str) -> crate::ident::Result<Self> {
         serde_yaml::from_str(value).map_err(Error::InvalidPreReleasePolicy)
     }
 }
@@ -109,8 +104,8 @@ impl std::fmt::Display for InclusionPolicy {
 }
 
 impl std::str::FromStr for InclusionPolicy {
-    type Err = crate::Error;
-    fn from_str(value: &str) -> crate::Result<Self> {
+    type Err = crate::ident::Error;
+    fn from_str(value: &str) -> crate::ident::Result<Self> {
         serde_yaml::from_str(value).map_err(Error::InvalidInclusionPolicy)
     }
 }
@@ -141,8 +136,8 @@ impl std::fmt::Display for PinPolicy {
 }
 
 impl std::str::FromStr for PinPolicy {
-    type Err = crate::Error;
-    fn from_str(value: &str) -> crate::Result<Self> {
+    type Err = crate::ident::Error;
+    fn from_str(value: &str) -> crate::ident::Result<Self> {
         serde_yaml::from_str(value).map_err(Error::InvalidPinPolicy)
     }
 }
@@ -195,7 +190,7 @@ pub enum Request {
     Var(VarRequest<PinnableValue>),
 }
 
-impl spk_schema_foundation::spec_ops::Named<OptName> for Request {
+impl crate::spec_ops::Named<OptName> for Request {
     fn name(&self) -> &OptName {
         match self {
             Request::Var(r) => &r.var,
@@ -1042,9 +1037,9 @@ impl FormatRequest for PkgRequest {
 
     fn format_request(
         &self,
-        repository_name: Option<&spk_schema_foundation::name::RepositoryNameBuf>,
+        repository_name: Option<&crate::name::RepositoryNameBuf>,
         name: &PkgName,
-        format_settings: &spk_schema_foundation::format::FormatChangeOptions,
+        format_settings: &crate::format::FormatChangeOptions,
     ) -> String {
         let mut out = match repository_name {
             Some(repository_name) => format!("{repository_name}/{}", name.as_str().bold()),

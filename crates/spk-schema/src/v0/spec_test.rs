@@ -7,10 +7,10 @@ use std::io::Write;
 use std::str::FromStr;
 
 use rstest::rstest;
+use spk_schema_foundation::ident::{AnyIdent, BuildIdent, Request, VersionIdent};
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::option_map;
 use spk_schema_foundation::version_range::VersionFilter;
-use spk_schema_ident::{AnyIdent, BuildIdent, Request, VersionIdent};
 
 use super::Spec;
 use crate::foundation::FromYaml;
@@ -222,8 +222,8 @@ fn test_strong_inheritance_injection() {
             .requirements
             .iter()
             .any(|request| match request {
-                spk_schema_ident::Request::Pkg(_) => false,
-                spk_schema_ident::Request::Var(var) =>
+                spk_schema_foundation::ident::Request::Pkg(_) => false,
+                spk_schema_foundation::ident::Request::Var(var) =>
                     var.var == "base.inherit-me" && var.value == "1.2.3".into(),
             }),
         "didn't find inherited install requirement"
@@ -292,8 +292,8 @@ fn test_strong_inheritance_injection_transitivity() {
             .requirements
             .iter()
             .any(|request| match request {
-                spk_schema_ident::Request::Pkg(_) => false,
-                spk_schema_ident::Request::Var(var) =>
+                spk_schema_foundation::ident::Request::Pkg(_) => false,
+                spk_schema_foundation::ident::Request::Var(var) =>
                     var.var == "base.inherit-me" && var.value == "1.2.3".into(),
             }),
         "didn't find inherited install requirement"

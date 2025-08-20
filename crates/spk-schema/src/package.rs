@@ -5,11 +5,11 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 
+use spk_schema_foundation::ident::BuildIdent;
 use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::option_map::OptFilter;
 use spk_schema_foundation::spec_ops::{Named, Versioned};
 use spk_schema_foundation::version::VERSION_SEP;
-use spk_schema_ident::BuildIdent;
 
 use super::RequirementsList;
 use crate::foundation::ident_component::Component;

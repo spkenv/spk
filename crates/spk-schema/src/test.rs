@@ -5,7 +5,7 @@
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
-use spk_schema_ident::Request;
+use spk_schema_foundation::ident::Request;
 
 const BUILD_NAME: &str = "build";
 const INSTALL_NAME: &str = "install";

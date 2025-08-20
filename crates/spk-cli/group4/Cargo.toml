@@ -27,7 +27,6 @@ spfs = { workspace = true }
 spk-cli-common = { workspace = true }
 spk-cli-group2 = { workspace = true }
 spk-schema = { workspace = true }
-spk-schema-ident = { workspace = true }
 spk-solve = { workspace = true }
 spk-storage = { workspace = true }
 spk-workspace = { workspace = true }
