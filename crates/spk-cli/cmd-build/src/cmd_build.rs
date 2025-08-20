@@ -185,14 +185,7 @@ impl Run for Build {
 
             // This total will include some double counting in some packages
             total_builds_size += size;
-            if self.verbose > 0 {
-                println!(
-                    "   {artifact}  [{size} b or {}]",
-                    spk_storage::human_readable(size),
-                );
-            } else {
-                println!("   {artifact}  [{}]", spk_storage::human_readable(size));
-            }
+            println!("   {artifact}  [{}]", spk_storage::human_readable(size));
         }
 
         // Show the total disk usage for the last package's build. This
@@ -213,7 +206,7 @@ impl Run for Build {
         // when the user wants more info for comparisons or debugging.
         if self.verbose > 0 {
             println!(
-                "Total disk usage of all builds:  {total_builds_size} b or {}",
+                "Total disk usage of all builds:  {}",
                 spk_storage::human_readable(total_builds_size)
             );
         }
@@ -222,7 +215,7 @@ impl Run for Build {
         // package/versions were built.
         if number_of_packages > 1 {
             println!(
-                "Total disk usage for all packages built: {total_packages_size} b or {}",
+                "Total disk usage for all packages built: {}",
                 spk_storage::human_readable(total_packages_size),
             );
         }
@@ -236,20 +229,11 @@ impl Run for Build {
 
 impl Build {
     async fn print_total_size(&self, package_version: &VersionIdent, size: u64) {
-        if self.verbose > 0 {
-            println!(
-                "Total disk usage for these {} builds:  {} b or {}",
-                package_version.format_ident(),
-                size,
-                spk_storage::human_readable(size)
-            );
-        } else {
-            println!(
-                "Total disk usage for these {} builds:  {}",
-                package_version.format_ident(),
-                spk_storage::human_readable(size)
-            );
-        }
+        println!(
+            "Total disk usage for these {} builds:  {}",
+            package_version.format_ident(),
+            spk_storage::human_readable(size)
+        );
     }
 }
 
