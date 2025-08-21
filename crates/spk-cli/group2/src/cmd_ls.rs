@@ -457,6 +457,10 @@ impl<T: Output> Ls<T> {
             let options = build.spec.option_values();
 
             for (name, value) in options.iter() {
+                if value.is_empty() {
+                    // These options didn't contribute to the build, so ignore them
+                    continue;
+                }
                 let name_entry = counters.entry(name.to_string()).or_default();
                 let value_entry = name_entry.entry(value.clone()).or_default();
                 *value_entry += 1;
@@ -541,7 +545,6 @@ impl<T: Output> Ls<T> {
                     // This only shows some
                     if let Some(name_entry) = counters.get(&name.to_string()) {
                         if let Some(value_entry) = name_entry.get(&value.to_string()) {
-                            // TODO:so the same as if in common, need num builds
                             if *value_entry != num_builds {
                                 Some(format!("{}{}{}", name, "=".dimmed(), value.cyan()))
                             } else {
