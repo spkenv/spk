@@ -6,19 +6,23 @@ use rstest::rstest;
 
 use crate::fixtures::*;
 use crate::prelude::*;
+use crate::storage::fs::RenderStore;
 
 #[rstest]
 #[tokio::test]
 async fn test_proxy_payload_read_through(tmpdir: tempfile::TempDir) {
     init_logging();
 
-    let primary = crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("primary"))
-        .await
-        .unwrap();
-    let secondary =
-        crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("secondary"))
-            .await
-            .unwrap();
+    let primary = crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+        tmpdir.path().join("primary"),
+    )
+    .await
+    .unwrap();
+    let secondary = crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+        tmpdir.path().join("secondary"),
+    )
+    .await
+    .unwrap();
 
     let digest = secondary
         .commit_blob(Box::pin(b"some data".as_slice()))
@@ -41,13 +45,16 @@ async fn test_proxy_payload_read_through(tmpdir: tempfile::TempDir) {
 async fn test_proxy_object_read_through(tmpdir: tempfile::TempDir) {
     init_logging();
 
-    let primary = crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("primary"))
-        .await
-        .unwrap();
-    let secondary =
-        crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("secondary"))
-            .await
-            .unwrap();
+    let primary = crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+        tmpdir.path().join("primary"),
+    )
+    .await
+    .unwrap();
+    let secondary = crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+        tmpdir.path().join("secondary"),
+    )
+    .await
+    .unwrap();
 
     let payload = secondary
         .commit_blob(Box::pin(b"some data".as_slice()))
@@ -70,13 +77,16 @@ async fn test_proxy_object_read_through(tmpdir: tempfile::TempDir) {
 async fn test_proxy_tag_read_through(tmpdir: tempfile::TempDir) {
     init_logging();
 
-    let primary = crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("primary"))
-        .await
-        .unwrap();
-    let secondary =
-        crate::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("secondary"))
-            .await
-            .unwrap();
+    let primary = crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+        tmpdir.path().join("primary"),
+    )
+    .await
+    .unwrap();
+    let secondary = crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+        tmpdir.path().join("secondary"),
+    )
+    .await
+    .unwrap();
 
     let payload = secondary
         .commit_blob(Box::pin(b"some data".as_slice()))

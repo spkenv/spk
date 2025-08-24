@@ -8,13 +8,21 @@ use std::pin::Pin;
 use futures::future::ready;
 use futures::{Stream, StreamExt, TryFutureExt};
 
-use super::{MaybeOpenFsRepository, OpenFsRepository};
+use super::{DefaultRenderStoreCreationPolicy, MaybeOpenFsRepository, OpenFsRepository};
+use crate::storage::RenderStoreForUser;
 use crate::storage::prelude::*;
 use crate::tracking::BlobRead;
 use crate::{Error, Result, encoding, graph};
 
 #[async_trait::async_trait]
-impl crate::storage::PayloadStorage for MaybeOpenFsRepository {
+impl<RS> crate::storage::PayloadStorage for MaybeOpenFsRepository<RS>
+where
+    RS: DefaultRenderStoreCreationPolicy
+        + RenderStoreForUser<RenderStore = RS>
+        + Send
+        + Sync
+        + 'static,
+{
     async fn has_payload(&self, digest: encoding::Digest) -> bool {
         let Ok(opened) = self.opened().await else {
             return false;
@@ -52,7 +60,10 @@ impl crate::storage::PayloadStorage for MaybeOpenFsRepository {
 }
 
 #[async_trait::async_trait]
-impl crate::storage::PayloadStorage for OpenFsRepository {
+impl<RS> crate::storage::PayloadStorage for OpenFsRepository<RS>
+where
+    RS: Send + Sync,
+{
     async fn has_payload(&self, digest: encoding::Digest) -> bool {
         let path = self.payloads.build_digest_path(&digest);
         tokio::fs::symlink_metadata(path).await.is_ok()

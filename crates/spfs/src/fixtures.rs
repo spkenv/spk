@@ -10,6 +10,7 @@ use rstest::fixture;
 use tempfile::TempDir;
 
 use crate as spfs;
+use crate::storage::fs::{MaybeRenderStore, NoRenderStore, RenderStore};
 
 pub enum TempRepo {
     FS(Arc<spfs::storage::RepositoryHandle>, Arc<TempDir>),
@@ -39,13 +40,14 @@ impl TempRepo {
     {
         match self {
             TempRepo::FS(_, tempdir) => {
-                let repo = spfs::storage::fs::MaybeOpenFsRepository {
+                let repo = spfs::storage::fs::MaybeOpenFsRepository::<RenderStore> {
                     fs_impl: {
-                        let mut fs_impl = spfs::storage::fs::MaybeOpenFsRepositoryImpl::open(
-                            tempdir.path().join("repo"),
-                        )
-                        .await
-                        .unwrap();
+                        let mut fs_impl =
+                            spfs::storage::fs::MaybeOpenFsRepositoryImpl::<RenderStore>::open(
+                                tempdir.path().join("repo"),
+                            )
+                            .await
+                            .unwrap();
                         fs_impl.set_tag_namespace(Some(
                             spfs::storage::TagNamespaceBuf::new(namespace.as_ref())
                                 .expect("tag namespaces used in tests must be valid"),
@@ -132,16 +134,37 @@ pub fn tmpdir() -> TempDir {
         .expect("failed to create dir for test")
 }
 
-#[fixture(kind = "fs")]
+#[fixture(kind = "fs-with-renders")]
 pub async fn tmprepo(kind: &str) -> TempRepo {
     init_logging();
     let tmpdir = tmpdir();
     match kind {
-        "fs" => {
-            let repo = spfs::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("repo"))
-                .await
-                .unwrap()
-                .into();
+        // "fs" was the old name for this kind
+        "fs" | "fs-with-renders" => {
+            let repo = spfs::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+                tmpdir.path().join("repo"),
+            )
+            .await
+            .unwrap()
+            .into();
+            TempRepo::FS(Arc::new(repo), Arc::new(tmpdir))
+        }
+        "fs-with-maybe-renders" => {
+            let repo = spfs::storage::fs::MaybeOpenFsRepository::<MaybeRenderStore>::create(
+                tmpdir.path().join("repo"),
+            )
+            .await
+            .unwrap()
+            .into();
+            TempRepo::FS(Arc::new(repo), Arc::new(tmpdir))
+        }
+        "fs-without-renders" => {
+            let repo = spfs::storage::fs::MaybeOpenFsRepository::<NoRenderStore>::create(
+                tmpdir.path().join("repo"),
+            )
+            .await
+            .unwrap()
+            .into();
             TempRepo::FS(Arc::new(repo), Arc::new(tmpdir))
         }
         "tar" => {
@@ -154,10 +177,12 @@ pub async fn tmprepo(kind: &str) -> TempRepo {
         #[cfg(feature = "server")]
         "rpc" => {
             use crate::storage::prelude::*;
-            let repo = std::sync::Arc::new(spfs::storage::RepositoryHandle::FS(
-                spfs::storage::fs::MaybeOpenFsRepository::create(tmpdir.path().join("repo"))
-                    .await
-                    .unwrap(),
+            let repo = std::sync::Arc::new(spfs::storage::RepositoryHandle::FSWithRenders(
+                spfs::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(
+                    tmpdir.path().join("repo"),
+                )
+                .await
+                .unwrap(),
             ));
             let listen: std::net::SocketAddr = "127.0.0.1:0".parse().unwrap();
             let http_listener = tokio::net::TcpListener::bind(listen).await.unwrap();

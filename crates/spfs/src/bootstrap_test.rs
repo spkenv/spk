@@ -11,6 +11,7 @@ use super::build_shell_initialized_command;
 use crate::fixtures::*;
 use crate::resolve::which;
 use crate::runtime;
+use crate::storage::fs::RenderStore;
 
 #[rstest]
 #[case::bash("bash", "test.sh", "echo hi; export TEST_VALUE='spfs-test-value'")]
@@ -33,7 +34,7 @@ async fn test_shell_initialization_startup_scripts(
     };
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::MaybeOpenFsRepository::create(&root)
+        crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(&root)
             .await
             .unwrap(),
     );
@@ -118,7 +119,7 @@ async fn test_shell_initialization_no_startup_scripts(
     };
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
-        crate::storage::fs::MaybeOpenFsRepository::create(&root)
+        crate::storage::fs::MaybeOpenFsRepository::<RenderStore>::create(&root)
             .await
             .unwrap(),
     );

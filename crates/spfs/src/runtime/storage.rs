@@ -1183,12 +1183,23 @@ impl Storage {
     }
 
     pub async fn durable_path(&self, name: String) -> Result<PathBuf> {
-        match &*self.inner {
-            RepositoryHandle::FS(repo) => {
-                let mut upper_root_path = repo.root();
+        macro_rules! fs_upper_path {
+            ($repo:expr, $name:expr) => {{
+                let mut upper_root_path = $repo.root();
                 upper_root_path.push(DURABLE_EDITS_DIR);
-                upper_root_path.push(name);
+                upper_root_path.push($name);
                 Ok(upper_root_path)
+            }};
+        }
+        match &*self.inner {
+            RepositoryHandle::FSWithMaybeRenders(repo) => {
+                fs_upper_path!(repo, name)
+            }
+            RepositoryHandle::FSWithRenders(repo) => {
+                fs_upper_path!(repo, name)
+            }
+            RepositoryHandle::FSWithoutRenders(repo) => {
+                fs_upper_path!(repo, name)
             }
             _ => Err(Error::DoesNotSupportDurableRuntimePath),
         }

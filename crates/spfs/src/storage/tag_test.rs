@@ -113,7 +113,9 @@ async fn test_tag_no_duplication(
 #[rstest]
 #[tokio::test]
 async fn test_tag_permissions(tmpdir: tempfile::TempDir) {
-    let storage = MaybeOpenFsRepository::create(tmpdir.path().join("repo"))
+    use crate::storage::fs::RenderStore;
+
+    let storage = MaybeOpenFsRepository::<RenderStore>::create(tmpdir.path().join("repo"))
         .await
         .unwrap();
     let spec = tracking::TagSpec::parse("hello").unwrap();
