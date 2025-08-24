@@ -17,6 +17,10 @@ workspace = true
 name = "spfs"
 path = "src/bin.rs"
 
+[lib]
+name = "spfs_cli_main"
+path = "src/lib.rs"
+
 [features]
 fuse = ["spfs/fuse-backend"]
 sentry = ["spfs-cli-common/sentry"]
