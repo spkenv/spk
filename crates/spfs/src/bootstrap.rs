@@ -187,6 +187,16 @@ pub fn build_interactive_shell_command(
             ],
             vars: vec![shell_message],
         }),
+        Shell::Nushell(nu) => Ok(Command {
+            executable: nu.into(),
+            args: vec![
+                "--env-config".into(),
+                rt.config.nu_env_file.as_os_str().to_owned(),
+                "--config".into(),
+                rt.config.nu_config_file.as_os_str().to_owned(),
+            ],
+            vars: vec![shell_message],
+        }),
         #[cfg(windows)]
         Shell::Powershell(ps1) => Ok(Command {
             executable: ps1.into(),
@@ -222,6 +232,26 @@ where
     let startup_file = match shell.kind() {
         ShellKind::Bash => &runtime.config.sh_startup_file,
         ShellKind::Tcsh => &runtime.config.csh_startup_file,
+        ShellKind::Nushell => {
+            let mut cmd = command.into();
+            for arg in args.into_iter().map(Into::into) {
+                cmd.push(" ");
+                cmd.push(arg);
+            }
+            let args = vec![
+                "--env-config".into(),
+                runtime.config.nu_env_file.as_os_str().to_owned(),
+                "--config".into(),
+                runtime.config.nu_config_file.as_os_str().to_owned(),
+                "-c".into(),
+                cmd,
+            ];
+            return Ok(Command {
+                executable: shell.executable().into(),
+                args,
+                vars: vec![],
+            });
+        }
         ShellKind::Powershell => {
             let mut cmd = command.into();
             for arg in args.into_iter().map(Into::into) {
@@ -245,7 +275,6 @@ where
 
     let mut shell_args = vec![startup_file.into(), command.into()];
     shell_args.extend(args.into_iter().map(Into::into));
-
     Ok(Command {
         executable: shell.executable().into(),
         args: shell_args,
@@ -395,6 +424,7 @@ pub enum ShellKind {
     Bash,
     Tcsh,
     Powershell,
+    Nushell,
 }
 
 impl AsRef<str> for ShellKind {
@@ -402,6 +432,7 @@ impl AsRef<str> for ShellKind {
         match self {
             Self::Bash => "bash",
             Self::Tcsh => "tcsh",
+            Self::Nushell => "nu",
             Self::Powershell => "powershell.exe",
         }
     }
@@ -414,6 +445,7 @@ pub enum Shell {
     Bash(PathBuf),
     #[cfg(unix)]
     Tcsh(PathBuf),
+    Nushell(PathBuf),
     #[cfg(windows)]
     Powershell(PathBuf),
 }
@@ -425,6 +457,7 @@ impl Shell {
             Self::Bash(_) => ShellKind::Bash,
             #[cfg(unix)]
             Self::Tcsh(_) => ShellKind::Tcsh,
+            Self::Nushell(_) => ShellKind::Nushell,
             #[cfg(windows)]
             Self::Powershell(_) => ShellKind::Powershell,
         }
@@ -437,6 +470,7 @@ impl Shell {
             Self::Bash(p) => p,
             #[cfg(unix)]
             Self::Tcsh(p) => p,
+            Self::Nushell(p) => p,
             #[cfg(windows)]
             Self::Powershell(p) => p,
         }
@@ -452,6 +486,7 @@ impl Shell {
             Some(n) if n == ShellKind::Bash.as_ref() => Ok(Self::Bash(path.to_owned())),
             #[cfg(unix)]
             Some(n) if n == ShellKind::Tcsh.as_ref() => Ok(Self::Tcsh(path.to_owned())),
+            Some(n) if n == ShellKind::Nushell.as_ref() => Ok(Self::Nushell(path.to_owned())),
             #[cfg(windows)]
             Some(n) if n == ShellKind::Powershell.as_ref() => Ok(Self::Powershell(path.to_owned())),
             Some(_) => Err(Error::new(format!("Unsupported shell: {path:?}"))),
@@ -487,7 +522,12 @@ impl Shell {
             }
         }
 
-        for kind in &[ShellKind::Bash, ShellKind::Tcsh, ShellKind::Powershell] {
+        for kind in &[
+            ShellKind::Bash,
+            ShellKind::Tcsh,
+            ShellKind::Powershell,
+            ShellKind::Nushell,
+        ] {
             if let Some(path) = which(kind) {
                 if let Ok(shell) = Shell::from_path(path) {
                     return Ok(shell);

@@ -23,6 +23,7 @@ use tokio::io::AsyncReadExt;
 
 #[cfg(windows)]
 use super::startup_ps;
+use super::{config_nu, env_nu};
 #[cfg(unix)]
 use super::{startup_csh, startup_sh};
 use crate::encoding::Digest;
@@ -148,6 +149,9 @@ pub struct Config {
     pub sh_startup_file: PathBuf,
     /// The location of the startup script for csh-based shells
     pub csh_startup_file: PathBuf,
+    /// The location of the startup script for nushell-based shells
+    pub nu_env_file: PathBuf,
+    pub nu_config_file: PathBuf,
     /// The location of the expect utility script used for csh-based shell environments
     /// \[DEPRECATED\] This field still exists for spk/spfs interop but is unused
     #[serde(skip_deserializing, default = "Config::default_csh_expect_file")]
@@ -189,6 +193,8 @@ impl Config {
     const SH_STARTUP_FILE: &'static str = "startup.sh";
     const CSH_STARTUP_FILE: &'static str = ".cshrc";
     const PS_STARTUP_FILE: &'static str = "startup.ps1";
+    const NU_ENV_FILE: &'static str = "env.nu";
+    const NU_CONFIG_FILE: &'static str = "config.nu";
     const DEV_NULL: &'static str = "/dev/null";
 
     /// Return a dummy value for the legacy csh_expect_file field.
@@ -209,6 +215,8 @@ impl Config {
             csh_startup_file: root.join(Self::CSH_STARTUP_FILE),
             csh_expect_file: Self::default_csh_expect_file(),
             ps_startup_file: temp_dir().join(Self::PS_STARTUP_FILE),
+            nu_env_file: root.join(Self::NU_ENV_FILE),
+            nu_config_file: root.join(Self::NU_CONFIG_FILE),
             runtime_dir: Some(root),
             tmpfs_size,
             mount_namespace: None,
@@ -811,6 +819,16 @@ impl Runtime {
             startup_csh::source(environment_overrides_for_child_process),
         )
         .map_err(|err| Error::RuntimeWriteError(self.config.csh_startup_file.clone(), err))?;
+        std::fs::write(
+            &self.config.nu_env_file,
+            env_nu::source(tmpdir_value_for_child_process),
+        )
+        .map_err(|err| Error::RuntimeWriteError(self.config.nu_env_file.clone(), err))?;
+        std::fs::write(
+            &self.config.nu_config_file,
+            config_nu::source(tmpdir_value_for_child_process),
+        )
+        .map_err(|err| Error::RuntimeWriteError(self.config.nu_config_file.clone(), err))?;
         #[cfg(windows)]
         std::fs::write(
             &self.config.ps_startup_file,
