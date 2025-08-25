@@ -28,6 +28,7 @@ use spk_schema::foundation::version::CompatRule;
 use spk_schema::ident::{
     AnyIdent,
     AsVersionIdent,
+    InitialRawRequest,
     PkgRequest,
     RangeIdent,
     Request,
@@ -576,7 +577,13 @@ impl Requests {
                     }
 
                     let ident = recipe.ident().to_any_ident(Some(Build::Source));
-                    out.push(PkgRequest::from_ident_exact(ident, RequestedBy::CommandLine).into());
+                    out.push(
+                        PkgRequest::from_ident_exact(
+                            ident,
+                            RequestedBy::CommandLineRequest(InitialRawRequest(request.to_string())),
+                        )
+                        .into(),
+                    );
                 }
 
                 TestStage::Build => {
@@ -606,11 +613,10 @@ impl Requests {
                     if build_variant.is_some() {
                         bail!("Install stage does not accept a build variant specifier")
                     }
-
                     out.push(
                         PkgRequest::from_ident_exact(
                             recipe.ident().to_any_ident(None),
-                            RequestedBy::CommandLine,
+                            RequestedBy::CommandLineRequest(InitialRawRequest(request.to_string())),
                         )
                         .into(),
                     )
@@ -648,7 +654,9 @@ impl Requests {
             .wrap_err_with(|| format!("Failed to parse request {request}"))?
             .pkg()
             .ok_or_else(|| miette!("Expected a package request, got None"))?;
-        req.add_requester(RequestedBy::CommandLine);
+        req.add_requester(RequestedBy::CommandLineRequest(InitialRawRequest(
+            request.to_string(),
+        )));
 
         if req.pkg.components.is_empty() {
             if req.pkg.is_source() {

@@ -10,6 +10,7 @@ use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::opt_name;
 use spk_schema::ident::{
+    InitialRawRequest,
     PkgRequest,
     RangeIdent,
     Request,
@@ -283,7 +284,7 @@ async fn test_solver_package_with_no_recipe_from_cmd_line(#[case] mut solver: So
     // Create this one as requested by the command line, rather than the tests
     let req = Request::Pkg(PkgRequest::new(
         parse_ident_range("my-pkg").unwrap(),
-        RequestedBy::CommandLine,
+        RequestedBy::CommandLineRequest(InitialRawRequest("my-pkg".to_string())),
     ));
     solver.add_request(req);
 
@@ -317,7 +318,7 @@ async fn test_solver_package_with_no_recipe_from_cmd_line_and_impossible_initial
     // Create this one as requested by the command line, rather than the tests
     let req = Request::Pkg(PkgRequest::new(
         parse_ident_range("my-pkg").unwrap(),
-        RequestedBy::CommandLine,
+        RequestedBy::CommandLineRequest(InitialRawRequest("my-pkg".to_string())),
     ));
     solver.add_request(req);
     if let SolverImpl::Step(ref mut solver) = solver {
@@ -2793,7 +2794,10 @@ fn test_error_frequency_get_message_for_couldnotsatisfy_error() {
     let mut solver = StepSolver::default();
 
     let error = "my-pkg";
-    let request = PkgRequest::new(parse_ident_range(error).unwrap(), RequestedBy::CommandLine);
+    let request = PkgRequest::new(
+        parse_ident_range(error).unwrap(),
+        RequestedBy::CommandLineRequest(InitialRawRequest(error.to_string())),
+    );
 
     solver.increment_error_count(ErrorDetails::CouldNotSatisfy(
         request.pkg.to_string(),
@@ -2816,7 +2820,10 @@ fn test_error_frequency_get_message_for_couldnotsatisfy_error_multiple() {
     let mut solver = StepSolver::default();
 
     let error = "my-pkg";
-    let request = PkgRequest::new(parse_ident_range(error).unwrap(), RequestedBy::CommandLine);
+    let request = PkgRequest::new(
+        parse_ident_range(error).unwrap(),
+        RequestedBy::CommandLineRequest(InitialRawRequest("my-pkg".to_string())),
+    );
 
     solver.increment_error_count(ErrorDetails::CouldNotSatisfy(
         request.pkg.to_string(),
