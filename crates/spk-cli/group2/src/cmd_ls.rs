@@ -2,22 +2,22 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fmt::Write;
 
 use clap::Args;
 use colored::Colorize;
-use miette::{Result, miette};
-use nom::combinator::all_consuming;
+use futures::TryStreamExt;
+use miette::Result;
+use spfs::Digest;
 use spk_cli_common::{CommandArgs, Run, flags};
 use spk_schema::foundation::format::{FormatComponents, FormatIdent, FormatOptionMap};
 use spk_schema::foundation::ident_component::ComponentSet;
-use spk_schema::foundation::name::{PkgName, PkgNameBuf};
-use spk_schema::ident::{AnyIdent, AsVersionIdent, parse_ident};
-use spk_schema::ident_ops::parsing::{IdentParts, KNOWN_REPOSITORY_NAMES, ident_parts};
-use spk_schema::option_map::{OptFilter, get_host_options_filters};
-use spk_schema::spec_ops::WithVersion;
+use spk_schema::ident_component::Component;
+use spk_schema::option_map::get_host_options_filters;
 use spk_schema::{Deprecate, Package, Spec};
+use spk_storage::RepoWalker;
+use spk_storage::walker::{RepoWalkerBuilder, RepoWalkerItem};
 use {spk_config, spk_storage as storage};
 
 #[cfg(test)]
@@ -98,7 +98,7 @@ pub struct Ls<Output: Default = Console> {
     package: Option<String>,
 
     #[clap(skip)]
-    pub(crate) output: Output,
+    output: Output,
 }
 
 #[async_trait::async_trait]
@@ -131,171 +131,50 @@ impl<T: Output> Run for Ls<T> {
 
         let repos = self.repos.get_repos_for_non_destructive_operation().await?;
 
+        let package = self.package.clone();
+        let mut repo_walker_builder = RepoWalkerBuilder::new(&repos);
+        repo_walker_builder
+            .try_with_package_equals(&package)?
+            .with_report_on_versions(true)
+            .with_report_on_builds(true)
+            .with_report_src_builds(!self.no_src)
+            .with_report_deprecated_builds(self.deprecated)
+            .with_build_options_matching(filter_by.clone());
+
         if self.recursive {
-            return self.list_recursively(repos, &filter_by).await;
+            let repo_walker = repo_walker_builder.build();
+            return self.list_recursively(&repos, &repo_walker).await;
         }
 
-        let mut results = Vec::new();
-        match &self.package {
+        let results: Vec<String> = match &self.package {
             None => {
-                // List all the packages in the repo(s) - the set
-                // provides the sorting, but hides when a package is
-                // in multiple repos
+                // List all the packages in the repo(s)
                 if let Some(_filters) = &filter_by {
-                    return self.filter_all_top_level_packages(repos, &filter_by).await;
+                    // With some options filters this needs to walk to
+                    // the builds level to do its checks, which can be slow.
+                    let repo_walker = repo_walker_builder.build();
+                    return self.list_filtered_package_names(&repo_walker).await;
+                } else {
+                    // Without any options filters this does not need
+                    // beyond the package level.
+                    let repo_walker = repo_walker_builder.with_report_on_versions(false).build();
+                    self.get_all_packages_listing(&repo_walker).await?
                 }
-
-                // Simpler without a filter
-                // TODO: should this include the repo name in the output?
-                let mut set = BTreeSet::new();
-                for (_repo_name, repo) in repos {
-                    set.extend(
-                        repo.list_packages()
-                            .await?
-                            .into_iter()
-                            .map(PkgNameBuf::into),
-                    )
-                }
-                results = set.into_iter().collect();
             }
             Some(package) if !package.contains('/') => {
                 // Given a package name, list all the versions of the package
-                let pkgname = PkgName::new(package)?;
-                let mut versions = Vec::new();
-                for (index, (_, repo)) in repos.iter().enumerate() {
-                    versions.extend(
-                        repo.list_package_versions(pkgname)
-                            .await?
-                            .iter()
-                            .map(|v| ((**v).clone(), index)),
-                    );
-                }
-
-                versions.sort_by_key(|v| v.0.clone());
-                versions.reverse();
-
-                // Add the sorted versions to the results, in the
-                // appropriate format, and after any filtering
-                for (version, repo_index) in versions {
-                    // TODO: add repo name to output?
-                    let (_repo_name, repo) = repos.get(repo_index).unwrap();
-                    // TODO: add package name to output?
-                    let mut name = String::from(package);
-                    name.push('/');
-                    name.push_str(&version.to_string());
-
-                    let ident = parse_ident(name.clone())?;
-
-                    // In order to honor showing or hiding deprecated builds,
-                    // inventory the builds of this version (do not depend on
-                    // the existence of a "version spec").
-
-                    let mut builds = repo.list_package_builds(ident.as_version_ident()).await?;
-                    if builds.is_empty() {
-                        // Does a version with no builds really exist?
-                        continue;
-                    }
-
-                    let mut builds_remaining = false;
-                    let mut any_deprecated = false;
-                    let mut any_not_deprecated = false;
-                    while let Some(build) = builds.pop() {
-                        if self.no_src && build.is_source() {
-                            // Filter out source builds
-                            continue;
-                        }
-                        match repo.read_package(&build).await {
-                            Ok(spec) => {
-                                if !spec.matches_all_filters(&filter_by) {
-                                    continue;
-                                }
-                                builds_remaining = true;
-
-                                if spec.is_deprecated() {
-                                    any_deprecated = true;
-                                } else {
-                                    any_not_deprecated = true;
-                                }
-                            }
-                            Err(err) => {
-                                self.output
-                                    .warn(format!("Error reading spec for {build}: {err}"));
-                            }
-                        }
-                        if any_not_deprecated && any_deprecated {
-                            break;
-                        }
-                    }
-
-                    if !builds_remaining {
-                        // All the builds of this version were filtered out
-                        continue;
-                    }
-
-                    let all_deprecated = any_deprecated && !any_not_deprecated;
-
-                    // TODO: tempted to swap this over to call
-                    // format_build, which would add the package name
-                    // and more, but also simplify this bringing it
-                    // closer to the next Some(package) clause?
-                    if self.deprecated {
-                        // show deprecated versions
-                        if all_deprecated {
-                            results.push(format!("{version} {}", "DEPRECATED".red()));
-                            continue;
-                        } else if any_deprecated {
-                            results.push(format!("{version} {}", "(partially) DEPRECATED".red()));
-                            continue;
-                        }
-                    } else {
-                        // don't show deprecated versions
-                        if all_deprecated {
-                            continue;
-                        }
-                    }
-                    results.push(version.to_string());
-                }
+                let repo_walker = repo_walker_builder.with_end_of_markers(true).build();
+                self.get_versions_listing(&repo_walker).await?
             }
-            Some(package) => {
-                // Like the None clause, the set provides the sorting
-                // but hides when a build is in multiple repos
-                // TODO: should this include the repo name in the output?
-                let mut set = BTreeSet::new();
+            Some(_package) => {
                 // Given a package version (or build), list all its builds
-                let pkg = parse_ident(package)?;
-                for (_, repo) in repos {
-                    for build in repo.list_package_builds(pkg.as_version_ident()).await? {
-                        if self.no_src && build.is_source() {
-                            // Filter out source builds
-                            continue;
-                        }
-
-                        // Doing this here slows the listing down, but
-                        // the spec file is the only place that holds
-                        // the deprecation status.
-                        let spec = match repo.read_package(&build).await {
-                            Ok(spec) => spec,
-                            Err(err) => {
-                                self.output.warn(format!("Skipping {build}: {err}"));
-                                continue;
-                            }
-                        };
-
-                        if !spec.matches_all_filters(&filter_by) {
-                            continue;
-                        }
-
-                        if spec.is_deprecated() && !self.deprecated {
-                            // Hide deprecated packages by default
-                            continue;
-                        }
-                        set.insert(self.format_build(&spec, &repo).await?);
-                    }
-                }
-                results = set.into_iter().collect();
+                let repo_walker = repo_walker_builder.build();
+                return self.list_recursively(&repos, &repo_walker).await;
             }
-        }
+        };
 
+        // Display the collected results, if any. Some branches
+        // display as they go, so results might be empty here.
         for item in results {
             self.output.println(item.to_string());
         }
@@ -314,197 +193,185 @@ impl<T: Output> CommandArgs for Ls<T> {
 }
 
 impl<T: Output> Ls<T> {
+    async fn list_filtered_package_names(&mut self, repo_walker: &RepoWalker<'_>) -> Result<i32> {
+        // Outputs packages that have a build that match the walker's
+        // filters (usually options host filters). The packages are
+        // output as they are returned because checking the builds can
+        // be slow.
+        let mut set = BTreeSet::new();
+
+        let mut traversal = repo_walker.walk();
+
+        while let Some(item) = traversal.try_next().await? {
+            if let RepoWalkerItem::Build(build) = item {
+                let package = build.spec.ident().name().to_string();
+                if !set.insert(package.clone()) {
+                    continue;
+                }
+
+                if self.verbose > 0 {
+                    self.output
+                        .println(format!("[{}] {}", build.repo_name, package));
+                } else {
+                    self.output.println(package);
+                }
+            }
+        }
+
+        Ok(0)
+    }
+
+    async fn get_all_packages_listing(
+        &mut self,
+        repo_walker: &RepoWalker<'_>,
+    ) -> Result<Vec<String>> {
+        // Returns a list of output lines that list all the packages
+        // found by the walker.
+        let mut set = BTreeSet::new();
+
+        let mut traversal = repo_walker.walk();
+
+        while let Some(item) = traversal.try_next().await? {
+            if let RepoWalkerItem::Package(package) = item {
+                if self.verbose > 0 {
+                    set.insert(format!("[{}] {}", package.repo_name, package.name));
+                } else {
+                    set.insert((*package.name).clone().into());
+                }
+            }
+        }
+
+        Ok(set.into_iter().collect())
+    }
+
+    async fn get_versions_listing(&mut self, repo_walker: &RepoWalker<'_>) -> Result<Vec<String>> {
+        // Returns a list of output lines that list all the versions
+        // of a package founds by the walker.
+        let mut active_builds = HashSet::new();
+        let mut deprecated_builds = HashSet::new();
+        let mut lines = Vec::new();
+
+        let mut traversal = repo_walker.walk();
+
+        while let Some(item) = traversal.try_next().await? {
+            match item {
+                RepoWalkerItem::Build(build) => {
+                    if build.spec.is_deprecated() {
+                        deprecated_builds.insert(build.spec.ident().version().clone());
+                    } else {
+                        active_builds.insert(build.spec.ident().version().clone());
+                    }
+                }
+                RepoWalkerItem::EndOfVersion(version) => {
+                    let version_number = version.ident.version();
+
+                    let any_available = active_builds.contains(version_number);
+                    let any_deprecated = deprecated_builds.contains(version_number);
+                    let all_deprecated = any_deprecated && !any_available;
+
+                    let presentation_version_number = if any_available {
+                        match active_builds.get(version_number) {
+                            Some(vn) => vn,
+                            None => version_number,
+                        }
+                    } else {
+                        version_number
+                    };
+
+                    if self.deprecated {
+                        // Show deprecated versions with an indication
+                        // of how many builds were also deprecated.
+                        if all_deprecated {
+                            lines.push(format!(
+                                "{presentation_version_number} {}",
+                                "DEPRECATED".red()
+                            ));
+                        } else if any_deprecated {
+                            lines.push(format!(
+                                "{presentation_version_number} {}",
+                                "(partially) DEPRECATED".red()
+                            ));
+                        } else {
+                            lines.push(presentation_version_number.to_string());
+                        }
+                    } else if any_available {
+                        lines.push(presentation_version_number.to_string());
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        Ok(lines)
+    }
+
     async fn list_recursively(
         &mut self,
-        repos: Vec<(String, storage::RepositoryHandle)>,
-        filter_by: &Option<Vec<OptFilter>>,
+        repos: &[(String, storage::RepositoryHandle)],
+        repo_walker: &RepoWalker<'_>,
     ) -> Result<i32> {
-        let search_term = self
-            .package
-            .as_ref()
-            .map(|ident| {
-                all_consuming(ident_parts::<nom_supreme::error::ErrorTree<_>>(
-                    &KNOWN_REPOSITORY_NAMES,
-                ))(ident)
-                .map(|(_, parts)| parts)
-                .map_err(|err| match err {
-                    nom::Err::Error(e) | nom::Err::Failure(e) => {
-                        miette!(e.to_string())
-                    }
-                    nom::Err::Incomplete(_) => unreachable!(),
-                })
-            })
-            .transpose()?;
+        // Outputs builds that match the walker's filters. The builds
+        // are output as match because checking the builds can be slow.
 
-        let mut packages = Vec::new();
+        // Work out the longest repo name, and map the name to their
+        // repos for direct lookup for later if need to get build components.
         let mut max_repo_name_len = 0;
-        for (index, (repo_name, repo)) in repos.iter().enumerate() {
-            let num_packages = packages.len();
-            match &search_term {
-                None => {
-                    packages.extend(repo.list_packages().await?.into_iter().map(|p| (p, index)));
-                }
-                Some(IdentParts {
-                    repository_name: Some(name),
-                    ..
-                }) if name != repo_name => continue,
-                Some(IdentParts { pkg_name, .. }) => {
-                    packages.push((pkg_name.parse()?, index));
-                }
-            };
-            // Ignore this repo name if it didn't contribute any packages.
-            if packages.len() > num_packages {
-                max_repo_name_len = max_repo_name_len.max(repo_name.len());
+        let mut repo_map: HashMap<String, &storage::RepositoryHandle> = HashMap::new();
+        for (repo_name, repo) in repos.iter() {
+            max_repo_name_len = max_repo_name_len.max(repo_name.len());
+            if self.verbose > 1 || self.components {
+                repo_map.insert(repo_name.to_string(), repo);
             }
         }
-        packages.sort();
-        for (package, index) in packages {
-            let (repo_name, repo) = repos.get(index).unwrap();
-            let mut versions = {
-                let base = AnyIdent::from(package);
-                repo.list_package_versions(base.name())
-                    .await?
-                    .iter()
-                    .filter_map(|v| match search_term {
-                        Some(IdentParts {
-                            version_str: Some(version),
-                            ..
-                        }) if version != v.to_string() => None,
-                        _ => Some(base.with_version((**v).clone())),
-                    })
-                    .collect::<Vec<_>>()
+
+        let mut traversal = repo_walker.walk();
+
+        // Run through all the builds
+        while let Some(item) = traversal.try_next().await? {
+            if let RepoWalkerItem::Build(build) = item {
+                // If going to display the components, get the repo
+                // matching the repo name and look up the build's components.
+                let components = if self.verbose > 1 || self.components {
+                    match repo_map.get(build.repo_name) {
+                        Some(r) => Some(r.read_components(build.spec.ident()).await?),
+                        None => {
+                            self.output.warn(format!(
+                                "Skipping {}: Error: {} not found in known repos list",
+                                build.spec.ident(),
+                                build.repo_name
+                            ));
+                            continue;
+                        }
+                    }
+                } else {
+                    None
+                };
+
+                // Output this build
+                let prefix = if self.verbose > 0 {
+                    format!(
+                        "{:>width$} ",
+                        format!("[{}]", build.repo_name),
+                        width = max_repo_name_len + 2
+                    )
+                } else {
+                    "".to_string()
+                };
+
+                self.output.println(format!(
+                    "{prefix}{}",
+                    self.format_build(&build.spec, components).await?
+                ));
             };
-            versions.sort();
-            versions.reverse();
-            for pkg in versions {
-                let mut builds = repo.list_package_builds(pkg.as_version_ident()).await?;
-                builds.sort();
-                for build in builds {
-                    if let Some(IdentParts {
-                        build_str: Some(search_build),
-                        ..
-                    }) = search_term
-                    {
-                        if build.build().to_string() != search_build {
-                            continue;
-                        }
-                    }
-
-                    if self.no_src && build.is_source() {
-                        // Filter out source builds
-                        continue;
-                    }
-
-                    // Doing this here slows the listing down, but
-                    // the spec file is the only place that holds
-                    // the deprecation status.
-                    let spec = match repo.read_package(&build).await {
-                        Ok(spec) => spec,
-                        Err(err) => {
-                            self.output.warn(format!("Skipping {build}: {err}"));
-                            continue;
-                        }
-                    };
-
-                    if !spec.matches_all_filters(filter_by) {
-                        continue;
-                    }
-
-                    if spec.is_deprecated() && !self.deprecated {
-                        // Hide deprecated packages by default
-                        continue;
-                    }
-
-                    if self.verbose > 0 {
-                        print!(
-                            "{:>width$} ",
-                            format!("[{repo_name}]"),
-                            width = max_repo_name_len + 2
-                        );
-                    }
-                    self.output
-                        .println((self.format_build(&spec, repo).await?).to_string());
-                }
-            }
         }
         Ok(0)
     }
 
-    async fn filter_all_top_level_packages(
-        &mut self,
-        repos: Vec<(String, storage::RepositoryHandle)>,
-        filter_by: &Option<Vec<OptFilter>>,
-    ) -> Result<i32> {
-        let mut packages = Vec::new();
-        for (index, (_repo_name, repo)) in repos.iter().enumerate() {
-            packages.extend(repo.list_packages().await?.into_iter().map(|p| (p, index)));
-        }
-        packages.sort_by_key(|p| p.0.to_string());
-
-        let mut seen = HashSet::new();
-        for (package, index) in packages {
-            if seen.contains(&package) {
-                // Once a package have been output from one repo, this
-                // doesn't need to consider the same package in other repos.
-                continue;
-            }
-
-            let (_repo_name, repo) = repos.get(index).unwrap();
-
-            let versions = {
-                let base = AnyIdent::from(package.clone());
-                repo.list_package_versions(base.name())
-                    .await?
-                    .iter()
-                    .map(|v| base.with_version((**v).clone()))
-                    .collect::<Vec<_>>()
-            };
-
-            for pkg in versions {
-                let mut found_a_match = false;
-                for build in repo.list_package_builds(pkg.as_version_ident()).await? {
-                    if self.no_src && build.is_source() {
-                        // Filter out source builds
-                        continue;
-                    }
-
-                    let spec = match repo.read_package(&build).await {
-                        Ok(spec) => spec,
-                        Err(err) => {
-                            self.output.warn(format!("Skipping {build}: {err}"));
-                            continue;
-                        }
-                    };
-
-                    if !spec.matches_all_filters(filter_by) {
-                        continue;
-                    }
-
-                    if spec.is_deprecated() && !self.deprecated {
-                        // Hide deprecated packages by default
-                        continue;
-                    }
-
-                    // One build passing the filters is enough for this
-                    // version to be counted as matching.
-                    found_a_match = true;
-                    break;
-                }
-
-                // One version with a matching build is enough for
-                // this package to be counted has matching
-                if found_a_match {
-                    self.output.println(package.to_string());
-                    seen.insert(package);
-                    break;
-                }
-            }
-        }
-
-        Ok(0)
-    }
-
-    async fn format_build(&self, spec: &Spec, repo: &storage::RepositoryHandle) -> Result<String> {
+    async fn format_build(
+        &self,
+        spec: &Spec,
+        components: Option<HashMap<Component, Digest>>,
+    ) -> Result<String> {
         let mut item = spec.ident().format_ident();
         if spec.is_deprecated() {
             let _ = write!(item, " {}", "DEPRECATED".red());
@@ -523,8 +390,7 @@ impl<T: Output> Ls<T> {
             item.push_str(&options.format_option_map());
         }
 
-        if self.verbose > 1 || self.components {
-            let cmpts = repo.read_components(spec.ident()).await?;
+        if let Some(cmpts) = components {
             item.push(' ');
             item.push_str(&ComponentSet::from(cmpts.keys().cloned()).format_components());
         }
