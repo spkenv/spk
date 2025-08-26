@@ -63,6 +63,10 @@ pub enum Error {
     #[error(transparent)]
     #[diagnostic(forward(0))]
     SpkSpecError(Box<spk_schema::Error>),
+    #[error("No disk usage: version '{0}' not found")]
+    DiskUsageVersionNotFound(String),
+    #[error("No disk usage: build '{0}' not found")]
+    DiskUsageBuildNotFound(String),
     #[error("{0}")]
     String(String),
 }

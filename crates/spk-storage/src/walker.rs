@@ -543,7 +543,7 @@ impl RepoWalker<'_> {
     // TODO: This could be a spfs level storage walker, or use one in
     // future. This processes spfs objects, but only returns file things
     // that spk wants to know about, i.e. WalkedFiles.
-    fn file_stream<'a>(
+    pub fn file_stream<'a>(
         &'a self,
         repo: &'a RepositoryHandle,
         component: WalkedComponent<'a>,
@@ -723,10 +723,20 @@ impl RepoWalker<'_> {
 /// A builder for constructing a RepoWalker from various settings.
 ///
 /// A default RepoWalker can made with:
+/// ```
+/// use spk_storage::RepoWalkerBuilder;
+/// # use spk_storage::local_repository;
+/// # use spk_storage::Result;
+/// # use futures::executor::block_on;
+/// # fn main() -> Result<()> {
+/// # let mut repo = block_on(local_repository())?;
+/// # let repos = vec!(("local".to_string(), repo.into()));
 ///
-///   let repo_walker_builder = RepoWalkerBuilder::new(repos);
-///   let repo_walker = builder.build();
-///
+/// let repo_walker_builder = RepoWalkerBuilder::new(&repos);
+/// let repo_walker = repo_walker_builder.build();
+/// # Ok(())
+/// # }
+/// ```
 /// That makes a RepoWalker that will: walk the given list of
 /// repositories to report on all packages, all versions, all builds
 /// that aren't /src or /deprecated builds, and will emit the package,
@@ -742,28 +752,40 @@ impl RepoWalker<'_> {
 /// Other walkers can be made by using the with_* methods on the
 /// RepoWalkerBuilder to configure it before calling build() and
 /// making the RepoWalker, e.g.
+/// ```
+/// use spk_storage::RepoWalkerBuilder;
+/// # use spk_storage::local_repository;
+/// # use futures::executor::block_on;
+/// # fn main() -> miette::Result<()> {
+/// # let mut repo = block_on(local_repository())?;
+/// # let repos = vec!(("local".to_string(), repo.into()));
+/// let some_package = Some("python/3.10.10".to_string());
+/// let host_options = None;
+/// let some_file_path = Some("/lib".to_string());
 ///
-///   let repo_walker_builder = RepoWalkerBuilder::new(repos);
-///   let repo_walker = builder
-///         .try_with_package_equals(some_package)?
-///         .with_report_on_versions(true)
-///         .with_report_on_builds(true)
-///         .with_report_src_builds(true)
-///         .with_report_deprecated_builds(true)
-///         .with_report_embedded_builds(false)
-///         .with_report_on_components(true)
-///         .with_build_options_matching(host_options)
-///         .with_report_on_files(true)
-///         .with_file_path(some_file_path)
-///         .with_continue_on_error(true)
-///         .build();
-///
+/// let mut repo_walker_builder = RepoWalkerBuilder::new(&repos);
+/// let repo_walker = repo_walker_builder
+///       .try_with_package_equals(&some_package)?
+///       .with_report_on_versions(true)
+///       .with_report_on_builds(true)
+///       .with_report_src_builds(true)
+///       .with_report_deprecated_builds(true)
+///       .with_report_embedded_builds(false)
+///       .with_report_on_components(true)
+///       .with_build_options_matching(host_options)
+///       .with_report_on_files(true)
+///       .with_file_path(some_file_path)
+///       .with_continue_on_error(true)
+///       .build();
+/// # Ok(())
+/// # }
+/// ```
 /// That makes a RepoWalker that will: walk down to files, but only
 /// for packages that match the given package identifier. It will
 /// filter out embedded builds and builds that don't match given host
 /// options. It will turn errors into warnings and continue on if it
 /// hits an error.
-///
+#[derive(Clone)]
 pub struct RepoWalkerBuilder<'a> {
     /// A list of repositories to walk. These must be given to the
     /// constructor, everything else has a default, see new(). There
@@ -934,6 +956,53 @@ impl<'a> RepoWalkerBuilder<'a> {
             }
         }
         Ok(self)
+    }
+
+    /// Sets package name and version number filters based on the
+    /// given version ident. This is a helper function. The same
+    /// filters could also be set up by calling:
+    /// [Self::with_package_filter] and [Self::with_version_filter].
+    pub fn with_version_ident(&mut self, version: VersionIdent) -> &mut Self {
+        // Set up a filter function for matching the package name.
+        let pkg_name = version.name().to_string();
+        self.with_package_filter(move |wp| {
+            RepoWalkerFilter::exact_package_name_filter(wp, None, pkg_name.clone())
+        });
+
+        // Set up a filter function matching for the version, if any
+        let version_number = version.version().clone();
+        self.with_version_filter(move |ver| {
+            RepoWalkerFilter::exact_match_version_filter(ver, version_number.to_string().clone())
+        });
+
+        self
+    }
+
+    /// Sets package name, version number, and build id (digest)
+    /// filters based on the given build ident. This is a helper
+    /// function. The same filters could also be set up by calling:
+    /// [Self::with_package_filter], [Self::with_version_filter], and
+    /// [Self::with_build_ident_filter].
+    pub fn with_build_ident(&mut self, build: BuildIdent) -> &mut Self {
+        // Set up a filter function for matching the package name.
+        let pkg_name = build.name().to_string();
+        self.with_package_filter(move |wp| {
+            RepoWalkerFilter::exact_package_name_filter(wp, None, pkg_name.clone())
+        });
+
+        // Set up a filter function matching for the version, if any
+        let version_number = build.version().clone();
+        self.with_version_filter(move |ver| {
+            RepoWalkerFilter::exact_match_version_filter(ver, version_number.to_string().clone())
+        });
+
+        // Set up a filter function for matching the build ident, if any
+        let build_id = build.build().clone();
+        self.with_build_ident_filter(move |b| {
+            RepoWalkerFilter::exact_match_build_digest_filter(b, build_id.to_string().clone())
+        });
+
+        self
     }
 
     /// Given some file path string, this will use it to set a file
