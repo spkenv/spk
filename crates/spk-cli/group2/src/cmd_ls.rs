@@ -546,7 +546,7 @@ impl<T: Output> Ls<T> {
                     if let Some(name_entry) = counters.get(&name.to_string()) {
                         if let Some(value_entry) = name_entry.get(&value.to_string()) {
                             if *value_entry != num_builds {
-                                Some(format!("{}{}{}", name, "=".dimmed(), value.cyan()))
+                                Some(format!("{name}{}{}", "=".dimmed(), value.cyan()))
                             } else {
                                 None
                             }
@@ -559,9 +559,7 @@ impl<T: Output> Ls<T> {
                         None
                     }
                 }
-                BuildOptionsDisplay::All => {
-                    Some(format!("{}{}{}", name, "=".dimmed(), value.cyan()))
-                }
+                BuildOptionsDisplay::All => Some(format!("{name}{}{}", "=".dimmed(), value.cyan())),
             })
             .collect();
 
