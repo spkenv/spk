@@ -4,11 +4,12 @@
 
 use clap::Args;
 use colored::Colorize;
+use futures::TryStreamExt;
 use miette::Result;
 use spk_cli_common::{CommandArgs, Run, flags};
 use spk_schema::foundation::format::FormatIdent;
-use spk_schema::{Deprecate, Package, VersionIdent};
 use spk_solve::option_map::get_host_options_filters;
+use spk_storage::walker::{DeprecationState, RepoWalkerBuilder, RepoWalkerItem};
 
 /// Search for packages by name/substring
 #[derive(Args)]
@@ -79,102 +80,43 @@ impl Run for Search {
         };
         tracing::debug!("Filter is: {:?}", filter_by);
 
+        let mut repo_walker_builder = RepoWalkerBuilder::new(&repos);
+        let repo_walker = repo_walker_builder
+            .with_package_name_substring_matching(self.term.clone())
+            .with_report_on_versions(true)
+            .with_report_on_builds(true)
+            .with_report_src_builds(!self.no_src)
+            .with_report_deprecated_builds(self.deprecated)
+            .with_build_options_matching(filter_by.clone())
+            .with_calculate_deprecated_versions(true)
+            .build();
+        let mut traversal = repo_walker.walk();
+
         let mut exit = 1;
-        for (repo_name, repo) in repos.iter() {
-            for name in repo.list_packages().await? {
-                if !name.as_str().contains(&self.term) {
-                    continue;
-                }
-                let versions = repo.list_package_versions(&name).await?;
-                let mut ident = VersionIdent::new_zero(name);
-                for v in versions.iter() {
-                    ident.set_version((**v).clone());
 
-                    let builds = repo.list_package_builds(&ident).await?;
-                    if builds.is_empty() {
-                        // A version with no builds is treated as if
-                        // it does not really exist. This can happen
-                        // when a previously published package is
-                        // deleted by 'spk rm'.
-                        continue;
-                    }
-
-                    // Check recipe exists and for deprecation
-                    let mut deprecation_status = "".black();
-                    match repo.read_recipe(&ident).await {
-                        Ok(recipe) => {
-                            if recipe.is_deprecated() {
-                                if self.deprecated {
-                                    deprecation_status = " DEPRECATED".red();
-                                } else {
-                                    // Hide the deprecated ones
-                                    continue;
-                                }
-                            }
-                            // Need to look at the builds to see if
-                            // there's one that matches the filters
-                            let mut has_a_build_that_matches_the_filter = false;
-                            for build in builds {
-                                if self.no_src && build.is_source() {
-                                    // Filter out source builds
-                                    continue;
-                                }
-
-                                if let Ok(spec) = repo.read_package(&build).await {
-                                    if spec.matches_all_filters(&filter_by) {
-                                        has_a_build_that_matches_the_filter = true;
-                                        break;
-                                    }
-                                }
-                            }
-                            if !has_a_build_that_matches_the_filter {
-                                // Hide ones that don't match the filters
-                                continue;
-                            }
+        while let Some(item) = traversal.try_next().await? {
+            if let RepoWalkerItem::Version(version) = item {
+                let deprecation_status =
+                    if DeprecationState::Deprecated == version.deprecation_state {
+                        if self.deprecated {
+                            " DEPRECATED".red()
+                        } else {
+                            // Hide the deprecated ones
+                            continue;
                         }
-                        Err(_) => {
-                            // It doesn't have a recipe, but it does
-                            // have builds, so unless all the builds
-                            // are deprecated, show it if a build
-                            // matches the filter. This can happen
-                            // when there is a version of a package
-                            // that only exists as embedded builds.
-                            let mut all_builds_deprecated = true;
-                            for build in builds {
-                                if self.no_src && build.is_source() {
-                                    // Filter out source builds
-                                    continue;
-                                }
-
-                                if let Ok(spec) = repo.read_package(&build).await {
-                                    if !spec.is_deprecated() {
-                                        if !spec.matches_all_filters(&filter_by) {
-                                            // Hide ones that don't match the filters
-                                            continue;
-                                        }
-                                        all_builds_deprecated = false;
-                                        break;
-                                    }
-                                }
-                            }
-                            if all_builds_deprecated {
-                                if self.deprecated {
-                                    deprecation_status = " DEPRECATED".red();
-                                } else {
-                                    continue;
-                                }
-                            }
-                        }
+                    } else {
+                        "".black()
                     };
 
-                    exit = 0;
-                    println!(
-                        "{repo_name: <width$} {}{deprecation_status}",
-                        ident.format_ident()
-                    );
-                }
+                exit = 0;
+                println!(
+                    "{: <width$} {}{deprecation_status}",
+                    version.repo_name,
+                    version.ident.format_ident()
+                );
             }
         }
+
         Ok(exit)
     }
 }
