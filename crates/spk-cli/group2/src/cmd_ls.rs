@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fmt::Write;
+use std::sync::Arc;
 
-use clap::Args;
+use clap::{Args, ValueEnum};
 use colored::Colorize;
 use futures::TryStreamExt;
 use miette::Result;
@@ -14,10 +15,11 @@ use spk_cli_common::{CommandArgs, Run, flags};
 use spk_schema::foundation::format::{FormatComponents, FormatIdent, FormatOptionMap};
 use spk_schema::foundation::ident_component::ComponentSet;
 use spk_schema::ident_component::Component;
+use spk_schema::name::OptNameBuf;
 use spk_schema::option_map::get_host_options_filters;
-use spk_schema::{Deprecate, Package, Spec};
+use spk_schema::{Deprecate, OptionMap, Package, Spec, VersionIdent};
 use spk_storage::RepoWalker;
-use spk_storage::walker::{RepoWalkerBuilder, RepoWalkerItem};
+use spk_storage::walker::{RepoWalkerBuilder, RepoWalkerItem, WalkedBuild};
 use {spk_config, spk_storage as storage};
 
 #[cfg(test)]
@@ -43,6 +45,20 @@ impl Output for Console {
     fn warn(&mut self, line: String) {
         tracing::warn!("{line}");
     }
+}
+
+/// The ways of displaying build options under higher verbosity
+#[derive(Copy, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum BuildOptionsDisplay {
+    All,
+    Diff,
+}
+
+/// Helper struct used when the one of the build options display flags is used
+struct BuildForOutput<'a> {
+    pub prefix: String,
+    pub build: WalkedBuild<'a>,
+    pub components: Option<HashMap<Component, spfs::encoding::Digest>>,
 }
 
 /// List packages in one or more repositories
@@ -90,6 +106,11 @@ pub struct Ls<Output: Default = Console> {
     /// src ones, that match the current host's host options.
     #[clap(long)]
     src: bool,
+
+    /// Enable the alternative display of build's options, only
+    /// applies when verbosity > 0.
+    #[clap(long, short = 'b', env = "SPK_LS_BUILD_OPTIONS_DISPLAY", value_enum, default_value_t = BuildOptionsDisplay::All)]
+    pub(crate) build_options_display: BuildOptionsDisplay,
 
     /// Given a name, list versions. Given a name/version list builds.
     ///
@@ -142,7 +163,12 @@ impl<T: Output> Run for Ls<T> {
             .with_build_options_matching(filter_by.clone());
 
         if self.recursive {
-            let repo_walker = repo_walker_builder.build();
+            let capture_builds =
+                self.verbose > 0 && self.build_options_display != BuildOptionsDisplay::All;
+            let repo_walker = repo_walker_builder
+                .with_end_of_markers(capture_builds)
+                .build();
+
             return self.list_recursively(&repos, &repo_walker).await;
         }
 
@@ -168,7 +194,12 @@ impl<T: Output> Run for Ls<T> {
             }
             Some(_package) => {
                 // Given a package version (or build), list all its builds
-                let repo_walker = repo_walker_builder.build();
+                let capture_builds =
+                    self.verbose > 0 && self.build_options_display != BuildOptionsDisplay::All;
+                let repo_walker = repo_walker_builder
+                    .with_end_of_markers(capture_builds)
+                    .build();
+
                 return self.list_recursively(&repos, &repo_walker).await;
             }
         };
@@ -324,50 +355,226 @@ impl<T: Output> Ls<T> {
             }
         }
 
-        let mut traversal = repo_walker.walk();
+        // Check if one of the alternate build options display is
+        // enabled, only for high enough verbosity.
+        let capture_builds =
+            self.verbose > 0 && self.build_options_display != BuildOptionsDisplay::All;
+        let mut builds = Vec::new();
 
         // Run through all the builds
+        let mut traversal = repo_walker.walk();
+
         while let Some(item) = traversal.try_next().await? {
-            if let RepoWalkerItem::Build(build) = item {
-                // If going to display the components, get the repo
-                // matching the repo name and look up the build's components.
-                let components = if self.verbose > 1 || self.components {
-                    match repo_map.get(build.repo_name) {
-                        Some(r) => Some(r.read_components(build.spec.ident()).await?),
-                        None => {
-                            self.output.warn(format!(
-                                "Skipping {}: Error: {} not found in known repos list",
-                                build.spec.ident(),
-                                build.repo_name
-                            ));
-                            continue;
+            match item {
+                RepoWalkerItem::Build(build) => {
+                    // If going to display the components, get the repo
+                    // matching the repo name and look up the build's components.
+                    let components = if self.verbose > 1 || self.components {
+                        match repo_map.get(build.repo_name) {
+                            Some(r) => Some(r.read_components(build.spec.ident()).await?),
+                            None => {
+                                self.output.warn(format!(
+                                    "Skipping {}: Error: {} not found in known repos list",
+                                    build.spec.ident(),
+                                    build.repo_name
+                                ));
+                                continue;
+                            }
                         }
+                    } else {
+                        None
+                    };
+
+                    let prefix = if self.verbose > 0 {
+                        format!(
+                            "{:>width$} ",
+                            format!("[{}]", build.repo_name),
+                            width = max_repo_name_len + 2
+                        )
+                    } else {
+                        "".to_string()
+                    };
+
+                    if capture_builds {
+                        // Capture this build for options display
+                        // processing later.
+                        builds.push(BuildForOutput {
+                            prefix,
+                            build,
+                            components,
+                        });
+                    } else {
+                        // Output this build immediately
+                        self.output.println(format!(
+                            "{prefix}{}",
+                            self.format_build(&build.spec, components)?
+                        ));
                     }
-                } else {
-                    None
-                };
-
-                // Output this build
-                let prefix = if self.verbose > 0 {
-                    format!(
-                        "{:>width$} ",
-                        format!("[{}]", build.repo_name),
-                        width = max_repo_name_len + 2
-                    )
-                } else {
-                    "".to_string()
-                };
-
-                self.output.println(format!(
-                    "{prefix}{}",
-                    self.format_build(&build.spec, components).await?
-                ));
-            };
+                }
+                // These will only appear if one of the alternate
+                // build options output format is enabled at the
+                // correct verbosity, because then the main command
+                // function will have enabled the end of object
+                // markers when it created the walker.
+                RepoWalkerItem::EndOfVersion(version) => {
+                    if capture_builds && !builds.is_empty() {
+                        let lines = self.format_build_lines(version.ident.clone(), &builds)?;
+                        for l in lines {
+                            self.output.println(l);
+                        }
+                        builds.clear();
+                    }
+                }
+                _ => (),
+            }
         }
+
         Ok(0)
     }
 
-    async fn format_build(
+    fn format_build_lines(
+        &self,
+        package_version: Arc<VersionIdent>,
+        builds: &[BuildForOutput],
+    ) -> Result<Vec<String>> {
+        let mut results = Vec::new();
+
+        // TODO: make a type?
+        let mut counters: BTreeMap<String, HashMap<String, u64>> = BTreeMap::new();
+        let mut has_a_source_build = false;
+
+        for build_to_format in builds.iter() {
+            let build = &build_to_format.build;
+
+            // First, check for a source build
+            if !has_a_source_build && build.spec.ident().is_source() {
+                has_a_source_build = true;
+                continue;
+            }
+
+            // For all the other builds capture and counter their
+            // build options and values.
+            let options = build.spec.option_values();
+
+            for (name, value) in options.iter() {
+                if value.is_empty() {
+                    // These options didn't contribute to the build, so ignore them
+                    continue;
+                }
+                let name_entry = counters.entry(name.to_string()).or_default();
+                let value_entry = name_entry.entry(value.clone()).or_default();
+                *value_entry += 1;
+            }
+        }
+
+        // Any counter == num builds is an option common to all builds
+        // Any counter < num builds is not an option common to all
+        // Any counter == 1 is not an option unique to that build
+        let mut num_builds: u64 = builds.len().try_into().unwrap();
+        if has_a_source_build {
+            // Source builds don't have builds options so they
+            // aren't counted for working out which options are
+            // common to all builds.
+            num_builds -= 1;
+        }
+
+        // Show the common options first
+        let mut common_options: OptionMap = OptionMap::default();
+        for (name, value) in counters.iter() {
+            if let Some((val, num)) = value.iter().next() {
+                // If the first val(ue) doesn't match the number
+                // of builds, none of the rest will either because
+                // the sum of the value counters will match the
+                // number of builds.
+                if *num == num_builds {
+                    let opt_name = OptNameBuf::new_lossy(&name.clone());
+                    common_options.insert(opt_name, val.clone());
+                }
+            }
+        }
+
+        results.push(format!(
+            "{} {}",
+            format!("Build values common to {package_version} builds:").bold(),
+            common_options.format_option_map()
+        ));
+
+        // Then show each build with its non-common options
+        // highlighted appropriately.
+        for build in builds.iter() {
+            results.push(format!(
+                "{}{}",
+                build.prefix,
+                self.format_build_with_alt_options(
+                    &build.build.spec,
+                    build.components.clone(),
+                    &counters,
+                    num_builds
+                )?
+            ));
+        }
+
+        Ok(results)
+    }
+
+    fn format_build_with_alt_options(
+        &self,
+        spec: &Spec,
+        components: Option<HashMap<Component, Digest>>,
+        counters: &BTreeMap<String, HashMap<String, u64>>,
+        num_builds: u64,
+    ) -> Result<String> {
+        let mut item = spec.ident().format_ident();
+        if spec.is_deprecated() {
+            let _ = write!(item, " {}", "DEPRECATED".red());
+        }
+
+        // /src packages have no further info to display
+        if spec.ident().is_source() {
+            return Ok(item);
+        }
+
+        // Based on the build options display setting, display the
+        // build's uncommon options
+        let options = spec.option_values();
+
+        let formatted: Vec<String> = options
+            .iter()
+            .filter_map(|(name, value)| match self.build_options_display {
+                BuildOptionsDisplay::Diff => {
+                    // This only shows some
+                    if let Some(name_entry) = counters.get(&name.to_string()) {
+                        if let Some(value_entry) = name_entry.get(&value.to_string()) {
+                            if *value_entry != num_builds {
+                                Some(format!("{name}{}{}", "=".dimmed(), value.cyan()))
+                            } else {
+                                None
+                            }
+                        } else {
+                            // This shouldn't happen
+                            None
+                        }
+                    } else {
+                        // This shouldn't happen
+                        None
+                    }
+                }
+                BuildOptionsDisplay::All => Some(format!("{name}{}{}", "=".dimmed(), value.cyan())),
+            })
+            .collect();
+
+        item.push(' ');
+        item.push_str(&format!("{{{}}}", formatted.join(", ")));
+
+        // The components
+        if let Some(cmpts) = components {
+            item.push(' ');
+            item.push_str(&ComponentSet::from(cmpts.keys().cloned()).format_components());
+        }
+        Ok(item)
+    }
+
+    fn format_build(
         &self,
         spec: &Spec,
         components: Option<HashMap<Component, Digest>>,
