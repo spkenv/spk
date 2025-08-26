@@ -4,6 +4,7 @@
 use std::sync::Arc;
 
 use futures::TryStreamExt;
+use itertools::zip_eq;
 use spfs::RemoteAddress;
 use spfs::config::Remote;
 use spk_schema::foundation::ident_component::Component;
@@ -332,7 +333,7 @@ async fn test_walker_builder_walker_walk_with_calc_deprecated_versions() {
     }
 
     // Test the walked items are what was expected
-    for (item, expected) in std::iter::zip(walked_items.iter(), expected_items.iter()) {
+    for (item, expected) in zip_eq(walked_items.iter(), expected_items.iter()) {
         println!("Comparing: {:?}\n     with: {:?}", item, expected);
         println!("   equal?: {}\n", item == expected);
         assert_eq!(
