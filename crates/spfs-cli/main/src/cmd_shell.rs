@@ -22,11 +22,17 @@ pub struct CmdShell {
     #[clap(flatten)]
     logging: cli::Logging,
 
-    /// Mount the spfs filesystem in edit mode (true if REF is empty or not given)
+    /// Mount the spfs filesystem in edit mode.
+    ///
+    /// Editable runtimes are created by default if REF is empty or not given.
+    /// When combined with --rerun, the original runtime editability is overridden
     #[clap(short, long)]
-    edit: bool,
+    pub edit: bool,
 
-    /// Mount the spfs filesystem in read-only mode (default if REF is non-empty)
+    /// Mount the spfs filesystem in read-only mode.
+    ///
+    /// Read-only runtimes are created by default if REF is provided and not empty.
+    /// When combined with --rerun, the original runtime editability is overridden
     #[clap(long, overrides_with = "edit")]
     pub no_edit: bool,
 

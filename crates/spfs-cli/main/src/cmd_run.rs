@@ -119,11 +119,17 @@ pub struct CmdRun {
     #[clap(flatten)]
     pub logging: cli::Logging,
 
-    /// Mount the spfs filesystem in edit mode (default if REF is empty or not given)
+    /// Mount the spfs filesystem in edit mode.
+    ///
+    /// Editable runtimes are created by default if REF is empty or not given.
+    /// When combined with --rerun, the original runtime editability is overridden
     #[clap(short, long)]
     pub edit: bool,
 
-    /// Mount the spfs filesystem in read-only mode (default if REF is non-empty)
+    /// Mount the spfs filesystem in read-only mode.
+    ///
+    /// Read-only runtimes are created by default if REF is provided and not empty.
+    /// When combined with --rerun, the original runtime editability is overridden
     #[clap(long, overrides_with = "edit")]
     pub no_edit: bool,
 
@@ -269,6 +275,13 @@ impl CmdRun {
             runtime.config.mount_backend = config.filesystem.backend;
             runtime.config.secondary_repositories = config.get_secondary_runtime_repositories();
             if reference.is_empty() && !self.no_edit {
+                // when empty runtimes are created, we default to editable
+                // since there are not files to protect and likely it's being
+                // used to construct a new layer since it's useless otherwise
+                //
+                // note that this assumes that --rerun is handled separately above
+                // because we don't want to be overriding the value of the existing
+                // runtime unless the flag is explicitly given.
                 self.edit = true;
             } else if runtime.config.mount_backend.requires_localization() {
                 if let Some(origin) = config.try_get_remote("origin").await? {
@@ -337,7 +350,13 @@ impl CmdRun {
                 .skip(1)
                 .map(|s| s.to_string_lossy().to_string()),
         );
-        runtime.status.editable = self.edit;
+        // in cases where we are rerunning a persistent runtime,
+        // the original editability should be preserved by default
+        if self.edit {
+            runtime.status.editable = true;
+        } else if self.no_edit {
+            runtime.status.editable = false;
+        }
         runtime.save_state_to_storage().await?;
 
         tracing::debug!("resolving entry process");
