@@ -5,13 +5,13 @@
 use clap::Args;
 use miette::Result;
 use spfs::prelude::*;
+use spfs_cli_common as cli;
 
 /// Remove tag versions or entire tag streams
 #[derive(Debug, Args)]
 pub struct CmdUntag {
-    /// Remove tags in a remote repository instead of the local one
-    #[clap(long, short)]
-    remote: Option<String>,
+    #[clap(flatten)]
+    pub(crate) repos: cli::Repositories,
 
     /// Only remove the latest version of this tag
     #[clap(long)]
@@ -31,7 +31,8 @@ pub struct CmdUntag {
 
 impl CmdUntag {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
-        let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
+        let repo =
+            spfs::config::open_repository_from_string(config, self.repos.remote.as_ref()).await?;
 
         let has_version = self.tag.contains('~') || self.latest;
         let mut tag = spfs::tracking::TagSpec::parse(&self.tag)?;

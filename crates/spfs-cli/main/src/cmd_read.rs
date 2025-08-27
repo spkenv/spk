@@ -6,14 +6,14 @@ use clap::Args;
 use miette::Result;
 use spfs::Error;
 use spfs::prelude::*;
+use spfs_cli_common as cli;
 
 /// Output the contents of a blob to stdout
 #[derive(Debug, Args)]
 #[clap(visible_aliases = &["read-file", "cat", "cat-file"])]
 pub struct CmdRead {
-    /// Read from a remote repository instead of the local one
-    #[clap(long, short)]
-    remote: Option<String>,
+    #[clap(flatten)]
+    pub(crate) repos: cli::Repositories,
 
     /// The tag or digest of the blob/payload to output
     #[clap(value_name = "REF")]
@@ -26,7 +26,8 @@ pub struct CmdRead {
 
 impl CmdRead {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
-        let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
+        let repo =
+            spfs::config::open_repository_from_string(config, self.repos.remote.as_ref()).await?;
 
         #[cfg(feature = "sentry")]
         tracing::info!(target: "sentry", "using repo: {}", repo.address());
