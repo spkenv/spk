@@ -60,7 +60,8 @@ pub enum OutputFormat {
     Json,
     #[default]
     Yaml,
-    EnvVars,
+    /// .env file compatible format
+    Env,
 }
 
 /// Show the spfs filepaths entry details at v > 0
@@ -374,7 +375,7 @@ impl View {
                 OutputFormat::Json => serde_json::to_writer(std::io::stdout(), &solved_packages)
                     .into_diagnostic()
                     .wrap_err("Failed to serialize loaded spec")?,
-                OutputFormat::EnvVars => {
+                OutputFormat::Env => {
                     let env_vars = solution.to_environment::<HashMap<String, String>>(None);
                     for (name, value) in env_vars {
                         println!("{name}={value}");
@@ -462,7 +463,7 @@ impl View {
                             .wrap_err("Failed to serialize variant info")?
                     }
                 }
-                OutputFormat::EnvVars => tracing::warn!("No env vars format for variants"),
+                OutputFormat::Env => tracing::warn!("No env vars format for variants"),
             },
             None if show_variants_with_tests => {
                 tracing::warn!("--variants-with-tests requires json format");
@@ -635,7 +636,7 @@ impl View {
             OutputFormat::Json => serde_json::to_writer(std::io::stdout(), &*package_spec)
                 .into_diagnostic()
                 .wrap_err("Failed to serialize loaded spec")?,
-            OutputFormat::EnvVars => tracing::warn!("No env vars format for variants"),
+            OutputFormat::Env => tracing::warn!("No env vars format for variants"),
         }
         Ok(0)
     }
@@ -711,7 +712,7 @@ impl View {
                                     .into_diagnostic()
                                     .wrap_err("Failed to serialize loaded spec")?
                             }
-                            OutputFormat::EnvVars => {
+                            OutputFormat::Env => {
                                 tracing::warn!("No env vars format for variants")
                             }
                         }
