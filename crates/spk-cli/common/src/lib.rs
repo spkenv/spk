@@ -16,7 +16,7 @@ pub use build_result::{BuildArtifact, BuildResult};
 pub use cli::{CommandArgs, Run};
 #[cfg(feature = "sentry")]
 pub use env::configure_sentry;
-pub use env::{configure_logging, current_env, spk_exe};
+pub use env::{configure_logging, current_env, remove_ansi_escapes, spk_exe};
 pub use error::{Error, Result, TestError};
 pub use exec::build_required_packages;
 use once_cell::sync::Lazy;
