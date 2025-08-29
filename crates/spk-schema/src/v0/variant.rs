@@ -8,10 +8,10 @@ use std::fmt::Write;
 use std::str::FromStr;
 
 use serde::Serialize;
+use spk_schema_foundation::ident::{PkgRequest, RangeIdent, VarRequest};
 use spk_schema_foundation::name::PkgName;
 use spk_schema_foundation::option_map::OptionMap;
 use spk_schema_foundation::version_range::{VersionFilter, VersionRange};
-use spk_schema_ident::{PkgRequest, RangeIdent, VarRequest};
 
 use super::VariantSpec;
 use super::variant_spec::VariantSpecEntryKey;
@@ -93,7 +93,7 @@ impl Variant {
                                 components: pkg.0.components.into_inner(),
                                 build: None,
                             },
-                            spk_schema_ident::RequestedBy::Variant,
+                            spk_schema_foundation::ident::RequestedBy::Variant,
                         )
                         .into(),
                     );
@@ -135,7 +135,7 @@ impl Variant {
                         components: BTreeSet::new(),
                         build: None,
                     },
-                    spk_schema_ident::RequestedBy::Variant,
+                    spk_schema_foundation::ident::RequestedBy::Variant,
                 )
                 .into(),
             );

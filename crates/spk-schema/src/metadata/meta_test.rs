@@ -4,7 +4,7 @@
 
 use rstest::rstest;
 use spk_config::{Metadata, MetadataCommand};
-use spk_schema_ident::{AnyIdent, VersionIdent};
+use spk_schema_foundation::ident::{AnyIdent, VersionIdent};
 
 use crate::v0;
 

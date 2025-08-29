@@ -4145,7 +4145,6 @@ dependencies = [
  "spk-cli-common",
  "spk-cli-group2",
  "spk-schema",
- "spk-schema-ident",
  "spk-solve",
  "spk-storage",
  "spk-workspace",
@@ -4462,7 +4461,6 @@ dependencies = [
  "spfs",
  "spk-config",
  "spk-schema-foundation",
- "spk-schema-ident",
  "spk-schema-tera",
  "strum",
  "sys-info",
@@ -4490,6 +4488,7 @@ dependencies = [
  "once_cell",
  "parsedbuf",
  "paste",
+ "proptest",
  "rand",
  "relative-path",
  "ring",
@@ -4500,33 +4499,12 @@ dependencies = [
  "spfs",
  "strum",
  "sys-info",
+ "tap",
  "tempfile",
  "thiserror",
  "tracing",
  "tracing-capture",
  "tracing-subscriber",
- "variantly",
-]
-
-[[package]]
-name = "spk-schema-ident"
-version = "0.44.0"
-dependencies = [
- "colored",
- "data-encoding",
- "format_serde_error",
- "itertools 0.14.0",
- "miette",
- "nom",
- "nom-supreme",
- "proptest",
- "relative-path",
- "rstest",
- "serde",
- "serde_yaml 0.9.27",
- "spk-schema-foundation",
- "tap",
- "thiserror",
  "variantly",
 ]
 

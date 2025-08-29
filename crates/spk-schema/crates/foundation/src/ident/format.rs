@@ -3,9 +3,9 @@
 // https://github.com/spkenv/spk
 
 use colored::Colorize;
-use spk_schema_foundation::format::{FormatBuild, FormatIdent};
 
-use crate::{AnyIdent, BuildIdent, LocatedBuildIdent, VersionIdent};
+use crate::format::{FormatBuild, FormatIdent};
+use crate::ident::{AnyIdent, BuildIdent, LocatedBuildIdent, VersionIdent};
 
 impl FormatIdent for AnyIdent {
     fn format_ident(&self) -> String {

@@ -9,11 +9,13 @@ use std::str::FromStr;
 use itertools::Itertools;
 use nom::combinator::all_consuming;
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::ident_build::Build;
-use spk_schema_foundation::ident_component::{Component, Components};
-use spk_schema_foundation::ident_ops::parsing::KNOWN_REPOSITORY_NAMES;
-use spk_schema_foundation::name::{PkgName, PkgNameBuf, RepositoryNameBuf};
-use spk_schema_foundation::version::{
+
+use crate::ident::{AnyIdent, BuildIdent, LocatedBuildIdent, Result, Satisfy, VersionIdent};
+use crate::ident_build::Build;
+use crate::ident_component::{Component, Components};
+use crate::ident_ops::parsing::KNOWN_REPOSITORY_NAMES;
+use crate::name::{PkgName, PkgNameBuf, RepositoryNameBuf};
+use crate::version::{
     BuildIdProblem,
     CompatRule,
     Compatibility,
@@ -21,7 +23,7 @@ use spk_schema_foundation::version::{
     PackageNameProblem,
     PackageRepoProblem,
 };
-use spk_schema_foundation::version_range::{
+use crate::version_range::{
     DoubleEqualsVersion,
     EqualsVersion,
     Ranged,
@@ -29,8 +31,6 @@ use spk_schema_foundation::version_range::{
     VersionFilter,
     VersionRange,
 };
-
-use crate::{AnyIdent, BuildIdent, LocatedBuildIdent, Result, Satisfy, VersionIdent};
 
 #[cfg(test)]
 #[path = "./range_ident_test.rs"]
@@ -350,15 +350,15 @@ impl From<BuildIdent> for RangeIdent {
 }
 
 impl FromStr for RangeIdent {
-    type Err = crate::Error;
+    type Err = crate::ident::Error;
 
-    fn from_str(s: &str) -> crate::Result<Self> {
-        all_consuming(crate::parsing::range_ident::<
+    fn from_str(s: &str) -> crate::ident::Result<Self> {
+        all_consuming(crate::ident::parsing::range_ident::<
             nom_supreme::error::ErrorTree<_>,
         >(&KNOWN_REPOSITORY_NAMES))(s)
         .map(|(_, ident)| ident)
         .map_err(|err| match err {
-            nom::Err::Error(e) | nom::Err::Failure(e) => crate::Error::String(e.to_string()),
+            nom::Err::Error(e) | nom::Err::Failure(e) => crate::ident::Error::String(e.to_string()),
             nom::Err::Incomplete(_) => unreachable!(),
         })
     }
@@ -406,8 +406,8 @@ impl<'de> Deserialize<'de> for RangeIdent {
 /// Parse a package identifier which specifies a range of versions.
 ///
 /// ```
-/// spk_schema_ident::parse_ident_range("maya/~2020.0").unwrap();
-/// spk_schema_ident::parse_ident_range("maya/^2020.0").unwrap();
+/// spk_schema_foundation::ident::parse_ident_range("maya/~2020.0").unwrap();
+/// spk_schema_foundation::ident::parse_ident_range("maya/^2020.0").unwrap();
 /// ```
 pub fn parse_ident_range<S: AsRef<str>>(source: S) -> Result<RangeIdent> {
     RangeIdent::from_str(source.as_ref())
@@ -419,5 +419,8 @@ pub fn parse_ident_range_list<S: AsRef<str>>(source: S) -> Result<Vec<RangeIdent
     if source.as_ref() == "" {
         return Ok(Vec::new());
     }
-    crate::parsing::range_ident_comma_separated_list(&KNOWN_REPOSITORY_NAMES, source.as_ref())
+    crate::ident::parsing::range_ident_comma_separated_list(
+        &KNOWN_REPOSITORY_NAMES,
+        source.as_ref(),
+    )
 }

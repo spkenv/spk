@@ -11,6 +11,14 @@ use std::str::FromStr;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
+use spk_schema_foundation::ident::{
+    AnyIdent,
+    AsVersionIdent,
+    BuildIdent,
+    Ident,
+    RangeIdent,
+    VersionIdent,
+};
 use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::ident_component::ComponentBTreeSet;
 use spk_schema_foundation::name::PkgNameBuf;
@@ -23,7 +31,6 @@ use spk_schema_foundation::version::{
     PackageNameProblem,
     VarOptionProblem,
 };
-use spk_schema_ident::{AnyIdent, AsVersionIdent, BuildIdent, Ident, RangeIdent, VersionIdent};
 
 use super::TestSpec;
 use super::variant_spec::VariantSpecEntryKey;
@@ -996,7 +1003,7 @@ impl SpecVisitor<VersionIdent, Build> {
 
 impl<'de, B, T> serde::de::Visitor<'de> for SpecVisitor<B, T>
 where
-    Ident<B, T>: spk_schema_ident::AsVersionIdent + Named + serde::de::DeserializeOwned,
+    Ident<B, T>: spk_schema_foundation::ident::AsVersionIdent + Named + serde::de::DeserializeOwned,
 {
     type Value = Spec<Ident<B, T>>;
 

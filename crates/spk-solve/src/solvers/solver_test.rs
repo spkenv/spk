@@ -8,16 +8,14 @@ use rstest::{fixture, rstest};
 use spfs::encoding::EMPTY_DIGEST;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::ident_component::Component;
-use spk_schema::foundation::opt_name;
+use spk_schema::foundation::{build_ident, opt_name, version_ident};
 use spk_schema::ident::{
     PkgRequest,
     RangeIdent,
     Request,
     RequestedBy,
     VarRequest,
-    build_ident,
     parse_ident_range,
-    version_ident,
 };
 use spk_schema::ident_build::{Build, BuildId};
 use spk_schema::prelude::*;

@@ -84,6 +84,7 @@ paste = "1.0"
 pin-project-lite = "0.2.0"
 procfs = "0.16.0"
 progress_bar_derive_macro = { path = "crates/progress_bar_derive_macro" }
+proptest = "1.0.0"
 prost = "0.13"
 rand = "0.8.5"
 regex = "1.6"
@@ -134,7 +135,6 @@ spk-config = { path = "crates/spk-config" }
 spk-exec = { path = "crates/spk-exec" }
 spk-schema = { path = "crates/spk-schema" }
 spk-schema-foundation = { path = "crates/spk-schema/crates/foundation" }
-spk-schema-ident = { path = "crates/spk-schema/crates/ident" }
 spk-schema-tera = { path = "crates/spk-schema/crates/tera" }
 spk-solve = { path = "crates/spk-solve" }
 spk-solve-graph = { path = "crates/spk-solve/crates/graph" }

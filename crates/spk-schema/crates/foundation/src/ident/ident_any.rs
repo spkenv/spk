@@ -6,14 +6,14 @@ use std::fmt::Write;
 use std::str::FromStr;
 
 use relative_path::RelativePathBuf;
-use spk_schema_foundation::ident_build::Build;
-use spk_schema_foundation::ident_ops::parsing::IdentPartsBuf;
-use spk_schema_foundation::ident_ops::{MetadataPath, TagPath};
-use spk_schema_foundation::name::{PkgName, PkgNameBuf, RepositoryNameBuf};
-use spk_schema_foundation::version::Version;
 
-use crate::ident_version::VersionIdent;
-use crate::{BuildIdent, Ident, LocatedBuildIdent, RangeIdent, Result, parsing};
+use crate::ident::ident_version::VersionIdent;
+use crate::ident::{BuildIdent, Ident, LocatedBuildIdent, RangeIdent, Result, parsing};
+use crate::ident_build::Build;
+use crate::ident_ops::parsing::IdentPartsBuf;
+use crate::ident_ops::{MetadataPath, TagPath};
+use crate::name::{PkgName, PkgNameBuf, RepositoryNameBuf};
+use crate::version::Version;
 
 #[cfg(test)]
 #[path = "./ident_any_test.rs"]
@@ -35,12 +35,12 @@ impl AnyIdent {
         Self::new(self.base().clone(), build)
     }
 
-    /// Convert a copy of this identifier into a [`crate::VersionIdent`]
+    /// Convert a copy of this identifier into a [`crate::ident::VersionIdent`]
     pub fn to_version_ident(self) -> VersionIdent {
         self.base().clone()
     }
 
-    /// Convert this identifier into a [`crate::VersionIdent`]
+    /// Convert this identifier into a [`crate::ident::VersionIdent`]
     pub fn into_version_ident(self) -> VersionIdent {
         self.into_base()
     }
@@ -174,7 +174,7 @@ impl TagPath for AnyIdent {
 }
 
 impl FromStr for AnyIdent {
-    type Err = crate::Error;
+    type Err = crate::ident::Error;
 
     /// Parse the given identifier string into this instance.
     fn from_str(source: &str) -> Result<Self> {
@@ -183,14 +183,16 @@ impl FromStr for AnyIdent {
         all_consuming(parsing::ident::<nom_supreme::error::ErrorTree<_>>)(source)
             .map(|(_, ident)| ident)
             .map_err(|err| match err {
-                nom::Err::Error(e) | nom::Err::Failure(e) => crate::Error::String(e.to_string()),
+                nom::Err::Error(e) | nom::Err::Failure(e) => {
+                    crate::ident::Error::String(e.to_string())
+                }
                 nom::Err::Incomplete(_) => unreachable!(),
             })
     }
 }
 
 impl TryFrom<&IdentPartsBuf> for AnyIdent {
-    type Error = crate::Error;
+    type Error = crate::ident::Error;
 
     fn try_from(parts: &IdentPartsBuf) -> Result<Self> {
         if parts.repository_name.is_some() {
@@ -248,7 +250,7 @@ impl PartialEq<&AnyIdent> for IdentPartsBuf {
 }
 
 impl TryFrom<RangeIdent> for AnyIdent {
-    type Error = crate::Error;
+    type Error = crate::ident::Error;
 
     fn try_from(ri: RangeIdent) -> Result<Self> {
         let name = ri.name;
@@ -261,7 +263,7 @@ impl TryFrom<RangeIdent> for AnyIdent {
 }
 
 impl TryFrom<&RangeIdent> for AnyIdent {
-    type Error = crate::Error;
+    type Error = crate::ident::Error;
 
     fn try_from(ri: &RangeIdent) -> Result<Self> {
         Ok(ri.version.clone().try_into_version().map(|version| {

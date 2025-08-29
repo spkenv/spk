@@ -6,12 +6,20 @@ use std::fmt::Write;
 use std::str::FromStr;
 
 use relative_path::RelativePathBuf;
-use spk_schema_foundation::ident_build::Build;
-use spk_schema_foundation::ident_ops::TagPath;
-use spk_schema_foundation::name::{PkgName, PkgNameBuf};
-use spk_schema_foundation::version::Version;
 
-use crate::{AnyIdent, AsVersionIdent, BuildIdent, Ident, Result, ToAnyIdentWithoutBuild, parsing};
+use crate::ident::{
+    AnyIdent,
+    AsVersionIdent,
+    BuildIdent,
+    Ident,
+    Result,
+    ToAnyIdentWithoutBuild,
+    parsing,
+};
+use crate::ident_build::Build;
+use crate::ident_ops::TagPath;
+use crate::name::{PkgName, PkgNameBuf};
+use crate::version::Version;
 
 /// Identifies a package name and number version.
 pub type VersionIdent = Ident<PkgNameBuf, Version>;
@@ -66,7 +74,7 @@ impl AsVersionIdent for VersionIdent {
 
 macro_rules! version_ident_methods {
     ($Ident:ty $(, .$($access:ident).+)?) => {
-        $crate::ident_optversion::opt_version_ident_methods!($Ident $(, .$($access).+)?);
+        $crate::ident::ident_optversion::opt_version_ident_methods!($Ident $(, .$($access).+)?);
 
         impl $Ident {
             /// The version number identified for this package
@@ -80,13 +88,13 @@ macro_rules! version_ident_methods {
             }
         }
 
-        impl spk_schema_foundation::spec_ops::HasVersion for $Ident {
+        impl $crate::spec_ops::HasVersion for $Ident {
             fn version(&self) -> &Version {
                 self.version()
             }
         }
 
-        impl spk_schema_foundation::spec_ops::WithVersion for $Ident {
+        impl $crate::spec_ops::WithVersion for $Ident {
             type Output = Self;
 
             /// Return a copy of this identifier with the given version number instead
@@ -112,7 +120,7 @@ impl std::fmt::Display for VersionIdent {
 }
 
 impl FromStr for VersionIdent {
-    type Err = crate::Error;
+    type Err = crate::ident::Error;
 
     /// Parse the given identifier string into this instance.
     fn from_str(source: &str) -> Result<Self> {
@@ -121,7 +129,9 @@ impl FromStr for VersionIdent {
         all_consuming(parsing::version_ident::<nom_supreme::error::ErrorTree<_>>)(source)
             .map(|(_, ident)| ident)
             .map_err(|err| match err {
-                nom::Err::Error(e) | nom::Err::Failure(e) => crate::Error::String(e.to_string()),
+                nom::Err::Error(e) | nom::Err::Failure(e) => {
+                    crate::ident::Error::String(e.to_string())
+                }
                 nom::Err::Incomplete(_) => unreachable!(),
             })
     }
