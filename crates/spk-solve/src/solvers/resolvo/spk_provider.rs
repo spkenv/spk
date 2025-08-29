@@ -1424,93 +1424,104 @@ impl DependencyProvider for SpkProvider {
                     }
                 }
                 // Also add dependencies on any packages embedded in this
-                // component.
-                for embedded in package.embedded().iter() {
-                    // If this embedded package is configured to exist in
-                    // specific components, then skip it if this solvable's
-                    // component is not one of those.
-                    let components_where_this_embedded_package_exists = package
-                        .components()
-                        .iter()
-                        .filter_map(|component_spec| {
-                            if component_spec.embedded.iter().any(|embedded_package| {
-                                embedded_package.pkg.name() == embedded.name()
-                                    && embedded_package
-                                        .pkg
-                                        .target()
-                                        .as_ref()
-                                        .map(|version| version == embedded.version())
-                                        .unwrap_or(true)
-                            }) {
-                                Some(component_spec.name.clone())
-                            } else {
-                                None
-                            }
-                        })
-                        .collect::<BTreeSet<_>>();
-                    if !components_where_this_embedded_package_exists.is_empty()
-                        && !components_where_this_embedded_package_exists.contains(actual_component)
-                    {
-                        continue;
-                    }
+                // component, unless this is a source package. Source packages
+                // that get built from packages with embedded packages will also
+                // claim to embed those packages, but this is meaningless.
+                if !package.ident().is_source() {
+                    for embedded in package.embedded().iter() {
+                        // If this embedded package is configured to exist in
+                        // specific components, then skip it if this solvable's
+                        // component is not one of those.
+                        let components_where_this_embedded_package_exists = package
+                            .components()
+                            .iter()
+                            .filter_map(|component_spec| {
+                                if component_spec.embedded.iter().any(|embedded_package| {
+                                    embedded_package.pkg.name() == embedded.name()
+                                        && embedded_package
+                                            .pkg
+                                            .target()
+                                            .as_ref()
+                                            .map(|version| version == embedded.version())
+                                            .unwrap_or(true)
+                                }) {
+                                    Some(component_spec.name.clone())
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect::<BTreeSet<_>>();
+                        if !components_where_this_embedded_package_exists.is_empty()
+                            && !components_where_this_embedded_package_exists
+                                .contains(actual_component)
+                        {
+                            continue;
+                        }
 
-                    let dep_name =
-                        self.pool
-                            .intern_package_name(ResolvoPackageName::PkgNameBufWithComponent(
-                                PkgNameBufWithComponent {
-                                    name: embedded.name().to_owned(),
-                                    component: located_build_ident_with_component.component.clone(),
-                                },
-                            ));
-                    known_deps.requirements.push(
-                        self.pool
-                            .intern_version_set(
-                                dep_name,
-                                RequestVS::SpkRequest(Request::Pkg(PkgRequest::new(
-                                    RangeIdent {
-                                        repository_name: Some(
+                        let dep_name = self.pool.intern_package_name(
+                            ResolvoPackageName::PkgNameBufWithComponent(PkgNameBufWithComponent {
+                                name: embedded.name().to_owned(),
+                                component: located_build_ident_with_component.component.clone(),
+                            }),
+                        );
+                        known_deps.requirements.push(
+                            self.pool
+                                .intern_version_set(
+                                    dep_name,
+                                    RequestVS::SpkRequest(Request::Pkg(PkgRequest::new(
+                                        RangeIdent {
+                                            repository_name: Some(
+                                                located_build_ident_with_component
+                                                    .ident
+                                                    .repository_name()
+                                                    .to_owned(),
+                                            ),
+                                            name: embedded.name().to_owned(),
+                                            components: Default::default(),
+                                            version: VersionFilter::single(
+                                                DoubleEqualsVersion::version_range(
+                                                    embedded.version().clone(),
+                                                ),
+                                            ),
+                                            // This needs to match the build of
+                                            // the stub for get_candidates to like
+                                            // it. Stub parents are always the Run
+                                            // component.
+                                            build: Some(Build::Embedded(EmbeddedSource::Package(
+                                                Box::new(EmbeddedSourcePackage {
+                                                    ident: package.ident().into(),
+                                                    components: BTreeSet::from_iter([
+                                                        Component::Run,
+                                                    ]),
+                                                }),
+                                            ))),
+                                        },
+                                        RequestedBy::Embedded(
                                             located_build_ident_with_component
                                                 .ident
-                                                .repository_name()
-                                                .to_owned(),
+                                                .target()
+                                                .clone(),
                                         ),
-                                        name: embedded.name().to_owned(),
-                                        components: Default::default(),
-                                        version: VersionFilter::single(
-                                            DoubleEqualsVersion::version_range(
-                                                embedded.version().clone(),
-                                            ),
-                                        ),
-                                        // This needs to match the build of
-                                        // the stub for get_candidates to like
-                                        // it. Stub parents are always the Run
-                                        // component.
-                                        build: Some(Build::Embedded(EmbeddedSource::Package(
-                                            Box::new(EmbeddedSourcePackage {
-                                                ident: package.ident().into(),
-                                                components: BTreeSet::from_iter([Component::Run]),
-                                            }),
-                                        ))),
-                                    },
-                                    RequestedBy::Embedded(
-                                        located_build_ident_with_component.ident.target().clone(),
-                                    ),
-                                ))),
-                            )
-                            .into(),
-                    );
-                    // Any install requirements of components inside embedded
-                    // packages with the same name as this component also
-                    // become dependencies.
-                    for embedded_component_requirement in embedded
-                        .components()
-                        .iter()
-                        .filter(|embedded_component| embedded_component.name == *actual_component)
-                        .flat_map(|embedded_component| embedded_component.requirements.iter())
-                    {
-                        let kd = self.request_to_known_dependencies(embedded_component_requirement);
-                        known_deps.requirements.extend(kd.requirements);
-                        known_deps.constrains.extend(kd.constrains);
+                                    ))),
+                                )
+                                .into(),
+                        );
+                        // Any install requirements of components inside embedded
+                        // packages with the same name as this component also
+                        // become dependencies.
+                        for embedded_component_requirement in embedded
+                            .components()
+                            .iter()
+                            .filter(|embedded_component| {
+                                embedded_component.name == *actual_component
+                            })
+                            .flat_map(|embedded_component| embedded_component.requirements.iter())
+                        {
+                            let kd =
+                                self.request_to_known_dependencies(embedded_component_requirement);
+                            known_deps.requirements.extend(kd.requirements);
+                            known_deps.constrains.extend(kd.constrains);
+                        }
                     }
                 }
                 // If this solvable is an embedded stub and it is
