@@ -59,7 +59,7 @@ strip-ansi-escapes = { version = "0.1.1", optional = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }
-tracing-subscriber = { version = "0.3.14", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 whoami = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
