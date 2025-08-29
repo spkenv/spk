@@ -33,26 +33,26 @@ impl PruneParameters {
     }
 
     pub fn should_prune(&self, spec: &tracking::TagSpec, tag: &tracking::Tag) -> bool {
-        if let Some(keep_if_version_less_than) = self.keep_if_version_less_than {
-            if spec.version() < keep_if_version_less_than {
-                return false;
-            }
+        if let Some(keep_if_version_less_than) = self.keep_if_version_less_than
+            && spec.version() < keep_if_version_less_than
+        {
+            return false;
         }
-        if let Some(keep_if_newer_than) = self.keep_if_newer_than {
-            if tag.time > keep_if_newer_than {
-                return false;
-            }
+        if let Some(keep_if_newer_than) = self.keep_if_newer_than
+            && tag.time > keep_if_newer_than
+        {
+            return false;
         }
 
-        if let Some(prune_if_version_more_than) = self.prune_if_version_more_than {
-            if spec.version() > prune_if_version_more_than {
-                return true;
-            }
+        if let Some(prune_if_version_more_than) = self.prune_if_version_more_than
+            && spec.version() > prune_if_version_more_than
+        {
+            return true;
         }
-        if let Some(prune_if_older_than) = self.prune_if_older_than {
-            if tag.time < prune_if_older_than {
-                return true;
-            }
+        if let Some(prune_if_older_than) = self.prune_if_older_than
+            && tag.time < prune_if_older_than
+        {
+            return true;
         }
 
         false

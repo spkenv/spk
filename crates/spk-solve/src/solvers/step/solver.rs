@@ -1407,14 +1407,13 @@ impl SolverRuntime {
                     // time this is reached. The current node will
                     // have the initial state and the initial requests.
                     first_iter = false;
-                    if self.solver.impossible_checks.check_initial_requests {
-                        if let Err(err) = self.solver.check_initial_requests_for_impossible_requests(&current_node_lock.state).await {
+                    if self.solver.impossible_checks.check_initial_requests
+                        && let Err(err) = self.solver.check_initial_requests_for_impossible_requests(&current_node_lock.state).await {
                             let cause = format!("{err}");
                             self.solver.increment_error_count(ErrorDetails::Message(cause));
                             yield Err(err);
                             continue 'outer;
                         }
-                    }
                 }
 
                 self.decision = match self.solver.step_state(&self.graph, &mut current_node_lock).await
@@ -1455,8 +1454,8 @@ impl SolverRuntime {
                                 // were skipped for the same reason, then
                                 // replace the individual skip notes with a
                                 // single summary note.
-                                if let Some(first) = err.notes.first() {
-                                    if err.notes.iter().all(|n| {
+                                if let Some(first) = err.notes.first()
+                                    && err.notes.iter().all(|n| {
                                         match (n, first) {
                                             (Note::SkipPackageNote(n), Note::SkipPackageNote(first)) => n.is_same_reason_as(first),
                                             (Note::Other(n), Note::Other(first)) => n == first,
@@ -1473,7 +1472,6 @@ impl SolverRuntime {
                                         }
                                         break 'added_notes;
                                     }
-                                }
 
                                 Arc::make_mut(d).add_notes(err.notes.iter().cloned());
                             }

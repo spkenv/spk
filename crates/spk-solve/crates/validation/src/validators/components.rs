@@ -116,7 +116,7 @@ impl ComponentsValidator {
 
         let missing_components: std::collections::BTreeSet<_> = required_components
             .iter()
-            .filter(|&n| (!available_components.contains(n)))
+            .filter(|&n| !available_components.contains(n))
             .map(|n| n.to_string())
             .collect();
 

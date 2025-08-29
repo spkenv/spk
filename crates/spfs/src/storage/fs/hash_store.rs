@@ -337,37 +337,35 @@ impl FsHashStore {
         // to that payload in a render that expects the file to have a certain
         // permissions.
         #[cfg(unix)]
-        if created_new_file {
-            if let Err(err) = tokio::fs::set_permissions(
+        if created_new_file
+            && let Err(err) = tokio::fs::set_permissions(
                 &path,
                 std::fs::Permissions::from_mode(
                     object_permissions.unwrap_or(self.file_permissions),
                 ),
             )
             .await
-            {
-                if object_permissions.is_some() {
-                    // If the caller wanted specific permissions set, then
-                    // make it a hard error if set_permissions failed.
-                    // XXX: At this time, it doesn't lead to misbehavior if
-                    // the permissions aren't changed, but it could cause
-                    // extra disk consumption unnecessarily.
-                    return Err(Error::StorageWriteError(
-                        "set_permissions on object file",
-                        path,
-                        err,
-                    ));
-                }
-
-                // not a good enough reason to fail entirely
-                #[cfg(feature = "sentry")]
-                sentry::capture_event(sentry::protocol::Event {
-                    message: Some(format!("{:?}", err)),
-                    level: sentry::protocol::Level::Warning,
-                    ..Default::default()
-                });
-            }
+            && object_permissions.is_some()
+        {
+            // If the caller wanted specific permissions set, then
+            // make it a hard error if set_permissions failed.
+            // XXX: At this time, it doesn't lead to misbehavior if
+            // the permissions aren't changed, but it could cause
+            // extra disk consumption unnecessarily.
+            return Err(Error::StorageWriteError(
+                "set_permissions on object file",
+                path,
+                err,
+            ));
         }
+
+        // not a good enough reason to fail entirely
+        #[cfg(feature = "sentry")]
+        sentry::capture_event(sentry::protocol::Event {
+            message: Some(format!("{:?}", err)),
+            level: sentry::protocol::Level::Warning,
+            ..Default::default()
+        });
 
         #[cfg(windows)]
         if created_new_file || object_permissions.is_some() {

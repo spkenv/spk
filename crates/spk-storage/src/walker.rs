@@ -168,12 +168,12 @@ impl RepoWalkerFilter {
         repository_name_to_match: Option<String>,
         pkg_name_to_match: String,
     ) -> bool {
-        if let Some(rn) = repository_name_to_match {
-            if *package.repo_name != rn {
-                // A repo name given and it didn't match, so don't
-                // need to check any further.
-                return false;
-            }
+        if let Some(rn) = repository_name_to_match
+            && *package.repo_name != rn
+        {
+            // A repo name given and it didn't match, so don't
+            // need to check any further.
+            return false;
         }
         ***package.name == pkg_name_to_match
     }
@@ -718,7 +718,7 @@ impl RepoWalker<'_> {
 
     /// Walk the spk objects in the repos and stream back the matching
     /// ones based on the walker's configuration.
-    pub fn walk(&self) -> impl Stream<Item = Result<RepoWalkerItem>> + '_ {
+    pub fn walk(&self) -> impl Stream<Item = Result<RepoWalkerItem<'_>>> + '_ {
         Box::pin(try_stream! {
             for (repository_name, repo) in self.repos.iter() {
                 let repo_name = repository_name.as_str();
@@ -1301,7 +1301,7 @@ impl<'a> RepoWalkerBuilder<'a> {
     }
 
     /// Creates a RepoWalker using the builder's current settings.
-    pub fn build(&self) -> RepoWalker {
+    pub fn build(&self) -> RepoWalker<'_> {
         RepoWalker {
             repos: self.repos,
             package_filter_func: self.package_filter_func.clone(),

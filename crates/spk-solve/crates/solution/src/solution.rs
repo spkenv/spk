@@ -748,10 +748,10 @@ pub async fn find_highest_package_version(
 ) -> Result<Arc<Version>> {
     let mut max_version = Arc::new(Version::default());
     for repo in repos.iter() {
-        if let Some(highest_version) = repo.highest_package_version(&name).await? {
-            if highest_version > max_version {
-                max_version = highest_version;
-            }
+        if let Some(highest_version) = repo.highest_package_version(&name).await?
+            && highest_version > max_version
+        {
+            max_version = highest_version;
         };
     }
     Ok(max_version)

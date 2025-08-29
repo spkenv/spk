@@ -80,8 +80,8 @@ impl CmdLs {
                     for (dir, entries) in entries_to_process.iter() {
                         println!("{dir}:");
                         let print_width = entries
-                            .iter()
-                            .map(|(_, e)| self.human_readable(e.total_size()).len())
+                            .values()
+                            .map(|e| self.human_readable(e.total_size()).len())
                             .max()
                             .unwrap_or(0);
 
@@ -106,8 +106,8 @@ impl CmdLs {
                 }
             } else {
                 let print_width = root_entries
-                    .iter()
-                    .map(|(_, e)| self.human_readable(e.total_size()).len())
+                    .values()
+                    .map(|e| self.human_readable(e.total_size()).len())
                     .max()
                     .unwrap_or(0);
 

@@ -146,7 +146,7 @@ impl<'buf> Annotation<'buf> {
         self.0.key()
     }
 
-    pub fn value(&self) -> AnnotationValue {
+    pub fn value(&self) -> AnnotationValue<'_> {
         if let Some(data) = self.0.data_as_annotation_string() {
             match data.data() {
                 Some(s) => AnnotationValue::String(s.into()),
@@ -169,10 +169,10 @@ impl<'buf> Annotation<'buf> {
     /// Return the child objects of this object, if any.
     pub fn child_objects(&self) -> Vec<encoding::Digest> {
         let mut result = Vec::new();
-        if let Some(data) = self.0.data_as_annotation_digest() {
-            if let Some(d) = data.digest() {
-                result.push(*d)
-            }
+        if let Some(data) = self.0.data_as_annotation_digest()
+            && let Some(d) = data.digest()
+        {
+            result.push(*d)
         }
         result
     }

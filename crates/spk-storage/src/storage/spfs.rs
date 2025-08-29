@@ -545,10 +545,10 @@ impl Storage for SpfsRepository {
         pkg: &BuildIdent,
     ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>> {
         // TODO: reduce duplicate code with read_recipe
-        if self.cached_result_permitted() {
-            if let Some(v) = self.caches.package.get(pkg) {
-                return v.value().clone().into();
-            }
+        if self.cached_result_permitted()
+            && let Some(v) = self.caches.package.get(pkg)
+        {
+            return v.value().clone().into();
         }
 
         let r: Result<Arc<Spec>> = self
@@ -719,10 +719,10 @@ impl crate::Repository for SpfsRepository {
     }
 
     async fn list_package_versions(&self, name: &PkgName) -> Result<Arc<Vec<Arc<Version>>>> {
-        if self.cached_result_permitted() {
-            if let Some(v) = self.caches.package_versions.get(name) {
-                return v.value().clone().into();
-            }
+        if self.cached_result_permitted()
+            && let Some(v) = self.caches.package_versions.get(name)
+        {
+            return v.value().clone().into();
         }
         let r: Result<Arc<_>> = async {
             let path = Self::build_spec_tag(&VersionIdent::new_zero(name).into_any_ident(None));
@@ -759,10 +759,10 @@ impl crate::Repository for SpfsRepository {
     }
 
     async fn list_build_components(&self, pkg: &BuildIdent) -> Result<Vec<Component>> {
-        if self.cached_result_permitted() {
-            if let Some(v) = self.caches.list_build_components.get(pkg) {
-                return v.value().clone().into();
-            }
+        if self.cached_result_permitted()
+            && let Some(v) = self.caches.list_build_components.get(pkg)
+        {
+            return v.value().clone().into();
         }
 
         let r = if pkg.build().is_embedded() {
@@ -796,10 +796,10 @@ impl crate::Repository for SpfsRepository {
                 return Err(format!("Cannot read this ident as an embed stub: {pkg}").into());
             }
         };
-        if self.cached_result_permitted() {
-            if let Some(v) = self.caches.package.get(pkg) {
-                return v.value().clone().into();
-            }
+        if self.cached_result_permitted()
+            && let Some(v) = self.caches.package.get(pkg)
+        {
+            return v.value().clone().into();
         }
         let r: Result<Arc<Spec>> = self
             .with_build_spec_tag_for_pkg(pkg, |pkg, _, tag| async move {
@@ -827,10 +827,10 @@ impl crate::Repository for SpfsRepository {
     }
 
     async fn read_recipe(&self, pkg: &VersionIdent) -> Result<Arc<Self::Recipe>> {
-        if self.cached_result_permitted() {
-            if let Some(v) = self.caches.recipe.get(pkg) {
-                return v.value().clone().into();
-            }
+        if self.cached_result_permitted()
+            && let Some(v) = self.caches.recipe.get(pkg)
+        {
+            return v.value().clone().into();
         }
         let r: Result<Arc<SpecRecipe>> = self
             .with_build_spec_tag_for_pkg(pkg, |pkg, _, tag| async move {
@@ -1099,15 +1099,15 @@ impl SpfsRepository {
     }
 
     async fn ls_tags(&self, path: &relative_path::RelativePath) -> Vec<Result<EntryType>> {
-        if self.cached_result_permitted() {
-            if let Some(v) = self.caches.ls_tags.get(path) {
-                return v
-                    .value()
-                    .clone()
-                    .into_iter()
-                    .map(Ok)
-                    .collect::<Vec<Result<EntryType>>>();
-            }
+        if self.cached_result_permitted()
+            && let Some(v) = self.caches.ls_tags.get(path)
+        {
+            return v
+                .value()
+                .clone()
+                .into_iter()
+                .map(Ok)
+                .collect::<Vec<Result<EntryType>>>();
         }
         let r: Vec<Result<EntryType>> = self
             .inner
@@ -1154,10 +1154,10 @@ impl SpfsRepository {
     where
         F: Fn() -> AnyIdent,
     {
-        if self.cached_result_permitted() {
-            if let Some(v) = self.caches.tag_spec.get(tag_spec) {
-                return v.value().clone().into();
-            }
+        if self.cached_result_permitted()
+            && let Some(v) = self.caches.tag_spec.get(tag_spec)
+        {
+            return v.value().clone().into();
         }
         let r = self
             .inner

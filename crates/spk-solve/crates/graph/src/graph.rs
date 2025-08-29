@@ -662,7 +662,7 @@ impl Graph {
         Ok(new_node)
     }
 
-    pub fn walk(&self) -> GraphIter {
+    pub fn walk(&self) -> GraphIter<'_> {
         GraphIter::new(self)
     }
 }

@@ -1070,7 +1070,7 @@ impl Storage {
         &self,
         digest: &Digest,
         key: &str,
-    ) -> Result<Option<Cow<str>>> {
+    ) -> Result<Option<Cow<'_, str>>> {
         let mut digests_to_process: Vec<Digest> = vec![*digest];
 
         while !digests_to_process.is_empty() {

@@ -91,12 +91,12 @@ impl Run for Debug {
         let mut rt = spfs::active_runtime().await?;
 
         for (layer, repo) in source_layers {
-            if !local_repo.has_object(layer).await {
-                if let storage::RepositoryHandle::SPFS(repo) = repo {
-                    let syncer = spfs::Syncer::new(repo, &local_repo)
-                        .with_reporter(spfs::sync::reporter::SyncReporters::console());
-                    syncer.sync_digest(layer).await?;
-                }
+            if !local_repo.has_object(layer).await
+                && let storage::RepositoryHandle::SPFS(repo) = repo
+            {
+                let syncer = spfs::Syncer::new(repo, &local_repo)
+                    .with_reporter(spfs::sync::reporter::SyncReporters::console());
+                syncer.sync_digest(layer).await?;
             }
 
             rt.push_digest(layer);

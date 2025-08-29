@@ -486,7 +486,7 @@ impl<T: ObjectProto> FlatObject<T> {
 
     /// Read the underlying [`spfs_proto::AnyObject`] flatbuffer
     #[inline]
-    pub fn root_proto(&self) -> spfs_proto::AnyObject {
+    pub fn root_proto(&self) -> spfs_proto::AnyObject<'_> {
         let buf = &self.buf[Header::SIZE..];
         #[cfg(debug_assertions)]
         {

@@ -328,11 +328,10 @@ impl Package for Spec<BuildIdent> {
                     // If no value was specified in the spec, there's
                     // no need to turn that into a requirement to
                     // find a var with an empty value.
-                    if let Some(value) = opt.get_value(None) {
-                        if !value.is_empty() {
-                            requests
-                                .insert_or_merge(opt.to_request(Some(value.as_str())).into())?;
-                        }
+                    if let Some(value) = opt.get_value(None)
+                        && !value.is_empty()
+                    {
+                        requests.insert_or_merge(opt.to_request(Some(value.as_str())).into())?;
                     }
                 }
             }
@@ -462,10 +461,10 @@ impl Recipe for Spec<VersionIdent> {
                     // If no value was specified in the spec, there's
                     // no need to turn that into a requirement to
                     // find a var with an empty value.
-                    if let Some(value) = options.get(&opt.var) {
-                        if !value.is_empty() {
-                            requests.insert_or_merge(opt.to_request(Some(value)).into())?;
-                        }
+                    if let Some(value) = options.get(&opt.var)
+                        && !value.is_empty()
+                    {
+                        requests.insert_or_merge(opt.to_request(Some(value)).into())?;
                     }
                 }
             }

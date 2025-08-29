@@ -46,10 +46,11 @@ impl super::Validator for InheritRequirementsValidator<'_> {
                 continue;
             }
             let locality = || {
-                self.packages
-                    .is_empty()
-                    .then(|| solved_request.spec.name().to_string())
-                    .unwrap_or_default()
+                if self.packages.is_empty() {
+                    solved_request.spec.name().to_string()
+                } else {
+                    Default::default()
+                }
             };
             let all_components = solved_request.selected_components();
             for component in all_components {

@@ -461,11 +461,12 @@ where
             let spec = tag.to_spec(i as u64);
             self.reporter.visit_tag(&tag);
             let count = if let Some(seen_count) = seen_targets.get(&tag.target) {
-                if let Some(keep_number) = self.prune_repeated_tags {
-                    if should_prune_this_namespace && *seen_count >= keep_number.get() {
-                        to_prune.push(tag);
-                        continue;
-                    }
+                if let Some(keep_number) = self.prune_repeated_tags
+                    && should_prune_this_namespace
+                    && *seen_count >= keep_number.get()
+                {
+                    to_prune.push(tag);
+                    continue;
                 }
                 *seen_count + 1
             } else {

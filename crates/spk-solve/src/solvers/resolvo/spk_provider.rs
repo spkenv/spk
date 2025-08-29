@@ -149,10 +149,10 @@ impl ResolvoPackageName {
                         // error messages. However from observation solver
                         // errors already don't mention versions that aren't
                         // applicable to root requests.
-                        if let Some(pkg_request) = root_pkg_request {
-                            if !pkg_request.pkg.version.is_applicable(version).is_ok() {
-                                continue;
-                            }
+                        if let Some(pkg_request) = root_pkg_request
+                            && !pkg_request.pkg.version.is_applicable(version).is_ok()
+                        {
+                            continue;
                         }
 
                         // TODO: We need a borrowing version of this to avoid cloning.
@@ -322,22 +322,18 @@ impl ResolvoPackageName {
                                 value: PinnableValue::Pinned(expected_version),
                                 ..
                             }) = provider.global_var_requests.get(ident.name().as_opt_name())
+                                && let Ok(expected_version) = parse_version_range(expected_version)
+                                && let spk_schema::version::Compatibility::Incompatible(
+                                    incompatible_reason,
+                                ) = expected_version.is_applicable(package.version())
                             {
-                                if let Ok(expected_version) = parse_version_range(expected_version)
-                                {
-                                    if let spk_schema::version::Compatibility::Incompatible(
-                                        incompatible_reason,
-                                    ) = expected_version.is_applicable(package.version())
-                                    {
-                                        candidates.excluded.push((
+                                candidates.excluded.push((
                                 solvable_id,
                                 provider.pool.intern_string(format!(
                                     "build version does not satisfy global var request: {incompatible_reason}"
                                 )),
                             ));
-                                        continue;
-                                    }
-                                }
+                                continue;
                             }
 
                             // XXX: `package.check_satisfies_request` walks the
@@ -345,19 +341,18 @@ impl ResolvoPackageName {
                             // over `option_values` here, or loop over all the
                             // global_var_requests instead?
                             for (opt_name, _value) in package.option_values() {
-                                if let Some(request) = provider.global_var_requests.get(&opt_name) {
-                                    if let spk_schema::version::Compatibility::Incompatible(
+                                if let Some(request) = provider.global_var_requests.get(&opt_name)
+                                    && let spk_schema::version::Compatibility::Incompatible(
                                         incompatible_reason,
                                     ) = package.check_satisfies_request(request)
-                                    {
-                                        candidates.excluded.push((
+                                {
+                                    candidates.excluded.push((
                                         solvable_id,
                                         provider.pool.intern_string(format!(
                                             "build option {opt_name} does not satisfy global var request: {incompatible_reason}"
                                         )),
                                     ));
-                                        continue;
-                                    }
+                                    continue;
                                 }
                             }
 

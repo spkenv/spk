@@ -595,7 +595,7 @@ impl<'a> DiskUsageRepoWalkerBuilder<'a> {
     }
 
     /// Create a DiskUsageRepoWalker using the builder's current settings.
-    pub fn build(&self) -> DiskUsageRepoWalker {
+    pub fn build(&self) -> DiskUsageRepoWalker<'_> {
         DiskUsageRepoWalker {
             input_depth: self.input_depth,
             count_links: self.count_links,
