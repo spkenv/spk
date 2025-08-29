@@ -227,6 +227,7 @@
     "FDCWD",
     "FETCHCONTENT",
     "fexceptions",
+    "filehandle",
     "filesequence",
     "filesystems",
     "filesytem",
