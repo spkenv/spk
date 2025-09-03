@@ -25,14 +25,10 @@ pub struct EmbeddedPackagesList(Vec<Spec>);
 impl EmbeddedPackagesList {
     /// Return an iterator over the embedded packages that match the given
     /// embedded component.
-    pub fn packages_matching_embedded_package<'a, 'b, 'c>(
+    pub fn packages_matching_embedded_package<'a>(
         &'a self,
-        embedded_package: &'b ComponentEmbeddedPackage,
-    ) -> impl Iterator<Item = &'a Spec> + 'c
-    where
-        'a: 'c,
-        'b: 'c,
-    {
+        embedded_package: &ComponentEmbeddedPackage,
+    ) -> impl Iterator<Item = &'a Spec> {
         self.iter().filter(move |embedded| {
             embedded.name() == embedded_package.pkg.name()
                 && (embedded_package.pkg.target().is_none()

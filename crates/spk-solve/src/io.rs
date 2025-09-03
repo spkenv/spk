@@ -377,7 +377,7 @@ where
         self.verbosity >= relevant_level
     }
 
-    pub fn iter(&mut self) -> impl Stream<Item = Result<String>> + '_ {
+    pub fn iter(&mut self) -> impl Stream<Item = Result<String>> {
         stream! {
             let mut stop_because_blocked = false;
             let mut step_because_blocked = false;

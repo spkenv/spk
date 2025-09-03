@@ -1720,20 +1720,20 @@ impl DependencyProvider for SpkProvider {
 }
 
 impl Interner for SpkProvider {
-    fn display_solvable(&self, solvable: SolvableId) -> impl std::fmt::Display + '_ {
+    fn display_solvable(&self, solvable: SolvableId) -> impl std::fmt::Display {
         let solvable = self.pool.resolve_solvable(solvable);
         format!("{}", solvable.record)
     }
 
-    fn display_name(&self, name: NameId) -> impl std::fmt::Display + '_ {
+    fn display_name(&self, name: NameId) -> impl std::fmt::Display {
         self.pool.resolve_package_name(name)
     }
 
-    fn display_version_set(&self, version_set: VersionSetId) -> impl std::fmt::Display + '_ {
+    fn display_version_set(&self, version_set: VersionSetId) -> impl std::fmt::Display {
         self.pool.resolve_version_set(version_set)
     }
 
-    fn display_string(&self, string_id: StringId) -> impl std::fmt::Display + '_ {
+    fn display_string(&self, string_id: StringId) -> impl std::fmt::Display {
         self.pool.resolve_string(string_id)
     }
 

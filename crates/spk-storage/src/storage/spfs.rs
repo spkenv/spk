@@ -1002,7 +1002,7 @@ impl SpfsRepository {
     fn iter_possible_parts<I>(
         pkg: &I,
         legacy_spk_version_tags: bool,
-    ) -> impl Iterator<Item = I::Output> + '_
+    ) -> impl Iterator<Item = I::Output>
     where
         I: HasVersion + WithVersion,
     {

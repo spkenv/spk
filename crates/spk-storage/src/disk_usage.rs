@@ -203,9 +203,7 @@ pub struct DiskUsageRepoWalker<'a> {
 
 impl DiskUsageRepoWalker<'_> {
     /// Get a traversal of the disk usages of individual files in packages
-    pub fn individual_entries_du_walk(
-        &mut self,
-    ) -> impl Stream<Item = Result<PackageDiskUsage>> + '_ {
+    pub fn individual_entries_du_walk(&mut self) -> impl Stream<Item = Result<PackageDiskUsage>> {
         Box::pin(try_stream! {
             let repo_walker = self.repo_walker_builder
                 .with_report_on_versions(true)
@@ -282,7 +280,7 @@ impl DiskUsageRepoWalker<'_> {
     /// Get a traversal of the disk usage of items on the configured
     /// path grouped together (summed up), e.g. a package/version or
     /// each of the builds under a package/version/.
-    pub fn grouped_du_walk(&mut self) -> impl Stream<Item = Result<GroupedDiskUsage>> + '_ {
+    pub fn grouped_du_walk(&mut self) -> impl Stream<Item = Result<GroupedDiskUsage>> {
         Box::pin(try_stream! {
             // Only holds the one group being counted at the current time.
             // Entries are removed and output as they are finished.

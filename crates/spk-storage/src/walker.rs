@@ -612,7 +612,7 @@ impl RepoWalker<'_> {
         &'a self,
         repo: &'a RepositoryHandle,
         component: WalkedComponent<'a>,
-    ) -> impl Stream<Item = Result<WalkedFile<'a>>> + 'a {
+    ) -> impl Stream<Item = Result<WalkedFile<'a>>> {
         Box::pin(try_stream! {
             // If this walker is configured to stop at component, don't
             // return any files.
@@ -718,7 +718,7 @@ impl RepoWalker<'_> {
 
     /// Walk the spk objects in the repos and stream back the matching
     /// ones based on the walker's configuration.
-    pub fn walk(&self) -> impl Stream<Item = Result<RepoWalkerItem<'_>>> + '_ {
+    pub fn walk(&self) -> impl Stream<Item = Result<RepoWalkerItem<'_>>> {
         Box::pin(try_stream! {
             for (repository_name, repo) in self.repos.iter() {
                 let repo_name = repository_name.as_str();

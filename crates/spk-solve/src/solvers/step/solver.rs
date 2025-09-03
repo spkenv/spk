@@ -1339,7 +1339,7 @@ impl SolverRuntime {
     }
 
     /// Iterate through each step of this runtime, trying to converge on a solution
-    pub fn iter(&mut self) -> impl Stream<Item = Result<(Arc<Node>, Arc<Decision>)>> + Send + '_ {
+    pub fn iter(&mut self) -> impl Stream<Item = Result<(Arc<Node>, Arc<Decision>)>> + Send {
         stream! {
             let mut first_iter = true;
             'outer: loop {

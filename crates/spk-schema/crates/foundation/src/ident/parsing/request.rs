@@ -58,7 +58,7 @@ where
 /// filter expression.
 pub fn range_ident<'a, 'b, E>(
     known_repositories: &'a HashSet<&str>,
-) -> impl FnMut(&'b str) -> IResult<&'b str, RangeIdent, E> + 'a
+) -> impl FnMut(&'b str) -> IResult<&'b str, RangeIdent, E>
 where
     E: ParseError<&'b str>
         + ContextError<&'b str>

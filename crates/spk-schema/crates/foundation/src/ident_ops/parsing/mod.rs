@@ -108,16 +108,11 @@ pub fn repo_name_in_ident<'a, 'i, I, V1, V2, B, F1, F2, F3, E>(
     ident_parser: F1,
     version_parser: F2,
     version_and_build_parser: F3,
-) -> impl FnMut(&'i str) -> IResult<&'i str, &'i RepositoryName, E> + 'a
+) -> impl FnMut(&'i str) -> IResult<&'i str, &'i RepositoryName, E>
 where
-    'i: 'a,
-    I: 'a,
-    B: 'a,
-    V1: 'a,
-    V2: 'a,
-    F1: Parser<&'i str, I, E> + 'a,
-    F2: Parser<&'i str, V1, E> + 'a,
-    F3: Parser<&'i str, (V2, Option<B>), E> + 'a,
+    F1: Parser<&'i str, I, E>,
+    F2: Parser<&'i str, V1, E>,
+    F3: Parser<&'i str, (V2, Option<B>), E>,
     E: ParseError<&'i str> + ContextError<&'i str> + TagError<&'i str, &'static str> + 'a,
 {
     // To disambiguate cases like:
