@@ -120,18 +120,17 @@ impl Solver {
                 } else {
                     // Try to find the original command line request
                     // based on the solved request's package name.
-                    let mut initial_request = "a request".to_string();
+                    //let mut initial_request = "a request".to_string();
                     for r in &self.requests {
-                        if let Request::Pkg(pkg_req) = r {
-                            if *pkg_req.pkg.name == *name {
-                                initial_request = pkg_req.to_string().replace(":all", "");
-                                break;
-                            }
+                        if let Request::Pkg(pkg_req) = r
+                            && *pkg_req.pkg.name == *name
+                        {
+                            pkg_request.add_requester(RequestedBy::CommandLineRequest(
+                                InitialRawRequest(pkg_req.to_string().replace(":all", "")),
+                            ));
+                            break;
                         }
                     }
-                    pkg_request.add_requester(RequestedBy::CommandLineRequest(InitialRawRequest(
-                        initial_request,
-                    )));
                 }
                 (pkg_request, package, source)
             })
