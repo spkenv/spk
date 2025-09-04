@@ -1168,6 +1168,10 @@ fn get_fuse_args(config: &runtime::Config, owner: &IsRootUser, read_only: bool) 
             .iter()
             .map(|r| CUSTOM(format!("remote={r}"))),
     );
+    opts.push(CUSTOM(format!(
+        "incl_sec_tags={}",
+        config.include_secondary_tags
+    )));
     opts.iter().map(option_to_string).join(",")
 }
 

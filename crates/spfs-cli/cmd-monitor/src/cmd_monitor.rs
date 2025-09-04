@@ -10,8 +10,7 @@ use cli::configure_sentry;
 use miette::{Context, IntoDiagnostic, Result};
 #[cfg(unix)]
 use spfs::Error;
-use spfs_cli_common as cli;
-use spfs_cli_common::CommandName;
+use spfs_cli_common::{self as cli, CommandName, HasRepositoryArgs};
 use tokio::io::AsyncReadExt;
 #[cfg(unix)]
 use tokio::signal::unix::{SignalKind, signal};
@@ -65,6 +64,8 @@ pub struct CmdMonitor {
     #[clap(long)]
     runtime: String,
 }
+
+impl HasRepositoryArgs for CmdMonitor {}
 
 impl CommandName for CmdMonitor {
     fn command_name(&self) -> &'static str {

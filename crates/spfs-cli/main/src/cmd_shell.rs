@@ -22,6 +22,9 @@ pub struct CmdShell {
     #[clap(flatten)]
     logging: cli::Logging,
 
+    #[clap(flatten)]
+    pub(crate) repos: cli::Repositories,
+
     /// Mount the spfs filesystem in edit mode.
     ///
     /// Editable runtimes are created by default if REF is empty or not given.
@@ -70,6 +73,7 @@ impl CmdShell {
         let mut run_cmd = cmd_run::CmdRun {
             sync: self.sync.clone(),
             logging: self.logging.clone(),
+            repos: self.repos.clone(),
             edit: self.edit,
             no_edit: self.no_edit,
             rerun: self.rerun.clone(),

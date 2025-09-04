@@ -9,14 +9,14 @@ use itertools::Itertools;
 use miette::Result;
 use spfs::prelude::*;
 use spfs::tracking::{Entry, EnvSpecItem};
+use spfs_cli_common as cli;
 
 /// List the contents of a committed directory
 #[derive(Debug, Args)]
 #[clap(visible_aliases = &["list-dir", "list"])]
 pub struct CmdLs {
-    /// List files on a remote repository instead of the local one
-    #[clap(long, short)]
-    remote: Option<String>,
+    #[clap(flatten)]
+    pub(crate) repos: cli::Repositories,
 
     /// The tag or digest of the file tree to read from
     #[clap(value_name = "REF")]
@@ -49,7 +49,8 @@ pub struct CmdLs {
 
 impl CmdLs {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
-        let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
+        let repo =
+            spfs::config::open_repository_from_string(config, self.repos.remote.as_ref()).await?;
 
         match &self.reference {
             EnvSpecItem::TagSpec(tag_spec) => {

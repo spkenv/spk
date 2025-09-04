@@ -25,6 +25,7 @@ use tokio::io::AsyncReadExt;
 use super::startup_ps;
 #[cfg(unix)]
 use super::{startup_csh, startup_sh};
+use crate::config::default_proxy_repo_include_secondary_tags;
 use crate::encoding::Digest;
 use crate::env::SPFS_DIR_PREFIX;
 use crate::graph::object::Enum;
@@ -166,6 +167,8 @@ pub struct Config {
     /// data from multiple repositories on-the-fly (eg FUSE)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub secondary_repositories: Vec<url::Url>,
+    #[serde(default = "default_proxy_repo_include_secondary_tags")]
+    pub include_secondary_tags: bool,
 
     /// Whether to keep the runtime around once the process using it exits.
     #[serde(default)]
@@ -214,6 +217,7 @@ impl Config {
             mount_namespace: None,
             mount_backend: MountBackend::OverlayFsWithRenders,
             secondary_repositories: Vec::new(),
+            include_secondary_tags: default_proxy_repo_include_secondary_tags(),
             durable: false,
             live_layers: Vec::new(),
         }
