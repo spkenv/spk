@@ -4352,6 +4352,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "unix_mode",
 ]
 
 [[package]]
