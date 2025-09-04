@@ -76,29 +76,29 @@ impl Variant {
 
             // if it was parsed as something with components, then it is a pkg
             // request.
-            if let VariantSpecEntryKey::PkgOrOpt(pkg) = key {
-                if !pkg.0.components.is_empty() {
-                    let Ok(version_range) = VersionRange::from_str(value) else {
-                        return Err(Error::String(format!(
-                            "invalid version range for package '{}': {}",
-                            name, value
-                        )));
-                    };
-                    requirements.insert_or_replace(
-                        PkgRequest::new(
-                            RangeIdent {
-                                name: pkg.0.name,
-                                version: VersionFilter::single(version_range),
-                                repository_name: None,
-                                components: pkg.0.components.into_inner(),
-                                build: None,
-                            },
-                            spk_schema_foundation::ident::RequestedBy::Variant,
-                        )
-                        .into(),
-                    );
-                    continue;
-                }
+            if let VariantSpecEntryKey::PkgOrOpt(pkg) = key
+                && !pkg.0.components.is_empty()
+            {
+                let Ok(version_range) = VersionRange::from_str(value) else {
+                    return Err(Error::String(format!(
+                        "invalid version range for package '{}': {}",
+                        name, value
+                    )));
+                };
+                requirements.insert_or_replace(
+                    PkgRequest::new(
+                        RangeIdent {
+                            name: pkg.0.name,
+                            version: VersionFilter::single(version_range),
+                            repository_name: None,
+                            components: pkg.0.components.into_inner(),
+                            build: None,
+                        },
+                        spk_schema_foundation::ident::RequestedBy::Variant,
+                    )
+                    .into(),
+                );
+                continue;
             }
 
             // only items that don't already exist in the build

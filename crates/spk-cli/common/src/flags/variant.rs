@@ -387,11 +387,7 @@ impl Variant {
         default_variants: &'r [spk_schema::SpecVariant],
         options: &'o OptionMap,
         host_options: Option<&'o OptionMap>,
-    ) -> impl Iterator<Item = Result<VariantInfo<'r>>> + Send + Sync + 'v
-    where
-        'r: 'v,
-        'o: 'v,
-    {
+    ) -> impl Iterator<Item = Result<VariantInfo<'r>>> + Send + Sync {
         VariantInfoIter::<'v, 'r, 'o> {
             variant: self,
             recipe,

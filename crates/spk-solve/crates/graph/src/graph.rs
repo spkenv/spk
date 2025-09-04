@@ -662,7 +662,7 @@ impl Graph {
         Ok(new_node)
     }
 
-    pub fn walk(&self) -> GraphIter {
+    pub fn walk(&self) -> GraphIter<'_> {
         GraphIter::new(self)
     }
 }
@@ -703,7 +703,7 @@ impl<'graph> GraphIter<'graph> {
         }
     }
 
-    pub fn iter<'a: 'graph>(&'a mut self) -> impl Stream<Item = (Arc<Node>, Arc<Decision>)> + 'a {
+    pub fn iter(&mut self) -> impl Stream<Item = (Arc<Node>, Arc<Decision>)> {
         stream! {
             'outer: loop {
                 match self.walk_state {

@@ -329,15 +329,14 @@ fn test_variants_can_introduce_components() {
         }
 
         for requirement in variant.additional_requirements().iter() {
-            if let Request::Pkg(pkg) = requirement {
-                if pkg.pkg.name == "dep-pkg"
-                    && pkg.pkg.components.contains(&comp1)
-                    && pkg.pkg.components.contains(&comp2)
-                    && pkg.pkg.version == ver
-                {
-                    found_pkg = true;
-                    break;
-                }
+            if let Request::Pkg(pkg) = requirement
+                && pkg.pkg.name == "dep-pkg"
+                && pkg.pkg.components.contains(&comp1)
+                && pkg.pkg.components.contains(&comp2)
+                && pkg.pkg.version == ver
+            {
+                found_pkg = true;
+                break;
             }
         }
 

@@ -117,8 +117,8 @@ impl PackageStatsCollector {
         self.package_version_num_builds
             .values()
             .map(|v| {
-                v.iter()
-                    .map(|(_v, e)| {
+                v.values()
+                    .map(|e| {
                         // Count versions with only deprecated builds
                         if e.num_builds == e.num_deprecated_builds {
                             1
@@ -197,7 +197,7 @@ impl PackageStatsCollector {
             .iter()
             .map(|(p, versions)| {
                 let total_versions: u64 = versions.len() as u64;
-                let total_builds: u64 = versions.iter().map(|(_v, e)| e.num_builds).sum();
+                let total_builds: u64 = versions.values().map(|e| e.num_builds).sum();
                 let builds_per_version: u64 = total_builds / total_versions;
 
                 PackageStats {
@@ -215,8 +215,8 @@ impl PackageStatsCollector {
             .iter()
             .map(|(p, versions)| {
                 let active_vers: u64 = versions
-                    .iter()
-                    .map(|(_v, e)| {
+                    .values()
+                    .map(|e| {
                         if e.num_builds == e.num_deprecated_builds {
                             // This version is deprecated, it has no active builds
                             0
@@ -227,8 +227,8 @@ impl PackageStatsCollector {
                     .sum::<u64>();
 
                 let active_builds: u64 = versions
-                    .iter()
-                    .map(|(_v, e)| e.num_builds - e.num_deprecated_builds)
+                    .values()
+                    .map(|e| e.num_builds - e.num_deprecated_builds)
                     .sum();
 
                 let active_builds_per_ver: u64 = if active_vers == 0 {

@@ -90,14 +90,14 @@ impl AutoHostVars {
                             // Look for any configured compat rules for the
                             // distro
                             let config = get_config()?;
-                            if let Some(rule) = config.host_options.distro_rules.get(&distro_name) {
-                                if let Some(compat_rule) = &rule.compat_rule {
-                                    var_opt.compat = Some(
+                            if let Some(rule) = config.host_options.distro_rules.get(&distro_name)
+                                && let Some(compat_rule) = &rule.compat_rule
+                            {
+                                var_opt.compat = Some(
                                         Compat::from_str(compat_rule).map_err(|err| {
                                             Error::SpkConfigError(spk_config::Error::Config(config::ConfigError::Message(format!("Invalid compat rule found in config for distro {distro_name}: {err}"))))
                                         })?,
                                     );
-                                }
                             }
                             settings.push(Opt::Var(var_opt));
                         }

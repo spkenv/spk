@@ -69,19 +69,19 @@ pub trait Ranged: Display + Clone + Into<VersionRange> {
     /// Versions that are applicable are not necessarily satisfactory, but
     /// this cannot be fully determined without a complete package spec.
     fn is_applicable(&self, other: &Version) -> Compatibility {
-        if let Some(gt) = self.greater_or_equal_to() {
-            if other < &gt {
-                return Compatibility::Incompatible(IncompatibleReason::VersionTooLow(
-                    VersionRangeProblem::TooLow(VersionForClause::GteVersion(gt)),
-                ));
-            }
+        if let Some(gt) = self.greater_or_equal_to()
+            && other < &gt
+        {
+            return Compatibility::Incompatible(IncompatibleReason::VersionTooLow(
+                VersionRangeProblem::TooLow(VersionForClause::GteVersion(gt)),
+            ));
         }
-        if let Some(lt) = self.less_than() {
-            if other >= &lt {
-                return Compatibility::Incompatible(IncompatibleReason::VersionTooHigh(
-                    VersionRangeProblem::TooHigh(VersionForClause::LtVersion(lt)),
-                ));
-            }
+        if let Some(lt) = self.less_than()
+            && other >= &lt
+        {
+            return Compatibility::Incompatible(IncompatibleReason::VersionTooHigh(
+                VersionRangeProblem::TooHigh(VersionForClause::LtVersion(lt)),
+            ));
         }
         Compatibility::Compatible
     }
@@ -535,16 +535,16 @@ impl Ranged for WildcardRange {
 
     fn is_applicable(&self, version: &Version) -> Compatibility {
         for (i, (a, b)) in self.parts.iter().zip(&*version.parts).enumerate() {
-            if let Some(a) = a {
-                if a != b {
-                    return Compatibility::Incompatible(IncompatibleReason::VersionOutOfRange {
-                        wildcard: self.clone(),
-                        pos: i + 1,
-                        pos_label: get_version_position_label(i),
-                        has: *b,
-                        requires: *a,
-                    });
-                }
+            if let Some(a) = a
+                && a != b
+            {
+                return Compatibility::Incompatible(IncompatibleReason::VersionOutOfRange {
+                    wildcard: self.clone(),
+                    pos: i + 1,
+                    pos_label: get_version_position_label(i),
+                    has: *b,
+                    requires: *a,
+                });
             }
         }
 
@@ -871,10 +871,10 @@ impl Ranged for EqualsVersion {
         }
         // each post release tag must be exact if specified
         for (name, value) in self.version.post.iter() {
-            if let Some(v) = other.post.get(name) {
-                if v == value {
-                    continue;
-                }
+            if let Some(v) = other.post.get(name)
+                && v == value
+            {
+                continue;
             }
             return Compatibility::Incompatible(IncompatibleReason::VersionNotEqual(
                 VersionNotEqualProblem::PostNotEqual {

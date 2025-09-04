@@ -678,16 +678,16 @@ where
                 }
                 let existing = std::fs::symlink_metadata(&fullpath)
                     .map_err(|err| Error::RuntimeReadError(fullpath.clone(), err))?;
-                if existing.permissions().mode() != node.entry.mode {
-                    if let Err(err) = std::fs::set_permissions(
+                if existing.permissions().mode() != node.entry.mode
+                    && let Err(err) = std::fs::set_permissions(
                         &fullpath,
                         std::fs::Permissions::from_mode(node.entry.mode),
-                    ) {
-                        match err.kind() {
-                            std::io::ErrorKind::NotFound => continue,
-                            _ => {
-                                return Err(Error::RuntimeSetPermissionsError(fullpath, err));
-                            }
+                    )
+                {
+                    match err.kind() {
+                        std::io::ErrorKind::NotFound => continue,
+                        _ => {
+                            return Err(Error::RuntimeSetPermissionsError(fullpath, err));
                         }
                     }
                 }

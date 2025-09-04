@@ -59,10 +59,10 @@ pub trait Repository:
 
     /// Resolve a tag or digest string into its absolute digest.
     async fn resolve_ref(&self, reference: &str) -> Result<encoding::Digest> {
-        if let Ok(tag_spec) = tracking::TagSpec::parse(reference) {
-            if let Ok(tag) = self.resolve_tag(&tag_spec).await {
-                return Ok(tag.target);
-            }
+        if let Ok(tag_spec) = tracking::TagSpec::parse(reference)
+            && let Ok(tag) = self.resolve_tag(&tag_spec).await
+        {
+            return Ok(tag.target);
         }
 
         let partial = encoding::PartialDigest::parse(reference)

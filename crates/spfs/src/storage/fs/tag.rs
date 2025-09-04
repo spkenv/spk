@@ -958,10 +958,10 @@ impl TagLock {
     pub unsafe fn remove<P: AsRef<Path>>(tag_file: P) -> Result<()> {
         let mut lock_file = tag_file.as_ref().to_path_buf();
         lock_file.set_extension(Self::LOCK_EXT);
-        if let Err(err) = std::fs::remove_file(&lock_file) {
-            if err.kind() != std::io::ErrorKind::NotFound {
-                return Err(Error::StorageWriteError("unlock tag", lock_file, err));
-            }
+        if let Err(err) = std::fs::remove_file(&lock_file)
+            && err.kind() != std::io::ErrorKind::NotFound
+        {
+            return Err(Error::StorageWriteError("unlock tag", lock_file, err));
         }
         Ok(())
     }
@@ -969,10 +969,10 @@ impl TagLock {
 
 impl Drop for TagLock {
     fn drop(&mut self) {
-        if let Err(err) = std::fs::remove_file(&self.0) {
-            if err.kind() != std::io::ErrorKind::NotFound {
-                tracing::warn!(?err, path = ?self.0, "Failed to remove tag lock file");
-            }
+        if let Err(err) = std::fs::remove_file(&self.0)
+            && err.kind() != std::io::ErrorKind::NotFound
+        {
+            tracing::warn!(?err, path = ?self.0, "Failed to remove tag lock file");
         }
     }
 }

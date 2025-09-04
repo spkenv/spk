@@ -162,10 +162,10 @@ impl CmdInfo {
                     }
                 }
 
-                if self.follow {
-                    if let Some(manifest_digest) = obj.manifest() {
-                        self.to_process.push_back(manifest_digest.to_string());
-                    }
+                if self.follow
+                    && let Some(manifest_digest) = obj.manifest()
+                {
+                    self.to_process.push_back(manifest_digest.to_string());
                 }
             }
 
@@ -292,20 +292,20 @@ impl CmdInfo {
                 }
             );
         } else {
-            if let Some(first_path) = found.first() {
-                if let Some(ObjectPathEntry::FilePath(file_entry)) = first_path.last() {
-                    let number = found.len();
-                    println!(
-                        "{} (in {number} {}{})",
-                        file_entry.kind.to_string().green(),
-                        "layer".pluralize(number),
-                        if verbosity < 1 && number > 1 {
-                            ", topmost 1 shown, use -v to see all"
-                        } else {
-                            ""
-                        }
-                    );
-                }
+            if let Some(first_path) = found.first()
+                && let Some(ObjectPathEntry::FilePath(file_entry)) = first_path.last()
+            {
+                let number = found.len();
+                println!(
+                    "{} (in {number} {}{})",
+                    file_entry.kind.to_string().green(),
+                    "layer".pluralize(number),
+                    if verbosity < 1 && number > 1 {
+                        ", topmost 1 shown, use -v to see all"
+                    } else {
+                        ""
+                    }
+                );
             }
 
             // TODO: this logic is the same as self.format_digest() has and

@@ -377,7 +377,7 @@ where
         self.verbosity >= relevant_level
     }
 
-    pub fn iter(&mut self) -> impl Stream<Item = Result<String>> + '_ {
+    pub fn iter(&mut self) -> impl Stream<Item = Result<String>> {
         stream! {
             let mut stop_because_blocked = false;
             let mut step_because_blocked = false;
@@ -411,11 +411,10 @@ where
                     continue 'outer;
                 }
 
-                if self.settings.step_on_decision && current_state.is_some() {
-                    if let Err(err) = self.show_state_menu(&current_state, "Pausing after decision.".to_string()) {
+                if self.settings.step_on_decision && current_state.is_some()
+                    && let Err(err) = self.show_state_menu(&current_state, "Pausing after decision.".to_string()) {
                         yield(Err(err));
                     }
-                }
 
                 while self.output_queue.is_empty() {
                     // First, check if the solver has taken too long or the
@@ -1416,11 +1415,9 @@ impl DecisionFormatter {
                     // ignore failures from and it failed, then ignore
                     // the result and wait for the next to finish.
                     // Otherwise use this result and shutdown the others.
-                    if can_ignore_failure {
-                        if let LoopOutcome::Failed(_) = loop_outcome {
-                            continue;
-                        };
-                    }
+                    if can_ignore_failure && let LoopOutcome::Failed(_) = loop_outcome {
+                        continue;
+                    };
 
                     let solve_time = start.elapsed();
                     #[cfg(feature = "statsd")]
@@ -1623,19 +1620,19 @@ impl DecisionFormatter {
             self.send_solution_metrics(s);
         }
 
-        if self.settings.show_solution {
-            if let Ok(ref s) = solution {
-                output_location.output_message(format!(
-                    "{}{}",
-                    self.settings.heading_prefix,
-                    s.format_solution_with_highest_versions(
-                        self.settings.verbosity,
-                        runtime.solver.repositories(),
-                        false,
-                    )
-                    .await?
-                ));
-            }
+        if self.settings.show_solution
+            && let Ok(ref s) = solution
+        {
+            output_location.output_message(format!(
+                "{}{}",
+                self.settings.heading_prefix,
+                s.format_solution_with_highest_versions(
+                    self.settings.verbosity,
+                    runtime.solver.repositories(),
+                    false,
+                )
+                .await?
+            ));
         }
 
         output_location.flush();

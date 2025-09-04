@@ -527,14 +527,14 @@ pub trait Repository: Storage + Sync {
     /// The given package identifier must identify a full package build.
     async fn remove_package(&self, pkg: &BuildIdent) -> Result<()> {
         // Attempt to find and remove any related embedded package stubs.
-        if let Ok(spec) = self.read_package(pkg).await {
-            if spec.ident().can_embed() {
-                let embedded_providers = self.get_embedded_providers(&spec)?;
+        if let Ok(spec) = self.read_package(pkg).await
+            && spec.ident().can_embed()
+        {
+            let embedded_providers = self.get_embedded_providers(&spec)?;
 
-                for (embed, components) in embedded_providers.into_iter() {
-                    self.remove_embedded_stub_for_spec(&spec, &embed, components)
-                        .await?
-                }
+            for (embed, components) in embedded_providers.into_iter() {
+                self.remove_embedded_stub_for_spec(&spec, &embed, components)
+                    .await?
             }
         }
 
