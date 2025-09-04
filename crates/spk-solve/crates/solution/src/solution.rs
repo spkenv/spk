@@ -415,7 +415,7 @@ impl Solution {
             .collect();
         out.insert(
             "SPK_INITIAL_PKG_REQUESTS".to_string(),
-            initial_requests.iter().join(","),
+            initial_requests.iter().join(" "),
         );
 
         out.insert("SPK_ACTIVE_PREFIX".to_owned(), "/spfs".to_owned());
