@@ -80,6 +80,10 @@ const DONT_SHOW_DETAILED_SETTINGS: u8 = 0;
 /// Don't format a solved request as an initial request
 const NOT_AN_INITIAL_REQUEST: u64 = 1;
 
+///
+const ENV_FORMAT_NOT_SUPPORTED_HERE: &str =
+    "'env' format is only supported when getting info on the current environment";
+
 /// View the current environment, or information about a package, or filepath under /spfs
 #[derive(Args)]
 #[clap(visible_aliases = &["info", "provides"])]
@@ -463,7 +467,9 @@ impl View {
                             .wrap_err("Failed to serialize variant info")?
                     }
                 }
-                OutputFormat::Env => tracing::warn!("No env vars format for variants"),
+                OutputFormat::Env => {
+                    tracing::warn!(ENV_FORMAT_NOT_SUPPORTED_HERE)
+                }
             },
             None if show_variants_with_tests => {
                 tracing::warn!("--variants-with-tests requires json format");
@@ -636,7 +642,7 @@ impl View {
             OutputFormat::Json => serde_json::to_writer(std::io::stdout(), &*package_spec)
                 .into_diagnostic()
                 .wrap_err("Failed to serialize loaded spec")?,
-            OutputFormat::Env => tracing::warn!("No env vars format for variants"),
+            OutputFormat::Env => tracing::warn!(ENV_FORMAT_NOT_SUPPORTED_HERE),
         }
         Ok(0)
     }
@@ -713,7 +719,7 @@ impl View {
                                     .wrap_err("Failed to serialize loaded spec")?
                             }
                             OutputFormat::Env => {
-                                tracing::warn!("No env vars format for variants")
+                                tracing::warn!(ENV_FORMAT_NOT_SUPPORTED_HERE)
                             }
                         }
                         return Ok(0);
