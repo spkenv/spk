@@ -6,6 +6,7 @@ pub mod env;
 pub mod fixtures;
 pub mod format;
 mod from_yaml;
+pub mod ident;
 pub mod ident_build;
 pub mod ident_component;
 pub mod ident_ops;

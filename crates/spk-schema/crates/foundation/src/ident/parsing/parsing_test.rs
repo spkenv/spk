@@ -13,11 +13,13 @@ use nom::error::ErrorKind;
 use proptest::collection::{btree_map, btree_set, vec};
 use proptest::option::weighted;
 use proptest::prelude::*;
-use spk_schema_foundation::ident_build::{Build, EmbeddedSource, EmbeddedSourcePackage};
-use spk_schema_foundation::ident_component::Component;
-use spk_schema_foundation::name::{PkgNameBuf, RepositoryNameBuf};
-use spk_schema_foundation::version::{CompatRule, TagSet, Version};
-use spk_schema_foundation::version_range::{
+
+use crate::ident::{AnyIdent, RangeIdent, VersionIdent, parse_ident, parse_ident_range_list};
+use crate::ident_build::{Build, EmbeddedSource, EmbeddedSourcePackage};
+use crate::ident_component::Component;
+use crate::name::{PkgNameBuf, RepositoryNameBuf};
+use crate::version::{CompatRule, TagSet, Version};
+use crate::version_range::{
     CompatRange,
     DoubleEqualsVersion,
     DoubleNotEqualsVersion,
@@ -33,8 +35,6 @@ use spk_schema_foundation::version_range::{
     VersionRange,
     WildcardRange,
 };
-
-use crate::{AnyIdent, RangeIdent, VersionIdent, parse_ident, parse_ident_range_list};
 
 macro_rules! arb_version_range_struct {
     ($arb_name:ident, $type_name:ident, $($var:ident in $strategy:expr),+ $(,)?) => {
@@ -605,21 +605,21 @@ proptest! {
 #[test]
 fn parse_range_ident_with_basic_errors() {
     let empty = HashSet::new();
-    let r = crate::parsing::range_ident::<(_, ErrorKind)>(&empty)("pkg-name");
+    let r = crate::ident::parsing::range_ident::<(_, ErrorKind)>(&empty)("pkg-name");
     assert!(r.is_ok(), "{}", r.unwrap_err());
 }
 
 /// Invoke the `range_ident` parser without `VerboseError` for coverage.
 #[test]
 fn parse_ident_with_basic_errors() {
-    let r = crate::parsing::ident::<(_, ErrorKind)>("pkg-name");
+    let r = crate::ident::parsing::ident::<(_, ErrorKind)>("pkg-name");
     assert!(r.is_ok(), "{}", r.unwrap_err());
 }
 
 /// Fail if post-tags are specified before pre-tags.
 #[test]
 fn check_wrong_tag_order_is_a_parse_error() {
-    let r = all_consuming(crate::parsing::ident::<(_, ErrorKind)>)("pkg-name/1.0+a.0-b.0");
+    let r = all_consuming(crate::ident::parsing::ident::<(_, ErrorKind)>)("pkg-name/1.0+a.0-b.0");
     assert!(r.is_err(), "expected to fail; got {r:?}");
 }
 

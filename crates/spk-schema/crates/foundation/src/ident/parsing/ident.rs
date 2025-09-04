@@ -8,11 +8,11 @@ use nom::combinator::{map, opt};
 use nom::error::{ContextError, FromExternalError, ParseError};
 use nom::sequence::preceded;
 use nom_supreme::tag::TagError;
-use spk_schema_foundation::ident_ops::parsing::{version_and_build, version_and_required_build};
-use spk_schema_foundation::name::parsing::package_name;
-use spk_schema_foundation::version::parsing::version;
 
-use crate::{AnyIdent, BuildIdent, OptVersionIdent, VersionIdent};
+use crate::ident::{AnyIdent, BuildIdent, OptVersionIdent, VersionIdent};
+use crate::ident_ops::parsing::{version_and_build, version_and_required_build};
+use crate::name::parsing::package_name;
+use crate::version::parsing::version;
 
 /// Parse a package identity into an [`AnyIdent`].
 ///
@@ -24,9 +24,9 @@ pub fn ident<'b, E>(input: &'b str) -> IResult<&'b str, AnyIdent, E>
 where
     E: ParseError<&'b str>
         + ContextError<&'b str>
-        + FromExternalError<&'b str, crate::error::Error>
-        + FromExternalError<&'b str, spk_schema_foundation::ident_build::Error>
-        + FromExternalError<&'b str, spk_schema_foundation::version::Error>
+        + FromExternalError<&'b str, crate::ident::error::Error>
+        + FromExternalError<&'b str, crate::ident_build::Error>
+        + FromExternalError<&'b str, crate::version::Error>
         + FromExternalError<&'b str, std::num::ParseIntError>
         + TagError<&'b str, &'static str>,
 {
@@ -52,9 +52,9 @@ pub fn opt_version_ident<'b, E>(input: &'b str) -> IResult<&'b str, OptVersionId
 where
     E: ParseError<&'b str>
         + ContextError<&'b str>
-        + FromExternalError<&'b str, crate::error::Error>
-        + FromExternalError<&'b str, spk_schema_foundation::ident_build::Error>
-        + FromExternalError<&'b str, spk_schema_foundation::version::Error>
+        + FromExternalError<&'b str, crate::ident::error::Error>
+        + FromExternalError<&'b str, crate::ident_build::Error>
+        + FromExternalError<&'b str, crate::version::Error>
         + FromExternalError<&'b str, std::num::ParseIntError>
         + TagError<&'b str, &'static str>,
 {
@@ -72,9 +72,9 @@ pub fn version_ident<'b, E>(input: &'b str) -> IResult<&'b str, VersionIdent, E>
 where
     E: ParseError<&'b str>
         + ContextError<&'b str>
-        + FromExternalError<&'b str, crate::error::Error>
-        + FromExternalError<&'b str, spk_schema_foundation::ident_build::Error>
-        + FromExternalError<&'b str, spk_schema_foundation::version::Error>
+        + FromExternalError<&'b str, crate::ident::error::Error>
+        + FromExternalError<&'b str, crate::ident_build::Error>
+        + FromExternalError<&'b str, crate::version::Error>
         + FromExternalError<&'b str, std::num::ParseIntError>
         + TagError<&'b str, &'static str>,
 {
@@ -94,9 +94,9 @@ pub fn build_ident<'b, E>(input: &'b str) -> IResult<&'b str, BuildIdent, E>
 where
     E: ParseError<&'b str>
         + ContextError<&'b str>
-        + FromExternalError<&'b str, crate::error::Error>
-        + FromExternalError<&'b str, spk_schema_foundation::ident_build::Error>
-        + FromExternalError<&'b str, spk_schema_foundation::version::Error>
+        + FromExternalError<&'b str, crate::ident::error::Error>
+        + FromExternalError<&'b str, crate::ident_build::Error>
+        + FromExternalError<&'b str, crate::version::Error>
         + FromExternalError<&'b str, std::num::ParseIntError>
         + TagError<&'b str, &'static str>,
 {

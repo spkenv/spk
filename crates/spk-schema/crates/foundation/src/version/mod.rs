@@ -237,12 +237,12 @@ pub struct VersionParts {
 
 impl VersionParts {
     /// Return an iterator over the parts of this version.
-    fn iter_for_display(&self, minimum_parts: usize) -> impl Iterator<Item = u32> + '_ {
+    fn iter_for_display(&self, minimum_parts: usize) -> impl Iterator<Item = u32> {
         MinimumPartsPartIter::new(self.parts.as_slice(), minimum_parts)
     }
 
     /// Return an iterator over the normalized parts of this version.
-    fn iter_for_storage(&self) -> impl Iterator<Item = u32> + '_ {
+    fn iter_for_storage(&self) -> impl Iterator<Item = u32> {
         NormalizedPartsIter::new(self.parts.as_slice())
     }
 

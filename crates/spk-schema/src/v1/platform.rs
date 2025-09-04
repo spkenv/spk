@@ -8,14 +8,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
-use spk_schema_foundation::ident_build::{Build, BuildId};
-use spk_schema_foundation::ident_component::Component;
-use spk_schema_foundation::name::{OptName, PkgName};
-use spk_schema_foundation::option_map::{HOST_OPTIONS, OptionMap};
-use spk_schema_foundation::spec_ops::{HasVersion, Named, Versioned};
-use spk_schema_foundation::version::Version;
-use spk_schema_foundation::version_range::VersionFilter;
-use spk_schema_ident::{
+use spk_schema_foundation::ident::{
     BuildIdent,
     InclusionPolicy,
     NameAndValue,
@@ -26,6 +19,13 @@ use spk_schema_ident::{
     VarRequest,
     VersionIdent,
 };
+use spk_schema_foundation::ident_build::{Build, BuildId};
+use spk_schema_foundation::ident_component::Component;
+use spk_schema_foundation::name::{OptName, PkgName};
+use spk_schema_foundation::option_map::{HOST_OPTIONS, OptionMap};
+use spk_schema_foundation::spec_ops::{HasVersion, Named, Versioned};
+use spk_schema_foundation::version::Version;
+use spk_schema_foundation::version_range::VersionFilter;
 
 use crate::foundation::version::Compat;
 use crate::ident::is_false;
@@ -354,7 +354,7 @@ impl PlatformPkgRequirement {
                         prerelease_policy: None,
                         inclusion_policy: InclusionPolicy::IfAlreadyPresent,
                         pin: None,
-                        pin_policy: spk_schema_ident::PinPolicy::Required,
+                        pin_policy: spk_schema_foundation::ident::PinPolicy::Required,
                         required_compat: None,
                         requested_by: Default::default(),
                     }));
@@ -382,7 +382,7 @@ impl PlatformPkgRequirement {
                         prerelease_policy: None,
                         inclusion_policy: InclusionPolicy::IfAlreadyPresent,
                         pin: None,
-                        pin_policy: spk_schema_ident::PinPolicy::Required,
+                        pin_policy: spk_schema_foundation::ident::PinPolicy::Required,
                         required_compat: None,
                         requested_by: Default::default(),
                     }));
@@ -444,7 +444,9 @@ impl PlatformVarRequirement {
                     .requirements
                     .insert_or_replace(Request::Var(VarRequest {
                         var: self.var.0.clone(),
-                        value: spk_schema_ident::PinnableValue::Pinned(Arc::from(v.as_str())),
+                        value: spk_schema_foundation::ident::PinnableValue::Pinned(Arc::from(
+                            v.as_str(),
+                        )),
                         description: DESCRIPTION,
                     }));
             }
@@ -462,7 +464,9 @@ impl PlatformVarRequirement {
                     .requirements
                     .insert_or_replace(Request::Var(VarRequest {
                         var: self.var.0.clone(),
-                        value: spk_schema_ident::PinnableValue::Pinned(Arc::from(v.as_str())),
+                        value: spk_schema_foundation::ident::PinnableValue::Pinned(Arc::from(
+                            v.as_str(),
+                        )),
                         description: DESCRIPTION,
                     }));
             }

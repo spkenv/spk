@@ -28,32 +28,41 @@ use crate::{RepositoryHandle, storage};
 #[path = "./walker_test.rs"]
 mod walker_test;
 
-// Objects returned in RepoWalkerItems from walking a set of repositories
+/// Deprecation states for walked versions (based on their deprecated builds)
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
+pub enum DeprecationState {
+    #[default]
+    NotCalculated,
+    Active,
+    PartiallyDeprecated,
+    Deprecated,
+}
 
 /// A repository the RepoWalker is processing
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct WalkedRepo<'a> {
     pub name: &'a str,
 }
 
 /// A package in a repo the RepoWalker is processing
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct WalkedPackage<'a> {
     pub repo_name: &'a str,
     pub name: Arc<PkgNameBuf>,
 }
 
 /// A version of a package the RepoWalker is processing
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct WalkedVersion<'a> {
     pub repo_name: &'a str,
     /// This doesn't include the package name as a separate field
     /// because it is included in the version ident.
     pub ident: Arc<VersionIdent>,
+    pub deprecation_state: DeprecationState,
 }
 
 /// A build of a version the RepoWalker is processing
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct WalkedBuild<'a> {
     pub repo_name: &'a str,
     /// This doesn't include the build ident, because the spec.ident()
@@ -62,7 +71,7 @@ pub struct WalkedBuild<'a> {
 }
 
 /// A component of a build the RepoWalker is processing
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct WalkedComponent<'a> {
     pub repo_name: &'a str,
     pub build: Arc<BuildIdent>,
@@ -71,7 +80,7 @@ pub struct WalkedComponent<'a> {
 }
 
 /// A file in a component the RepoWalker is processing
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct WalkedFile<'a> {
     pub repo_name: &'a str,
     pub build: Arc<BuildIdent>,
@@ -81,7 +90,7 @@ pub struct WalkedFile<'a> {
 }
 
 /// The items a RepoWalker can find and return during a walk
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum RepoWalkerItem<'a> {
     // Ones emitted during standard walks
     Repo(WalkedRepo<'a>),
@@ -159,12 +168,12 @@ impl RepoWalkerFilter {
         repository_name_to_match: Option<String>,
         pkg_name_to_match: String,
     ) -> bool {
-        if let Some(rn) = repository_name_to_match {
-            if *package.repo_name != rn {
-                // A repo name given and it didn't match, so don't
-                // need to check any further.
-                return false;
-            }
+        if let Some(rn) = repository_name_to_match
+            && *package.repo_name != rn
+        {
+            // A repo name given and it didn't match, so don't
+            // need to check any further.
+            return false;
         }
         ***package.name == pkg_name_to_match
     }
@@ -258,8 +267,12 @@ pub struct RepoWalker<'a> {
     /// Whether to turn errors into warning and continue the walking
     /// from the next object instead of stopping when an error occurs.
     continue_on_error: bool,
-    //// Whether to sort objects at each level before walking them.
+    /// Whether to sort objects at each level before walking them.
     sort_objects: bool,
+    /// Whether to only walk the highest version and then move on to the next package
+    highest_version_only: bool,
+    /// Whether to work out if a version is deprecated before emitting it
+    calculate_deprecated_versions: bool,
 }
 
 impl std::fmt::Debug for RepoWalker<'_> {
@@ -349,6 +362,7 @@ impl RepoWalker<'_> {
                     let version = WalkedVersion {
                         repo_name: repository_name,
                         ident: Arc::new(v_id),
+                        deprecation_state: DeprecationState::NotCalculated,
                     };
 
                     if (self.version_filter_func)(&version) {
@@ -371,9 +385,14 @@ impl RepoWalker<'_> {
         // TODO: any matching on a version's recipe could go here if needed.
 
         if self.sort_objects {
-            versions.sort_by_cached_key(|v| v.ident.clone());
-            versions.reverse();
+            versions.sort_by_cached_key(|v| std::cmp::Reverse(v.ident.clone()));
         }
+
+        if self.highest_version_only {
+            // Replace the versions with the highest numbered one only
+            versions = versions.into_iter().take(1).collect();
+        }
+
         Ok(versions)
     }
 
@@ -383,11 +402,11 @@ impl RepoWalker<'_> {
         repository_name: &'a str,
         repo: &RepositoryHandle,
         version_ident: &VersionIdent,
-    ) -> Result<Vec<WalkedBuild<'a>>> {
+    ) -> Result<(Vec<WalkedBuild<'a>>, DeprecationState)> {
         // If this walker is configured to stop at versions, don't
         // return any builds.
         if !self.report_on_builds {
-            return Ok(Vec::new());
+            return Ok((Vec::new(), DeprecationState::NotCalculated));
         }
 
         let mut build_idents = match repo.list_package_builds(version_ident).await {
@@ -406,6 +425,10 @@ impl RepoWalker<'_> {
             build_idents.sort();
         }
 
+        let version_deprecation = self
+            .calculate_version_deprecation_state(repo, &build_idents)
+            .await;
+
         // Only keep the matching builds
         let mut results = Vec::new();
         for build_id in build_idents.into_iter() {
@@ -414,7 +437,47 @@ impl RepoWalker<'_> {
             }
         }
 
-        Ok(results)
+        Ok((results, version_deprecation))
+    }
+
+    async fn calculate_version_deprecation_state(
+        &self,
+        repo: &RepositoryHandle,
+        build_idents: &Vec<BuildIdent>,
+    ) -> DeprecationState {
+        if self.calculate_deprecated_versions {
+            // Check deprecation status of each build to work out the
+            // version's deprecation state.
+            let mut any_deprecated = false;
+            let mut any_not_deprecated = false;
+
+            for build_id in build_idents {
+                if let Ok(spec) = repo.read_package(build_id).await {
+                    if spec.is_deprecated() {
+                        any_deprecated = true;
+                    } else {
+                        any_not_deprecated = true;
+                    }
+                }
+                if any_deprecated && any_not_deprecated {
+                    // Have checked enough builds to work out the
+                    // version's deprecation state
+                    break;
+                }
+            }
+
+            let all_deprecated = any_deprecated && !any_not_deprecated;
+
+            if all_deprecated {
+                DeprecationState::Deprecated
+            } else if any_deprecated {
+                DeprecationState::PartiallyDeprecated
+            } else {
+                DeprecationState::Active
+            }
+        } else {
+            DeprecationState::NotCalculated
+        }
     }
 
     // Check the build against the walker's global builds settings and
@@ -545,11 +608,11 @@ impl RepoWalker<'_> {
     // TODO: This could be a spfs level storage walker, or use one in
     // future. This processes spfs objects, but only returns file things
     // that spk wants to know about, i.e. WalkedFiles.
-    fn file_stream<'a>(
+    pub fn file_stream<'a>(
         &'a self,
         repo: &'a RepositoryHandle,
         component: WalkedComponent<'a>,
-    ) -> impl Stream<Item = Result<WalkedFile<'a>>> + 'a {
+    ) -> impl Stream<Item = Result<WalkedFile<'a>>> {
         Box::pin(try_stream! {
             // If this walker is configured to stop at component, don't
             // return any files.
@@ -655,7 +718,7 @@ impl RepoWalker<'_> {
 
     /// Walk the spk objects in the repos and stream back the matching
     /// ones based on the walker's configuration.
-    pub fn walk(&self) -> impl Stream<Item = Result<RepoWalkerItem>> + '_ {
+    pub fn walk(&self) -> impl Stream<Item = Result<RepoWalkerItem<'_>>> {
         Box::pin(try_stream! {
             for (repository_name, repo) in self.repos.iter() {
                 let repo_name = repository_name.as_str();
@@ -669,11 +732,17 @@ impl RepoWalker<'_> {
 
                     let versions = self.get_matching_versions(repository_name, repo, &package_name).await?;
                     for package_version in versions.iter() {
-                        yield RepoWalkerItem::Version(package_version.clone());
-
                         let ident = Arc::clone(&package_version.ident);
 
-                        let builds = self.get_matching_builds(repository_name, repo, &ident).await?;
+                        let (builds, version_deprecation_state) = self.get_matching_builds(repository_name, repo, &ident).await?;
+                        if self.calculate_deprecated_versions {
+                            let mut version = package_version.clone();
+                            version.deprecation_state = version_deprecation_state.clone();
+                            yield RepoWalkerItem::Version(version);
+                        } else {
+                            yield RepoWalkerItem::Version(package_version.clone());
+                        }
+
                         for build in builds.iter() {
                             yield RepoWalkerItem::Build(build.clone());
 
@@ -703,7 +772,13 @@ impl RepoWalker<'_> {
 
                         if self.emit_end_of_markers && !builds.is_empty() {
                             // Report the end of this version (after all its builds)
-                            yield RepoWalkerItem::EndOfVersion(package_version.clone())
+                            if self.calculate_deprecated_versions {
+                                let mut version = package_version.clone();
+                                version.deprecation_state = version_deprecation_state;
+                                yield RepoWalkerItem::EndOfVersion(version)
+                            } else {
+                                yield RepoWalkerItem::EndOfVersion(package_version.clone())
+                            }
                         }
                     }
 
@@ -725,10 +800,20 @@ impl RepoWalker<'_> {
 /// A builder for constructing a RepoWalker from various settings.
 ///
 /// A default RepoWalker can made with:
+/// ```
+/// use spk_storage::RepoWalkerBuilder;
+/// # use spk_storage::local_repository;
+/// # use spk_storage::Result;
+/// # use futures::executor::block_on;
+/// # fn main() -> Result<()> {
+/// # let mut repo = block_on(local_repository())?;
+/// # let repos = vec!(("local".to_string(), repo.into()));
 ///
-///   let repo_walker_builder = RepoWalkerBuilder::new(repos);
-///   let repo_walker = builder.build();
-///
+/// let repo_walker_builder = RepoWalkerBuilder::new(&repos);
+/// let repo_walker = repo_walker_builder.build();
+/// # Ok(())
+/// # }
+/// ```
 /// That makes a RepoWalker that will: walk the given list of
 /// repositories to report on all packages, all versions, all builds
 /// that aren't /src or /deprecated builds, and will emit the package,
@@ -744,28 +829,40 @@ impl RepoWalker<'_> {
 /// Other walkers can be made by using the with_* methods on the
 /// RepoWalkerBuilder to configure it before calling build() and
 /// making the RepoWalker, e.g.
+/// ```
+/// use spk_storage::RepoWalkerBuilder;
+/// # use spk_storage::local_repository;
+/// # use futures::executor::block_on;
+/// # fn main() -> miette::Result<()> {
+/// # let mut repo = block_on(local_repository())?;
+/// # let repos = vec!(("local".to_string(), repo.into()));
+/// let some_package = Some("python/3.10.10".to_string());
+/// let host_options = None;
+/// let some_file_path = Some("/lib".to_string());
 ///
-///   let repo_walker_builder = RepoWalkerBuilder::new(repos);
-///   let repo_walker = builder
-///         .try_with_package_equals(some_package)?
-///         .with_report_on_versions(true)
-///         .with_report_on_builds(true)
-///         .with_report_src_builds(true)
-///         .with_report_deprecated_builds(true)
-///         .with_report_embedded_builds(false)
-///         .with_report_on_components(true)
-///         .with_build_options_matching(host_options)
-///         .with_report_on_files(true)
-///         .with_file_path(some_file_path)
-///         .with_continue_on_error(true)
-///         .build();
-///
+/// let mut repo_walker_builder = RepoWalkerBuilder::new(&repos);
+/// let repo_walker = repo_walker_builder
+///       .try_with_package_equals(&some_package)?
+///       .with_report_on_versions(true)
+///       .with_report_on_builds(true)
+///       .with_report_src_builds(true)
+///       .with_report_deprecated_builds(true)
+///       .with_report_embedded_builds(false)
+///       .with_report_on_components(true)
+///       .with_build_options_matching(host_options)
+///       .with_report_on_files(true)
+///       .with_file_path(some_file_path)
+///       .with_continue_on_error(true)
+///       .build();
+/// # Ok(())
+/// # }
+/// ```
 /// That makes a RepoWalker that will: walk down to files, but only
 /// for packages that match the given package identifier. It will
 /// filter out embedded builds and builds that don't match given host
 /// options. It will turn errors into warnings and continue on if it
 /// hits an error.
-///
+#[derive(Clone)]
 pub struct RepoWalkerBuilder<'a> {
     /// A list of repositories to walk. These must be given to the
     /// constructor, everything else has a default, see new(). There
@@ -797,6 +894,11 @@ pub struct RepoWalkerBuilder<'a> {
     continue_on_error: bool,
     /// Whether to sort the objects returned from walker
     sort_objects: bool,
+    /// Whether to only emit the highest version, and things beneath it, for each package
+    highest_version_only: bool,
+    /// Whether to work out if a version is deprecated before emitting it
+    /// This requires processing the version's builds before emitting the version.
+    calculate_deprecated_versions: bool,
 }
 
 impl<'a> RepoWalkerBuilder<'a> {
@@ -839,13 +941,17 @@ impl<'a> RepoWalkerBuilder<'a> {
             continue_on_error: false,
             // Sort objects before emitting them by default
             sort_objects: true,
+            // Include all the versions by default
+            highest_version_only: false,
+            // Do not calculated deprecated versions by default
+            calculate_deprecated_versions: false,
         }
     }
 
     /// Given a string, use it to set up substring matching for
     /// package names. This is a helper function used by the spk
     /// search command. The same filter could be set up directly using
-    /// with_package_filter().
+    /// [Self::with_package_filter].
     pub fn with_package_name_substring_matching(&mut self, search_substring: String) -> &mut Self {
         self.with_package_filter(move |wp| {
             RepoWalkerFilter::substring_package_name_filter(wp, search_substring.clone())
@@ -875,8 +981,8 @@ impl<'a> RepoWalkerBuilder<'a> {
     ///
     /// This is a helper function used by the spk ls, du, and stats
     /// commands. The same kinds of filters could also be set up by
-    /// calling: with_package_filter(), with_version_filter(),
-    /// with_build_ident_filter(), and with_component_filter()
+    /// calling: [Self::with_package_filter], [Self::with_version_filter],
+    /// [Self::with_build_ident_filter], and [Self::with_component_filter]
     pub fn try_with_package_equals(
         &mut self,
         search_package: &'a Option<String>,
@@ -938,6 +1044,53 @@ impl<'a> RepoWalkerBuilder<'a> {
         Ok(self)
     }
 
+    /// Sets package name and version number filters based on the
+    /// given version ident. This is a helper function. The same
+    /// filters could also be set up by calling:
+    /// [Self::with_package_filter] and [Self::with_version_filter].
+    pub fn with_version_ident(&mut self, version: VersionIdent) -> &mut Self {
+        // Set up a filter function for matching the package name.
+        let pkg_name = version.name().to_string();
+        self.with_package_filter(move |wp| {
+            RepoWalkerFilter::exact_package_name_filter(wp, None, pkg_name.clone())
+        });
+
+        // Set up a filter function matching for the version, if any
+        let version_number = version.version().clone();
+        self.with_version_filter(move |ver| {
+            RepoWalkerFilter::exact_match_version_filter(ver, version_number.to_string().clone())
+        });
+
+        self
+    }
+
+    /// Sets package name, version number, and build id (digest)
+    /// filters based on the given build ident. This is a helper
+    /// function. The same filters could also be set up by calling:
+    /// [Self::with_package_filter], [Self::with_version_filter], and
+    /// [Self::with_build_ident_filter].
+    pub fn with_build_ident(&mut self, build: BuildIdent) -> &mut Self {
+        // Set up a filter function for matching the package name.
+        let pkg_name = build.name().to_string();
+        self.with_package_filter(move |wp| {
+            RepoWalkerFilter::exact_package_name_filter(wp, None, pkg_name.clone())
+        });
+
+        // Set up a filter function matching for the version, if any
+        let version_number = build.version().clone();
+        self.with_version_filter(move |ver| {
+            RepoWalkerFilter::exact_match_version_filter(ver, version_number.to_string().clone())
+        });
+
+        // Set up a filter function for matching the build ident, if any
+        let build_id = build.build().clone();
+        self.with_build_ident_filter(move |b| {
+            RepoWalkerFilter::exact_match_build_digest_filter(b, build_id.to_string().clone())
+        });
+
+        self
+    }
+
     /// Given some file path string, this will use it to set a file
     /// filter function that matches the file path against the start
     /// of each file found by the walker.
@@ -947,7 +1100,7 @@ impl<'a> RepoWalkerBuilder<'a> {
     ///
     /// This is a helper function used by the spk du command. The same
     /// kind of filter could be setup directly by calling
-    /// with_file_filter().
+    /// [Self::with_file_filter].
     pub fn with_file_path(&mut self, file_path: Option<String>) -> &mut Self {
         if let Some(path) = file_path {
             let path_pieces: Vec<String> = path.split("/").map(ToString::to_string).collect();
@@ -976,7 +1129,7 @@ impl<'a> RepoWalkerBuilder<'a> {
     }
 
     /// Set up a filter function for builds based on their build ident
-    /// (digest). This is separate from with_build_spec_filter()
+    /// (digest). This is separate from [Self::with_build_spec_filter]
     /// because checking a build's ident is cheaper than reading in
     /// the build's spec to use in filtering.
     pub fn with_build_ident_filter(
@@ -988,7 +1141,7 @@ impl<'a> RepoWalkerBuilder<'a> {
     }
 
     /// Set up a filter function for builds based on their build spec.
-    /// This is separate from with_build_ident_filter() because
+    /// This is separate from [Self::with_build_ident_filter] because
     /// reading a build's spec in is more expensive than just checking
     /// a build's ident. But it needed to access some data,
     /// e.g. deprecation status or install requirements.
@@ -1072,7 +1225,7 @@ impl<'a> RepoWalkerBuilder<'a> {
     /// build spec filter function to match build's options against.
     /// This is a helper function used by the spk ls, stats and search
     /// commands. The same filter could be set up directly using
-    /// with_build_spec_filter().
+    /// [Self::with_build_spec_filter].
     pub fn with_build_options_matching(
         &mut self,
         build_filters: Option<Vec<OptFilter>>,
@@ -1130,8 +1283,25 @@ impl<'a> RepoWalkerBuilder<'a> {
         self
     }
 
+    /// Whether to have the walker only emit the highest version (and
+    /// the things beneath it) and then move on to the next package.
+    pub fn with_highest_version_only(&mut self, highest_version_only: bool) -> &mut Self {
+        self.highest_version_only = highest_version_only;
+        self
+    }
+
+    /// Whether to calculate if each version is deprecate before emitting it.
+    /// This requires processing the version's builds before emitting the version.
+    pub fn with_calculate_deprecated_versions(
+        &mut self,
+        calculate_deprecated_versions: bool,
+    ) -> &mut Self {
+        self.calculate_deprecated_versions = calculate_deprecated_versions;
+        self
+    }
+
     /// Creates a RepoWalker using the builder's current settings.
-    pub fn build(&self) -> RepoWalker {
+    pub fn build(&self) -> RepoWalker<'_> {
         RepoWalker {
             repos: self.repos,
             package_filter_func: self.package_filter_func.clone(),
@@ -1150,6 +1320,8 @@ impl<'a> RepoWalkerBuilder<'a> {
             emit_end_of_markers: self.end_of_markers,
             continue_on_error: self.continue_on_error,
             sort_objects: self.sort_objects,
+            highest_version_only: self.highest_version_only,
+            calculate_deprecated_versions: self.calculate_deprecated_versions,
         }
     }
 }

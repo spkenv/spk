@@ -86,10 +86,9 @@ impl Workspace {
     {
         if let Err(FindPackageTemplateError::NotFound(_)) =
             self.find_package_template(package.as_ref())
+            && std::fs::exists(package.as_ref()).ok().unwrap_or_default()
         {
-            if std::fs::exists(package.as_ref()).ok().unwrap_or_default() {
-                self.load_template_file(package.as_ref())?;
-            }
+            self.load_template_file(package.as_ref())?;
         }
         // NOTE: it would be preferable not to run this function twice and instead return
         // the value of the first call when it succeeds but doing so results in the

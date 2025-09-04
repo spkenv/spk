@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use crate::config::OverlayFsOptions;
 use crate::resolve::{RenderResult, resolve_and_render_overlay_dirs};
 use crate::storage::fs::RenderSummary;
 use crate::{Error, Result, bootstrap, env, runtime};
@@ -90,7 +91,10 @@ pub async fn make_runtime_durable(rt: &runtime::Runtime) -> Result<()> {
 ///
 /// This function sets environment variables, see [`std::env::set_var`] for
 /// more details on safety.
-pub async unsafe fn change_to_durable_runtime(rt: &mut runtime::Runtime) -> Result<RenderSummary> {
+pub async unsafe fn change_to_durable_runtime(
+    global_overlayfs_options: &OverlayFsOptions,
+    rt: &mut runtime::Runtime,
+) -> Result<RenderSummary> {
     // Safety: the responsibility of the caller.
     let in_namespace = unsafe { env::RuntimeConfigurator::default().current_runtime(rt)? };
     let with_root = in_namespace.become_root()?;
@@ -119,7 +123,7 @@ pub async unsafe fn change_to_durable_runtime(rt: &mut runtime::Runtime) -> Resu
         }
     };
     with_root
-        .mount_env_overlayfs(rt, &render_result.paths_rendered)
+        .mount_env_overlayfs(global_overlayfs_options, rt, &render_result.paths_rendered)
         .await?;
     tracing::debug!("runtime overlayfs remounted");
 
@@ -136,7 +140,10 @@ pub async unsafe fn change_to_durable_runtime(rt: &mut runtime::Runtime) -> Resu
 ///
 /// This function sets environment variables, see [`std::env::set_var`] for
 /// more details on safety.
-pub async unsafe fn reinitialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSummary> {
+pub async unsafe fn reinitialize_runtime(
+    global_overlayfs_options: &OverlayFsOptions,
+    rt: &mut runtime::Runtime,
+) -> Result<RenderSummary> {
     let render_result = match rt.config.mount_backend {
         runtime::MountBackend::OverlayFsWithRenders => {
             resolve_and_render_overlay_dirs(rt, false).await?
@@ -162,7 +169,7 @@ pub async unsafe fn reinitialize_runtime(rt: &mut runtime::Runtime) -> Result<Re
     match rt.config.mount_backend {
         runtime::MountBackend::OverlayFsWithRenders => {
             with_root
-                .mount_env_overlayfs(rt, &render_result.paths_rendered)
+                .mount_env_overlayfs(global_overlayfs_options, rt, &render_result.paths_rendered)
                 .await?;
             with_root.mask_files(&rt.config, manifest).await?;
         }
@@ -176,7 +183,7 @@ pub async unsafe fn reinitialize_runtime(rt: &mut runtime::Runtime) -> Result<Re
 
             with_root.mount_fuse_lower_dir(rt).await?;
             with_root
-                .mount_env_overlayfs(rt, &render_result.paths_rendered)
+                .mount_env_overlayfs(global_overlayfs_options, rt, &render_result.paths_rendered)
                 .await?;
         }
         #[cfg(feature = "fuse-backend")]
@@ -199,7 +206,10 @@ pub async unsafe fn reinitialize_runtime(rt: &mut runtime::Runtime) -> Result<Re
 ///
 /// This function will run blocking IO on the current thread. Although this is not ideal,
 /// the mount namespacing operated per-thread and so restricts our ability to move execution.
-pub async fn initialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSummary> {
+pub async fn initialize_runtime(
+    global_overlayfs_options: &OverlayFsOptions,
+    rt: &mut runtime::Runtime,
+) -> Result<RenderSummary> {
     // Before rendering the runtime's layers, have to make sure that
     // if extra mounts going to be included that the runtime includes
     // all the mount point paths for the extra mounts. This doesn't
@@ -240,7 +250,7 @@ pub async fn initialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSumma
             with_root.mount_runtime(&rt.config)?;
             with_root.setup_runtime(rt).await?;
             with_root
-                .mount_env_overlayfs(rt, &render_result.paths_rendered)
+                .mount_env_overlayfs(global_overlayfs_options, rt, &render_result.paths_rendered)
                 .await?;
             with_root.mask_files(&rt.config, manifest).await?;
         }
@@ -250,7 +260,7 @@ pub async fn initialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSumma
             with_root.setup_runtime(rt).await?;
             with_root.mount_fuse_lower_dir(rt).await?;
             with_root
-                .mount_env_overlayfs(rt, &render_result.paths_rendered)
+                .mount_env_overlayfs(global_overlayfs_options, rt, &render_result.paths_rendered)
                 .await?;
         }
         #[cfg(feature = "fuse-backend")]

@@ -20,6 +20,7 @@ clap = { workspace = true }
 colored = { workspace = true }
 futures = "0.3.9"
 itertools = { workspace = true }
+nom-supreme = { workspace = true }
 rstest = { workspace = true }
 serial_test = { workspace = true }
 spfs = { workspace = true }

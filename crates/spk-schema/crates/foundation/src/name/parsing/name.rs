@@ -43,7 +43,7 @@ pub(crate) fn is_legal_tag_name_alpha_chr(c: char) -> bool {
 /// names.
 pub fn known_repository_name<'a, 'i, E>(
     known_repositories: &'a HashSet<&str>,
-) -> impl Fn(&'i str) -> IResult<&'i str, &'i RepositoryName, E> + 'a
+) -> impl Fn(&'i str) -> IResult<&'i str, &'i RepositoryName, E>
 where
     E: ParseError<&'i str> + ContextError<&'i str> + 'a,
 {

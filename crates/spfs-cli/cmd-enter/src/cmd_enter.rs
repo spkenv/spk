@@ -194,7 +194,10 @@ impl CmdEnter {
             }
             let start_time = Instant::now();
             // Safety: the responsibility of the caller.
-            let render_summary = unsafe { spfs::change_to_durable_runtime(&mut runtime).await? };
+            let render_summary = unsafe {
+                spfs::change_to_durable_runtime(&config.filesystem.overlayfs_options, &mut runtime)
+                    .await?
+            };
             // Safety: the responsibility of the caller.
             unsafe {
                 self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64())
@@ -214,7 +217,10 @@ impl CmdEnter {
         } else if self.remount.enabled {
             let start_time = Instant::now();
             // Safety: the responsibility of the caller.
-            let render_summary = unsafe { spfs::reinitialize_runtime(&mut runtime).await? };
+            let render_summary = unsafe {
+                spfs::reinitialize_runtime(&config.filesystem.overlayfs_options, &mut runtime)
+                    .await?
+            };
             // Safety: the responsibility of the caller.
             unsafe {
                 self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64())
@@ -230,7 +236,8 @@ impl CmdEnter {
             tracing::debug!("initializing runtime {owned:#?}");
 
             let start_time = Instant::now();
-            let render_summary = spfs::initialize_runtime(&mut owned).await?;
+            let render_summary =
+                spfs::initialize_runtime(&config.filesystem.overlayfs_options, &mut owned).await?;
             // Safety: the responsibility of the caller.
             unsafe {
                 self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64())
@@ -238,13 +245,13 @@ impl CmdEnter {
 
             let mut monitor_stdin = match spfs::monitor::spawn_monitor_for_runtime(&owned) {
                 Err(err) => {
-                    if !owned.is_durable() {
-                        if let Err(err) = owned.delete().await {
-                            tracing::error!(
-                                ?err,
-                                "failed to cleanup runtime data after failure to start monitor"
-                            );
-                        }
+                    if !owned.is_durable()
+                        && let Err(err) = owned.delete().await
+                    {
+                        tracing::error!(
+                            ?err,
+                            "failed to cleanup runtime data after failure to start monitor"
+                        );
                     }
                     return Err(err.into());
                 }

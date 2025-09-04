@@ -64,9 +64,14 @@ async fn test_auto_merge_layers(tmpdir: tempfile::TempDir) {
         runtime.push_digest(layer.digest().unwrap());
     }
 
-    let dirs = crate::resolve::resolve_overlay_dirs(&mut runtime, &fs_repo, true)
-        .await
-        .expect("resolve overlay dirs successfully");
+    let dirs = crate::resolve::resolve_overlay_dirs(
+        &config.filesystem.overlayfs_options,
+        &mut runtime,
+        &fs_repo,
+        true,
+    )
+    .await
+    .expect("resolve overlay dirs successfully");
 
     assert!(
         dirs.len() < layers.len(),
@@ -137,9 +142,14 @@ async fn test_auto_merge_layers_with_edit(tmpdir: tempfile::TempDir) {
     }
 
     // Test - merging layers doesn't lose the edit
-    let dirs = crate::resolve::resolve_overlay_dirs(&mut runtime, &fs_repo, true)
-        .await
-        .expect("resolve overlay dirs successfully");
+    let dirs = crate::resolve::resolve_overlay_dirs(
+        &config.filesystem.overlayfs_options,
+        &mut runtime,
+        &fs_repo,
+        true,
+    )
+    .await
+    .expect("resolve overlay dirs successfully");
 
     // Check the results
     let d = dirs.last().unwrap();

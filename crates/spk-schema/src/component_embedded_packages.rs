@@ -6,9 +6,9 @@ use std::collections::BTreeSet;
 use std::fmt::Write;
 
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::ident::OptVersionIdent;
 use spk_schema_foundation::ident_component::{Component, Components};
 use spk_schema_foundation::ident_ops::parsing::request_pkg_name_and_version;
-use spk_schema_ident::OptVersionIdent;
 
 use crate::{Error, Result};
 

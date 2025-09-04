@@ -481,17 +481,17 @@ impl Shell {
             }
         }
 
-        if let Some(path) = desired {
-            if let Ok(shell) = Shell::from_path(path) {
-                return Ok(shell);
-            }
+        if let Some(path) = desired
+            && let Ok(shell) = Shell::from_path(path)
+        {
+            return Ok(shell);
         }
 
         for kind in &[ShellKind::Bash, ShellKind::Tcsh, ShellKind::Powershell] {
-            if let Some(path) = which(kind) {
-                if let Ok(shell) = Shell::from_path(path) {
-                    return Ok(shell);
-                }
+            if let Some(path) = which(kind)
+                && let Ok(shell) = Shell::from_path(path)
+            {
+                return Ok(shell);
             }
         }
 

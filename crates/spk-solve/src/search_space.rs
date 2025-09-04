@@ -154,13 +154,13 @@ fn display_search_space_stats(
         // Active, non-src, non-embedded builds, version range
         // matching (so only those that could fall within the
         // request's version range)
-        if !spec.is_deprecated() && !ident.is_source() & !ident.is_embedded() {
-            if let Some(request) = requests.get(pkg_name) {
-                if request.is_satisfied_by(spec).is_ok() {
-                    let counter = version_range_counters.entry(pkg_name.into()).or_insert(0);
-                    *counter += 1;
-                }
-            }
+        if !spec.is_deprecated()
+            && !ident.is_source() & !ident.is_embedded()
+            && let Some(request) = requests.get(pkg_name)
+            && request.is_satisfied_by(spec).is_ok()
+        {
+            let counter = version_range_counters.entry(pkg_name.into()).or_insert(0);
+            *counter += 1;
         }
     }
 

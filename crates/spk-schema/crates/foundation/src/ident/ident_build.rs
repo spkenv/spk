@@ -6,15 +6,9 @@ use std::fmt::Write;
 use std::str::FromStr;
 
 use relative_path::RelativePathBuf;
-use spk_schema_foundation::ident_build::{Build, EmbeddedSourcePackage};
-use spk_schema_foundation::ident_ops::parsing::IdentPartsBuf;
-use spk_schema_foundation::ident_ops::{MetadataPath, TagPath};
-use spk_schema_foundation::name::{PkgName, PkgNameBuf, RepositoryNameBuf};
-use spk_schema_foundation::spec_ops::prelude::*;
-use spk_schema_foundation::version::Version;
 
-use crate::ident_version::VersionIdent;
-use crate::{
+use crate::ident::ident_version::VersionIdent;
+use crate::ident::{
     AnyIdent,
     Error,
     Ident,
@@ -24,11 +18,17 @@ use crate::{
     ToAnyIdentWithoutBuild,
     parsing,
 };
+use crate::ident_build::{Build, EmbeddedSourcePackage};
+use crate::ident_ops::parsing::IdentPartsBuf;
+use crate::ident_ops::{MetadataPath, TagPath};
+use crate::name::{PkgName, PkgNameBuf, RepositoryNameBuf};
+use crate::spec_ops::prelude::*;
+use crate::version::Version;
 
 /// Identifies a specific package name, version and build
 pub type BuildIdent = Ident<VersionIdent, Build>;
 
-crate::ident_version::version_ident_methods!(BuildIdent, .base);
+crate::ident::ident_version::version_ident_methods!(BuildIdent, .base);
 
 impl TryFrom<EmbeddedSourcePackage> for BuildIdent {
     type Error = Error;
@@ -78,12 +78,12 @@ macro_rules! build_ident_methods {
                 new
             }
 
-            /// Convert a copy of this identifier into a [`crate::VersionIdent`]
+            /// Convert a copy of this identifier into a [`crate::ident::VersionIdent`]
             pub fn to_version_ident(self) -> VersionIdent {
                 self$(.$($access).+)?.base().clone()
             }
 
-            /// Convert this identifier into a [`crate::VersionIdent`]
+            /// Convert this identifier into a [`crate::ident::VersionIdent`]
             pub fn into_version_ident(self) -> VersionIdent {
                 self$(.$($access).+)?.into_base()
             }
@@ -115,7 +115,7 @@ macro_rules! build_ident_methods {
             }
         }
 
-        impl spk_schema_foundation::spec_ops::HasBuild for $Ident {
+        impl crate::spec_ops::HasBuild for $Ident {
             fn build(&self) -> &Build {
                 self.build()
             }
@@ -154,7 +154,7 @@ impl std::fmt::Display for BuildIdent {
 }
 
 impl FromStr for BuildIdent {
-    type Err = crate::Error;
+    type Err = crate::ident::Error;
 
     /// Parse the given identifier string into this instance.
     fn from_str(source: &str) -> Result<Self> {
@@ -163,7 +163,9 @@ impl FromStr for BuildIdent {
         all_consuming(parsing::build_ident::<nom_supreme::error::ErrorTree<_>>)(source)
             .map(|(_, ident)| ident)
             .map_err(|err| match err {
-                nom::Err::Error(e) | nom::Err::Failure(e) => crate::Error::String(e.to_string()),
+                nom::Err::Error(e) | nom::Err::Failure(e) => {
+                    crate::ident::Error::String(e.to_string())
+                }
                 nom::Err::Incomplete(_) => unreachable!(),
             })
     }
@@ -178,7 +180,7 @@ impl MetadataPath for BuildIdent {
 }
 
 impl TryFrom<&IdentPartsBuf> for BuildIdent {
-    type Error = crate::Error;
+    type Error = crate::ident::Error;
 
     fn try_from(parts: &IdentPartsBuf) -> Result<Self> {
         if parts.repository_name.is_some() {
@@ -245,7 +247,7 @@ impl PartialEq<&BuildIdent> for IdentPartsBuf {
 }
 
 impl TryFrom<RangeIdent> for BuildIdent {
-    type Error = crate::Error;
+    type Error = crate::ident::Error;
 
     fn try_from(ri: RangeIdent) -> Result<Self> {
         let name = ri.name;
@@ -260,7 +262,7 @@ impl TryFrom<RangeIdent> for BuildIdent {
 }
 
 impl TryFrom<&RangeIdent> for BuildIdent {
-    type Error = crate::Error;
+    type Error = crate::ident::Error;
 
     fn try_from(ri: &RangeIdent) -> Result<Self> {
         ri.clone().try_into()

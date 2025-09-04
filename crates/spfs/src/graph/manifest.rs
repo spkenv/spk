@@ -81,7 +81,7 @@ impl Manifest {
     /// It is expensive to find a tree in a manifest by digest. If multiple
     /// trees need to be accessed by digest, it is faster to use this method
     /// instead of [`Manifest::get_tree`].
-    pub fn get_tree_cache(&self) -> ManifestTreeCache {
+    pub fn get_tree_cache(&self) -> ManifestTreeCache<'_> {
         let mut tree_cache = HashMap::new();
         for tree in self.iter_trees() {
             let Ok(digest) = tree.digest() else {

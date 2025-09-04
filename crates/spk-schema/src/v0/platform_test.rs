@@ -5,9 +5,9 @@
 use std::collections::HashMap;
 
 use rstest::rstest;
+use spk_schema_foundation::ident::{BuildIdent, InclusionPolicy, Request};
 use spk_schema_foundation::option_map;
 use spk_schema_foundation::option_map::HOST_OPTIONS;
-use spk_schema_ident::{BuildIdent, InclusionPolicy, Request};
 
 use super::Platform;
 use crate::Opt::Var;

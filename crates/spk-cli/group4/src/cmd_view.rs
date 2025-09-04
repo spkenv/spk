@@ -157,10 +157,10 @@ impl Run for View {
         // /spfs/file/path' invocations, given a filepath work out
         // which package(s) and spfs layers provide it.
         if self.pkg.is_none() {
-            if let Ok(abspath) = dunce::canonicalize(package) {
-                if abspath.starts_with(spfs::env::SPFS_DIR) {
-                    return self.print_filepath_info(abspath.to_str().unwrap()).await;
-                }
+            if let Ok(abspath) = dunce::canonicalize(package)
+                && abspath.starts_with(spfs::env::SPFS_DIR)
+            {
+                return self.print_filepath_info(abspath.to_str().unwrap()).await;
             }
             if self.filepath.is_some() {
                 // This was given as a filepath but there

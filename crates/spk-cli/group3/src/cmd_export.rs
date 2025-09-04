@@ -77,10 +77,10 @@ impl Run for Export {
             tracing::warn!("Ensure that you are specifying at least a package and");
             tracing::warn!("version number when exporting from the local repository");
         }
-        if res.is_err() {
-            if let Err(err) = std::fs::remove_file(&filename) {
-                tracing::warn!(?err, path=?filename, "failed to clean up incomplete archive");
-            }
+        if res.is_err()
+            && let Err(err) = std::fs::remove_file(&filename)
+        {
+            tracing::warn!(?err, path=?filename, "failed to clean up incomplete archive");
         }
         res?;
         println!("{}: {:?}", "Created".green(), filename);

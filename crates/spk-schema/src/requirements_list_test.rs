@@ -5,8 +5,8 @@
 use rstest::rstest;
 use serde_json::json;
 use spk_schema_foundation::fixtures::*;
+use spk_schema_foundation::ident::Request;
 use spk_schema_foundation::version::Compatibility;
-use spk_schema_ident::Request;
 
 use super::RequirementsList;
 

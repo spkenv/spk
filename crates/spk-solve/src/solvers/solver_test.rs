@@ -8,16 +8,14 @@ use rstest::{fixture, rstest};
 use spfs::encoding::EMPTY_DIGEST;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::ident_component::Component;
-use spk_schema::foundation::opt_name;
+use spk_schema::foundation::{build_ident, opt_name, version_ident};
 use spk_schema::ident::{
     PkgRequest,
     RangeIdent,
     Request,
     RequestedBy,
     VarRequest,
-    build_ident,
     parse_ident_range,
-    version_ident,
 };
 use spk_schema::ident_build::{Build, BuildId};
 use spk_schema::prelude::*;
@@ -1406,6 +1404,36 @@ async fn test_solver_embedded_package_solvable(#[case] mut solver: SolverImpl) {
         "qt",
         build =~ Build::Embedded(_)
     );
+}
+
+/// A package with an embedded package can solve its src build
+///
+/// The src build should not depend on anything from the embedded package, in
+/// particular not the src build of the embedded package.
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
+#[tokio::test]
+async fn resolve_src_package_with_embedded_package(#[case] mut solver: SolverImpl) {
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "maya/2019.2/src",
+                "build": {"script": "echo SRC"},
+                // as of the time of writing, when building a src package for a
+                // package that contains an embedded package, the src package
+                // also claims to embed the same package.
+                "install": {"embedded": [{"pkg": "qt/5.12.6/embedded"}]},
+            },
+        ]
+    );
+
+    solver.add_repository(Arc::new(repo));
+    solver.add_request(request!("maya:src/2019.2/src"));
+
+    let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
+
+    assert_resolved!(solution, "maya", build =~ Build::Source);
 }
 
 #[rstest]

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use spk_schema_foundation::version::Compatibility;
+use crate::version::Compatibility;
 
 /// An item that can satisfy requests of a specific type
 pub trait Satisfy<Request> {

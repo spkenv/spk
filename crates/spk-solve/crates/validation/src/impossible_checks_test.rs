@@ -8,7 +8,8 @@ use std::sync::atomic::Ordering;
 
 use rstest::rstest;
 use spk_schema::foundation::fixtures::*;
-use spk_schema::ident::{PkgRequest, RequestedBy, version_ident};
+use spk_schema::foundation::version_ident;
+use spk_schema::ident::{PkgRequest, RequestedBy};
 use spk_schema::name::PkgNameBuf;
 use spk_schema::spec;
 use spk_solve_macros::{make_build, make_repo};

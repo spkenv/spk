@@ -51,7 +51,7 @@ impl ResolvedLayers {
     /// layers.
     pub fn iter_entries(
         &self,
-    ) -> impl Stream<Item = Result<(RelativePathBuf, Entry, &ResolvedLayer)>> + '_ {
+    ) -> impl Stream<Item = Result<(RelativePathBuf, Entry, &ResolvedLayer)>> {
         use spfs::graph::object::Enum;
         try_stream! {
             for resolved_layer in self.0.iter() {

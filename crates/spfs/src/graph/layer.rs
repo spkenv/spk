@@ -98,7 +98,7 @@ impl Layer {
     }
 
     #[inline]
-    pub fn annotations(&self) -> Vec<spfs_proto::Annotation> {
+    pub fn annotations(&self) -> Vec<spfs_proto::Annotation<'_>> {
         self.proto()
             .annotations()
             .iter()

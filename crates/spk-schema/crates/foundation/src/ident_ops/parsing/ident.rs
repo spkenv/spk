@@ -56,7 +56,7 @@ impl IdentParts<'_> {
 /// specified.
 pub fn ident_parts<'a, 'b, E>(
     known_repositories: &'a HashSet<&str>,
-) -> impl FnMut(&'b str) -> IResult<&'b str, IdentParts<'b>, E> + 'a
+) -> impl FnMut(&'b str) -> IResult<&'b str, IdentParts<'b>, E>
 where
     E: ParseError<&'b str>
         + ContextError<&'b str>

@@ -3,4 +3,3 @@
 // https://github.com/spkenv/spk
 
 pub mod cmd_du;
-pub mod entry_du;

@@ -64,73 +64,73 @@ fn impl_proc_macro_derive(ast: &syn::DeriveInput) -> TokenStream {
             let Some(ident) = &field.ident else {
                 continue;
             };
-            if let syn::Type::Path(p) = &field.ty {
-                if let Some(field_type) = p.path.segments.last().map(|s| &s.ident) {
-                    if field_type != "ProgressBar" {
+            if let syn::Type::Path(p) = &field.ty
+                && let Some(field_type) = p.path.segments.last().map(|s| &s.ident)
+            {
+                if field_type != "ProgressBar" {
+                    continue;
+                }
+
+                let mut message = None;
+
+                for attr in &field.attrs {
+                    if !attr.path().is_ident("progress_bar") {
                         continue;
                     }
 
-                    let mut message = None;
-
-                    for attr in &field.attrs {
-                        if !attr.path().is_ident("progress_bar") {
-                            continue;
+                    if let Err(err) = attr.parse_nested_meta(|meta| {
+                        if meta.path.is_ident("message") {
+                            let value = meta.value()?;
+                            let s: LitStr = value.parse()?;
+                            message = Some(s.value());
+                            return Ok(());
                         }
-
-                        if let Err(err) = attr.parse_nested_meta(|meta| {
-                            if meta.path.is_ident("message") {
-                                let value = meta.value()?;
-                                let s: LitStr = value.parse()?;
-                                message = Some(s.value());
-                                return Ok(());
-                            }
-                            if meta.path.is_ident("template") {
-                                let value = meta.value()?;
-                                let s: LitStr = value.parse()?;
-                                template = Some(s.value());
-                                return Ok(());
-                            }
-                            Ok(())
-                        }) {
-                            return err.to_compile_error().into();
+                        if meta.path.is_ident("template") {
+                            let value = meta.value()?;
+                            let s: LitStr = value.parse()?;
+                            template = Some(s.value());
+                            return Ok(());
                         }
+                        Ok(())
+                    }) {
+                        return err.to_compile_error().into();
                     }
-
-                    let Some(message) = message else {
-                        return syn::Error::new_spanned(
-                            field,
-                            "Missing #[progress_bar(message = \"...\")] attribute",
-                        )
-                        .to_compile_error()
-                        .into();
-                    };
-
-                    let Some(template) = &template else {
-                        return syn::Error::new_spanned(
-                            field,
-                            "Missing #[progress_bar(template = \"...\")] attribute",
-                        )
-                        .to_compile_error()
-                        .into();
-                    };
-
-                    let ident_style = format_ident!("{ident}_style");
-
-                    bars.push(quote! {
-                        let #ident_style = indicatif::ProgressStyle::default_bar()
-                            .template(#template)
-                            .expect("Invalid progress bar template")
-                            .tick_strings(TICK_STRINGS)
-                            .progress_chars(PROGRESS_CHARS);
-                        let #ident = bars.add(
-                            indicatif::ProgressBar::new(0)
-                                .with_style(#ident_style)
-                                .with_message(#message),
-                        );
-                    });
-
-                    progress_bar_field_names.push(quote! { #ident });
                 }
+
+                let Some(message) = message else {
+                    return syn::Error::new_spanned(
+                        field,
+                        "Missing #[progress_bar(message = \"...\")] attribute",
+                    )
+                    .to_compile_error()
+                    .into();
+                };
+
+                let Some(template) = &template else {
+                    return syn::Error::new_spanned(
+                        field,
+                        "Missing #[progress_bar(template = \"...\")] attribute",
+                    )
+                    .to_compile_error()
+                    .into();
+                };
+
+                let ident_style = format_ident!("{ident}_style");
+
+                bars.push(quote! {
+                    let #ident_style = indicatif::ProgressStyle::default_bar()
+                        .template(#template)
+                        .expect("Invalid progress bar template")
+                        .tick_strings(TICK_STRINGS)
+                        .progress_chars(PROGRESS_CHARS);
+                    let #ident = bars.add(
+                        indicatif::ProgressBar::new(0)
+                            .with_style(#ident_style)
+                            .with_message(#message),
+                    );
+                });
+
+                progress_bar_field_names.push(quote! { #ident });
             }
         }
     };

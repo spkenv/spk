@@ -54,6 +54,13 @@ pub use requirements_list::RequirementsList;
 pub use serde_json;
 pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
 pub use spec::{ApiVersion, Spec, SpecFileData, SpecRecipe, SpecTemplate, SpecVariant};
+pub use spk_schema_foundation::ident::{
+    self as ident,
+    AnyIdent,
+    BuildIdent,
+    Request,
+    VersionIdent,
+};
 pub use spk_schema_foundation::option_map::{self, OptionMap};
 pub use spk_schema_foundation::{
     self as foundation,
@@ -68,7 +75,6 @@ pub use spk_schema_foundation::{
     version,
     version_range,
 };
-pub use spk_schema_ident::{self as ident, AnyIdent, BuildIdent, Request, VersionIdent};
 pub use template::{Template, TemplateData, TemplateExt};
 pub use test::{Test, TestStage};
 pub use validation::{ValidationRule, ValidationSpec};

@@ -27,6 +27,15 @@ impl std::fmt::Display for BuildArtifact {
     }
 }
 
+impl BuildArtifact {
+    pub fn build_ident(&self) -> &BuildIdent {
+        match self {
+            BuildArtifact::Source(ident) => ident,
+            BuildArtifact::Binary(ident, _variant_location, _options) => ident,
+        }
+    }
+}
+
 /// The result(s) of a build operation.
 #[derive(Debug, Default)]
 pub struct BuildResult {

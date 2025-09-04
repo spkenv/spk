@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use rstest::rstest;
 use spk_schema::foundation::fixtures::*;
-use spk_schema::foundation::opt_name;
-use spk_schema::ident::{PkgRequest, Request, RequestedBy, build_ident, version_ident};
+use spk_schema::foundation::{build_ident, opt_name, version_ident};
+use spk_schema::ident::{PkgRequest, Request, RequestedBy};
 use spk_schema::{FromYaml, spec};
 use spk_solve_graph::State;
 use spk_solve_macros::recipe;

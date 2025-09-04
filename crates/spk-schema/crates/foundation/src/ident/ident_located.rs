@@ -3,14 +3,14 @@
 // https://github.com/spkenv/spk
 
 use relative_path::RelativePathBuf;
-use spk_schema_foundation::ident_build::Build;
-use spk_schema_foundation::ident_ops::{MetadataPath, TagPath};
-use spk_schema_foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
-use spk_schema_foundation::spec_ops::HasLocation;
-use spk_schema_foundation::version::Version;
 
-use crate::ident_build::BuildIdent;
-use crate::{AnyIdent, Ident, VersionIdent};
+use super::BuildIdent;
+use crate::ident::{AnyIdent, Ident, VersionIdent};
+use crate::ident_build::Build;
+use crate::ident_ops::{MetadataPath, TagPath};
+use crate::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
+use crate::spec_ops::HasLocation;
+use crate::version::Version;
 
 /// Identifies a specific package version in a named repository.
 pub type LocatedVersionIdent = Ident<RepositoryNameBuf, VersionIdent>;
@@ -18,9 +18,9 @@ pub type LocatedVersionIdent = Ident<RepositoryNameBuf, VersionIdent>;
 /// Identifies a specific package build in a named repository.
 pub type LocatedBuildIdent = Ident<RepositoryNameBuf, BuildIdent>;
 
-crate::ident_version::version_ident_methods!(LocatedVersionIdent, .target);
-crate::ident_version::version_ident_methods!(LocatedBuildIdent, .target.base);
-crate::ident_build::build_ident_methods!(LocatedBuildIdent, .target);
+crate::ident::ident_version::version_ident_methods!(LocatedVersionIdent, .target);
+crate::ident::ident_version::version_ident_methods!(LocatedBuildIdent, .target.base);
+crate::ident::ident_build::build_ident_methods!(LocatedBuildIdent, .target);
 
 impl<T> Ident<RepositoryNameBuf, T> {
     /// The name of the identified repository

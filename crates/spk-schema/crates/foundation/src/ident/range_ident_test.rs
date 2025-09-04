@@ -5,10 +5,10 @@
 use std::collections::BTreeSet;
 
 use rstest::rstest;
-use spk_schema_foundation::ident_component::Component;
-use spk_schema_foundation::version_range::RestrictMode;
 
 use super::parse_ident_range;
+use crate::ident_component::Component;
+use crate::version_range::RestrictMode;
 
 #[rstest]
 #[case("python/3.1.0", &[])]

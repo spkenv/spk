@@ -5,10 +5,9 @@
 use std::fmt::Write;
 use std::str::FromStr;
 
-use spk_schema_foundation::name::{PkgName, PkgNameBuf};
-use spk_schema_foundation::version::Version;
-
-use crate::{Ident, Result, VersionIdent, parsing};
+use crate::ident::{Ident, Result, VersionIdent, parsing};
+use crate::name::{PkgName, PkgNameBuf};
+use crate::version::Version;
 
 /// Identifies a package name and number version.
 pub type OptVersionIdent = Ident<PkgNameBuf, Option<Version>>;
@@ -60,7 +59,7 @@ macro_rules! opt_version_ident_methods {
             }
         }
 
-        impl spk_schema_foundation::spec_ops::Named for $Ident {
+        impl $crate::spec_ops::Named for $Ident {
             fn name(&self) -> &PkgName {
                 self.name()
             }
@@ -85,7 +84,7 @@ impl std::fmt::Display for OptVersionIdent {
 }
 
 impl FromStr for OptVersionIdent {
-    type Err = crate::Error;
+    type Err = crate::ident::Error;
 
     /// Parse the given identifier string into this instance.
     fn from_str(source: &str) -> Result<Self> {
@@ -94,7 +93,9 @@ impl FromStr for OptVersionIdent {
         all_consuming(parsing::opt_version_ident::<nom_supreme::error::ErrorTree<_>>)(source)
             .map(|(_, ident)| ident)
             .map_err(|err| match err {
-                nom::Err::Error(e) | nom::Err::Failure(e) => crate::Error::String(e.to_string()),
+                nom::Err::Error(e) | nom::Err::Failure(e) => {
+                    crate::ident::Error::String(e.to_string())
+                }
                 nom::Err::Incomplete(_) => unreachable!(),
             })
     }
