@@ -133,10 +133,10 @@ impl Opt {
         }
 
         #[cfg(feature = "statsd")]
-        if result.is_err() {
-            if let Some(client) = statsd_client {
-                client.incr(&SPK_ERROR_COUNT_METRIC)
-            }
+        if result.is_err()
+            && let Some(client) = statsd_client
+        {
+            client.incr(&SPK_ERROR_COUNT_METRIC)
         }
 
         result
