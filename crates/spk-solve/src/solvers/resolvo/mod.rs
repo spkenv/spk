@@ -71,6 +71,7 @@ impl Solver {
 
     /// Populate the requested_by field of each PkgRequest in the solution.
     fn populate_requested_by(
+        &self,
         solution_adds: Vec<(PkgRequest, Arc<Spec>, PackageSource)>,
     ) -> Vec<(PkgRequest, Arc<Spec>, PackageSource)> {
         // At this point, almost all the pieces of the solution are in
@@ -116,7 +117,20 @@ impl Solver {
                 } else if let PackageSource::Embedded { ref parent, .. } = source {
                     pkg_request.add_requester(RequestedBy::Embedded(parent.clone()));
                 } else {
-                    pkg_request.add_requester(RequestedBy::CommandLine);
+                    // Try to find the original command line request
+                    // based on the solved request's package name.
+                    for r in &self.requests {
+                        if let Request::Pkg(pkg_req) = r
+                            && *pkg_req.pkg.name == *name
+                        {
+                            for (_, requesters) in pkg_req.requested_by.iter() {
+                                for requested_by in requesters {
+                                    pkg_request.add_requester(requested_by.clone());
+                                }
+                            }
+                            break;
+                        }
+                    }
                 }
                 (pkg_request, package, source)
             })
@@ -354,7 +368,7 @@ impl Solver {
             }));
         }
 
-        let solution_adds = Self::populate_requested_by(solution_adds);
+        let solution_adds = self.populate_requested_by(solution_adds);
 
         let mut solution = Solution::new(solution_options);
         for (pkg_request, package, source) in solution_adds {

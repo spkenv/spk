@@ -19,7 +19,7 @@ use spk_schema::foundation::format::{
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::VERSION_SEP;
-use spk_schema::ident::{PkgRequest, RequestedBy};
+use spk_schema::ident::{InitialRawRequest, PkgRequest, RequestedBy};
 use spk_schema::name::{PkgNameBuf, RepositoryNameBuf};
 use spk_schema::prelude::*;
 use spk_schema::version::Version;
@@ -396,6 +396,27 @@ impl Solution {
             .unwrap_or_default();
 
         out.retain(|name, _| !name.starts_with("SPK_PKG_"));
+
+        // Gather the initial command line requests from the solved
+        // requests.
+        let initial_requests: Vec<_> = self
+            .items()
+            .filter_map(|i| {
+                for r in i.request.get_requesters() {
+                    if let RequestedBy::CommandLineRequest(InitialRawRequest(req)) = r {
+                        // There may have been multiple command line
+                        // requests for this solved item. This only
+                        // provides the first one for now.
+                        return Some(req.to_string());
+                    }
+                }
+                None
+            })
+            .collect();
+        out.insert(
+            "SPK_INITIAL_PKG_REQUESTS".to_string(),
+            initial_requests.iter().join(" "),
+        );
 
         out.insert("SPK_ACTIVE_PREFIX".to_owned(), "/spfs".to_owned());
         for resolved in self.resolved.iter() {

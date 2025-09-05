@@ -1487,7 +1487,7 @@ impl SolverRuntime {
                         for req in &requested_by {
                             // Can't recover from a command line request for a
                             // missing package.
-                            if let RequestedBy::CommandLine = req {
+                            if let RequestedBy::CommandLineRequest(_original_request) = req {
                                 yield Err(Error::GraphError(graph_error));
                                 continue 'outer;
                             }

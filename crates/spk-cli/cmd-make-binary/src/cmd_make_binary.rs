@@ -12,7 +12,7 @@ use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_cli_common::{BuildArtifact, BuildResult, CommandArgs, Run, flags, spk_exe};
 use spk_schema::OptionMap;
 use spk_schema::foundation::format::FormatIdent;
-use spk_schema::ident::{PkgRequest, RequestedBy};
+use spk_schema::ident::{InitialRawRequest, PkgRequest, RequestedBy};
 use spk_schema::option_map::HOST_OPTIONS;
 use spk_schema::prelude::*;
 use spk_storage as storage;
@@ -233,9 +233,10 @@ impl Run for MakeBinary {
                 );
 
                 if self.env {
+                    let ident = out.ident().to_any_ident();
                     let request = PkgRequest::from_ident(
-                        out.ident().to_any_ident(),
-                        RequestedBy::CommandLine,
+                        ident.clone(),
+                        RequestedBy::CommandLineRequest(InitialRawRequest(ident.to_string())),
                     );
                     let mut cmd = std::process::Command::new(spk_exe());
                     cmd.args(["env", "--enable-repo", "local"])

@@ -578,13 +578,27 @@ where
     }
 }
 
+/// An original request string as given, typically from a command line invocation.
+#[derive(PartialEq, Eq, Hash, Ord, PartialOrd, Debug, Serialize, Deserialize, Clone)]
+pub struct InitialRawRequest(pub String);
+
+impl std::fmt::Display for InitialRawRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
 /// What made a PkgRequest, was it the command line, a test or a
 /// package build such as one resolved during a solve, or another
 /// package build resolved during a solve.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum RequestedBy {
-    /// From the command line
-    CommandLine,
+    /// Older CommandLine variant, unused now, present for
+    /// compatibility with older data
+    #[serde(rename = "CommandLine")]
+    OldUnusedCommandLine,
+    /// From the command line, the raw original request string
+    CommandLineRequest(InitialRawRequest),
     /// Embedded in another package
     Embedded(BuildIdent),
     /// A source package that made the request during a source build resolve
@@ -628,7 +642,10 @@ pub enum RequestedBy {
 impl std::fmt::Display for RequestedBy {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            RequestedBy::CommandLine => write!(f, "command line"),
+            RequestedBy::OldUnusedCommandLine => write!(f, "command line"),
+            RequestedBy::CommandLineRequest(original_request) => {
+                write!(f, "{original_request} on the command line")
+            }
             RequestedBy::Embedded(ident) => write!(f, "embedded in {ident}"),
             RequestedBy::SourceBuild(ident) => write!(f, "{ident} source build"),
             RequestedBy::BinaryBuild(ident) => write!(f, "{ident} binary build"),
