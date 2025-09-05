@@ -24,7 +24,6 @@ use pkg_request_version_set::{SpkSolvable, SyntheticComponent};
 use spk_provider::SpkProvider;
 use spk_schema::ident::{
     InclusionPolicy,
-    InitialRawRequest,
     LocatedBuildIdent,
     PinPolicy,
     PkgRequest,
@@ -120,14 +119,15 @@ impl Solver {
                 } else {
                     // Try to find the original command line request
                     // based on the solved request's package name.
-                    //let mut initial_request = "a request".to_string();
                     for r in &self.requests {
                         if let Request::Pkg(pkg_req) = r
                             && *pkg_req.pkg.name == *name
                         {
-                            pkg_request.add_requester(RequestedBy::CommandLineRequest(
-                                InitialRawRequest(pkg_req.to_string().replace(":all", "")),
-                            ));
+                            for (_, requesters) in pkg_req.requested_by.iter() {
+                                for requested_by in requesters {
+                                    pkg_request.add_requester(requested_by.clone());
+                                }
+                            }
                             break;
                         }
                     }
