@@ -639,9 +639,9 @@ impl View {
             // Non-pretty print formatted output needs the data in a single place
             let mut path_packages: HashMap<String, Vec<PackageLayer>> = HashMap::new();
 
-            // Stack order is used to ensure the packages and layers are
-            // shown top down, from packages added later first to packages
-            // added earlier below them.
+            // Stack order is used to ensure the packages and layers
+            // are shown top down, from packages added later at the
+            // top to packages added earlier below them.
             for layer_digest in stack_order.iter() {
                 let pathlist =
                     get_object_paths_from_layers(layer_digest, &layers_that_contain_filepath)?;
