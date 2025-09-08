@@ -345,27 +345,29 @@ impl FsHashStore {
                 ),
             )
             .await
-            && object_permissions.is_some()
         {
-            // If the caller wanted specific permissions set, then
-            // make it a hard error if set_permissions failed.
-            // XXX: At this time, it doesn't lead to misbehavior if
-            // the permissions aren't changed, but it could cause
-            // extra disk consumption unnecessarily.
-            return Err(Error::StorageWriteError(
-                "set_permissions on object file",
-                path,
-                err,
-            ));
-        }
+            if object_permissions.is_some() {
+                // If the caller wanted specific permissions set, then
+                // make it a hard error if set_permissions failed.
+                // XXX: At this time, it doesn't lead to misbehavior if
+                // the permissions aren't changed, but it could cause
+                // extra disk consumption unnecessarily.
+                return Err(Error::StorageWriteError(
+                    "set_permissions on object file",
+                    path,
+                    err,
+                ));
+            }
 
-        // not a good enough reason to fail entirely
-        #[cfg(feature = "sentry")]
-        sentry::capture_event(sentry::protocol::Event {
-            message: Some(format!("{:?}", err)),
-            level: sentry::protocol::Level::Warning,
-            ..Default::default()
-        });
+            // not a good enough reason to fail entirely
+            tracing::trace!("{err:?}");
+            #[cfg(feature = "sentry")]
+            sentry::capture_event(sentry::protocol::Event {
+                message: Some(format!("{err:?}")),
+                level: sentry::protocol::Level::Warning,
+                ..Default::default()
+            });
+        }
 
         #[cfg(windows)]
         if created_new_file || object_permissions.is_some() {
