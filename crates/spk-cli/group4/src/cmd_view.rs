@@ -307,11 +307,13 @@ fn get_entry_from_pathlist(
 fn get_object_paths_from_layers<'a>(
     layer_digest: &'a Digest,
     layers_containing_filepath: &'a BTreeMap<Digest, &Vec<ObjectPathEntry>>,
-) -> Result<&'a &'a Vec<ObjectPathEntry>> {
+) -> Result<&'a Vec<ObjectPathEntry>> {
     match layers_containing_filepath.get(layer_digest) {
         Some(pl) => Ok(pl),
         None => {
-            let message = "Missing pathlist for layer digest known to contain the filepath. This cannot happen, layers_that_contain_filepath should contain an entry for each layer digest in stack_order".to_string();
+            let message = format!(
+                "Missing pathlist for layer digest '{layer_digest}' known to contain the filepath. This cannot happen, layers_that_contain_filepath should contain an entry for each layer digest in stack_order"
+            );
             tracing::error!(message);
             Err(spk_cli_common::Error::String(message).into())
         }
@@ -341,7 +343,7 @@ fn get_manifest_from_pathlist(pathlist: &[ObjectPathEntry]) -> Result<Digest> {
 }
 
 /// A helper to make a range ident specific to the given components
-fn get_components_specific_ident(base: &RangeIdent, components: &Vec<Component>) -> RangeIdent {
+fn get_components_specific_ident(base: &RangeIdent, components: &[Component]) -> RangeIdent {
     let mut ident = base.clone();
     ident.components.clear();
     for component in components {
@@ -697,9 +699,8 @@ impl View {
             // for the layer(s) have no package related to them
             // (e.g. layers created via spfs commands directly).
             println!(
-                "{}: is in {} {}{}:",
+                "{}: is in {number} {}{}:",
                 filepath.green(),
-                number,
                 if number > 1 {
                     "packages/layers"
                 } else {
@@ -712,9 +713,9 @@ impl View {
                 }
             );
 
-            // Stack order is used to ensure the packages and layers are
-            // shown top down, from packages added later first to packages
-            // added earlier below them.
+            // Stack order is used to ensure the packages and layers
+            // are shown top down, from packages added later at the
+            // top to packages added earlier below them.
             for layer_digest in stack_order.iter() {
                 let pathlist =
                     get_object_paths_from_layers(layer_digest, &layers_that_contain_filepath)?;
