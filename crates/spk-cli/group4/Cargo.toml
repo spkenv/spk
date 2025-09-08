@@ -33,7 +33,7 @@ spk-workspace = { workspace = true }
 strum = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }
-unix_mode = "0.1.3"
+unix_mode = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
