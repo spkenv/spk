@@ -655,7 +655,7 @@ macro_rules! configure {
                 return Ok(1);
             }
             Ok(config) => {
-                match $opt.configure_repositories_from_args(config.clone()) {
+                match $opt.configure_repositories_from_args(config) {
                     Err(err) => {
                         tracing::error!(err = ?err, "failed to update config from cli args");
                         return Ok(2);

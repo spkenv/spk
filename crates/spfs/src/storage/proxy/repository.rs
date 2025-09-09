@@ -278,8 +278,7 @@ impl TagStorage for ProxyRepository {
 
             let mut seen: HashSet<String> = HashSet::new();
             Box::pin(primary.chain(select_all(streams)).filter(move |item| {
-                if item.is_ok() {
-                    let entry = item.as_ref().unwrap();
+                if let Ok(entry) = item {
                     // Insert will return false if it has already been
                     // seen and this will filter out duplicates
                     future::ready(seen.insert(entry.to_string()))
@@ -310,8 +309,7 @@ impl TagStorage for ProxyRepository {
 
             let mut seen: HashSet<String> = HashSet::new();
             Box::pin(primary.chain(select_all(streams)).filter(move |item| {
-                if item.is_ok() {
-                    let tag_spec = item.as_ref().unwrap();
+                if let Ok(tag_spec) = item {
                     // Insert will return false if it has already been
                     // seen and this will filter out duplicates
                     future::ready(seen.insert(tag_spec.to_string()))
@@ -341,8 +339,7 @@ impl TagStorage for ProxyRepository {
 
             let mut seen: HashSet<String> = HashSet::new();
             Box::pin(primary.chain(select_all(streams)).filter(move |item| {
-                if item.is_ok() {
-                    let (tag_spec, _) = item.as_ref().unwrap();
+                if let Ok((tag_spec, _)) = item.as_ref() {
                     // Insert will return false if it has already been
                     // seen and this will filter out duplicates
                     future::ready(seen.insert(tag_spec.to_string()))

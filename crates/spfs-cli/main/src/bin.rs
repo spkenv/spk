@@ -104,16 +104,11 @@ fn add_proxy_repo_to_config(
     repo_path: &Option<std::path::PathBuf>,
     config: Arc<spfs::Config>,
 ) -> Result<Arc<spfs::Config>> {
-    let result = if let Some(path) = repo_path {
-        match config.add_proxy_repo_over_origin(path) {
-            Ok(c) => c,
-            Err(e) => return Err(e.into()),
-        }
+    if let Some(path) = repo_path {
+        Ok(config.add_proxy_repo_over_origin(path)?)
     } else {
-        config
-    };
-
-    Ok(result)
+        Ok(config)
+    }
 }
 
 impl HasRepositoryArgs for Opt {

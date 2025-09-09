@@ -1040,9 +1040,9 @@ pub struct Repositories {
     /// 'origin' remote repo.
     ///
     /// The filepath becomes the primary repo in a new 'origin' repo
-    /// repo that contains the original origin repo as a secondary
-    /// repo. If packages aren't found in the primary repo, it will
-    /// try the secondary repo.
+    /// that contains the original origin repo as a secondary repo. If
+    /// packages aren't found in the primary repo, it will try the
+    /// secondary repo.
     ///
     /// This allows repos that are not in the normal config files to
     /// be interacted with, by individual commands, such as siloed
