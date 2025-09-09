@@ -508,6 +508,8 @@ impl Serialize for VarRequest<PinnableValue> {
 
         match &self.value {
             PinnableValue::FromBuildEnv => {
+                // XXX: this fails to compile if the "parsedbuf-serde" feature
+                // is not enabled.
                 map.serialize_entry("var", &self.var)?;
                 map.serialize_entry("fromBuildEnv", &true)?;
             }

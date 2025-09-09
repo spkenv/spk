@@ -777,6 +777,8 @@ impl fuser::Filesystem for Session {
     ) -> std::result::Result<(), libc::c_int> {
         const DESIRED: &[(&str, u32)] = &[
             ("FUSE_ASYNC_READ", FUSE_ASYNC_READ),
+            // XXX: this fails to compile if fuse-backend is enabled but none of
+            // the fuse-backend-abi features is enabled
             ("FUSE_BIG_WRITES", FUSE_BIG_WRITES),
             ("FUSE_DO_READDIRPLUS", FUSE_DO_READDIRPLUS),
             ("FUSE_EXPORT_SUPPORT", FUSE_EXPORT_SUPPORT),
