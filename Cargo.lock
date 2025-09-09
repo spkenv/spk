@@ -2372,6 +2372,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aeaf4ad7403de93e699c191202f017118df734d3850b01e13a3a8b2e6953d3c9"
 
 [[package]]
+name = "nonempty"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9737e026353e5cd0736f98eddae28665118eb6f6600902a7f50db585621fecb6"
+
+[[package]]
 name = "nu-ansi-term"
 version = "0.50.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3876,7 +3882,7 @@ dependencies = [
  "linux-syscall",
  "miette",
  "nix 0.29.0",
- "nonempty",
+ "nonempty 0.8.1",
  "num_cpus",
  "once_cell",
  "parsedbuf",
@@ -4336,6 +4342,7 @@ dependencies = [
  "futures",
  "itertools 0.14.0",
  "miette",
+ "nonempty 0.12.0",
  "rstest",
  "serde",
  "serde_json",

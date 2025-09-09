@@ -12,6 +12,7 @@ use colored::Colorize;
 use futures::{StreamExt, TryStreamExt};
 use itertools::Itertools;
 use miette::{Context, IntoDiagnostic, Result, bail};
+use nonempty::NonEmpty;
 use serde::Serialize;
 use spfs::Digest;
 use spfs::find_path::ObjectPathEntry;
@@ -291,23 +292,19 @@ impl EntryInfo {
 /// A helper to get the output EntryInfo for the filepath matching entry in the pathlist, if any
 fn get_entry_from_pathlist(
     filepath: &str,
-    pathlist: &[ObjectPathEntry],
+    pathlist: &NonEmpty<ObjectPathEntry>,
 ) -> Result<Option<EntryInfo>> {
-    match pathlist.last() {
-        Some(entry) => Ok(EntryInfo::convert_from_spfs_entry(filepath, entry)),
-        None => {
-            let message = "Pathlist does not contain a last entry. This cannot happen, all the pathlists found should contain at least an entry for the filepath.".to_string();
-            tracing::error!(message);
-            Err(spk_cli_common::Error::String(message).into())
-        }
-    }
+    Ok(EntryInfo::convert_from_spfs_entry(
+        filepath,
+        pathlist.last(),
+    ))
 }
 
 /// A helper to get the object paths the given layer had that matched the filepath
 fn get_object_paths_from_layers<'a>(
     layer_digest: &'a Digest,
-    layers_containing_filepath: &'a BTreeMap<Digest, &Vec<ObjectPathEntry>>,
-) -> Result<&'a Vec<ObjectPathEntry>> {
+    layers_containing_filepath: &'a BTreeMap<Digest, NonEmpty<ObjectPathEntry>>,
+) -> Result<&'a NonEmpty<ObjectPathEntry>> {
     match layers_containing_filepath.get(layer_digest) {
         Some(pl) => Ok(pl),
         None => {
@@ -331,15 +328,8 @@ struct PackageLayer {
 }
 
 /// A helper to get the layer's manifest's digest from the given object path list
-fn get_manifest_from_pathlist(pathlist: &[ObjectPathEntry]) -> Result<Digest> {
-    match pathlist.first() {
-        Some(entry) => Ok(entry.digest()?),
-        None => {
-            let message = "Pathlist does not contain a first entry. This cannot happen, all the pathlists found should contain at least an entry for the filepath.".to_string();
-            tracing::error!(message);
-            Err(spk_cli_common::Error::String(message).into())
-        }
-    }
+fn get_manifest_from_pathlist(pathlist: &NonEmpty<ObjectPathEntry>) -> Result<Digest> {
+    Ok(pathlist.first().digest()?)
 }
 
 /// A helper to make a range ident specific to the given components
@@ -612,7 +602,16 @@ impl View {
         let mut layers_that_contain_filepath = BTreeMap::new();
         let mut stack_order: Vec<Digest> = Vec::new();
         for pathlist in found.iter() {
-            let layer_digest = match pathlist.iter().find(
+            let objectlist = match NonEmpty::from_slice(pathlist) {
+                Some(l) => l,
+                None => {
+                    return Err(spk_cli_common::Error::String(
+                        "Found pathlist entry is empty. This cannot happen, all the pathlists should contain a layer.".to_string(),
+                     ).into());
+                }
+            };
+
+            let layer_digest = match objectlist.iter().find(
                 |item| matches!(item, ObjectPathEntry::Parent(o) if o.kind() == ObjectKind::Layer),
             ) {
                 Some(l) => l.digest()?,
@@ -622,7 +621,7 @@ impl View {
                      ).into());
                 }
             };
-            layers_that_contain_filepath.insert(layer_digest, pathlist);
+            layers_that_contain_filepath.insert(layer_digest, objectlist);
             stack_order.push(layer_digest);
         }
 
@@ -756,21 +755,15 @@ impl View {
                 // The spfs details are only shown at higher verbosity levels
                 if self.verbose > SHOW_SPFS_ENTRY_ONLY_LEVEL {
                     if self.verbose > SHOW_SPFS_FULL_TREE_LEVEL {
-                        spk_storage::pretty_print_filepath(filepath, pathlist).await?;
+                        let list: Vec<ObjectPathEntry> = pathlist.clone().into();
+                        spk_storage::pretty_print_filepath(filepath, &list).await?;
                     } else {
                         // This will have a last entry because it
                         // represents a path through the spfs object trees
                         // to the filepath, and at least one such path
                         // much have been found above for the code to be
                         // reached.
-                        let entry_only = match pathlist.last() {
-                            Some(entry) => vec![entry.clone()],
-                            None => {
-                                let message = "Pathlist does not contain a last entry. This cannot happen, all the pathlists found should contain at least an entry for the filepath.".to_string();
-                                tracing::error!(message);
-                                return Err(spk_cli_common::Error::String(message).into());
-                            }
-                        };
+                        let entry_only = vec![pathlist.last().clone()];
                         spk_storage::pretty_print_filepath(filepath, &entry_only).await?;
                     };
                 }

@@ -78,6 +78,7 @@ miette = "7.0"
 nix = { version = "0.29", features = ["mount", "sched", "user"] }
 nom = "7.1"
 nom-supreme = "0.8"
+nonempty = "0.12.0"
 once_cell = "1.8"
 parsedbuf = { path = "crates/parsedbuf" }
 paste = "1.0"
