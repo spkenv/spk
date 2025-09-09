@@ -602,14 +602,12 @@ impl View {
         let mut layers_that_contain_filepath = BTreeMap::new();
         let mut stack_order: Vec<Digest> = Vec::new();
         for pathlist in found.iter() {
-            let object_list = match NonEmpty::from_slice(pathlist) {
-                Some(l) => l,
-                None => {
-                    return Err(spk_cli_common::Error::String(
-                        "Found pathlist entry is empty. This cannot happen, all the pathlists should contain a layer.".to_string(),
-                     ).into());
-                }
-            };
+            let object_list = NonEmpty::from_slice(pathlist).ok_or_else(|| {
+                spk_cli_common::Error::String(
+                    "Found pathlist entry is empty. This cannot happen, all the pathlists should contain a layer.".to_string(),
+                )
+            }
+            )?;
 
             let layer_digest = match object_list.iter().find(
                 |item| matches!(item, ObjectPathEntry::Parent(o) if o.kind() == ObjectKind::Layer),
