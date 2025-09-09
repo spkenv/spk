@@ -7,15 +7,15 @@ use miette::Result;
 use relative_path::{RelativePath, RelativePathBuf};
 use spfs::prelude::*;
 use spfs::storage::EntryType;
+use spfs_cli_common as cli;
 use tokio_stream::StreamExt;
 
 /// List tags by their path
 #[derive(Debug, Args)]
 #[clap(visible_aliases = &["list-tags"])]
 pub struct CmdLsTags {
-    /// List tags from a remote repository instead of the local one
-    #[clap(long, short)]
-    remote: Option<String>,
+    #[clap(flatten)]
+    pub(crate) repos: cli::Repositories,
 
     /// Walk the tag tree recursively listing all tags under the specified dir
     #[clap(long)]
@@ -28,7 +28,8 @@ pub struct CmdLsTags {
 
 impl CmdLsTags {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
-        let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
+        let repo =
+            spfs::config::open_repository_from_string(config, self.repos.remote.as_ref()).await?;
 
         let root = RelativePathBuf::from(&self.path);
         let mut dirs = std::collections::VecDeque::new();

@@ -3,13 +3,16 @@
 // https://github.com/spkenv/spk
 
 use std::borrow::Cow;
+use std::collections::HashSet;
 use std::pin::Pin;
 
+//use async_stream::try_stream;
 use chrono::{DateTime, Utc};
-use futures::Stream;
+use futures::stream::select_all;
+use futures::{Stream, StreamExt, future};
 use relative_path::RelativePath;
 
-use crate::config::ToAddress;
+use crate::config::{ToAddress, default_proxy_repo_include_secondary_tags};
 use crate::graph::ObjectProto;
 use crate::prelude::*;
 use crate::storage::tag::TagSpecAndTagStream;
@@ -33,6 +36,9 @@ mod repository_test;
 pub struct Config {
     pub primary: String,
     pub secondary: Vec<String>,
+    /// Whether to include tags from secondary repos in lookup methods
+    #[serde(default = "default_proxy_repo_include_secondary_tags")]
+    pub include_secondary_tags: bool,
 }
 
 impl ToAddress for Config {
@@ -71,6 +77,7 @@ impl storage::FromUrl for Config {
 pub struct ProxyRepository {
     primary: crate::storage::RepositoryHandle,
     secondary: Vec<crate::storage::RepositoryHandle>,
+    include_secondary_tags: bool,
 }
 
 impl ProxyRepository {
@@ -112,7 +119,11 @@ impl storage::FromConfig for ProxyRepository {
                 Ok(secondary)
             }
         ).map_err(|source| OpenRepositoryError::FailedToOpenPartial{source: Box::new(source)})?;
-        Ok(Self { primary, secondary })
+        Ok(Self {
+            primary,
+            secondary,
+            include_secondary_tags: config.include_secondary_tags,
+        })
     }
 }
 
@@ -255,7 +266,30 @@ impl TagStorage for ProxyRepository {
         namespace: Option<&TagNamespace>,
         path: &RelativePath,
     ) -> Pin<Box<dyn Stream<Item = Result<EntryType>> + Send>> {
-        self.primary.ls_tags_in_namespace(namespace, path)
+        if self.include_secondary_tags {
+            // Combine the streams of tags from all the repos taking
+            // from the primary repo first.
+            let primary = self.primary.ls_tags_in_namespace(namespace, path);
+
+            let mut streams = Vec::new();
+            for repo in self.secondary.iter() {
+                streams.push(repo.ls_tags_in_namespace(namespace, path))
+            }
+
+            let mut seen: HashSet<String> = HashSet::new();
+            Box::pin(primary.chain(select_all(streams)).filter(move |item| {
+                if let Ok(entry) = item {
+                    // Insert will return false if it has already been
+                    // seen and this will filter out duplicates
+                    future::ready(seen.insert(entry.to_string()))
+                } else {
+                    future::ready(true)
+                }
+            }))
+        } else {
+            // Just tags from the primary repo
+            self.primary.ls_tags_in_namespace(namespace, path)
+        }
     }
 
     fn find_tags_in_namespace(
@@ -263,14 +297,60 @@ impl TagStorage for ProxyRepository {
         namespace: Option<&TagNamespace>,
         digest: &encoding::Digest,
     ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>> {
-        self.primary.find_tags_in_namespace(namespace, digest)
+        if self.include_secondary_tags {
+            // Combine the streams of tags from all the repos taking
+            // from the primary repo first.
+            let primary = self.primary.find_tags_in_namespace(namespace, digest);
+
+            let mut streams = Vec::new();
+            for repo in self.secondary.iter() {
+                streams.push(repo.find_tags_in_namespace(namespace, digest))
+            }
+
+            let mut seen: HashSet<String> = HashSet::new();
+            Box::pin(primary.chain(select_all(streams)).filter(move |item| {
+                if let Ok(tag_spec) = item {
+                    // Insert will return false if it has already been
+                    // seen and this will filter out duplicates
+                    future::ready(seen.insert(tag_spec.to_string()))
+                } else {
+                    future::ready(true)
+                }
+            }))
+        } else {
+            // Just tags from the primary repo
+            self.primary.find_tags_in_namespace(namespace, digest)
+        }
     }
 
     fn iter_tag_streams_in_namespace(
         &self,
         namespace: Option<&TagNamespace>,
     ) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
-        self.primary.iter_tag_streams_in_namespace(namespace)
+        if self.include_secondary_tags {
+            // Combine the streams of tags from all the repos taking
+            // from the primary repo first.
+            let primary = self.primary.iter_tag_streams_in_namespace(namespace);
+
+            let mut streams = Vec::new();
+            for repo in self.secondary.iter() {
+                streams.push(repo.iter_tag_streams_in_namespace(namespace))
+            }
+
+            let mut seen: HashSet<String> = HashSet::new();
+            Box::pin(primary.chain(select_all(streams)).filter(move |item| {
+                if let Ok((tag_spec, _)) = item.as_ref() {
+                    // Insert will return false if it has already been
+                    // seen and this will filter out duplicates
+                    future::ready(seen.insert(tag_spec.to_string()))
+                } else {
+                    future::ready(true)
+                }
+            }))
+        } else {
+            // Just tags from the primary repo
+            self.primary.iter_tag_streams_in_namespace(namespace)
+        }
     }
 
     async fn read_tag_in_namespace(
@@ -343,6 +423,7 @@ impl Address for ProxyRepository {
                 .iter()
                 .map(|s| s.address().to_string())
                 .collect(),
+            include_secondary_tags: self.include_secondary_tags,
         };
         Cow::Owned(config.to_address().expect("config creates a valid url"))
     }

@@ -4,6 +4,8 @@
 
 #[cfg(feature = "sentry")]
 use std::panic::catch_unwind;
+use std::path::PathBuf;
+use std::sync::Arc;
 #[cfg(feature = "sentry")]
 use std::sync::Mutex;
 
@@ -522,6 +524,45 @@ impl AnnotationViewing {
     }
 }
 
+/// Command line flags for repository selection and setup
+#[derive(Debug, Clone, clap::Args)]
+pub struct Repositories {
+    /// Operate on a remote repository instead of the local one
+    ///
+    /// This is really only helpful if you are providing a specific ref to look up.
+    #[clap(long, short)]
+    pub remote: Option<String>,
+
+    /// Add the path as a spfs filesystem repo that wraps the existing
+    /// 'origin' remote repo inside a proxy repo.
+    ///
+    /// The repo at the given filepath becomes the primary repo in an
+    /// 'origin' proxy repo that contains the original 'origin' repo
+    /// as the proxy's secondary repo. If things aren't found in the
+    /// primary repo, it will try the secondary repo.
+    ///
+    /// This allows repos that are not in the normal config files to
+    /// be interacted with by individual commands, such as siloed
+    /// per-job or per-show repos.
+    #[clap(long)]
+    pub wrap_origin: Option<PathBuf>,
+}
+
+/// Trait all spfs cli command parsers must implement to allow extra
+/// repos to be configured on the command line. This method will be
+/// called when configuring the program being run.
+pub trait HasRepositoryArgs {
+    fn configure_repositories_from_args(
+        &self,
+        config: Arc<spfs::Config>,
+    ) -> Result<Arc<spfs::Config>> {
+        // Does nothing by default. Some commands will override this
+        // to return an updated config based on their Repositories
+        // command line options, if any.
+        Ok(config)
+    }
+}
+
 /// Trait all spfs cli command parsers must implement to provide the
 /// name of the spfs command that has been parsed. This method will be
 /// called when configuring sentry.
@@ -613,7 +654,15 @@ macro_rules! configure {
                 tracing::error!(err = ?err, "failed to load config");
                 return Ok(1);
             }
-            Ok(config) => (config, sentry_guard),
+            Ok(config) => {
+                match $opt.configure_repositories_from_args(config) {
+                    Err(err) => {
+                        tracing::error!(err = ?err, "failed to update config from cli args");
+                        return Ok(2);
+                    }
+                    Ok(updated_config) => (updated_config, sentry_guard),
+                }
+            },
         }
     }};
 }

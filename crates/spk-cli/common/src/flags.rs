@@ -1035,6 +1035,20 @@ pub struct Repositories {
     /// feature flag enabled.
     #[clap(long, hide = true)]
     pub legacy_spk_version_tags: bool,
+
+    /// Add the path as a spfs filesystem repo ahead of the existing
+    /// 'origin' remote repo.
+    ///
+    /// The filepath becomes the primary repo in a new 'origin' repo
+    /// that contains the original origin repo as a secondary repo. If
+    /// packages aren't found in the primary repo, it will try the
+    /// secondary repo.
+    ///
+    /// This allows repos that are not in the normal config files to
+    /// be interacted with, by individual commands, such as siloed
+    /// per-job or per-show repos.
+    #[clap(long)]
+    pub wrap_origin: Option<std::path::PathBuf>,
 }
 
 impl Repositories {
@@ -1046,6 +1060,10 @@ impl Repositories {
     pub async fn get_repos_for_destructive_operation(
         &self,
     ) -> Result<Vec<(String, storage::RepositoryHandle)>> {
+        if let Some(repo_path) = &self.wrap_origin {
+            spk_storage::inject_path_repo_into_spfs_config(repo_path)?;
+        }
+
         let mut enabled = Vec::with_capacity(self.enable_repo.len());
         let disabled: HashSet<&str> = self.disable_repo.iter().map(String::as_str).collect();
         for r in self.enable_repo.iter() {
@@ -1111,6 +1129,10 @@ impl Repositories {
     pub async fn get_repos_for_non_destructive_operation(
         &self,
     ) -> Result<Vec<(String, storage::RepositoryHandle)>> {
+        if let Some(repo_path) = &self.wrap_origin {
+            spk_storage::inject_path_repo_into_spfs_config(repo_path)?;
+        }
+
         let mut enabled = Vec::with_capacity(self.enable_repo.len());
         let disabled: HashSet<&str> = self.disable_repo.iter().map(String::as_str).collect();
         for r in self.enable_repo.iter() {

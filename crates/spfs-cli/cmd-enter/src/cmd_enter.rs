@@ -16,8 +16,7 @@ use miette::{Context, Result};
 use spfs::monitor::SPFS_MONITOR_FOREGROUND_LOGGING_VAR;
 use spfs::runtime::EnvKeyValue;
 use spfs::storage::fs::RenderSummary;
-use spfs_cli_common as cli;
-use spfs_cli_common::CommandName;
+use spfs_cli_common::{self as cli, CommandName, HasRepositoryArgs};
 #[cfg(unix)]
 use tokio::io::AsyncWriteExt;
 
@@ -128,6 +127,8 @@ pub struct EnterArgs {
     ///   eg `spfs enter <args> -- command --flag-for-command`
     args: Vec<OsString>,
 }
+
+impl HasRepositoryArgs for CmdEnter {}
 
 impl CommandName for CmdEnter {
     fn command_name(&self) -> &'static str {

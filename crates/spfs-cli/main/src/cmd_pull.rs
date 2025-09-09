@@ -18,8 +18,8 @@ pub struct CmdPull {
     /// The name or address of the remote server to pull from
     ///
     /// Defaults to searching all configured remotes
-    #[clap(long, short)]
-    remote: Option<String>,
+    #[clap(flatten)]
+    pub(crate) repos: cli::Repositories,
 
     /// The reference(s) to pull/localize
     ///
@@ -33,7 +33,7 @@ impl CmdPull {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let (repo, remote) = tokio::try_join!(
             config.get_local_repository_handle(),
-            spfs::config::open_repository_from_string(config, self.remote.as_ref())
+            spfs::config::open_repository_from_string(config, self.repos.remote.as_ref())
         )?;
 
         let env_spec = self.refs.iter().cloned().collect();

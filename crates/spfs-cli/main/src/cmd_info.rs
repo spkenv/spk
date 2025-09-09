@@ -29,11 +29,8 @@ pub struct CmdInfo {
     #[clap(long, short = 'H')]
     human_readable: bool,
 
-    /// Operate on a remote repository instead of the local one
-    ///
-    /// This is really only helpful if you are providing a specific ref to look up.
-    #[clap(long, short)]
-    remote: Option<String>,
+    #[clap(flatten)]
+    pub(crate) repos: cli::Repositories,
 
     /// Tag, id, or /spfs/file/path to show information about
     #[clap(value_name = "REF")]
@@ -59,7 +56,8 @@ pub struct CmdInfo {
 
 impl CmdInfo {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
-        let repo = spfs::config::open_repository_from_string(config, self.remote.as_ref()).await?;
+        let repo =
+            spfs::config::open_repository_from_string(config, self.repos.remote.as_ref()).await?;
 
         self.to_process.extend(self.refs.iter().cloned());
 

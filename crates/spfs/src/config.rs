@@ -3,7 +3,7 @@
 // https://github.com/spkenv/spk
 
 use std::num::{NonZeroU64, NonZeroUsize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 use derive_builder::Builder;
@@ -24,6 +24,10 @@ mod config_test;
 const DEFAULT_USER_STORAGE: &str = "spfs";
 const FALLBACK_STORAGE_ROOT: &str = "/tmp/spfs";
 const LOCAL_STORAGE_NAME: &str = "<local storage>";
+
+const ORIGIN_REPO_NAME: &str = "origin";
+const PRIMARY_REPO_NAME: &str = "outerrepo";
+const SECONDARY_REPO_NAME: &str = "remoteorigin";
 
 fn default_fuse_worker_threads() -> NonZeroUsize {
     let num_cpu = num_cpus::get();
@@ -65,6 +69,10 @@ const fn default_fuse_heartbeat_interval_seconds() -> NonZeroU64 {
 const fn default_fuse_heartbeat_grace_period_seconds() -> NonZeroU64 {
     // Safety: this is a hard-coded non-zero value
     unsafe { NonZeroU64::new_unchecked(300) }
+}
+
+pub fn default_proxy_repo_include_secondary_tags() -> bool {
+    true
 }
 
 static CONFIG: OnceCell<RwLock<Arc<Config>>> = OnceCell::new();
@@ -517,6 +525,9 @@ pub struct Fuse {
     /// seconds
     #[serde(default = "default_fuse_heartbeat_grace_period_seconds")]
     pub heartbeat_grace_period_seconds: NonZeroU64,
+    /// Whether to include tags from secondary repos in lookup methods
+    #[serde(default = "default_proxy_repo_include_secondary_tags")]
+    pub include_secondary_tags: bool,
 }
 
 impl Fuse {
@@ -536,6 +547,7 @@ impl Default for Fuse {
             enable_heartbeat: false,
             heartbeat_interval_seconds: default_fuse_heartbeat_interval_seconds(),
             heartbeat_grace_period_seconds: default_fuse_heartbeat_grace_period_seconds(),
+            include_secondary_tags: default_proxy_repo_include_secondary_tags(),
         }
     }
 }
@@ -795,6 +807,49 @@ impl Config {
             addrs.push(addr);
         }
         addrs
+    }
+
+    pub fn add_proxy_repo_over_origin(&self, repo_path: &Path) -> Result<Arc<Config>> {
+        let mut new_config = (*self).clone();
+
+        // The original origin repo, will be renamed below
+        let remote_origin = match new_config.remote.get(ORIGIN_REPO_NAME) {
+            Some(origin) => Remote::Address(RemoteAddress {
+                address: origin.to_address()?,
+            }),
+            None => {
+                return Err(Error::UnknownRemoteName(ORIGIN_REPO_NAME.to_string()));
+            }
+        };
+
+        // The new repo, from the given path, e.g. the per job/shot one
+        let jobrepo = Remote::Address(RemoteAddress {
+            address: url::Url::parse(&format!("file:{}?create=true", repo_path.display()))
+                .map_err(Error::InvalidRemoteUrl)?,
+        });
+
+        // The new proxy repo that covers the two repos above and replaces
+        // the origin repo for spfs interactions.
+        let proxy_origin: Remote = Remote::Address(RemoteAddress {
+            address: url::Url::parse(&format!(
+                "proxy:?primary={PRIMARY_REPO_NAME}&secondary[0]={SECONDARY_REPO_NAME}"
+            ))
+            .map_err(Error::InvalidRemoteUrl)?,
+        });
+
+        new_config
+            .remote
+            .insert(PRIMARY_REPO_NAME.to_string(), jobrepo);
+        new_config
+            .remote
+            .insert(SECONDARY_REPO_NAME.to_string(), remote_origin);
+
+        new_config
+            .remote
+            .insert(ORIGIN_REPO_NAME.to_string(), proxy_origin);
+
+        // Update the current spfs config in memory and return the new config
+        new_config.make_current()
     }
 }
 

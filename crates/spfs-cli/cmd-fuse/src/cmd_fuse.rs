@@ -140,6 +140,7 @@ impl CmdFuse {
             gid: calling_gid,
             remotes: Vec::new(),
             mount_options: required_opts.into_iter().collect(),
+            include_secondary_tags: config.fuse.include_secondary_tags,
         };
 
         let parsed_opts = parse_options_from_args(&self.options);
@@ -149,6 +150,13 @@ impl CmdFuse {
                     match opt.split_once('=') {
                         Some(("remote", name)) => {
                             opts.remotes.push(name.to_owned());
+                        }
+                        Some(("incl_sec_tags", value)) => {
+                            opts.include_secondary_tags = value.parse::<bool>().map_err(|err| {
+                                Error::String(format!(
+                                    "Invalid parameter value for incl_sec_tags={value}: {err}"
+                                ))
+                            })?
                         }
                         Some(("uid", num)) if calling_uid.is_root() => {
                             opts.uid = num.parse::<u32>().map(nix::unistd::Uid::from_raw).map_err(

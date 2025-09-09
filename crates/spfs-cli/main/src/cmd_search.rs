@@ -5,11 +5,15 @@
 use clap::Args;
 use miette::Result;
 use spfs::prelude::*;
+use spfs_cli_common as cli;
 use tokio_stream::StreamExt;
 
 /// Search for available tags by substring
 #[derive(Debug, Args)]
 pub struct CmdSearch {
+    #[clap(flatten)]
+    pub(crate) repos: cli::Repositories,
+
     /// The search term/substring to look for
     #[clap(value_name = "TERM")]
     term: String,
