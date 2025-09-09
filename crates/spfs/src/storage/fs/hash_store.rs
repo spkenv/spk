@@ -360,7 +360,10 @@ impl FsHashStore {
             }
 
             // not a good enough reason to fail entirely
-            tracing::trace!("{err:?}");
+            tracing::trace!(
+                "set_permission on object file: {} - {err:?}",
+                path.display()
+            );
             #[cfg(feature = "sentry")]
             sentry::capture_event(sentry::protocol::Event {
                 message: Some(format!("{err:?}")),

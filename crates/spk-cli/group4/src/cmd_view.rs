@@ -4,29 +4,40 @@
 
 use std::any::Any;
 use std::borrow::Cow;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use clap::Args;
 use colored::Colorize;
 use futures::{StreamExt, TryStreamExt};
+use itertools::Itertools;
 use miette::{Context, IntoDiagnostic, Result, bail};
+use nonempty::NonEmpty;
 use serde::Serialize;
 use spfs::Digest;
 use spfs::find_path::ObjectPathEntry;
 use spfs::graph::{HasKind, ObjectKind};
 use spfs::io::Pluralize;
 use spk_cli_common::with_version_and_build_set::WithVersionSet;
-use spk_cli_common::{CommandArgs, DefaultVersionStrategy, Run, current_env, flags};
+use spk_cli_common::{
+    CommandArgs,
+    DefaultVersionStrategy,
+    Run,
+    current_env,
+    flags,
+    remove_ansi_escapes,
+};
 use spk_schema::foundation::format::{FormatChangeOptions, FormatRequest};
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::spec_ops::Named;
-use spk_schema::ident::Request;
+use spk_schema::ident::{RangeIdent, Request};
+use spk_schema::ident_component::Component;
 use spk_schema::name::PkgNameBuf;
 use spk_schema::version::Version;
 use spk_schema::{
     AnyIdent,
     BuildIdent,
+    Package,
     RequirementsList,
     Spec,
     Template,
@@ -35,8 +46,9 @@ use spk_schema::{
     VersionIdent,
 };
 use spk_solve::solution::{LayerPackageAndComponents, get_spfs_layers_to_packages};
-use spk_solve::{Recipe, Solver, SolverMut};
+use spk_solve::{PackageSource, Recipe, RequestedBy, Solution, Solver, SolverMut};
 use spk_storage;
+use spk_storage::RepositoryHandle;
 use strum::{Display, EnumString, IntoEnumIterator, VariantNames};
 
 #[cfg(test)]
@@ -50,6 +62,8 @@ pub enum OutputFormat {
     Json,
     #[default]
     Yaml,
+    /// .env file compatible format
+    Env,
 }
 
 /// Show the spfs filepaths entry details at v > 0
@@ -67,6 +81,11 @@ const DONT_SHOW_DETAILED_SETTINGS: u8 = 0;
 
 /// Don't format a solved request as an initial request
 const NOT_AN_INITIAL_REQUEST: u64 = 1;
+
+/// Warning message when trying to use 'env' formatting in context
+/// that doesn't support it
+const ENV_FORMAT_NOT_SUPPORTED_HERE: &str =
+    "'env' format is only supported when getting info on the current environment";
 
 /// View the current environment, or information about a package, or filepath under /spfs
 #[derive(Args)]
@@ -211,20 +230,260 @@ struct PrintVariantWithTests<'a> {
     tests: BTreeMap<TestStage, u32>,
 }
 
+/// A helper for outputting requested by data in non-pretty printed formats
+#[derive(Serialize)]
+struct ResolvedRequestedBy {
+    package: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    build: Option<String>,
+}
+
+/// A helper for outputting solution data in non-pretty printed formats
+#[derive(Serialize)]
+struct ResolvedPackage {
+    package: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    repo_name: Option<String>,
+    name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    components: Option<Vec<String>>,
+    version: String,
+    highest: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    size: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    requesters: Option<Vec<ResolvedRequestedBy>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    options: Option<OptionMap>,
+}
+
+/// A helper for entry output details in non-pretty printed formats
+#[derive(Serialize)]
+struct EntryInfo {
+    /// e.g. '-rxw-r-xr-x' not the octal value
+    mode: String,
+    kind: String,
+    digest: Digest,
+    /// Size is in bytes
+    size: u64,
+    path: String,
+}
+
+impl EntryInfo {
+    /// Helper to make an EntryInfo based on the filepath and ObjectPathEntry
+    fn convert_from_spfs_entry(filepath: &str, entry: &ObjectPathEntry) -> Option<Self> {
+        match entry {
+            ObjectPathEntry::FilePath(tracking_entry) => Some(EntryInfo {
+                mode: unix_mode::to_string(tracking_entry.mode),
+                kind: tracking_entry.kind.to_string(),
+                digest: tracking_entry.object,
+                size: tracking_entry.size(),
+                path: filepath.to_string(),
+            }),
+            _ => None,
+        }
+    }
+}
+
+/// A helper to get the output EntryInfo for the filepath matching entry in the pathlist, if any
+fn get_entry_from_pathlist(
+    filepath: &str,
+    pathlist: &NonEmpty<ObjectPathEntry>,
+) -> Result<Option<EntryInfo>> {
+    Ok(EntryInfo::convert_from_spfs_entry(
+        filepath,
+        pathlist.last(),
+    ))
+}
+
+/// A helper to get the object paths the given layer had that matched the filepath
+fn get_object_paths_from_layers<'a>(
+    layer_digest: &'a Digest,
+    layers_containing_filepath: &'a BTreeMap<Digest, NonEmpty<ObjectPathEntry>>,
+) -> Result<&'a NonEmpty<ObjectPathEntry>> {
+    match layers_containing_filepath.get(layer_digest) {
+        Some(pl) => Ok(pl),
+        None => {
+            let message = format!(
+                "Missing pathlist for layer digest '{layer_digest}' known to contain the filepath. This cannot happen, layers_that_contain_filepath should contain an entry for each layer digest in stack_order"
+            );
+            tracing::error!(message);
+            Err(spk_cli_common::Error::String(message).into())
+        }
+    }
+}
+
+/// A helper for outputting package/layers that contain filepaths data
+/// in non-pretty printed formats
+#[derive(Serialize)]
+struct PackageLayer {
+    package: Option<RangeIdent>,
+    layer: Digest,
+    manifest: Digest,
+    entry: Option<EntryInfo>,
+}
+
+/// A helper to get the layer's manifest's digest from the given object path list
+fn get_manifest_from_pathlist(pathlist: &NonEmpty<ObjectPathEntry>) -> Result<Digest> {
+    Ok(pathlist.first().digest()?)
+}
+
+/// A helper to make a range ident specific to the given components
+fn get_components_specific_ident(base: &RangeIdent, components: &[Component]) -> RangeIdent {
+    let mut ident = base.clone();
+    ident.components.clear();
+    for component in components {
+        ident.components.insert(component.clone());
+    }
+    ident
+}
+
 impl View {
+    async fn solved_packages_output_data(
+        &self,
+        solution: &Solution,
+        repos: &[Arc<RepositoryHandle>],
+    ) -> Result<Vec<ResolvedPackage>> {
+        let mut solved_packages = Vec::new();
+
+        let resolved_items = if self.sort {
+            solution.items().sorted_by_key(|item| item.spec.name())
+        } else {
+            // Convert back to vec once so that we can get an into_iter type
+            solution.items().collect_vec().into_iter()
+        };
+
+        let highest_versions = solution.get_all_highest_package_versions(repos).await?;
+
+        // Assemble output data structure, a subset of a full
+        // solution. Should contain the same information as the
+        // normal spk info output.
+        for req in resolved_items {
+            let package = remove_ansi_escapes(req.format_as_installed_package());
+            let (repo_name, components) =
+                if let PackageSource::Repository { repo, components } = &req.source {
+                    (
+                        Some(repo.name().to_string()),
+                        Some(components.keys().map(ToString::to_string).collect()),
+                    )
+                } else {
+                    (None, None)
+                };
+            let name = req.spec.ident().name().to_string();
+            let version = req.spec.ident().version().to_string();
+            let highest = match highest_versions.get(req.spec.name()) {
+                Some(hv) => hv.to_string(),
+                None => Version::default().to_string(),
+            };
+
+            let mut resolved_request = ResolvedPackage {
+                package,
+                repo_name,
+                name,
+                components,
+                version,
+                highest,
+                size: None,
+                requesters: None,
+                options: None,
+            };
+
+            if self.verbose > 0 {
+                let size = match &req.source {
+                    PackageSource::Repository { repo, components } => {
+                        match spk_storage::get_components_disk_usage(
+                            repo.clone(),
+                            Arc::new(req.spec.ident().clone()),
+                            components,
+                        )
+                        .await
+                        {
+                            Ok(disk_usage) => disk_usage.size,
+                            Err(err) => {
+                                tracing::warn!(
+                                    "Problem working out disk size of {}: {err}",
+                                    req.spec.ident().to_string()
+                                );
+                                0
+                            }
+                        }
+                    }
+                    // Other package sources are ignored for disk usage
+                    _ => 0,
+                };
+                let requesters: Vec<ResolvedRequestedBy> = req
+                    .request
+                    .get_requesters()
+                    .iter()
+                    .map(|r| match r {
+                        RequestedBy::PackageBuild(build_ident) => ResolvedRequestedBy {
+                            package: r.to_string(),
+                            name: Some(build_ident.name().to_string()),
+                            version: Some(build_ident.version().to_string()),
+                            build: Some(build_ident.build().to_string()),
+                        },
+                        _ => ResolvedRequestedBy {
+                            package: r.to_string(),
+                            name: None,
+                            version: None,
+                            build: None,
+                        },
+                    })
+                    .collect();
+                let options = req.spec.option_values();
+
+                resolved_request.size = Some(size);
+                resolved_request.requesters = Some(requesters);
+                resolved_request.options = Some(options);
+            }
+
+            solved_packages.push(resolved_request);
+        }
+
+        Ok(solved_packages)
+    }
+
     async fn print_current_env(&self) -> Result<i32> {
         let solution = current_env().await?;
         let solver = self.solver.get_solver(&self.options).await?;
-        println!(
-            "{}",
-            solution
-                .format_solution_with_highest_versions(
-                    self.verbose,
-                    solver.repositories(),
-                    self.sort
-                )
-                .await?
-        );
+
+        if let Some(format) = &self.format {
+            let solved_packages = self
+                .solved_packages_output_data(&solution, solver.repositories())
+                .await?;
+
+            match format {
+                OutputFormat::Yaml => serde_yaml::to_writer(std::io::stdout(), &solved_packages)
+                    .into_diagnostic()
+                    .wrap_err("Failed to serialize loaded spec")?,
+                OutputFormat::Json => serde_json::to_writer(std::io::stdout(), &solved_packages)
+                    .into_diagnostic()
+                    .wrap_err("Failed to serialize loaded spec")?,
+                OutputFormat::Env => {
+                    let env_vars = solution.to_environment::<HashMap<String, String>>(None);
+                    for (name, value) in env_vars {
+                        println!("{name}={value}");
+                    }
+                }
+            }
+        } else {
+            // Solver solution output format
+            println!(
+                "{}",
+                solution
+                    .format_solution_with_highest_versions(
+                        self.verbose,
+                        solver.repositories(),
+                        self.sort
+                    )
+                    .await?
+            );
+        }
+
         Ok(0)
     }
 
@@ -292,6 +551,9 @@ impl View {
                             .wrap_err("Failed to serialize variant info")?
                     }
                 }
+                OutputFormat::Env => {
+                    tracing::warn!(ENV_FORMAT_NOT_SUPPORTED_HERE)
+                }
             },
             None if show_variants_with_tests => {
                 tracing::warn!("--variants-with-tests requires json format");
@@ -340,7 +602,14 @@ impl View {
         let mut layers_that_contain_filepath = BTreeMap::new();
         let mut stack_order: Vec<Digest> = Vec::new();
         for pathlist in found.iter() {
-            let layer_digest = match pathlist.iter().find(
+            let object_list = NonEmpty::from_slice(pathlist).ok_or_else(|| {
+                spk_cli_common::Error::String(
+                    "Found pathlist entry is empty. This cannot happen, all the pathlists should contain a layer.".to_string(),
+                )
+            }
+            )?;
+
+            let layer_digest = match object_list.iter().find(
                 |item| matches!(item, ObjectPathEntry::Parent(o) if o.kind() == ObjectKind::Layer),
             ) {
                 Some(l) => l.digest()?,
@@ -350,7 +619,7 @@ impl View {
                      ).into());
                 }
             };
-            layers_that_contain_filepath.insert(layer_digest, pathlist);
+            layers_that_contain_filepath.insert(layer_digest, object_list);
             stack_order.push(layer_digest);
         }
 
@@ -360,95 +629,147 @@ impl View {
         let solution = current_env().await?;
         let items = solution.items();
         let layers_to_packages = get_spfs_layers_to_packages(&items)?;
-
-        // Now we can display the package and spfs data about the
-        // filepath. It is possible for a filepath to be provided by
-        // multiple layers and packages, and it is also possible for
-        // the layer(s) have no package related to them (e.g. layers
-        // created via spfs commands directly).
         let number = layers_that_contain_filepath.len();
-        println!(
-            "{}: is in {} {}{}:",
-            filepath.green(),
-            number,
-            if number > 1 {
-                "packages/layers"
-            } else {
-                "package/layer"
-            },
-            if self.verbose < SHOW_ALL_RESULTS_LEVEL && number > 1 {
-                ", topmost 1 shown, use -v to see all"
-            } else {
-                ""
-            }
-        );
 
-        // Stack order is used to ensure the packages and layers are
-        // shown top down, from packages added later first to packages
-        // added earlier below them.
-        for layer_digest in stack_order.iter() {
-            let pathlist = match layers_that_contain_filepath.get(layer_digest) {
-                Some(pl) => pl,
-                None => {
-                    let message = "Missing pathlist for layer digest known to contain the filepath. This cannot happen, layers_that_contain_filepath should contain an entry for each layer digest in stack_order".to_string();
-                    tracing::error!(message);
-                    return Err(spk_cli_common::Error::String(message).into());
-                }
-            };
+        // Output what was found based on the formatting options.
+        if let Some(format) = &self.format {
+            // Non-pretty print formatted output needs the data in a single place
+            let mut path_packages: HashMap<String, Vec<PackageLayer>> = HashMap::new();
 
-            match layers_to_packages.get(layer_digest) {
-                Some(LayerPackageAndComponents(solved_request, _component)) => {
-                    println!(
-                        " {}",
-                        solved_request.request.format_request(
-                            solved_request.repo_name().as_ref(),
-                            &solved_request.request.pkg.name,
-                            &FormatChangeOptions {
-                                verbosity: DONT_SHOW_DETAILED_SETTINGS,
-                                level: NOT_AN_INITIAL_REQUEST,
-                            }
-                        )
-                    )
-                }
-                None => {
-                    // There is no matching spk package for this
-                    // layer, but it does provide the file
-                    println!(
-                        "Unknown spk package{}",
-                        if self.verbose < SHOW_SPFS_FULL_TREE_LEVEL {
-                            ". Re-run with more '-v's to see the spfs data"
-                        } else {
-                            ", but the spfs data is:"
+            // Stack order is used to ensure the packages and layers
+            // are shown top down, from packages added later at the
+            // top to packages added earlier below them.
+            for layer_digest in stack_order.iter() {
+                let pathlist =
+                    get_object_paths_from_layers(layer_digest, &layers_that_contain_filepath)?;
+
+                let package = match layers_to_packages.get(layer_digest) {
+                    Some(LayerPackageAndComponents(solved_request, components)) => {
+                        let ident =
+                            get_components_specific_ident(&solved_request.request.pkg, components);
+
+                        let manifest = get_manifest_from_pathlist(pathlist)?;
+                        let entry = get_entry_from_pathlist(filepath, pathlist)?;
+
+                        PackageLayer {
+                            package: Some(ident),
+                            layer: *layer_digest,
+                            manifest,
+                            entry,
                         }
-                    );
-                }
-            };
+                    }
+                    None => {
+                        // There is no matching spk package for this
+                        // layer, but it does provide the file
+                        let manifest = get_manifest_from_pathlist(pathlist)?;
+                        let entry = get_entry_from_pathlist(filepath, pathlist)?;
 
-            // The spfs details are only shown at higher verbosity levels
-            if self.verbose > SHOW_SPFS_ENTRY_ONLY_LEVEL {
-                if self.verbose > SHOW_SPFS_FULL_TREE_LEVEL {
-                    spk_storage::pretty_print_filepath(filepath, pathlist).await?;
-                } else {
-                    // This will have a last entry because it
-                    // represents a path through the spfs object trees
-                    // to the filepath, and at least one such path
-                    // much have been found above for the code to be
-                    // reached.
-                    let entry_only = match pathlist.last() {
-                        Some(entry) => vec![entry.clone()],
-                        None => {
-                            let message = "Pathlist does not contain a last entry. This cannot happen, all the pathlists found should contain at least an entry for the filepath.".to_string();
-                            tracing::error!(message);
-                            return Err(spk_cli_common::Error::String(message).into());
+                        PackageLayer {
+                            package: None,
+                            layer: *layer_digest,
+                            manifest,
+                            entry,
                         }
-                    };
-                    spk_storage::pretty_print_filepath(filepath, &entry_only).await?;
+                    }
                 };
+
+                let packages = path_packages.entry(filepath.to_string()).or_default();
+                packages.push(package);
             }
 
-            // Only show all the found entries at higher verbosity levels.
-            if self.verbose < SHOW_ALL_RESULTS_LEVEL {
-                break;
+            match format {
+                OutputFormat::Yaml => serde_yaml::to_writer(std::io::stdout(), &path_packages)
+                    .into_diagnostic()
+                    .wrap_err("Failed to serialize loaded spec")?,
+                OutputFormat::Json => serde_json::to_writer(std::io::stdout(), &path_packages)
+                    .into_diagnostic()
+                    .wrap_err("Failed to serialize loaded spec")?,
+                OutputFormat::Env => {
+                    tracing::warn!("'env' format not applicable for filepath in package info");
+                    return Ok(1);
+                }
+            }
+        } else {
+            // Display the package and spfs data about the filepath.
+            // It is possible for a filepath to be provided by
+            // multiple layers and packages, and it is also possible
+            // for the layer(s) have no package related to them
+            // (e.g. layers created via spfs commands directly).
+            println!(
+                "{}: is in {number} {}{}:",
+                filepath.green(),
+                if number > 1 {
+                    "packages/layers"
+                } else {
+                    "package/layer"
+                },
+                if self.verbose < SHOW_ALL_RESULTS_LEVEL && number > 1 {
+                    ", topmost 1 shown, use -v to see all"
+                } else {
+                    ""
+                }
+            );
+
+            // Stack order is used to ensure the packages and layers
+            // are shown top down, from packages added later at the
+            // top to packages added earlier below them.
+            for layer_digest in stack_order.iter() {
+                let pathlist =
+                    get_object_paths_from_layers(layer_digest, &layers_that_contain_filepath)?;
+
+                match layers_to_packages.get(layer_digest) {
+                    Some(LayerPackageAndComponents(solved_request, components)) => {
+                        let ident =
+                            get_components_specific_ident(&solved_request.request.pkg, components);
+                        let mut request = solved_request.request.clone();
+                        request.pkg = ident;
+
+                        println!(
+                            " {}",
+                            request.format_request(
+                                solved_request.repo_name().as_ref(),
+                                &request.pkg.name,
+                                &FormatChangeOptions {
+                                    verbosity: DONT_SHOW_DETAILED_SETTINGS,
+                                    level: NOT_AN_INITIAL_REQUEST,
+                                }
+                            )
+                        )
+                    }
+                    None => {
+                        // There is no matching spk package for this
+                        // layer, but it does provide the file
+                        println!(
+                            "Unknown spk package{}",
+                            if self.verbose < SHOW_SPFS_FULL_TREE_LEVEL {
+                                ". Re-run with more '-v's to see the spfs data"
+                            } else {
+                                ", but the spfs data is:"
+                            }
+                        );
+                    }
+                };
+
+                // The spfs details are only shown at higher verbosity levels
+                if self.verbose > SHOW_SPFS_ENTRY_ONLY_LEVEL {
+                    if self.verbose > SHOW_SPFS_FULL_TREE_LEVEL {
+                        let list: Vec<ObjectPathEntry> = pathlist.clone().into();
+                        spk_storage::pretty_print_filepath(filepath, &list).await?;
+                    } else {
+                        // This will have a last entry because it
+                        // represents a path through the spfs object trees
+                        // to the filepath, and at least one such path
+                        // much have been found above for the code to be
+                        // reached.
+                        let entry_only = vec![pathlist.last().clone()];
+                        spk_storage::pretty_print_filepath(filepath, &entry_only).await?;
+                    };
+                }
+
+                // Only show all the found entries at higher verbosity levels.
+                if self.verbose < SHOW_ALL_RESULTS_LEVEL {
+                    break;
+                }
             }
         }
 
@@ -464,6 +785,7 @@ impl View {
             OutputFormat::Json => serde_json::to_writer(std::io::stdout(), &*package_spec)
                 .into_diagnostic()
                 .wrap_err("Failed to serialize loaded spec")?,
+            OutputFormat::Env => tracing::warn!(ENV_FORMAT_NOT_SUPPORTED_HERE),
         }
         Ok(0)
     }
@@ -538,6 +860,9 @@ impl View {
                                 serde_json::to_writer(std::io::stdout(), &*version_recipe)
                                     .into_diagnostic()
                                     .wrap_err("Failed to serialize loaded spec")?
+                            }
+                            OutputFormat::Env => {
+                                tracing::warn!(ENV_FORMAT_NOT_SUPPORTED_HERE)
                             }
                         }
                         return Ok(0);

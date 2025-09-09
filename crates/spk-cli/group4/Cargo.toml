@@ -19,6 +19,7 @@ clap = { workspace = true }
 colored = { workspace = true }
 dunce = { workspace = true }
 futures = { workspace = true }
+nonempty = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
@@ -33,6 +34,7 @@ spk-workspace = { workspace = true }
 strum = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }
+unix_mode = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
