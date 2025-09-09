@@ -183,8 +183,8 @@ impl<'de> Deserialize<'de> for PinPolicy {
 }
 
 /// Represents a constraint added to a resolved environment.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Variantly)]
-#[serde(untagged)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Variantly)]
+#[cfg_attr(feature = "parsedbuf-serde", derive(Serialize), serde(untagged))]
 pub enum Request {
     Pkg(PkgRequest),
     Var(VarRequest<PinnableValue>),
@@ -497,6 +497,7 @@ impl std::fmt::Display for VarRequest {
     }
 }
 
+#[cfg(feature = "parsedbuf-serde")]
 impl Serialize for VarRequest<PinnableValue> {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -508,8 +509,6 @@ impl Serialize for VarRequest<PinnableValue> {
 
         match &self.value {
             PinnableValue::FromBuildEnv => {
-                // XXX: this fails to compile if the "parsedbuf-serde" feature
-                // is not enabled.
                 map.serialize_entry("var", &self.var)?;
                 map.serialize_entry("fromBuildEnv", &true)?;
             }

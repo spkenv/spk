@@ -128,8 +128,8 @@ pub static HOST_OPTIONS: HostOptions = HostOptions(Lazy::new(|| {
 }));
 
 /// A set of values for package build options.
-#[derive(Default, Clone, Hash, PartialEq, Eq, Serialize, Ord, PartialOrd)]
-#[serde(transparent)]
+#[derive(Default, Clone, Hash, PartialEq, Eq, Ord, PartialOrd)]
+#[cfg_attr(feature = "parsedbuf-serde", derive(Serialize), serde(transparent))]
 pub struct OptionMap {
     options: BTreeMap<OptNameBuf, String>,
 }
@@ -269,6 +269,7 @@ impl OptionMap {
     }
 }
 
+#[cfg(feature = "parsedbuf-serde")]
 impl<'de> Deserialize<'de> for OptionMap {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
