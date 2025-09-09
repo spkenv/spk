@@ -602,7 +602,7 @@ impl View {
         let mut layers_that_contain_filepath = BTreeMap::new();
         let mut stack_order: Vec<Digest> = Vec::new();
         for pathlist in found.iter() {
-            let objectlist = match NonEmpty::from_slice(pathlist) {
+            let object_list = match NonEmpty::from_slice(pathlist) {
                 Some(l) => l,
                 None => {
                     return Err(spk_cli_common::Error::String(
@@ -611,7 +611,7 @@ impl View {
                 }
             };
 
-            let layer_digest = match objectlist.iter().find(
+            let layer_digest = match object_list.iter().find(
                 |item| matches!(item, ObjectPathEntry::Parent(o) if o.kind() == ObjectKind::Layer),
             ) {
                 Some(l) => l.digest()?,
@@ -621,7 +621,7 @@ impl View {
                      ).into());
                 }
             };
-            layers_that_contain_filepath.insert(layer_digest, objectlist);
+            layers_that_contain_filepath.insert(layer_digest, object_list);
             stack_order.push(layer_digest);
         }
 
