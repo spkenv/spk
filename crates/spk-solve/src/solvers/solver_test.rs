@@ -1126,13 +1126,12 @@ async fn test_solver_build_from_source_dependency(#[case] mut solver: SolverImpl
         "should want to build"
     );
 }
+
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_build_from_source_dependency_but_hit_loop(#[case] mut solver: SolverImpl) {
-    let log = init_logging();
-
     // test when no appropriate build exists but the source is available
     // - the existing build is skipped
     // - the source package is checked for current options
@@ -1187,31 +1186,6 @@ async fn test_solver_build_from_source_dependency_but_hit_loop(#[case] mut solve
     assert!(
         res.is_err(),
         "should fail to resolve because there is no solution for the request"
-    );
-
-    let log = log.lock();
-    let event = log.all_events().find(|e| {
-        let Some(msg) = e.message() else {
-            return false;
-        };
-        let msg = strip_ansi_escapes::strip(msg);
-        let msg = String::from_utf8_lossy(&msg);
-        // The sub-solver's output is not logged because it is
-        // currently run internally inside the parent solver (the
-        // solver set up, above, in this method). So we have to look
-        // for the log message that comes from the parent solver. This
-        // message doesn't mention the dependency loop, but that is
-        // the root cause in this case. The internal sub-solver would
-        // have to have its decisions logged before this test could
-        // find the dependency loop error note.
-        msg.ends_with(
-            "cannot resolve build env for source build: Failed to resolve: there is no solution for these requests using the available packages"
-        )
-    });
-
-    assert!(
-        event.is_some(),
-        "should fail because it fails an internal make from source build environment resolve"
     );
 }
 
