@@ -660,7 +660,7 @@ impl Solution {
                 // Right aligning the size column by using a minimum
                 // width of 8 because the human readable format, after
                 // the adjustment above, is at least "ddd.d UU" = 8
-                let delta = 8 - disk_usage.len();
+                let delta = 8usize.saturating_sub(disk_usage.len());
                 if delta > 0 {
                     let padding = " ".repeat(delta);
                     disk_usage = format!("{padding}{disk_usage}");
