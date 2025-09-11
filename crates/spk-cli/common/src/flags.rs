@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+// TODO: This is a change to trigger the coverage job in CI. Take it
+// out before merging.
 mod variant;
 
 use std::collections::HashSet;
