@@ -46,7 +46,7 @@ jobs:
           # spfs "custom build command" needs rustfmt? (protobufs?)
           rustup component add rustfmt
           # set up the profiling requirements
-          rustup component all llvm-tools
+          rustup component add llvm-tools
           cargo install grcov
       - uses: actions/checkout@v3
       - name: Configure cargo
