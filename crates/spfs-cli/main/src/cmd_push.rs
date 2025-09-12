@@ -28,6 +28,12 @@ pub struct CmdPush {
 
 impl CmdPush {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
+        // Default to the remote to "origin" to match spfs push's
+        // behaviour before the "repos" argument added above.
+        if self.repos.remote.is_none() {
+            self.repos.remote = Some("origin".to_string());
+        }
+
         let (repo, remote) = tokio::try_join!(
             config.get_local_repository_handle(),
             spfs::config::open_repository_from_string(config, self.repos.remote.as_ref()),
