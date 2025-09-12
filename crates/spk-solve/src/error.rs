@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 use colored::Colorize;
 use miette::Diagnostic;
+use spk_schema::VersionIdent;
 use spk_schema::foundation::format::FormatError;
 use spk_schema::ident::PkgRequest;
 use spk_solve_graph::Note;
@@ -67,6 +68,14 @@ pub enum Error {
     SolverLogFileFlushError(#[source] std::io::Error),
     #[error("Failed to resolve: {0}")]
     FailedToResolve(String),
+    #[diagnostic(
+        code(spk::solve::recursive_build_dependency),
+        help("This package requires an older version of itself to build but none exists")
+    )]
+    #[error(
+        "Cannot build package ({0}) from source during a solve because it has a dependency on itself"
+    )]
+    SolverBuildFromSourceDependencyLoopError(VersionIdent),
 }
 
 impl From<spk_solve_graph::Error> for Error {
