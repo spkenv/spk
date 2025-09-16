@@ -775,7 +775,7 @@ impl fuser::Filesystem for Session {
         _req: &Request<'_>,
         config: &mut fuser::KernelConfig,
     ) -> std::result::Result<(), libc::c_int> {
-        const DESIRED: &[(&str, u32)] = &[
+        const DESIRED: &[(&str, u64)] = &[
             ("FUSE_ASYNC_READ", FUSE_ASYNC_READ),
             ("FUSE_BIG_WRITES", FUSE_BIG_WRITES),
             ("FUSE_DO_READDIRPLUS", FUSE_DO_READDIRPLUS),
