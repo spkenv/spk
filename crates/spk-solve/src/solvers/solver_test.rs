@@ -1079,6 +1079,10 @@ async fn test_solver_build_from_source_dependency(#[case] mut solver: SolverImpl
     // - a new build is created of the dependent
     // - the local package is used in the resolve
 
+    // build the package against py 3.6 but we are explicitly not
+    // going to publish/include the python3.6 build in the repository
+    // which will make this build impossible to satisfy, which should
+    // force the solver to build from source
     let python36 = make_build!({"pkg": "python/3.6.3", "compat": "x.a.b"});
     let build_with_py36 = make_build!(
         {
@@ -1112,9 +1116,8 @@ async fn test_solver_build_from_source_dependency(#[case] mut solver: SolverImpl
     });
     repo.force_publish_recipe(&recipe).await.unwrap();
 
-    // the new option value should disqualify the existing build
-    // but a new one should be generated for this set of options
-    solver.update_options(option_map! {"debug" => "on"});
+    // as above, the solver should not be able to get py 3.6 as a
+    // dependency and so should propose a source build instead
     solver.add_repository(Arc::new(repo));
     solver.set_binary_only(false);
     solver.add_request(request!("my-tool"));
