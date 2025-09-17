@@ -19,8 +19,6 @@ use spfs::tracking::EnvSpec;
 #[cfg(unix)]
 use spfs_cli_common::warn_and_sentry_event;
 use spfs_cli_common::{self as cli};
-// XXX: this fails to compile if none of the fuse-backend-abi features is
-// enabled
 #[cfg(unix)]
 use spfs_vfs::{Config, Session};
 #[cfg(unix)]

@@ -17,7 +17,7 @@ name = "spfs-fuse"
 path = "src/cmd_fuse.rs"
 
 [features]
-default = ["fuse-backend-abi-7-22"]
+default = []
 fuse-backend-abi-7-22 = ["spfs-vfs/fuse-backend-abi-7-22"]
 fuse-backend-abi-7-25 = ["spfs-vfs/fuse-backend-abi-7-25"]
 fuse-backend-abi-7-28 = ["spfs-vfs/fuse-backend-abi-7-28"]
@@ -29,7 +29,9 @@ sentry = ["spfs-cli-common/sentry"]
 [dependencies]
 clap = { workspace = true }
 dashmap = { workspace = true }
-spfs-vfs = { workspace = true }
+# enable the lowest fuse abi currently supported; at least one must be
+# enabled for this crate to compile
+spfs-vfs = { workspace = true, features = ["fuse-backend-abi-7-22"] }
 libc = "0.2"
 miette = { workspace = true, features = ["fancy"] }
 nix = { workspace = true, features = ["process"] }
