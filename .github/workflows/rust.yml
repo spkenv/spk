@@ -142,7 +142,7 @@ jobs:
           crates/spfs/tests/integration/run_privileged_tests.sh
 
   matrix-build:
-    name: build features ${{ matrix.features }}
+    name: build features ${{ matrix.no-default-features }} ${{ matrix.features }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container:
@@ -158,6 +158,9 @@ jobs:
         features:
           # SPI's standand features
           - migration-to-components,sentry,spfs/protobuf-src,spfs-vfs/protobuf-src,statsd,fuse-backend-rhel-7-6,legacy-spk-version-tags
+        no-default-features:
+          - ""
+          - --no-default-features
     steps:
       - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.11.0
@@ -203,5 +206,6 @@ jobs:
       - name: Build
         run: >-
           cargo clippy
+          ${{ matrix.no-default-features }}
           --features "${{ matrix.features }}"
           --all-targets
