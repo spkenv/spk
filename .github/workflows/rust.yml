@@ -140,3 +140,72 @@ jobs:
         run: |
           # Run tests that need root
           crates/spfs/tests/integration/run_privileged_tests.sh
+
+  matrix-build:
+    name: build features ${{ matrix.no-default-features }} ${{ matrix.features }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: rust:slim-bookworm
+      options: --security-opt seccomp=unconfined --privileged
+    env:
+      # Enable sccache for rust
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          # SPI's standand features
+          - migration-to-components,sentry,spfs/protobuf-src,spfs-vfs/protobuf-src,statsd,fuse-backend-rhel-7-6,legacy-spk-version-tags
+        no-default-features:
+          - ""
+          - --no-default-features
+    steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.11.0
+      - uses: actions/checkout@v4
+      - name: Prepare Container
+        run: |
+          apt-get update
+          apt-get install -y build-essential libcap2-bin sudo cmake tcsh rsync protobuf-compiler fuse libfuse-dev curl unzip pkg-config libssl-dev git
+          # spfs-fuse requires this option enabled
+          echo user_allow_other >> /etc/fuse.conf
+          FB_REL=https://github.com/google/flatbuffers/releases/
+          curl --proto '=https' --tlsv1.2 -sSfL ${FB_REL}/download/v23.5.26/Linux.flatc.binary.g++-10.zip | funzip > /usr/bin/flatc
+          chmod +x /usr/bin/flatc
+          rustup component add clippy
+      - name: Configure cargo
+        run: |
+          mkdir -p .cargo
+          cat << EOF > .cargo/config.toml
+          [build]
+          # Disable incremental compilation to lower disk usage, and sccache
+          # can't cache incremental compiles.
+          incremental = false
+          EOF
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Restore ast-grep cache
+        id: restore-ast-grep-linux
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/cargo/bin/ast-grep
+          key: ast-grep-${{ runner.os }}
+          restore-keys: |
+            ast-grep-${{ runner.os }}
+      - name: Install ast-grep
+        if: steps.restore-ast-grep-linux.outputs.cache-hit != 'true'
+        # --force because cache-hit can be false (matched a partial key?) and
+        # then this command will fail if the previous step did restore the file.
+        run: cargo install --locked --force ast-grep
+        # Use the same FEATURES in these different steps to avoid recompiling
+        # as much as possible. Consider using a separate workflow with its own
+        # cache if there is a need to test building with a different set of
+        # features enabled.
+      - name: Build
+        run: >-
+          cargo clippy
+          ${{ matrix.no-default-features }}
+          --features "${{ matrix.features }}"
+          --all-targets

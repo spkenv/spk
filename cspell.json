@@ -225,6 +225,7 @@
     "fchmod",
     "fcntl",
     "FDCWD",
+    "featurecomb",
     "FETCHCONTENT",
     "fexceptions",
     "filehandle",

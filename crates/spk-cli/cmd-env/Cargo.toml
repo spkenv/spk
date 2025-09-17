@@ -13,7 +13,10 @@ description = { workspace = true }
 workspace = true
 
 [features]
-statsd = ["dep:statsd"]
+statsd = [
+    "dep:statsd",
+    "spk-solve/statsd",
+]
 
 [dependencies]
 miette = { workspace = true, features = ["fancy"] }
