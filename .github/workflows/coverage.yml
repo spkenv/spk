@@ -62,8 +62,8 @@ jobs:
           # Disable debug information to lower disk usage.
           debug = false
           EOF
-      - name: Run sccache-cache
-        uses: mozilla-actions/sccache-action@v0.0.3
+      # - name: Run sccache-cache
+      #   uses: mozilla-actions/sccache-action@v0.0.3
       - name: Install spfs
         run: |
           make install-debug-spfs FEATURES=server,spfs/server
