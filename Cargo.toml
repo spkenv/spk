@@ -60,6 +60,7 @@ dirs = "5.0"
 dunce = "1.0.4"
 dyn-clone = "1.0"
 enum_dispatch = "0.3.13"
+featurecomb = "0.1.3"
 flatbuffers = "25.2"
 format_serde_error = { version = "0.3", default-features = false }
 fuser = "0.15.1"

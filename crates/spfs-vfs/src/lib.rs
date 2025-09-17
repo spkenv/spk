@@ -9,6 +9,9 @@
 
 #![deny(missing_docs)]
 
+#[featurecomb::comb]
+mod _featurecomb {}
+
 mod error;
 pub use error::Error;
 

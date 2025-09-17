@@ -30,10 +30,28 @@ fuse-backend-abi-7-31 = ["fuse-backend-abi-7-28", "fuser/abi-7-31"]
 fuse-backend-rhel-7-6 = ["fuse-backend-abi-7-22"]
 fuse-backend-rhel-7-9 = ["fuse-backend-abi-7-31"]
 
+[package.metadata.feature-groups]
+# this feature group represents all the possible feature names that can be used
+# to enable fuse support
+fuse-abi = { features = [
+    "fuse-backend-abi-7-22",
+    "fuse-backend-abi-7-25",
+    "fuse-backend-abi-7-28",
+    "fuse-backend-abi-7-31",
+    "fuse-backend-rhel-7-6",
+    "fuse-backend-rhel-7-9",
+] }
+
+[package.metadata.feature-groups.features]
+# require that if fuse-backend is enabled, one of the fuse-abi features must
+# also be enabled
+fuse-backend.requires = { groups = ["fuse-abi"] }
+
 [dependencies]
 bytes = { workspace = true }
 clap = { workspace = true }
 dashmap = { workspace = true }
+featurecomb = { workspace = true }
 futures-core = { workspace = true, optional = true }
 nix = { workspace = true, features = ["process"] }
 libc = "0.2"
