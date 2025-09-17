@@ -42,13 +42,21 @@ jobs:
       - name: Install prerequisites
         run: |
           apt-get update
-          apt-get install --yes libcap2-bin tcsh rsync sudo protobuf-compiler fuse libfuse-dev
-          # spfs "custom build command" needs rustfmt? (protobufs?)
-          rustup component add rustfmt
+          apt-get install --yes build-essential libcap2-bin sudo cmake tcsh rsync protobuf-compiler fuse libfuse-dev curl unzip pkg-config libssl-dev git
+          # spfs-fuse requires this option enabled
+          echo user_allow_other >> /etc/fuse.conf
+          FB_REL=https://github.com/google/flatbuffers/releases/
+          curl --proto '=https' --tlsv1.2 -sSfL ${FB_REL}/download/v23.5.26/Linux.flatc.binary.g++-10.zip | funzip > /usr/bin/flatc
+          chmod +x /usr/bin/flatc
+          rustup install nightly
+          #rustup component add clippy
+          rustup component add rustfmt --toolchain nightly
           # set up the profiling requirements
           rustup component add llvm-tools
           cargo install grcov
       - uses: actions/checkout@v3
+      - name: Install ast-grep
+        run: cargo install --locked --force ast-grep
       - name: Configure cargo
         run: |
           mkdir -p .cargo
