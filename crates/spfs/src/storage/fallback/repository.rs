@@ -15,7 +15,15 @@ use crate::graph::ObjectProto;
 use crate::prelude::*;
 use crate::storage::fs::{FsHashStore, ManifestRenderPath, OpenFsRepository, RenderStore};
 use crate::storage::tag::TagSpecAndTagStream;
-use crate::storage::{EntryType, LocalRepository, TagNamespace, TagNamespaceBuf, TagStorageMut};
+use crate::storage::{
+    EntryType,
+    LocalRepository,
+    OpenRepositoryError,
+    OpenRepositoryResult,
+    TagNamespace,
+    TagNamespaceBuf,
+    TagStorageMut,
+};
 use crate::sync::reporter::SyncReporters;
 use crate::tracking::BlobRead;
 use crate::{Error, Result, encoding, graph, storage, tracking};
@@ -75,6 +83,12 @@ pub struct FallbackProxy {
 }
 
 impl FallbackProxy {
+    pub fn into_stack(self) -> Vec<crate::storage::RepositoryHandle> {
+        let mut stack = vec![self.primary.into()];
+        stack.extend(self.secondary);
+        stack
+    }
+
     pub fn new<P: Into<Arc<OpenFsRepository>>>(
         primary: P,
         secondary: Vec<crate::storage::RepositoryHandle>,
@@ -83,6 +97,68 @@ impl FallbackProxy {
             primary: primary.into(),
             secondary,
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl storage::FromConfig for FallbackProxy {
+    type Config = Config;
+
+    async fn from_config(config: Self::Config) -> OpenRepositoryResult<Self> {
+        let spfs_config =
+            crate::Config::current().map_err(|source| OpenRepositoryError::FailedToLoadConfig {
+                source: Box::new(source),
+            })?;
+        let primary = async {
+            let primary =
+                crate::config::open_repository_from_string(&spfs_config, Some(&config.primary))
+                    .await
+                    .map_err(|source| OpenRepositoryError::FailedToOpenPartial {
+                        source: Box::new(source),
+                    })?;
+            let primary = match primary {
+                RepositoryHandle::FS(fs) => fs,
+                _ => {
+                    return Err(OpenRepositoryError::UnsupportedRepositoryType(
+                        "The primary repository of a FallbackProxy must be a filesystem repository"
+                            .into(),
+                    ));
+                }
+            };
+            primary
+                .opened()
+                .await
+                .map_err(|source| OpenRepositoryError::FailedToOpenPartial {
+                    source: Box::new(source),
+                })
+        };
+        let secondary = async {
+            let mut secondary = Vec::with_capacity(config.secondary.len());
+            for name in config.secondary.iter() {
+                match crate::config::open_repository_from_string(&spfs_config, Some(&name))
+                    .await
+                    .map_err(|source| OpenRepositoryError::FailedToOpenPartial {
+                        source: Box::new(source),
+                    })? {
+                    RepositoryHandle::FallbackProxy(proxy) => {
+                        // Instead of nesting proxy repos, flatten them into
+                        // a single proxy repo with multiple secondaries.
+                        // This helps spfs-fuse handle the case where
+                        // "origin" has been changed to a proxy repo.
+                        //
+                        // XXX: This doesn't expand already nested proxy repos
+                        secondary.extend(proxy.into_stack());
+                    }
+                    repo => secondary.push(repo),
+                };
+            }
+            Ok(secondary)
+        };
+        let (primary, secondary) = tokio::try_join!(primary, secondary)?;
+        Ok(Self {
+            primary: primary.into(),
+            secondary,
+        })
     }
 }
 
