@@ -137,9 +137,9 @@ coverage:
 	echo "coverage started, about to make dir 1"
 	mkdir -p profraw
 	echo "coverage made dir 1, about to make dir 2"
-	mkdir -p target/debug/coverage
+	mkdir -p target/coverage
 	echo "coverage made dir 2, about to run cargo test"
 	RUSTFLAGS='-C instrument-coverage' LLVM_PROFILE_FILE='profraw/spk-%p-%m.profraw' spfs run - -- cargo test --workspace --features ${FEATURES} 2>&1
 	echo "coverage cargo test run, about to run grcov"
-	grcov . -s . --binary-path ./target/debug/ --branch --ignore-not-existing -t cobertura,lcov -o ./target/debug/coverage/
+	grcov . -s . --binary-path ./target/debug/ --branch --ignore-not-existing --keep-only 'crates/*' -t cobertura -o ./target/coverage/
 	echo "coverage finished"

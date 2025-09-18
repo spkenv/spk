@@ -90,4 +90,4 @@ jobs:
         with:
           output: both
           format: markdown
-          filename: target/debug/coverage/cobertura.xml
+          filename: target/coverage/cobertura.xml
