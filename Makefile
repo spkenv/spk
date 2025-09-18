@@ -141,5 +141,5 @@ coverage:
 	echo "coverage made dir 2, about to run cargo test"
 	RUSTFLAGS='-C instrument-coverage' LLVM_PROFILE_FILE='profraw/spk-%p-%m.profraw' spfs run - -- cargo test --workspace --features ${FEATURES} 2>&1
 	echo "coverage cargo test run, about to run grcov"
-	grcov . -s . --binary-path ./target/debug/ --branch --ignore-not-existing -t html,lcov -o ./target/debug/coverage/
+	grcov . -s . --binary-path ./target/debug/ --branch --ignore-not-existing -t cobertura,lcov -o ./target/debug/coverage/
 	echo "coverage finished"
