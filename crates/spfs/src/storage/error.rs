@@ -98,6 +98,9 @@ pub enum OpenRepositoryError {
         tag_namespace: TagNamespaceBuf,
         source: Box<dyn miette::Diagnostic + Send + Sync>,
     },
+
+    #[error("Unsupported repository type: {0}")]
+    UnsupportedRepositoryType(String),
 }
 
 impl OpenRepositoryError {

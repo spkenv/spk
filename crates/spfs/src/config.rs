@@ -75,6 +75,10 @@ pub fn default_proxy_repo_include_secondary_tags() -> bool {
     true
 }
 
+pub fn default_fallback_repo_include_secondary_tags() -> bool {
+    true
+}
+
 static CONFIG: OnceCell<RwLock<Arc<Config>>> = OnceCell::new();
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -251,6 +255,7 @@ pub enum RepositoryConfig {
     Grpc(storage::rpc::Config),
     Tar(storage::tar::Config),
     Proxy(storage::proxy::Config),
+    Fallback(storage::fallback::Config),
 }
 
 impl ToAddress for RepositoryConfig {
@@ -260,6 +265,7 @@ impl ToAddress for RepositoryConfig {
             Self::Grpc(c) => c.to_address(),
             Self::Tar(c) => c.to_address(),
             Self::Proxy(c) => c.to_address(),
+            Self::Fallback(c) => c.to_address(),
         }
     }
 }
@@ -292,6 +298,9 @@ impl RemoteConfig {
             "proxy" => storage::proxy::Config::from_url(&url)
                 .await
                 .map(RepositoryConfig::Proxy),
+            "fallback" => storage::fallback::Config::from_url(&url)
+                .await
+                .map(RepositoryConfig::Fallback),
             scheme => return Err(format!("Unsupported repository scheme: '{scheme}'").into()),
         };
         builder.inner(result.map_err(|source| Error::FailedToOpenRepository {
@@ -331,6 +340,11 @@ impl RemoteConfig {
             RepositoryConfig::Proxy(config) => storage::proxy::ProxyRepository::from_config(config)
                 .await?
                 .into(),
+            RepositoryConfig::Fallback(config) => {
+                storage::fallback::FallbackProxy::from_config(config)
+                    .await?
+                    .into()
+            }
         };
         // Set tag namespace first before pinning, because it is not possible
         // to set the tag namespace on a pinned handle.

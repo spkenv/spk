@@ -137,7 +137,13 @@ impl<'a> Dynamic<'a> {
             let r = syncer.sync_env(env_spec).await.wrap_err("sync reference")?;
             let env_spec = r.env;
 
-            let fallback = FallbackProxy::new(local, vec![remote]);
+            let fallback = FallbackProxy::new(
+                local,
+                vec![remote],
+                // preserve original behavior of not looking for tags in the secondary
+                // repos
+                false,
+            );
 
             spfs::storage::fs::Renderer::new(&fallback)
                 .with_reporter(spfs::storage::fs::ConsoleRenderReporter::default())

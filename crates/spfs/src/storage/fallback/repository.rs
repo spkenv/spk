@@ -10,12 +10,21 @@ use chrono::{DateTime, Utc};
 use futures::Stream;
 use relative_path::RelativePath;
 
-use crate::config::ToAddress;
+use crate::config::{ToAddress, default_fallback_repo_include_secondary_tags};
 use crate::graph::ObjectProto;
 use crate::prelude::*;
 use crate::storage::fs::{FsHashStore, ManifestRenderPath, OpenFsRepository, RenderStore};
+use crate::storage::proxy::ProxyRepositoryExt;
 use crate::storage::tag::TagSpecAndTagStream;
-use crate::storage::{EntryType, LocalRepository, TagNamespace, TagNamespaceBuf, TagStorageMut};
+use crate::storage::{
+    EntryType,
+    LocalRepository,
+    OpenRepositoryError,
+    OpenRepositoryResult,
+    TagNamespace,
+    TagNamespaceBuf,
+    TagStorageMut,
+};
 use crate::sync::reporter::SyncReporters;
 use crate::tracking::BlobRead;
 use crate::{Error, Result, encoding, graph, storage, tracking};
@@ -29,6 +38,9 @@ mod repository_test;
 pub struct Config {
     pub primary: String,
     pub secondary: Vec<String>,
+    /// Whether to include tags from secondary repos in lookup methods
+    #[serde(default = "default_fallback_repo_include_secondary_tags")]
+    pub include_secondary_tags: bool,
 }
 
 impl ToAddress for Config {
@@ -72,17 +84,89 @@ pub struct FallbackProxy {
     // trait.
     primary: Arc<OpenFsRepository>,
     secondary: Vec<crate::storage::RepositoryHandle>,
+    include_secondary_tags: bool,
 }
 
 impl FallbackProxy {
+    pub fn into_stack(self) -> Vec<crate::storage::RepositoryHandle> {
+        let mut stack = vec![self.primary.into()];
+        stack.extend(self.secondary);
+        stack
+    }
+
     pub fn new<P: Into<Arc<OpenFsRepository>>>(
         primary: P,
         secondary: Vec<crate::storage::RepositoryHandle>,
+        include_secondary_tags: bool,
     ) -> Self {
         Self {
             primary: primary.into(),
             secondary,
+            include_secondary_tags,
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl storage::FromConfig for FallbackProxy {
+    type Config = Config;
+
+    async fn from_config(config: Self::Config) -> OpenRepositoryResult<Self> {
+        let spfs_config =
+            crate::Config::current().map_err(|source| OpenRepositoryError::FailedToLoadConfig {
+                source: Box::new(source),
+            })?;
+        let primary = async {
+            let primary =
+                crate::config::open_repository_from_string(&spfs_config, Some(&config.primary))
+                    .await
+                    .map_err(|source| OpenRepositoryError::FailedToOpenPartial {
+                        source: Box::new(source),
+                    })?;
+            let primary = match primary {
+                RepositoryHandle::FS(fs) => fs,
+                _ => {
+                    return Err(OpenRepositoryError::UnsupportedRepositoryType(
+                        "The primary repository of a FallbackProxy must be a filesystem repository"
+                            .into(),
+                    ));
+                }
+            };
+            primary
+                .opened()
+                .await
+                .map_err(|source| OpenRepositoryError::FailedToOpenPartial {
+                    source: Box::new(source),
+                })
+        };
+        let secondary = async {
+            let mut secondary = Vec::with_capacity(config.secondary.len());
+            for name in config.secondary.iter() {
+                match crate::config::open_repository_from_string(&spfs_config, Some(&name))
+                    .await
+                    .map_err(|source| OpenRepositoryError::FailedToOpenPartial {
+                        source: Box::new(source),
+                    })? {
+                    RepositoryHandle::FallbackProxy(proxy) => {
+                        // Instead of nesting proxy repos, flatten them into
+                        // a single proxy repo with multiple secondaries.
+                        // This helps spfs-fuse handle the case where
+                        // "origin" has been changed to a proxy repo.
+                        //
+                        // XXX: This doesn't expand already nested proxy repos
+                        secondary.extend(proxy.into_stack());
+                    }
+                    repo => secondary.push(repo),
+                };
+            }
+            Ok(secondary)
+        };
+        let (primary, secondary) = tokio::try_join!(primary, secondary)?;
+        Ok(Self {
+            primary: primary.into(),
+            secondary,
+            include_secondary_tags: config.include_secondary_tags,
+        })
     }
 }
 
@@ -288,6 +372,23 @@ impl PayloadStorage for FallbackProxy {
     }
 }
 
+impl ProxyRepositoryExt for FallbackProxy {
+    #[inline]
+    fn include_secondary_tags(&self) -> bool {
+        self.include_secondary_tags
+    }
+
+    #[inline]
+    fn primary(&self) -> impl Repository {
+        &*self.primary
+    }
+
+    #[inline]
+    fn secondary(&self) -> &[crate::storage::RepositoryHandle] {
+        &self.secondary
+    }
+}
+
 #[async_trait::async_trait]
 impl TagStorage for FallbackProxy {
     #[inline]
@@ -300,7 +401,7 @@ impl TagStorage for FallbackProxy {
         namespace: Option<&TagNamespace>,
         path: &RelativePath,
     ) -> Pin<Box<dyn Stream<Item = Result<EntryType>> + Send>> {
-        self.primary.ls_tags_in_namespace(namespace, path)
+        crate::storage::proxy::ls_tags_in_namespace(self, namespace, path)
     }
 
     fn find_tags_in_namespace(
@@ -308,14 +409,14 @@ impl TagStorage for FallbackProxy {
         namespace: Option<&TagNamespace>,
         digest: &encoding::Digest,
     ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>> {
-        self.primary.find_tags_in_namespace(namespace, digest)
+        crate::storage::proxy::find_tags_in_namespace(self, namespace, digest)
     }
 
     fn iter_tag_streams_in_namespace(
         &self,
         namespace: Option<&TagNamespace>,
     ) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
-        self.primary.iter_tag_streams_in_namespace(namespace)
+        crate::storage::proxy::iter_tag_streams_in_namespace(self, namespace)
     }
 
     async fn read_tag_in_namespace(
@@ -323,7 +424,7 @@ impl TagStorage for FallbackProxy {
         namespace: Option<&TagNamespace>,
         tag: &tracking::TagSpec,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>> {
-        self.primary.read_tag_in_namespace(namespace, tag).await
+        crate::storage::proxy::read_tag_in_namespace(self, namespace, tag).await
     }
 
     async fn insert_tag_in_namespace(
@@ -375,6 +476,7 @@ impl Address for FallbackProxy {
                 .iter()
                 .map(|s| s.address().to_string())
                 .collect(),
+            include_secondary_tags: self.include_secondary_tags,
         };
         Cow::Owned(
             config

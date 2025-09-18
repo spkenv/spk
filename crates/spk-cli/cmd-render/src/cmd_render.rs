@@ -98,7 +98,13 @@ impl Run for Render {
                 .render_into_directory(stack, &path, spfs::storage::fs::RenderType::Copy)
                 .await?;
         } else {
-            let fallback = FallbackProxy::new(local, fallback_repository_handles);
+            let fallback = FallbackProxy::new(
+                local,
+                fallback_repository_handles,
+                // preserve original behavior of not looking for tags in the secondary
+                // repos
+                false,
+            );
             spfs::storage::fs::Renderer::new(&fallback)
                 .with_reporter(spfs::storage::fs::ConsoleRenderReporter::default())
                 .render_into_directory(stack, &path, spfs::storage::fs::RenderType::Copy)
