@@ -3,6 +3,7 @@ coverage.xml
 .benchmarks
 .coverage
 .coverage.*
+profraw
 
 # spdev
 /build/
@@ -16,6 +17,7 @@ dist/
 # editors
 .idea/
 .vscode/
+*~
 .nfs*
 .secrets
 # GENERATED FOR spdev:Shell
