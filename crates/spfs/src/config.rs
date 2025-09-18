@@ -75,6 +75,10 @@ pub fn default_proxy_repo_include_secondary_tags() -> bool {
     true
 }
 
+pub fn default_fallback_repo_include_secondary_tags() -> bool {
+    true
+}
+
 static CONFIG: OnceCell<RwLock<Arc<Config>>> = OnceCell::new();
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

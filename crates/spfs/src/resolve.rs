@@ -365,7 +365,12 @@ pub(crate) async fn resolve_and_render_overlay_dirs(
     let config = get_config()?;
     let (repo, remotes) =
         tokio::try_join!(config.get_opened_local_repository(), config.list_remotes())?;
-    let fallback_repo = FallbackProxy::new(repo, remotes);
+    let fallback_repo = FallbackProxy::new(
+        repo, remotes,
+        // preserve original behavior of not looking for tags in the secondary
+        // repos
+        false,
+    );
 
     let manifests = resolve_overlay_dirs(
         &config.filesystem.overlayfs_options,
