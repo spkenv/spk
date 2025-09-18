@@ -10,10 +10,11 @@ use chrono::{DateTime, Utc};
 use futures::Stream;
 use relative_path::RelativePath;
 
-use crate::config::ToAddress;
+use crate::config::{ToAddress, default_fallback_repo_include_secondary_tags};
 use crate::graph::ObjectProto;
 use crate::prelude::*;
 use crate::storage::fs::{FsHashStore, ManifestRenderPath, OpenFsRepository, RenderStore};
+use crate::storage::proxy::ProxyRepositoryExt;
 use crate::storage::tag::TagSpecAndTagStream;
 use crate::storage::{
     EntryType,
@@ -37,6 +38,9 @@ mod repository_test;
 pub struct Config {
     pub primary: String,
     pub secondary: Vec<String>,
+    /// Whether to include tags from secondary repos in lookup methods
+    #[serde(default = "default_fallback_repo_include_secondary_tags")]
+    pub include_secondary_tags: bool,
 }
 
 impl ToAddress for Config {
@@ -80,6 +84,7 @@ pub struct FallbackProxy {
     // trait.
     primary: Arc<OpenFsRepository>,
     secondary: Vec<crate::storage::RepositoryHandle>,
+    include_secondary_tags: bool,
 }
 
 impl FallbackProxy {
@@ -92,10 +97,12 @@ impl FallbackProxy {
     pub fn new<P: Into<Arc<OpenFsRepository>>>(
         primary: P,
         secondary: Vec<crate::storage::RepositoryHandle>,
+        include_secondary_tags: bool,
     ) -> Self {
         Self {
             primary: primary.into(),
             secondary,
+            include_secondary_tags,
         }
     }
 }
@@ -158,6 +165,7 @@ impl storage::FromConfig for FallbackProxy {
         Ok(Self {
             primary: primary.into(),
             secondary,
+            include_secondary_tags: config.include_secondary_tags,
         })
     }
 }
@@ -364,6 +372,23 @@ impl PayloadStorage for FallbackProxy {
     }
 }
 
+impl ProxyRepositoryExt for FallbackProxy {
+    #[inline]
+    fn include_secondary_tags(&self) -> bool {
+        self.include_secondary_tags
+    }
+
+    #[inline]
+    fn primary(&self) -> impl Repository {
+        &*self.primary
+    }
+
+    #[inline]
+    fn secondary(&self) -> &[crate::storage::RepositoryHandle] {
+        &self.secondary
+    }
+}
+
 #[async_trait::async_trait]
 impl TagStorage for FallbackProxy {
     #[inline]
@@ -376,7 +401,7 @@ impl TagStorage for FallbackProxy {
         namespace: Option<&TagNamespace>,
         path: &RelativePath,
     ) -> Pin<Box<dyn Stream<Item = Result<EntryType>> + Send>> {
-        self.primary.ls_tags_in_namespace(namespace, path)
+        crate::storage::proxy::ls_tags_in_namespace(self, namespace, path)
     }
 
     fn find_tags_in_namespace(
@@ -384,14 +409,14 @@ impl TagStorage for FallbackProxy {
         namespace: Option<&TagNamespace>,
         digest: &encoding::Digest,
     ) -> Pin<Box<dyn Stream<Item = Result<tracking::TagSpec>> + Send>> {
-        self.primary.find_tags_in_namespace(namespace, digest)
+        crate::storage::proxy::find_tags_in_namespace(self, namespace, digest)
     }
 
     fn iter_tag_streams_in_namespace(
         &self,
         namespace: Option<&TagNamespace>,
     ) -> Pin<Box<dyn Stream<Item = Result<TagSpecAndTagStream>> + Send>> {
-        self.primary.iter_tag_streams_in_namespace(namespace)
+        crate::storage::proxy::iter_tag_streams_in_namespace(self, namespace)
     }
 
     async fn read_tag_in_namespace(
@@ -399,7 +424,7 @@ impl TagStorage for FallbackProxy {
         namespace: Option<&TagNamespace>,
         tag: &tracking::TagSpec,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<tracking::Tag>> + Send>>> {
-        self.primary.read_tag_in_namespace(namespace, tag).await
+        crate::storage::proxy::read_tag_in_namespace(self, namespace, tag).await
     }
 
     async fn insert_tag_in_namespace(
@@ -451,6 +476,7 @@ impl Address for FallbackProxy {
                 .iter()
                 .map(|s| s.address().to_string())
                 .collect(),
+            include_secondary_tags: self.include_secondary_tags,
         };
         Cow::Owned(
             config
