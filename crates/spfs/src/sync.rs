@@ -398,6 +398,12 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         match annotation.value() {
             AnnotationValue::String(_) => Ok(SyncAnnotationResult::InternalValue),
             AnnotationValue::Blob(digest) => {
+                if self.processed_digests.contains(&digest) {
+                    // do not insert here because annotation blobs
+                    // share a digest with payloads which must be
+                    // visited at least once to sync
+                    return Ok(SyncAnnotationResult::Duplicate);
+                }
                 self.reporter.visit_annotation(&annotation);
                 let sync_result = self.sync_digest(*digest).await?;
                 let res = SyncAnnotationResult::Synced {

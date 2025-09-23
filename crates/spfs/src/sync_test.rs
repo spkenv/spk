@@ -178,7 +178,7 @@ async fn test_sync_ref_including_annotation_blob(
     let annotation_value = AnnotationValue::Blob(Cow::Owned(annotation_digest));
     let layer_with_annotation = graph::Layer::new_with_manifest_and_annotation(
         manifest.to_graph_manifest().digest().unwrap(),
-        "testkey",
+        "test key",
         annotation_value,
     );
     repo_a.write_object(&layer_with_annotation).await.unwrap();
