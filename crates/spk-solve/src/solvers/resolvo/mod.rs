@@ -19,6 +19,7 @@ mod spk_provider;
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
+use std::time::Instant;
 
 use pkg_request_version_set::{SpkSolvable, SyntheticComponent};
 use spk_provider::SpkProvider;
@@ -41,7 +42,7 @@ use spk_solve_validation::{Validators, default_validators};
 use spk_storage::RepositoryHandle;
 
 use crate::solver::Solver as SolverTrait;
-use crate::{DecisionFormatter, Error, Result, SolverExt, SolverMut};
+use crate::{DecisionFormatter, Error, Result, SolverExt, SolverMut, show_search_space_stats};
 
 #[cfg(test)]
 #[path = "resolvo_tests.rs"]
@@ -443,6 +444,28 @@ impl SolverMut for Solver {
         if formatter.settings.show_solution {
             println!("{output}");
         }
+
+        // Equivalent to DecisionFormatter's show_search_space_info() for the StepSolver
+        if formatter.settings.show_search_space_size {
+            tracing::info!("Calculating search space stats. This may take some time...");
+            let start = Instant::now();
+
+            let initial_requests = self
+                .get_pkg_requests()
+                .iter()
+                .map(|r| r.pkg.to_string())
+                .collect::<Vec<String>>();
+
+            show_search_space_stats(
+                &initial_requests,
+                &solution,
+                &self.repos,
+                formatter.settings.verbosity,
+            )
+            .await?;
+            tracing::info!("That took {} seconds", start.elapsed().as_secs_f64());
+        }
+
         Ok(solution)
     }
 
