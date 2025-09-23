@@ -1026,6 +1026,7 @@ impl CheckBlobResult {
         match self {
             Self::Duplicate => CheckSummary::default(),
             Self::Missing(digest) => CheckSummary {
+                checked_objects: 1,
                 missing_objects: Some(*digest).into_iter().collect(),
                 ..Default::default()
             },
