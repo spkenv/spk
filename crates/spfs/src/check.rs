@@ -398,11 +398,11 @@ where
         let res = match annotation.value() {
             AnnotationValue::String(_) => CheckAnnotationResult::InternalValue,
             AnnotationValue::Blob(d) => {
-                let blob = self.repo.read_blob(*d).await?;
-                let result = unsafe { self.check_blob(&blob).await? };
+                // Need to check the child blob object and its payload exist.
+                let result = self.check_digest_with_perms_opt(*d, None).await?;
                 CheckAnnotationResult::Checked {
                     digest: *d,
-                    result,
+                    result: result.try_into()?,
                     repaired: false,
                 }
             }
@@ -1045,6 +1045,23 @@ impl CheckBlobResult {
                 summary
             }
         }
+    }
+}
+
+impl TryFrom<CheckObjectResult> for CheckBlobResult {
+    type Error = Error;
+
+    fn try_from(value: CheckObjectResult) -> std::result::Result<Self, Self::Error> {
+        Ok(match value {
+            CheckObjectResult::Duplicate => CheckBlobResult::Duplicate,
+            CheckObjectResult::Missing(digest) => CheckBlobResult::Missing(digest),
+            CheckObjectResult::Blob(check_blob_result) => check_blob_result,
+            err => {
+                return Err(Error::String(format!(
+                    "Unexpected CheckObjectResult variant when converting to CheckBlobResult: {err:?}"
+                )));
+            }
+        })
     }
 }
 
