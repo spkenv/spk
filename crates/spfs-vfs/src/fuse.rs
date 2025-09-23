@@ -335,7 +335,7 @@ impl Filesystem {
                     data = Some(bytes);
                     break;
                 }
-                Err(spfs::Error::UnknownObject(_)) => continue,
+                Err(err) if err.try_next_repo() => continue,
                 Err(err) => {
                     err!(reply, err);
                 }
@@ -408,7 +408,7 @@ impl Filesystem {
                         flags |= FOPEN_NONSEEKABLE | FOPEN_STREAM;
                         break;
                     }
-                    Err(spfs::Error::UnknownObject(_)) => continue,
+                    Err(err) if err.try_next_repo() => continue,
                     Err(err) => err!(reply, err),
                 },
                 #[cfg(not(feature = "fuse-backend-abi-7-31"))]
