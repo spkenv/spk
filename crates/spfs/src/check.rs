@@ -247,7 +247,11 @@ where
         tracing::trace!(%digest, "Checking digest");
         self.reporter.visit_digest(&digest);
         match self.read_object_with_fallback(digest).await {
-            Err(Error::UnknownObject(_)) => Ok(CheckObjectResult::Missing(digest)),
+            Err(Error::UnknownObject(_)) => {
+                let result = CheckObjectResult::Missing(digest);
+                self.reporter.checked_object(&result);
+                Ok(result)
+            }
             Err(err) => Err(err),
             Ok((obj, fallback)) => {
                 let mut res = unsafe {
@@ -836,7 +840,7 @@ impl CheckTagResult {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum CheckObjectResult {
     /// The object was already checked in this session
     Duplicate,
@@ -886,7 +890,7 @@ impl CheckObjectResult {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CheckPlatformResult {
     pub repaired: bool,
     pub platform: graph::Platform,
@@ -909,7 +913,7 @@ impl CheckPlatformResult {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CheckLayerResult {
     pub repaired: bool,
     pub layer: graph::Layer,
@@ -932,7 +936,7 @@ impl CheckLayerResult {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CheckManifestResult {
     pub repaired: bool,
     pub manifest: graph::Manifest,
@@ -955,7 +959,7 @@ impl CheckManifestResult {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum CheckAnnotationResult {
     /// The annotation was stored directly in the layer and did not
     /// need checking
@@ -1000,7 +1004,7 @@ impl CheckEntryResult {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum CheckBlobResult {
     /// The blob was already checked in this session
     Duplicate,
