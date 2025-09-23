@@ -2,13 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::sync::Mutex;
+
 use rstest::rstest;
 use spfs_encoding::prelude::*;
 
 use super::{CheckSummary, Checker};
+use crate::check::CheckReporter;
 use crate::fixtures::*;
-use crate::graph::Database;
-use crate::storage::PayloadStorage;
+use crate::graph::{Database, DatabaseExt};
+use crate::storage::{PayloadStorage, RepositoryExt};
 
 #[rstest]
 #[tokio::test]
@@ -228,5 +231,83 @@ async fn test_check_missing_object_recover(#[future] tmprepo: TempRepo) {
     assert!(
         summary.missing_payloads.is_empty(),
         "should see no missing payloads",
+    );
+}
+
+#[derive(Default)]
+struct DebugReporter {
+    checked_object_results: Mutex<Vec<super::CheckObjectResult>>,
+}
+
+impl CheckReporter for &DebugReporter {
+    fn checked_object(&self, result: &super::CheckObjectResult) {
+        self.checked_object_results
+            .lock()
+            .unwrap()
+            .push(result.clone());
+    }
+}
+
+/// A check on a repo that is missing an annotation blob.
+///
+/// The check should complete successfully and report a missing object.
+#[rstest]
+#[tokio::test]
+async fn check_missing_annotation_blob(#[future] tmprepo: TempRepo) {
+    init_logging();
+    let tmprepo = tmprepo.await;
+
+    let blob = tmprepo
+        .commit_blob(Box::pin(b"this is some data".as_slice()))
+        .await
+        .unwrap();
+
+    let layer = crate::graph::Layer::new_with_annotation(
+        "test_annotation",
+        crate::graph::AnnotationValue::Blob(blob.into()),
+    );
+
+    tmprepo.write_object(&layer).await.unwrap();
+
+    // Checking assumptions about starting state of repo.
+    {
+        let results = Checker::new(&tmprepo.repo())
+            .check_all_objects()
+            .await
+            .unwrap();
+
+        let summary: CheckSummary = results.iter().map(|r| r.summary()).sum();
+        tracing::info!("{summary:#?}");
+        assert_eq!(summary.checked_objects, 2);
+        assert_eq!(summary.checked_payloads, 1);
+    }
+
+    // Remove the blob backing the annotation.
+    tmprepo.remove_object(blob).await.unwrap();
+
+    let debug_reporter = DebugReporter::default();
+
+    let results = Checker::new(&tmprepo.repo())
+        .with_reporter(&debug_reporter)
+        .check_all_objects()
+        .await
+        .expect("checker should succeed when an annotation blob is missing");
+
+    let summary: CheckSummary = results.iter().map(|r| r.summary()).sum();
+    tracing::info!("{summary:#?}");
+    assert_eq!(summary.checked_objects, 2);
+    assert_eq!(summary.checked_payloads, 0);
+    assert!(
+        summary.missing_objects.contains(&blob),
+        "should report missing annotation blob"
+    );
+
+    let checked_objects = debug_reporter.checked_object_results.lock().unwrap();
+    assert_eq!(checked_objects.len(), 2);
+    // Confirm there is a Missing result for the annotation blob
+    assert!(
+        checked_objects
+            .iter()
+            .any(|r| matches!(r, super::CheckObjectResult::Missing(digest) if *digest == blob))
     );
 }

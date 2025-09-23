@@ -247,7 +247,11 @@ where
         tracing::trace!(%digest, "Checking digest");
         self.reporter.visit_digest(&digest);
         match self.read_object_with_fallback(digest).await {
-            Err(Error::UnknownObject(_)) => Ok(CheckObjectResult::Missing(digest)),
+            Err(Error::UnknownObject(_)) => {
+                let result = CheckObjectResult::Missing(digest);
+                self.reporter.checked_object(&result);
+                Ok(result)
+            }
             Err(err) => Err(err),
             Ok((obj, fallback)) => {
                 let mut res = unsafe {
@@ -398,11 +402,11 @@ where
         let res = match annotation.value() {
             AnnotationValue::String(_) => CheckAnnotationResult::InternalValue,
             AnnotationValue::Blob(d) => {
-                let blob = self.repo.read_blob(*d).await?;
-                let result = unsafe { self.check_blob(&blob).await? };
+                // Need to check the child blob object and its payload exist.
+                let result = self.check_digest_with_perms_opt(*d, None).await?;
                 CheckAnnotationResult::Checked {
                     digest: *d,
-                    result,
+                    result: result.try_into()?,
                     repaired: false,
                 }
             }
@@ -836,7 +840,7 @@ impl CheckTagResult {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum CheckObjectResult {
     /// The object was already checked in this session
     Duplicate,
@@ -886,7 +890,7 @@ impl CheckObjectResult {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CheckPlatformResult {
     pub repaired: bool,
     pub platform: graph::Platform,
@@ -909,7 +913,7 @@ impl CheckPlatformResult {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CheckLayerResult {
     pub repaired: bool,
     pub layer: graph::Layer,
@@ -932,7 +936,7 @@ impl CheckLayerResult {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CheckManifestResult {
     pub repaired: bool,
     pub manifest: graph::Manifest,
@@ -955,7 +959,7 @@ impl CheckManifestResult {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum CheckAnnotationResult {
     /// The annotation was stored directly in the layer and did not
     /// need checking
@@ -1000,7 +1004,7 @@ impl CheckEntryResult {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum CheckBlobResult {
     /// The blob was already checked in this session
     Duplicate,
@@ -1026,6 +1030,7 @@ impl CheckBlobResult {
         match self {
             Self::Duplicate => CheckSummary::default(),
             Self::Missing(digest) => CheckSummary {
+                checked_objects: 1,
                 missing_objects: Some(*digest).into_iter().collect(),
                 ..Default::default()
             },
@@ -1044,6 +1049,23 @@ impl CheckBlobResult {
                 summary
             }
         }
+    }
+}
+
+impl TryFrom<CheckObjectResult> for CheckBlobResult {
+    type Error = Error;
+
+    fn try_from(value: CheckObjectResult) -> std::result::Result<Self, Self::Error> {
+        Ok(match value {
+            CheckObjectResult::Duplicate => CheckBlobResult::Duplicate,
+            CheckObjectResult::Missing(digest) => CheckBlobResult::Missing(digest),
+            CheckObjectResult::Blob(check_blob_result) => check_blob_result,
+            err => {
+                return Err(Error::String(format!(
+                    "Unexpected CheckObjectResult variant when converting to CheckBlobResult: {err:?}"
+                )));
+            }
+        })
     }
 }
 
