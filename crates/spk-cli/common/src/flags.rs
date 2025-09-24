@@ -96,12 +96,13 @@ impl Runtime {
         self.edit
     }
 
-    /// Unless `--no-runtime` is present, relaunch the current process inside
-    /// a new spfs runtime.
+    /// Unless `--no-runtime` is present, relaunch the current process
+    /// inside a new spfs runtime.
     ///
-    /// The caller is expected to pass in a list of subcommand aliases that can
-    /// be used to find an appropriate place on the command line to insert a
-    /// `--no-runtime` argument, to avoid recursively creating a runtime.
+    /// The caller is expected to pass in a list of subcommand aliases
+    /// that can be used to find an appropriate place on the command
+    /// line to insert a `--no-runtime` argument, to avoid recursively
+    /// creating a runtime.
     pub async fn ensure_active_runtime(
         &self,
         sub_command_aliases: &[&str],
