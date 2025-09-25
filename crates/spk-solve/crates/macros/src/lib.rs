@@ -13,14 +13,14 @@ pub use {serde_json, spfs};
 /// make_repo!({"pkg": "mypkg/1.0.0"}, options = {"debug" => "off"});
 #[macro_export]
 macro_rules! make_repo {
-    ( [ $( $spec:tt ),+ $(,)? ] ) => {{
+    ( [ $( $spec:tt ),* $(,)? ] ) => {{
         make_repo!([ $( $spec ),* ], options={})
     }};
-    ( [ $( $spec:tt ),+ $(,)? ], options={ $($k:expr => $v:expr),* } ) => {{
+    ( [ $( $spec:tt ),* $(,)? ], options={ $($k:expr => $v:expr),* } ) => {{
         let options = spk_schema::foundation::option_map!{$($k => $v),*};
         make_repo!([ $( $spec ),* ], options=options)
     }};
-    ( [ $( $spec:tt ),+ $(,)? ], options=$options:expr ) => {{
+    ( [ $( $spec:tt ),* $(,)? ], options=$options:expr ) => {{
         tracing::debug!("creating in-memory repository");
         let repo = spk_storage::RepositoryHandle::new_mem();
         let _opts = $options;
