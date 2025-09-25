@@ -482,6 +482,8 @@ blockquote cite {
     color: #666;
     font-size: 1.2rem;
 }
+
+/* Blockquote Notices */
 div.notices {
     margin: 2rem 0;
     position: relative;
@@ -500,7 +502,6 @@ div.notices p:first-child:before {
     color: #fff;
     font-family: "Font Awesome 5 Free";
     font-weight: 900;
-    content: "\f06a";
     left: 10px;
 }
 .fa-brands {
@@ -512,20 +513,9 @@ div.notices p:first-child:after {
     color: #fff;
     left: 2rem;
 }
-div.notices.info p {
-    border-top: 30px solid #F0B37E;
-    background: #FFF2DB;
-}
-div.notices.info p:first-child:after {
-    content: 'Info';
-}
-div.notices.warning p {
-    border-top: 30px solid rgba(217, 83, 79, 0.8);
-    background: #FAE2E2;
-}
-div.notices.warning p:first-child:after {
-    content: 'Warning';
-}
+
+/* https://gohugo.io/render-hooks/blockquotes/#basic-syntax */
+
 div.notices.note p {
     border-top: 30px solid #6AB0DE;
     background: #E7F2FA;
@@ -533,12 +523,52 @@ div.notices.note p {
 div.notices.note p:first-child:after {
     content: 'Note';
 }
+div.notices.note p:first-child:before {
+    content: "\f05a";
+}
+
 div.notices.tip p {
     border-top: 30px solid rgba(92, 184, 92, 0.8);
     background: #E6F9E6;
 }
 div.notices.tip p:first-child:after {
     content: 'Tip';
+}
+div.notices.tip p:first-child:before {
+    content: "\f0eb";
+}
+
+div.notices.important p {
+    border-top: 30px solid rgba(137, 92, 184, 0.8);
+    background: #f6e6f9;
+}
+div.notices.important p:first-child:after {
+    content: 'Important';
+}
+div.notices.important p:first-child:before {
+    content: "\f12a";
+}
+
+div.notices.warning p {
+    border-top: 30px solid #F0B37E;
+    background: #FFF2DB;
+}
+div.notices.warning p:first-child:after {
+    content: 'Warning';
+}
+div.notices.warning p:first-child:before {
+    content: "\f071";
+}
+
+div.notices.caution p {
+    border-top: 30px solid rgba(217, 83, 79, 0.8);
+    background: #FAE2E2;
+}
+div.notices.caution p:first-child:after {
+    content: 'Caution';
+}
+div.notices.caution p:first-child:before {
+    content: "\f06a";
 }
 
 /* attachments shortcode */
