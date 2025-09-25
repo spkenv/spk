@@ -39,9 +39,8 @@ ls /spfs
 # <nothing>
 ```
 
-{{% notice warning %}}
-**Any files that you create, or changes that you make under /spfs are lost when the shell or program exits**. Make sure that you commit any changes that you want to keep or reuse (see below). You can use the `spfs run --keep-runtime ...` to change this behaviour, but you will have to clean up the runtimes yourself (see below).
-{{% /notice %}}
+> [!CAUTION]
+> **Any files that you create, or changes that you make under /spfs are lost when the shell or program exits**. Make sure that you commit any changes that you want to keep or reuse (see below). You can use the `spfs run --keep-runtime ...` to change this behaviour, but you will have to clean up the runtimes yourself (see below).
 
 ### Storage & Persistence
 
@@ -126,9 +125,8 @@ By default, when you run a command or enter into a shell with an existing spfs i
 
 In edit mode, the spfs system stores changes that you make in a new area, layered on top of the existing files. This means that you are never actually modifying any files previously committed to spfs. There is no way to change a committed layer or platform, only update the tag to point to a newly committed set of files that are different (just like a git branch).
 
-{{% notice tip %}}
-Normally in edit mode, all changes are stored in memory and are lost when you exit the runtime. One way to save these changes is to commit them as a layer or platform before exiting, the other is start spfs with the `--keep-runtime` flag before beginning any editing.
-{{% /notice %}}
+> [!TIP]
+> Normally in edit mode, all changes are stored in memory and are lost when you exit the runtime. One way to save these changes is to commit them as a layer or platform before exiting, the other is start spfs with the `--keep-runtime` flag before beginning any editing.
 
 Using `--keep-runtime` with `spfs run` will tell spfs to make a durable runtime. The runtime and any edits made while it is running will be kept around until you delete the runtime, see `spfs runtime rm -h`. It is worth using `--runtime-name <NAME>` to give the runtime a memorable name when you are use `--keep-runtime`. The default runtime names are uuids that do not provide any useful insight above what is in the runtime. You can use `--runtime-name <NAME>` without `--keep-time` as well.
 
@@ -160,9 +158,8 @@ SPFS will automatically push all of the required layers for our platform, but it
 spfs push my-layer
 ```
 
-{{% notice tip %}}
-Notice that spfs is very efficient with its storage, and knows instantly that the layer already exists in the remote storage, so only creates the tag.
-{{% /notice %}}
+> [!TIP]
+> Notice that spfs is very efficient with its storage, and knows instantly that the layer already exists in the remote storage, so only creates the tag.
 
 ### Further Reading
 

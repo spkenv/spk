@@ -53,9 +53,8 @@ When a version number is specified with none of the operators below, it is assum
 
 When building a package it's direct build dependencies are resolved for API compatibility. Also, when you request a package on the command line, the request will by default be for an API compatible version. In all other circumstances, spk will resolve for binary compatibility.
 
-{{% notice tip %}}
-Using the default compatibility is the recommended because it can be specified by the package maintainer.
-{{% /notice %}}
+> [!TIP]
+> Using the default compatibility is the recommended because it can be specified by the package maintainer.
 
 #### Override Compatibility
 
@@ -108,9 +107,8 @@ Wildcard requirements allow for any version where the wildcard is positioned.
 1.2.* := >=1.2.0, <1.3.0
 ```
 
-{{% notice tip %}}
-Although the `*` range is convenient, it is also unstable and may slow down your solve.
-{{% /notice %}}
+> [!TIP]
+> Although the `*` range is convenient, it is also unstable and may slow down your solve.
 
 #### Comparison Requirements
 
@@ -126,9 +124,8 @@ Here are some examples of comparison requirements:
 !=4.2
 ```
 
-{{% notice note %}}
-The exact operator will enforce exact post-release tags only if specified. This means that `=1.0.0` could resolve to `1.0.0+r.2`, but `=1.0.0+r.1` would ensure that a resolved version has the exact `r.1` tag. This is because post release tags are considered patches to the package themselves, and should not affect the underlying software.
-{{% /notice %}}
+> [!NOTE]
+> The exact operator will enforce exact post-release tags only if specified. This means that `=1.0.0` could resolve to `1.0.0+r.2`, but `=1.0.0+r.1` would ensure that a resolved version has the exact `r.1` tag. This is because post release tags are considered patches to the package themselves, and should not affect the underlying software.
 
 #### Multiple Requirements
 
