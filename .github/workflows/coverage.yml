@@ -45,8 +45,6 @@ jobs:
           FB_REL=https://github.com/google/flatbuffers/releases/
           curl --proto '=https' --tlsv1.2 -sSfL ${FB_REL}/download/v23.5.26/Linux.flatc.binary.g++-10.zip | funzip > /usr/bin/flatc
           chmod +x /usr/bin/flatc
-          rustup install nightly
-          rustup component add rustfmt --toolchain nightly
       - uses: actions/checkout@v3
       - name: Install ast-grep
         run: cargo install --locked --force ast-grep
