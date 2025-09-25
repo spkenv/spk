@@ -1,7 +1,7 @@
 ---
 title: Bootstrapping
 summary: Initial setup for fresh installations
-weight: 20
+weight: 30
 ---
 
 For fresh installs, there will be no existing spk packages that you can use.

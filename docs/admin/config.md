@@ -1,7 +1,7 @@
 ---
 title: Configuration
 summary: Available configuration for spfs and spk
-weight: 30
+weight: 20
 ---
 
 ## Configuration Files
