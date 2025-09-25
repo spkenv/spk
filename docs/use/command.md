@@ -33,7 +33,7 @@ $ spk build
 $ spk env --local my-pkg
 ```
 
-Use the [Package Definition Guide]({{< ref "./spec" >}}) for more details.
+Use the [Package Definition Guide]({{< ref "./create" >}}) for more details.
 Check the included [examples](https://github.com/spkenv/spk/tree/main/examples) for additional help.
 
 For more detailed information on the build process, check the [Package Build Process]({{< ref "./build" >}})
