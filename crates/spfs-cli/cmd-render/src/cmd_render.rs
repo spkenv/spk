@@ -71,7 +71,12 @@ impl CmdRender {
 
         // Use PayloadFallback to repair any missing payloads found in the
         // local repository by copying from any of the configure remotes.
-        let fallback = FallbackProxy::new(repo, remotes);
+        let fallback = FallbackProxy::new(
+            repo, remotes,
+            // preserve original behavior of not looking for tags in the secondary
+            // repos
+            false,
+        );
 
         let rendered = match &self.target {
             Some(target) => self.render_to_dir(fallback, env_spec, target).await?,

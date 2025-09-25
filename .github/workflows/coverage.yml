@@ -75,7 +75,9 @@ jobs:
           # Originally used tarpaulin but it used too much space to generate
           make coverage FEATURES=server,spfs/server,spfs/protobuf-src,spk/migration-to-components,sentry,statsd,fuse-backend,spfs-vfs/protobuf-src
       - name: Upload to codecov.io
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       - name: Code coverage summary report in logs
         uses: irongut/CodeCoverageSummary@v1.3.0
         with:
