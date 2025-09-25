@@ -1,7 +1,7 @@
 ---
-title: Versioning
+title: Version Numbers in SPK
 summary: Version compatibility syntax and semantics.
-weight: 10
+weight: 25
 ---
 
 ### Version Numbers

@@ -1,5 +1,5 @@
 ---
-title: External Packages
+title: Importing Pip Packages
 summary: Convert packages from other package managers for use in spk.
 weight: 40
 ---

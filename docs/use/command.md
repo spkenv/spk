@@ -1,7 +1,7 @@
 ---
 title: The SPK Command
 summary: Introduction to the spk command line and important commands.
-weight: 10
+weight: 5
 ---
 
 The `spk` command line has a great number of useful commands to explore, simply run `spk --help` to explore.

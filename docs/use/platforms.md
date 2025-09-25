@@ -1,7 +1,7 @@
 ---
-title: Specifying Platforms
+title: Creating Platforms
 summary: Platforms constrain environments to help development teams stay consistent.
-weight: 25
+weight: 20
 ---
 
 As a concept, platforms are packages that only provide _opinions_ on what should exist in an environment. They contain no files or code, and have no concrete dependencies but limit what versions are allowed in order to enforce consistency across teams, applications and developers.
