@@ -126,3 +126,20 @@ rpm-buildenv:
 		--cache-from build_env \
 		-f rpmbuild.Dockerfile \
 		--tag build_env
+
+.PHONY: coverage
+coverage: FEATURES?=server,spfs/server,spfs/protobuf-src,spk/migration-to-components,sentry,statsd,fuse-backend,spfs-vfs/protobuf-src
+coverage:
+	# Generate a coverage reports (html, lcov) using grcov, requires:
+	# - cargo install grcov
+	# - rustup component add llvm-tools
+	# The html report can be viewed from: target/debug/coverage/index.html
+	echo "coverage started, about to make dir 1"
+	mkdir -p profraw
+	echo "coverage made dir 1, about to make dir 2"
+	mkdir -p target/debug/coverage
+	echo "coverage made dir 2, about to run cargo test"
+	RUSTFLAGS='-C instrument-coverage' LLVM_PROFILE_FILE='profraw/spk-%p-%m.profraw' spfs run - -- cargo test --workspace --features ${FEATURES} 2>&1
+	echo "coverage cargo test run, about to run grcov"
+	grcov . -s . --binary-path ./target/debug/ --branch --ignore-not-existing --keep-only 'crates/*' -t lcov,cobertura -o ./target/debug/coverage/
+	echo "coverage finished"
