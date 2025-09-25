@@ -44,9 +44,8 @@ spfs log my-layer
 # XHHVG3NDGE my-layer~3  rbottriell@wolf0254.spimageworks.com 2020-03-18 10:11
 ```
 
-{{% notice tip %}}
-If you want to see or update shared tags, remember to specify the remote repository for each command (eg: `spfs log my-layer -r origin`)
-{{% /notice %}}
+> [!TIP]
+> If you want to see or update shared tags, remember to specify the remote repository for each command (eg: `spfs log my-layer -r origin`)
 
 ## Diff Tool
 
@@ -88,9 +87,8 @@ spfs cat simple-fs root.txt
 
 Over time, an spfs repository can get quite large, as it retains data from long ago that may not be used anymore as well as containing data for committed platforms, layers and blobs that are not referenced in any tag. The `spfs clean` command can be used to remove such data, as well as to find and remove old data for past tag history which is no longer desired. By default, the clean command will only find and print information about things that would be removed, and must be explicitly told to delete data.
 
-{{% notice warning %}}
-These commands can and will remove data, and should be used with great caution.
-{{% /notice %}}
+> [!CAUTION]
+> These commands can and will remove data, and should be used with great caution.
 
 ```bash
 spfs clean --help
@@ -98,9 +96,8 @@ spfs clean --help
 
 Objects are considered to be attached, and unremovable if they are reachable from any version of any tag in the repository. The `--prune` flag and related options can be used to get rid of older tag versions based on age or number of versions before cleaning the repository. This is a good way to try and disconnect additional objects, create more data that can be cleaned.
 
-{{% notice tip %}}
-The pruning process will always prefer keeping a tag version over removing it when multiple keep/prune conditions apply to it. Check the default values for each setting if you expected more tags than were shown.
-{{% /notice %}}
+> [!TIP]
+> The pruning process will always prefer keeping a tag version over removing it when multiple keep/prune conditions apply to it. Check the default values for each setting if you expected more tags than were shown.
 
 ## Temporary Filesystem Size
 
@@ -159,7 +156,7 @@ contents:
 
 The `api:` field is required to indicate which version of live layer is in the file.  Live layers files are distinguished from list of layer files by their `api: spfs/v0/livelayer` field.
 
-The `contents:` field is required and tells spfs what this live layer will add into /spfs. It is a list of items. Currently spfs supports bind mount items in live layers. Each bind mount consists of a source (`bind:` or `src:`) path and a destination (`dest:`) path. 
+The `contents:` field is required and tells spfs what this live layer will add into /spfs. It is a list of items. Currently spfs supports bind mount items in live layers. Each bind mount consists of a source (`bind:` or `src:`) path and a destination (`dest:`) path.
 
 Each source path must be within the directory that the `layer.spfs.yaml` is in. For the example live layer above to be valid, its parent directory must contain these sub-directories and files (from its `bind:` fields):
 - docs/use

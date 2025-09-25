@@ -1,7 +1,7 @@
 ---
 title: Bootstrapping
 summary: Initial setup for fresh installations
-weight: 20
+weight: 30
 ---
 
 For fresh installs, there will be no existing spk packages that you can use.
@@ -25,7 +25,7 @@ Save this package to a file named `python.spk.yaml` and run `spk build python.sp
 
 You can then use `spk env python` to jump into an environment that uses this new local package.
 
-> [WARNING!]
+> [!WARNING]
 > this python package can be used for running python code and scripts but should not be used for building compiled modules against. For that, you can use the python package recipe that we have in our github repo, which properly describes compatibility for these cases.
 
 ## Option 2: Build from source

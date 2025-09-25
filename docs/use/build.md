@@ -34,9 +34,8 @@ Source files are gathered based on the [sources]({{< ref "./spec" >}}#sources) s
 
 There are two ways that a binary package can be built, using an existing source package, or an external set of source files.
 
-{{% notice tip %}}
-When building a package on the command line, it will build all variants of the package by default. You can use the `-o` flag to further select which variants should be build (or specify an entirely new variant).
-{{% /notice %}}
+> [!TIP]
+> When building a package on the command line, it will build all variants of the package by default. You can use the `--opt` or `--variant` flags to further select which variants should be build (or specify an entirely new variant).
 
 ### From a Source Package
 

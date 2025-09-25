@@ -14,9 +14,8 @@ The only required field in a package spec file is the name and version number of
 pkg: my-package/1.0.0
 ```
 
-{{% notice note %}}
-Package names can only be composed of lowercase ascii letters, digits and dashes (`-`). This is done to try and make sure that packages are easier to find and predict, rather than having a whole bunch of different ways to name them (eg: myPackage, MyPackage, My_Package, my_package, my-package, etc...). This restricted character set also provides the greatest freedom for us extend the naming specification in the future, if needed.
-{{% /notice %}}
+> [!NOTE]
+> Package names can only be composed of lowercase ascii letters, digits and dashes (`-`). This is done to try and make sure that packages are easier to find and predict, rather than having a whole bunch of different ways to name them (eg: myPackage, MyPackage, My_Package, my_package, my-package, etc...). This restricted character set also provides the greatest freedom for us extend the naming specification in the future, if needed.
 
 ### Compatibility
 
@@ -120,13 +119,11 @@ All options that are declared in your package should be used in the build script
 
 When writing your build script, the value of each option is made available in an environment variable with the name `SPK_OPT_{name}`. Package options are also resolved into the build environment and can be accessed more concretely with the variables `SPK_PKG_{name}`, `SPK_PKG_{name}_VERSION`, `SPK_PKG_{name}_BUILD`, `SPK_PKG_{name}_VERSION_MAJOR`, `SPK_PKG_{name}_VERSION_MINOR`, `SPK_PKG_{name}_VERSION_PATCH`
 
-{{% notice tip %}}
-Best practice for defining boolean options is to follow the cmake convention of having two choices: `on` and `off`
-{{% /notice %}}
+> [!TIP]
+> Best practice for defining boolean options is to follow the cmake convention of having two choices: `on` and `off`
 
-{{% notice tip %}}
-Best practice for package requirements is to specify a minimum version number only, and leverage the compatibility specification defined by the package itself rather than enforcing something else (eg use `default: 3.16` instead of `default: ^3.16`)
-{{% /notice %}}
+> [!TIP]
+> Best practice for package requirements is to specify a minimum version number only, and leverage the compatibility specification defined by the package itself rather than enforcing something else (eg use `default: 3.16` instead of `default: ^3.16`)
 
 ##### Common Build Options
 
@@ -205,9 +202,8 @@ The build script is bash code which builds your package. The script is responsib
 
 spk assumes that your installed files will be laid out similarly to the unix standard filesystem hierarchy. Most build systems can be configured with a **prefix**-type argument like the cmake example above which will handle this for you. If you are create python code, spk works just like an python virtual environment, and your code can be pip-installed using the /spfs/bin/pip that is included in the spk python packages or by manually copying to the appropriate `/spfs/lib/python<version>/site-packages` folder.
 
-{{% notice tip %}}
-If your build script is getting long or feels obstructive in your spec file, you can also create a build.sh script in your source tree which will be run if no build script is specified.
-{{% /notice %}}
+> [!TIP]
+> If your build script is getting long or feels obstructive in your spec file, you can also create a build.sh script in your source tree which will be run if no build script is specified.
 
 #### Variants
 
@@ -245,9 +241,8 @@ build:
     - { "foo:{docs,examples}": "2.0" }
 ```
 
-{{% notice tip %}}
-Build requirements can also be updated in the command line: `spk install --save @build build-dependency/1.0`
-{{% /notice %}}
+> [!TIP]
+> Build requirements can also be updated in the command line: `spk install --save @build build-dependency/1.0`
 
 #### Validation
 
@@ -257,9 +252,8 @@ The spk build system performs a number of validations against the package create
 
 The install configuration specifies the environment that your package needs when it is installed or included in an spk environment.
 
-{{% notice info %}}
-Packages that only provide opinions/constraints on an environment, but no actual dependencies or content, are considered 'platform' packages. SPK provides a native spec for this use case, see {{< ref "./platforms" >}}.
-{{% /notice %}}
+> [!INFO]
+> Packages that only provide opinions/constraints on an environment, but no actual dependencies or content, are considered 'platform' packages. SPK provides a native spec for this use case, see {{< ref "./platforms" >}}.
 
 #### Environment Variables
 
@@ -306,9 +300,8 @@ install:
 
 In this example, we might get two build environments, one with `python/2.7.5` and one with `python/3.7.3`. These version numbers will be used at build time to pin an install requirement of `{pkg: python/2.7}` and `{pkg: python/3.7}`, respectively.
 
-{{% notice tip %}}
-Install requirements can also be updated in the command line: `spk install --save @install build-dependency/1.0`
-{{% /notice %}}
+> [!TIP]
+> Install requirements can also be updated in the command line: `spk install --save @install build-dependency/1.0`
 
 ##### Build Variable Requirements
 
@@ -324,9 +317,8 @@ install:
       fromBuildEnv: true
 ```
 
-{{% notice tip %}}
-Variable requirements can also be specified statically in the form `name/value` (eg `- var: python.abi/cp37`)
-{{% /notice %}}
+> [!TIP]
+> Variable requirements can also be specified statically in the form `name/value` (eg `- var: python.abi/cp37`)
 
 ##### Optional Requirements
 
@@ -468,9 +460,8 @@ tests:
 
 The test is executed if the variant in question matches at least one of the selectors.
 
-{{% notice info %}}
-Selectors must match exactly the build option values from the build variants. For example: a `python: 2.7` selector will not match a `python: 2` build variant.
-{{% /notice %}}
+> [!IMPORTANT]
+> Selectors must match exactly the build option values from the build variants. For example: a `python: 2.7` selector will not match a `python: 2` build variant.
 
 #### Requirements
 

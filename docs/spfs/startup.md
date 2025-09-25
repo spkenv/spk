@@ -6,9 +6,8 @@ title: Shell Startup and Environment
 
 The `spfs` system uses shell startup files to configure your environment when you run or start a new shell session. These files allow you to set environment variables, define aliases, and run initialization scripts specific to your environment.
 
-{{% notice info %}}
-Startup files are built to be extremely lightweight and used sparingly. Overuse or complex scripts can cause unwanted delays in environment startup and command execution.
-{{% /notice %}}
+> [!IMPORTANT]
+> Startup files are built to be extremely lightweight and used sparingly. Overuse or complex scripts can cause unwanted delays in environment startup and command execution.
 
 ## How Startup Files Work
 

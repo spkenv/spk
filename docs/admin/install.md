@@ -20,3 +20,5 @@ make install-spfs # only spfs
 ### Windows
 
 Currently, only spfs is supported on windows and is still considered experimental. File systems can be mounted and viewed, but not modified. See above on building from source - windows builds will require WinFSP to be installed rather than fuse libraries.
+
+<!-- TODO: include really basic make instructions as above for playing with this -->
