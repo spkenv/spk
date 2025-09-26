@@ -40,3 +40,11 @@ In this way, you can write your own script or software to ingest or generate pac
 
 > [!TIP]
 > Best practice is to prepend packages for a specific runtime or ecosystem with the name of that tool. For example, the pip conversion prepends all generated packages with `python-` to avoid conflicts with native libraries and show that they are specifically part of the python runtime/ecosystem.
+
+We highly recommend adding metadata to each generated package spec so that it can be identified as auto-generated ([more about metadata]({{< ref "./create/spec" >}})). For example, the pip conversion process adds the following:
+
+```yaml
+meta:
+  labels:
+    spk:generated-by: spk-convert-pip
+```

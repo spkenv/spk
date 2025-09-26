@@ -36,3 +36,23 @@ compat: x.a.b
 ```
 
 The compat field of the new version is checked before install/update. Because of this, the compat field is more af a contract with past versions rather than future ones. Although it's recommended that your version compatibility remain constant for all versions of a package, this is not strictly required.
+
+### Metadata
+
+Packages can also choose to augment their information with extended metadata. For all available fields, see the [reference]({{< ref "../../ref/" >}}) page.
+
+```yaml
+api: v0/package
+pkg: my-pkg
+meta:
+  description: A short summary, avoid long bodies of text
+  homepage: https://my-package.test
+  license: Apache-2.0
+  labels:
+    my-studio:department: pipeline
+```
+
+Of particular interest is metadata labels, as seen above. These are short key-value pairs that can be used to identify packages. In a studio context, labels can be useful for adding team or information and other identifying data that might help track or further organize large repositories of packages.
+
+> [!TIP]
+> As convention, the label names are typically prefixed with some namespace so that there are no collisions with common names. For example, labels added by spk itself will always start with `spk:`, such as automatically converted pip packages (see [importing from pip]({{< ref "../convert" >}})).
