@@ -13,7 +13,6 @@ description = { workspace = true }
 workspace = true
 
 [features]
-legacy-spk-version-tags = ["spk-cli-common/legacy-spk-version-tags"]
 
 [dependencies]
 miette = { workspace = true, features = ["fancy"] }

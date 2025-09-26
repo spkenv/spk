@@ -10,28 +10,24 @@ use std::sync::Arc;
 
 use arc_swap::ArcSwap;
 use dashmap::DashMap;
-use futures::{Future, StreamExt};
+use futures::StreamExt;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
-use paste::paste;
 use relative_path::RelativePathBuf;
 use serde::{Deserialize, Serialize};
 use spfs::prelude::{RepositoryExt as SpfsRepositoryExt, *};
 use spfs::storage::EntryType;
-use spfs::tracking::{self, Tag, TagSpec};
+use spfs::tracking::{self, TagSpec};
 use spk_schema::foundation::ident_build::{Build, parse_build};
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_schema::foundation::version::{Version, parse_version};
-use spk_schema::ident::{AsVersionIdent, ToAnyIdentWithoutBuild, VersionIdent};
+use spk_schema::ident::{AsVersionIdent, VersionIdent};
 use spk_schema::ident_build::parsing::embedded_source_package;
 use spk_schema::ident_build::{EmbeddedSource, EmbeddedSourcePackage};
 use spk_schema::ident_ops::TagPath;
-use spk_schema::spec_ops::{HasVersion, WithVersion};
-use spk_schema::version::VersionParts;
 use spk_schema::{AnyIdent, BuildIdent, FromYaml, Package, Recipe, Spec, SpecRecipe};
 use tokio::io::AsyncReadExt;
-use tokio::task::JoinSet;
 
 use super::CachePolicy;
 use super::repository::{PublishPolicy, Storage};
@@ -45,28 +41,6 @@ mod spfs_test;
 const REPO_METADATA_TAG: &str = "spk/repo";
 const REPO_VERSION: &str = "1.0.0";
 
-macro_rules! verbatim_build_spec_tag_if_enabled {
-    ($self:expr, $output:ty, $ident:expr) => {{ verbatim_tag_if_enabled!($self, spec, $output, $ident) }};
-    ($self:expr, $ident:expr) => {{ verbatim_build_spec_tag_if_enabled!($self, _, $ident) }};
-}
-
-macro_rules! verbatim_build_package_tag_if_enabled {
-    ($self:expr, $output:ty, $ident:expr) => {{ verbatim_tag_if_enabled!($self, package, $output, $ident) }};
-    ($self:expr, $ident:expr) => {{ verbatim_build_package_tag_if_enabled!($self, _, $ident) }};
-}
-
-macro_rules! verbatim_tag_if_enabled {
-    ($self:expr, $tag:tt, $output:ty, $ident:expr) => {{
-        paste! {
-            if $self.legacy_spk_version_tags {
-                Self::[<build_ $tag _verbatim_tag>]::<$output>($ident)
-            } else {
-                Self::[<build_ $tag _tag>]::<$output>($ident)
-            }
-        }
-    }};
-}
-
 #[derive(Clone, Debug)]
 pub struct SpfsRepository {
     address: url::Url,
@@ -74,7 +48,6 @@ pub struct SpfsRepository {
     inner: Arc<spfs::storage::RepositoryHandle>,
     cache_policy: Arc<ArcSwap<CachePolicy>>,
     caches: CachesForAddress,
-    legacy_spk_version_tags: bool,
 }
 
 impl std::hash::Hash for SpfsRepository {
@@ -146,7 +119,6 @@ where
             name: name_and_repo.name.as_ref().try_into()?,
             inner: Arc::new(inner),
             cache_policy: Arc::new(ArcSwap::new(Arc::new(CachePolicy::CacheOk))),
-            legacy_spk_version_tags: cfg!(feature = "legacy-spk-version-tags"),
         })
     }
 }
@@ -161,7 +133,6 @@ impl SpfsRepository {
             name: name.try_into()?,
             inner: Arc::new(inner),
             cache_policy: Arc::new(ArcSwap::new(Arc::new(CachePolicy::CacheOk))),
-            legacy_spk_version_tags: cfg!(feature = "legacy-spk-version-tags"),
         })
     }
 
@@ -185,11 +156,6 @@ impl SpfsRepository {
         self.address
             .query_pairs_mut()
             .append_pair("when", &ts.to_string());
-    }
-
-    /// Enable or disable the use of legacy spk version tags
-    pub fn set_legacy_spk_version_tags(&mut self, enabled: bool) {
-        self.legacy_spk_version_tags = enabled;
     }
 }
 
@@ -313,52 +279,41 @@ impl Storage for SpfsRepository {
         // method needs to return a union of all the build tags of both the
         // `spk/spec/` and `spk/pkg/` tag trees.
 
-        let mut set = JoinSet::new();
-        for pkg in Self::iter_possible_parts(pkg, self.legacy_spk_version_tags) {
-            let repo = self.clone();
-            set.spawn(async move {
-                let spec_base = verbatim_build_spec_tag_if_enabled!(repo, &pkg);
-                let package_base = verbatim_build_package_tag_if_enabled!(repo, &pkg);
+        let spec_base = Self::build_spec_tag(&pkg);
+        let package_base = Self::build_package_tag(&pkg);
 
-                let spec_tags = repo.ls_tags(&spec_base);
-                let package_tags = repo.ls_tags(&package_base);
+        let spec_tags = self.ls_tags(&spec_base);
+        let package_tags = self.ls_tags(&package_base);
 
-                let (spec_tags, package_tags) = tokio::join!(spec_tags, package_tags);
+        let (spec_tags, package_tags) = tokio::join!(spec_tags, package_tags);
 
-                spec_tags
-                    .into_iter()
-                    .map(|tag| (&spec_base, tag))
-                    .chain(package_tags.into_iter().map(|tag| (&package_base, tag)))
-                    .filter_map(|(base, entry)| match entry {
-                        Ok(EntryType::Tag(name))
-                            if !name.starts_with(EmbeddedSourcePackage::EMBEDDED_BY_PREFIX) =>
-                        {
-                            Some((base, name))
-                        }
-                        Ok(EntryType::Tag(_)) => None,
-                        Ok(EntryType::Folder(name)) => Some((base, name)),
-                        Ok(EntryType::Namespace { .. }) => None,
-                        Err(_) => None,
-                    })
-                    .filter_map(|(base, b)| match parse_build(&b) {
-                        Ok(v) => Some((base.join(b), v)),
-                        Err(_) => {
-                            tracing::warn!("Invalid build found in spfs tags: {}", b);
-                            None
-                        }
-                    })
-                    .map(|(tag_spec, b)| (pkg.to_build_ident(b), Some(tag_spec)))
-                    // Because of the `chain` order above, this is intended to
-                    // keep the tag spec of the package instead of the spec, in
-                    // the case where both may exist.
-                    .collect::<HashMap<_, _>>()
-            });
-        }
-
-        let mut builds = HashMap::new();
-        while let Some(b) = set.join_next().await {
-            builds.extend(b.map_err(|err| Error::String(format!("Tokio join error: {err}")))?);
-        }
+        let builds = spec_tags
+            .into_iter()
+            .map(|tag| (&spec_base, tag))
+            .chain(package_tags.into_iter().map(|tag| (&package_base, tag)))
+            .filter_map(|(base, entry)| match entry {
+                Ok(EntryType::Tag(name))
+                    if !name.starts_with(EmbeddedSourcePackage::EMBEDDED_BY_PREFIX) =>
+                {
+                    Some((base, name))
+                }
+                Ok(EntryType::Tag(_)) => None,
+                Ok(EntryType::Folder(name)) => Some((base, name)),
+                Ok(EntryType::Namespace { .. }) => None,
+                Err(_) => None,
+            })
+            .filter_map(|(base, b)| match parse_build(&b) {
+                Ok(v) => Some((base.join(b), v)),
+                Err(_) => {
+                    tracing::warn!("Invalid build found in spfs tags: {}", b);
+                    None
+                }
+            })
+            .map(|(tag_spec, b)| (pkg.to_build_ident(b), Some(tag_spec)))
+            // Because of the `chain` order above, this is intended to
+            // keep the tag spec of the package instead of the spec, in
+            // the case where both may exist.
+            .collect::<HashMap<_, _>>();
 
         Ok(builds)
     }
@@ -376,56 +331,54 @@ impl Storage for SpfsRepository {
         let mut builds = HashMap::new();
 
         let pkg = pkg.to_any_ident(Some(Build::Source));
-        for pkg in Self::iter_possible_parts(&pkg, self.legacy_spk_version_tags) {
-            let mut base = verbatim_build_spec_tag_if_enabled!(self, &pkg);
-            // the package tag contains the name and build, but we need to
-            // remove the trailing build in order to list the containing 'folder'
-            // eg: pkg/1.0.0/src => pkg/1.0.0
-            base.pop();
+        let mut base = Self::build_spec_tag(&pkg);
+        // the package tag contains the name and build, but we need to
+        // remove the trailing build in order to list the containing 'folder'
+        // eg: pkg/1.0.0/src => pkg/1.0.0
+        base.pop();
 
-            builds.extend(
-                self.ls_tags(&base)
-                    .await
-                    .into_iter()
-                    .filter_map(|entry| match entry {
-                        Ok(EntryType::Tag(name)) => Some(name),
-                        Ok(EntryType::Folder(_)) => None,
-                        Ok(EntryType::Namespace { .. }) => None,
-                        Err(_) => None,
-                    })
-                    .filter_map(|b| {
-                        b.strip_prefix(EmbeddedSourcePackage::EMBEDDED_BY_PREFIX)
-                            .and_then(|encoded_ident| {
-                                data_encoding::BASE32_NOPAD
-                                    .decode(encoded_ident.as_bytes())
+        builds.extend(
+            self.ls_tags(&base)
+                .await
+                .into_iter()
+                .filter_map(|entry| match entry {
+                    Ok(EntryType::Tag(name)) => Some(name),
+                    Ok(EntryType::Folder(_)) => None,
+                    Ok(EntryType::Namespace { .. }) => None,
+                    Err(_) => None,
+                })
+                .filter_map(|b| {
+                    b.strip_prefix(EmbeddedSourcePackage::EMBEDDED_BY_PREFIX)
+                        .and_then(|encoded_ident| {
+                            data_encoding::BASE32_NOPAD
+                                .decode(encoded_ident.as_bytes())
+                                .ok()
+                        })
+                        .and_then(|bytes| String::from_utf8(bytes).ok())
+                        .and_then(|ident_str| {
+                            // The decoded BASE32 value will look something like this:
+                            //
+                            //     "embedded[embed-projection:run/1.0/3I42H3S6]"
+                            //
+                            // The `embedded_source_package` parser knows how to
+                            // parse the "[...]" part and return the type we want,
+                            // but we need to strip the "embedded" prefix.
+                            ident_str
+                                .strip_prefix("embedded")
+                                .and_then(|ident_str| {
+                                    use nom::combinator::all_consuming;
+
+                                    all_consuming(
+                                        embedded_source_package::<(_, nom::error::ErrorKind)>,
+                                    )(ident_str)
+                                    .map(|(_, ident_with_components)| ident_with_components)
                                     .ok()
-                            })
-                            .and_then(|bytes| String::from_utf8(bytes).ok())
-                            .and_then(|ident_str| {
-                                // The decoded BASE32 value will look something like this:
-                                //
-                                //     "embedded[embed-projection:run/1.0/3I42H3S6]"
-                                //
-                                // The `embedded_source_package` parser knows how to
-                                // parse the "[...]" part and return the type we want,
-                                // but we need to strip the "embedded" prefix.
-                                ident_str
-                                    .strip_prefix("embedded")
-                                    .and_then(|ident_str| {
-                                        use nom::combinator::all_consuming;
-
-                                        all_consuming(
-                                            embedded_source_package::<(_, nom::error::ErrorKind)>,
-                                        )(ident_str)
-                                        .map(|(_, ident_with_components)| ident_with_components)
-                                        .ok()
-                                    })
-                                    .map(|src| (base.join(b), Build::Embedded(src)))
-                            })
-                    })
-                    .map(|(tag_spec, b)| (pkg.to_build_ident(b), Some(tag_spec))),
-            );
-        }
+                                })
+                                .map(|src| (base.join(b), Build::Embedded(src)))
+                        })
+                })
+                .map(|(tag_spec, b)| (pkg.to_build_ident(b), Some(tag_spec))),
+        );
 
         Ok(builds)
     }
@@ -552,24 +505,27 @@ impl Storage for SpfsRepository {
             return v.value().clone().into();
         }
 
-        let r: Result<Arc<Spec>> = self
-            .with_build_spec_tag_for_pkg(pkg, |pkg, _, tag| async move {
-                let (mut reader, filename) = self.inner.open_payload(tag.target).await?;
-                let mut yaml = String::new();
-                reader
-                    .read_to_string(&mut yaml)
-                    .await
-                    .map_err(|err| Error::FileReadError(filename, err))?;
-                Spec::from_yaml(&yaml)
-                    .map_err(|err| {
-                        Error::InvalidPackageSpec(Box::new(InvalidPackageSpec(
-                            pkg.to_any_ident(),
-                            err.to_string(),
-                        )))
-                    })
-                    .map(Arc::new)
-            })
-            .await;
+        let r: Result<Arc<Spec>> = async move {
+            let tag_path = Self::build_spec_tag(pkg);
+            let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
+            let tag = self.resolve_tag(|| pkg.to_any_ident(), &tag_spec).await?;
+
+            let (mut reader, filename) = self.inner.open_payload(tag.target).await?;
+            let mut yaml = String::new();
+            reader
+                .read_to_string(&mut yaml)
+                .await
+                .map_err(|err| Error::FileReadError(filename, err))?;
+            Spec::from_yaml(&yaml)
+                .map_err(|err| {
+                    Error::InvalidPackageSpec(Box::new(InvalidPackageSpec(
+                        pkg.to_any_ident(),
+                        err.to_string(),
+                    )))
+                })
+                .map(Arc::new)
+        }
+        .await;
 
         self.caches
             .package
@@ -578,19 +534,18 @@ impl Storage for SpfsRepository {
     }
 
     async fn remove_embed_stub_from_storage(&self, pkg: &BuildIdent) -> Result<()> {
-        self.with_build_spec_tag_for_pkg(pkg, |pkg, tag_spec, _| async move {
-            match self.inner.remove_tag_stream(&tag_spec).await {
-                Err(spfs::Error::UnknownReference(_)) => {
-                    Err(Error::PackageNotFound(Box::new(pkg.to_any_ident())))
-                }
-                Err(err) => Err(err.into()),
-                Ok(_) => {
-                    self.invalidate_caches();
-                    Ok(())
-                }
+        let tag_path = Self::build_spec_tag(pkg);
+        let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
+        match self.inner.remove_tag_stream(&tag_spec).await {
+            Err(spfs::Error::UnknownReference(_)) => {
+                Err(Error::PackageNotFound(Box::new(pkg.to_any_ident())))
             }
-        })
-        .await
+            Err(err) => Err(err.into()),
+            Ok(_) => {
+                self.invalidate_caches();
+                Ok(())
+            }
+        }
     }
 
     async fn remove_package_from_storage(&self, pkg: &BuildIdent) -> Result<()> {
@@ -625,29 +580,28 @@ impl Storage for SpfsRepository {
             // with the old repo tag structure, we must also try to remove
             // the legacy version of the tag after removing the discovered
             // as it may still be there and cause the removal to be ineffective
-            let deleted_something = self
-                .with_build_package_tag_for_pkg(pkg, |_, legacy_tag, _| async move {
-                    match self.inner.remove_tag_stream(&legacy_tag).await {
-                        Err(spfs::Error::UnknownReference(_)) => Ok(false),
-                        Ok(_) => Ok(true),
-                        res => res.map(|_| false).map_err(|err| err.into()),
-                    }
-                })
-                .await?;
-
+            let mut deleted_something = false;
+            if let Ok(legacy_tag) = spfs::tracking::TagSpec::parse(Self::build_package_tag(pkg)) {
+                match self.inner.remove_tag_stream(&legacy_tag).await {
+                    Err(spfs::Error::UnknownReference(_)) => (),
+                    Ok(_) => deleted_something = true,
+                    res => res?,
+                };
+            }
             Ok::<_, Error>(deleted_something)
         };
 
-        let build_recipe_tags =
-            self.with_build_spec_tag_for_pkg(pkg, |_, tag_spec, _| async move {
-                match self.inner.remove_tag_stream(&tag_spec).await {
-                    Err(spfs::Error::UnknownReference(_)) => {
-                        Err(Error::PackageNotFound(Box::new(pkg.to_any_ident())))
-                    }
-                    Err(err) => Err(err.into()),
-                    Ok(_) => Ok(true),
+        let build_recipe_tags = async {
+            let tag_path = Self::build_spec_tag(pkg);
+            let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
+            match self.inner.remove_tag_stream(&tag_spec).await {
+                Err(spfs::Error::UnknownReference(_)) => {
+                    Err(Error::PackageNotFound(Box::new(pkg.to_any_ident())))
                 }
-            });
+                Err(err) => Err(err.into()),
+                Ok(_) => Ok(true),
+            }
+        };
 
         let (component_tags_result, legacy_tags_result, build_recipe_tags_result) =
             tokio::join!(component_tags, legacy_tags, build_recipe_tags);
@@ -802,24 +756,27 @@ impl crate::Repository for SpfsRepository {
         {
             return v.value().clone().into();
         }
-        let r: Result<Arc<Spec>> = self
-            .with_build_spec_tag_for_pkg(pkg, |pkg, _, tag| async move {
-                let (mut reader, _) = self.inner.open_payload(tag.target).await?;
-                let mut yaml = String::new();
-                reader
-                    .read_to_string(&mut yaml)
-                    .await
-                    .map_err(|err| Error::FileReadError(tag.target.to_string().into(), err))?;
-                Spec::from_yaml(yaml)
-                    .map_err(|err| {
-                        Error::InvalidPackageSpec(Box::new(InvalidPackageSpec(
-                            pkg.to_any_ident(),
-                            err.to_string(),
-                        )))
-                    })
-                    .map(Arc::new)
-            })
-            .await;
+        let r: Result<Arc<Spec>> = async move {
+            let tag_path = Self::build_spec_tag(pkg);
+            let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
+            let tag = self.resolve_tag(|| pkg.to_any_ident(), &tag_spec).await?;
+
+            let (mut reader, _) = self.inner.open_payload(tag.target).await?;
+            let mut yaml = String::new();
+            reader
+                .read_to_string(&mut yaml)
+                .await
+                .map_err(|err| Error::FileReadError(tag.target.to_string().into(), err))?;
+            Spec::from_yaml(yaml)
+                .map_err(|err| {
+                    Error::InvalidPackageSpec(Box::new(InvalidPackageSpec(
+                        pkg.to_any_ident(),
+                        err.to_string(),
+                    )))
+                })
+                .map(Arc::new)
+        }
+        .await;
 
         self.caches
             .package
@@ -833,24 +790,29 @@ impl crate::Repository for SpfsRepository {
         {
             return v.value().clone().into();
         }
-        let r: Result<Arc<SpecRecipe>> = self
-            .with_build_spec_tag_for_pkg(pkg, |pkg, _, tag| async move {
-                let (mut reader, _) = self.inner.open_payload(tag.target).await?;
-                let mut yaml = String::new();
-                reader
-                    .read_to_string(&mut yaml)
-                    .await
-                    .map_err(|err| Error::FileReadError(tag.target.to_string().into(), err))?;
-                SpecRecipe::from_yaml(yaml)
-                    .map_err(|err| {
-                        Error::InvalidPackageSpec(Box::new(InvalidPackageSpec(
-                            pkg.to_any_ident(None),
-                            err.to_string(),
-                        )))
-                    })
-                    .map(Arc::new)
-            })
-            .await;
+        let r: Result<Arc<SpecRecipe>> = async move {
+            let tag_path = Self::build_spec_tag(pkg);
+            let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
+            let tag = self
+                .resolve_tag(|| pkg.to_any_ident(None), &tag_spec)
+                .await?;
+
+            let (mut reader, _) = self.inner.open_payload(tag.target).await?;
+            let mut yaml = String::new();
+            reader
+                .read_to_string(&mut yaml)
+                .await
+                .map_err(|err| Error::FileReadError(tag.target.to_string().into(), err))?;
+            SpecRecipe::from_yaml(yaml)
+                .map_err(|err| {
+                    Error::InvalidPackageSpec(Box::new(InvalidPackageSpec(
+                        pkg.to_any_ident(None),
+                        err.to_string(),
+                    )))
+                })
+                .map(Arc::new)
+        }
+        .await;
 
         self.caches
             .recipe
@@ -859,19 +821,18 @@ impl crate::Repository for SpfsRepository {
     }
 
     async fn remove_recipe(&self, pkg: &VersionIdent) -> Result<()> {
-        self.with_build_spec_tag_for_pkg(pkg, |pkg, tag_spec, _| async move {
-            match self.inner.remove_tag_stream(&tag_spec).await {
-                Err(spfs::Error::UnknownReference(_)) => {
-                    Err(Error::PackageNotFound(Box::new(pkg.to_any_ident(None))))
-                }
-                Err(err) => Err(err.into()),
-                Ok(_) => {
-                    self.invalidate_caches();
-                    Ok(())
-                }
+        let tag_path = Self::build_spec_tag(pkg);
+        let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
+        match self.inner.remove_tag_stream(&tag_spec).await {
+            Err(spfs::Error::UnknownReference(_)) => {
+                Err(Error::PackageNotFound(Box::new(pkg.to_any_ident(None))))
             }
-        })
-        .await
+            Err(err) => Err(err.into()),
+            Ok(_) => {
+                self.invalidate_caches();
+                Ok(())
+            }
+        }
     }
 
     async fn upgrade(&self) -> Result<String> {
@@ -976,129 +937,6 @@ impl SpfsRepository {
         self.caches.list_build_components.clear();
     }
 
-    /// Return all the possible part lengths for a version that should be
-    /// checked when looking for a package in the repository.
-    ///
-    /// The repo may contain tags with different numbers of parts in the
-    /// version, but we treat different amounts of trailing zeros as equal,
-    /// e.g., 1.0 == 1.0.0. So first we normalize the provided version to
-    /// remove any trailing zeros, but then we look in the repo for various
-    /// lengths of trailing zeros. This is capped at 5 to handle all known
-    /// existing packages (at SPI).
-    ///
-    /// Example:
-    ///
-    ///   `pkg` == "pkgname/1.2.0"
-    ///
-    ///   `normalized_parts` == [1, 2]
-    ///
-    ///   Check the following tag paths:
-    ///       - spk/{spec,pkg}/pkgname/1.2
-    ///       - spk/{spec,pkg}/pkgname/1.2.0
-    ///       - spk/{spec,pkg}/pkgname/1.2.0.0
-    ///       - spk/{spec,pkg}/pkgname/1.2.0.0.0
-    ///
-    /// If spk is built without the `legacy-spk-version-tags` feature enabled,
-    /// then only the one canonical normalized part will be returned.
-    fn iter_possible_parts<I>(
-        pkg: &I,
-        legacy_spk_version_tags: bool,
-    ) -> impl Iterator<Item = I::Output>
-    where
-        I: HasVersion + WithVersion,
-    {
-        let normalized_parts = pkg.version().parts.strip_trailing_zeros();
-        let normalized_parts_len = normalized_parts.len();
-        (1..=5)
-            // Handle all the part lengths that are bigger than the normalized
-            // parts, except for the normalized parts length itself, which may
-            // be larger than 5 and not hit by this range.
-            .filter(move |num_parts| legacy_spk_version_tags && *num_parts > normalized_parts_len)
-            // Then, handle the normalized parts length itself, which is
-            // skipped by the filter above so it isn't processed twice,
-            // and is handled even if the length is outside the above range.
-            .chain(std::iter::once(normalized_parts.len()))
-            .map(move |num_parts| {
-                let new_parts = normalized_parts
-                    .iter()
-                    .chain(std::iter::repeat(&0))
-                    .take(num_parts)
-                    .copied()
-                    .collect::<Vec<_>>();
-                pkg.with_version(Version {
-                    parts: VersionParts {
-                        parts: new_parts,
-                        epsilon: pkg.version().parts.epsilon,
-                    },
-                    pre: pkg.version().pre.clone(),
-                    post: pkg.version().post.clone(),
-                })
-            })
-    }
-
-    /// Find the tag for the build spec of a package and operate on it.
-    async fn with_build_spec_tag_for_pkg<R, I, F, Fut>(&self, pkg: &I, f: F) -> Result<R>
-    where
-        I: HasVersion + ToAnyIdentWithoutBuild + WithVersion,
-        <I as WithVersion>::Output: TagPath + ToAnyIdentWithoutBuild,
-        F: Fn(<I as WithVersion>::Output, TagSpec, Tag) -> Fut,
-        Fut: Future<Output = Result<R>>,
-    {
-        self.with_tag_for_pkg(
-            pkg,
-            |pkg| verbatim_build_spec_tag_if_enabled!(self, <I as WithVersion>::Output, pkg),
-            f,
-        )
-        .await
-    }
-
-    /// Find the tag for the build package of a package and operate on it.
-    async fn with_build_package_tag_for_pkg<R, I, F, Fut>(&self, pkg: &I, f: F) -> Result<R>
-    where
-        I: HasVersion + ToAnyIdentWithoutBuild + WithVersion,
-        <I as WithVersion>::Output: TagPath + ToAnyIdentWithoutBuild,
-        F: Fn(<I as WithVersion>::Output, TagSpec, Tag) -> Fut,
-        Fut: Future<Output = Result<R>>,
-    {
-        self.with_tag_for_pkg(
-            pkg,
-            |pkg| verbatim_build_package_tag_if_enabled!(self, <I as WithVersion>::Output, pkg),
-            f,
-        )
-        .await
-    }
-
-    async fn with_tag_for_pkg<R, I, T, F, Fut>(&self, pkg: &I, tag_path: T, f: F) -> Result<R>
-    where
-        I: HasVersion + ToAnyIdentWithoutBuild + WithVersion,
-        <I as WithVersion>::Output: ToAnyIdentWithoutBuild,
-        T: Fn(&<I as WithVersion>::Output) -> relative_path::RelativePathBuf,
-        F: Fn(<I as WithVersion>::Output, TagSpec, Tag) -> Fut,
-        Fut: Future<Output = Result<R>>,
-    {
-        let mut first_resolve_err = None;
-        for pkg in Self::iter_possible_parts(pkg, self.legacy_spk_version_tags) {
-            let tag_path = tag_path(&pkg);
-            let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
-            let tag = match self
-                .resolve_tag(|| pkg.to_any_ident_without_build(), &tag_spec)
-                .await
-            {
-                Ok(tag) => tag,
-                Err(err) => {
-                    if first_resolve_err.is_none() {
-                        first_resolve_err = Some(err);
-                    }
-                    continue;
-                }
-            };
-
-            return f(pkg, tag_spec, tag).await;
-        }
-        Err(first_resolve_err
-            .unwrap_or_else(|| Error::PackageNotFound(Box::new(pkg.to_any_ident_without_build()))))
-    }
-
     async fn ls_tags(&self, path: &relative_path::RelativePath) -> Vec<Result<EntryType>> {
         if self.cached_result_permitted()
             && let Some(v) = self.caches.ls_tags.get(path)
@@ -1192,35 +1030,28 @@ impl SpfsRepository {
     ///
     /// (with or without package components)
     async fn lookup_package(&self, pkg: &BuildIdent) -> Result<StoredPackage> {
-        let mut first_resolve_err = None;
-        for pkg in Self::iter_possible_parts(pkg, self.legacy_spk_version_tags) {
-            let tag_path = verbatim_build_package_tag_if_enabled!(self, &pkg);
-            let tag_specs: HashMap<Component, TagSpec> = self
-                .ls_tags(&tag_path)
-                .await
-                .into_iter()
-                .filter_map(|entry| match entry {
-                    Ok(EntryType::Tag(name)) => Some(name),
-                    Ok(EntryType::Folder(_)) => None,
-                    Ok(EntryType::Namespace { .. }) => None,
-                    Err(_) => None,
-                })
-                .filter_map(|e| Component::parse(&e).map(|c| (c, e)).ok())
-                .filter_map(|(c, e)| TagSpec::parse(tag_path.join(e)).map(|p| (c, p)).ok())
-                .collect();
-            if !tag_specs.is_empty() {
-                return Ok(StoredPackage::WithComponents(tag_specs));
-            }
-            let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
-            if self.has_tag(|| pkg.to_any_ident(), &tag_spec).await {
-                return Ok(StoredPackage::WithoutComponents(tag_spec));
-            }
-            if first_resolve_err.is_none() {
-                first_resolve_err = Some(Error::PackageNotFound(Box::new(pkg.to_any_ident())));
-            }
+        let tag_path = Self::build_package_tag(pkg);
+        let tag_specs: HashMap<Component, TagSpec> = self
+            .ls_tags(&tag_path)
+            .await
+            .into_iter()
+            .filter_map(|entry| match entry {
+                Ok(EntryType::Tag(name)) => Some(name),
+                Ok(EntryType::Folder(_)) => None,
+                Ok(EntryType::Namespace { .. }) => None,
+                Err(_) => None,
+            })
+            .filter_map(|e| Component::parse(&e).map(|c| (c, e)).ok())
+            .filter_map(|(c, e)| TagSpec::parse(tag_path.join(e)).map(|p| (c, p)).ok())
+            .collect();
+        if !tag_specs.is_empty() {
+            return Ok(StoredPackage::WithComponents(tag_specs));
         }
-        Err(first_resolve_err
-            .unwrap_or_else(|| Error::PackageNotFound(Box::new(pkg.to_any_ident()))))
+        let tag_spec = spfs::tracking::TagSpec::parse(&tag_path)?;
+        if self.has_tag(|| pkg.to_any_ident(), &tag_spec).await {
+            return Ok(StoredPackage::WithoutComponents(tag_spec));
+        }
+        Err(Error::PackageNotFound(Box::new(pkg.to_any_ident())))
     }
 
     /// Construct an spfs tag string to represent a binary package layer.
@@ -1243,38 +1074,6 @@ impl SpfsRepository {
         let mut tag = RelativePathBuf::from("spk");
         tag.push("spec");
         tag.push(pkg.tag_path());
-
-        tag
-    }
-
-    /// Construct an spfs tag string to represent a binary package layer.
-    ///
-    /// This constructs the tag with the version as written, and should not be
-    /// used to create new content in the repository. This can be used when
-    /// attempting to read exiting non-normalized content in a repo.
-    fn build_package_verbatim_tag<T>(pkg: &T) -> RelativePathBuf
-    where
-        T: TagPath,
-    {
-        let mut tag = RelativePathBuf::from("spk");
-        tag.push("pkg");
-        tag.push(pkg.verbatim_tag_path());
-
-        tag
-    }
-
-    /// Construct an spfs tag string to represent a spec file blob.
-    ///
-    /// This constructs the tag with the version as written, and should not be
-    /// used to create new content in the repository. This can be used when
-    /// attempting to read exiting non-normalized content in a repo.
-    fn build_spec_verbatim_tag<T>(pkg: &T) -> RelativePathBuf
-    where
-        T: TagPath,
-    {
-        let mut tag = RelativePathBuf::from("spk");
-        tag.push("spec");
-        tag.push(pkg.verbatim_tag_path());
 
         tag
     }
@@ -1343,7 +1142,6 @@ pub async fn local_repository() -> Result<SpfsRepository> {
         name: "local".try_into()?,
         inner: Arc::new(inner),
         cache_policy: Arc::new(ArcSwap::new(Arc::new(CachePolicy::CacheOk))),
-        legacy_spk_version_tags: cfg!(feature = "legacy-spk-version-tags"),
     })
 }
 
@@ -1360,7 +1158,6 @@ pub async fn remote_repository<S: AsRef<str>>(name: S) -> Result<SpfsRepository>
         name: name.as_ref().try_into()?,
         inner: Arc::new(inner),
         cache_policy: Arc::new(ArcSwap::new(Arc::new(CachePolicy::CacheOk))),
-        legacy_spk_version_tags: cfg!(feature = "legacy-spk-version-tags"),
     })
 }
 
