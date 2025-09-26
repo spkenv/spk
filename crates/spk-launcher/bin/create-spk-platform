@@ -21,7 +21,7 @@ mkdir -p build
 export SPDEV_CONFIG_FILE=.site/spi/.spdev.yaml
 dev toolchain install Rust
 source ~/.bashrc
-dev env -- cargo build --release --features "sentry, migration-to-components, statsd, legacy-spk-version-tags"
+dev env -- cargo build --release --features "sentry, migration-to-components, statsd"
 
 # 2. create a new spfs layer
 spfs run - -- sh -c "mkdir -p /spfs/opt/spk.dist \
