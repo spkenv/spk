@@ -1,0 +1,8 @@
+coverage:
+  status:
+    patch:
+      default:
+        # we have not decided to enforce coverage yet
+        # but still want to see the patch coverage
+        target: 0%  # no amount of coverage is required
+        threshold: 100%  # the amount the coverage is allowed to drop
