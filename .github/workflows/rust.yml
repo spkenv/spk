@@ -157,7 +157,7 @@ jobs:
       matrix:
         features:
           # SPI's standand features
-          - migration-to-components,sentry,spfs/protobuf-src,spfs-vfs/protobuf-src,statsd,fuse-backend-rhel-7-6,legacy-spk-version-tags
+          - migration-to-components,sentry,spfs/protobuf-src,spfs-vfs/protobuf-src,statsd,fuse-backend-rhel-7-6
         no-default-features:
           - ""
           - --no-default-features

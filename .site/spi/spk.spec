@@ -41,7 +41,7 @@ echo -e '#! /bin/bash\n\nexec cc -D_BSD_SOURCE "$@"' > cc_wrapper
 chmod +x cc_wrapper
 scl enable devtoolset-9 -- env CC=`pwd`/cc_wrapper cargo install --locked ast-grep
 # Include `--all` to also build spk-launcher
-dev env -- cargo build --release --features "migration-to-components,sentry,spfs/protobuf-src,statsd,fuse-backend-rhel-7-6,legacy-spk-version-tags" --all
+dev env -- cargo build --release --features "migration-to-components,sentry,spfs/protobuf-src,statsd,fuse-backend-rhel-7-6" --all
 
 %install
 mkdir -p %{buildroot}/usr/local/bin

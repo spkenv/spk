@@ -16,3 +16,18 @@ pub trait TagPath {
     /// content into a repository, where normalization is required.
     fn verbatim_tag_path(&self) -> RelativePathBuf;
 }
+
+impl<T> TagPath for &T
+where
+    T: TagPath + ?Sized,
+{
+    #[inline]
+    fn tag_path(&self) -> RelativePathBuf {
+        (**self).tag_path()
+    }
+
+    #[inline]
+    fn verbatim_tag_path(&self) -> RelativePathBuf {
+        (**self).verbatim_tag_path()
+    }
+}
