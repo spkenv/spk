@@ -44,19 +44,19 @@ In some cases, the developer maybe know that the dependency was not used for com
 
 This validation is triggered when a version of the package being built appears in the resolved build environment (either directly or indirectly as a dependency of a dependency). Typically, this is not desired and creates confusing build output with other errors.
 
-In the case that this is expected and desired, see the documentation section on [recursive builds]({{< ref "../use/spec" >}}#recursivebuilds)
+In the case that this is expected and desired, see the documentation section on [recursive builds]({{< ref "../use/create/recursive_builds" >}})
 
 #### `spk::build::validation::long_var_description`
 
 This validation is triggered when a build var description is greater than 256 characters is found.
 
-In cases where a longer description is required, see the documentation section on [build variable description]({{< ref "../use/spec" >}}#buildvariabledescription)
+In cases where a longer description is required, see the documentation section on [build variable description]({{< ref "../use/create/build" >}}#buildvariabledescription)
 
 #### `spk::build::validation::strong_inheritance_var_description`
 
 This validation is triggered when a description is not provided for strong inheritance build variables.
 
-In cases where a description is not required, see the documentation section on [build variable description]({{< ref "../use/spec" >}}#buildvariabledescription)
+In cases where a description is not required, see the documentation section on [build variable description]({{< ref "../use/create/build" >}}#buildvariabledescription)
 
 #### `spk::build::validation::spdx_license`
 

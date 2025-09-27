@@ -1,7 +1,7 @@
 ---
-title: Versioning
+title: Version Numbers in SPK
 summary: Version compatibility syntax and semantics.
-weight: 10
+weight: 25
 ---
 
 ### Version Numbers
@@ -45,7 +45,7 @@ Post-releases come after the normal release of the same number, and must come af
 
 ### Version Ranges
 
-The version range specifiers are largely based on those from Rust's Cargo toolchain ([source](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html)). The main difference is the support of package [compatibility specifications]({{< ref "./spec" >}}#compatibility)
+The version range specifiers are largely based on those from Rust's Cargo toolchain ([source](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html)). The main difference is the support of package [compatibility specifications]({{< ref "./create/spec" >}}#compatibility)
 
 #### Default Compatibility
 
