@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+//! Workspace file definition.
+//!
+//! The format and loading process for workspace yaml files.
+
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -75,10 +79,12 @@ impl WorkspaceFile {
         Err(LoadWorkspaceFileError::WorkspaceNotFound(cwd))
     }
 }
-
+/// One item in the list of recipes for a workspace.
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd)]
 pub struct RecipesItem {
+    /// The path to a recipe file or files in the workspace.
     pub path: glob::Pattern,
+    /// Configuration for how the recipe template should be used.
     pub config: TemplateConfig,
 }
 
@@ -130,6 +136,7 @@ impl<'de> serde::de::Deserialize<'de> for RecipesItem {
     }
 }
 
+/// Defines how a template can and should be used.
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Default)]
 pub struct TemplateConfig {
     /// Ordered set of versions that this template can produce.
