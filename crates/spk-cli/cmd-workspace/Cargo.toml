@@ -1,0 +1,34 @@
+[package]
+authors = { workspace = true }
+edition = { workspace = true }
+name = "spk-cmd-workspace"
+version = { workspace = true }
+license-file = { workspace = true }
+homepage = { workspace = true }
+repository = { workspace = true }
+readme = { workspace = true }
+description = { workspace = true }
+
+[lints]
+workspace = true
+
+[features]
+migration-to-components = [
+    "spk-cli-common/migration-to-components",
+    "spk-cmd-make-binary/migration-to-components",
+    "spk-cmd-make-source/migration-to-components",
+]
+
+[dependencies]
+async-trait = { workspace = true }
+clap = { workspace = true }
+itertools = { workspace = true }
+miette = { workspace = true, features = ["fancy"] }
+spfs = { workspace = true }
+spk-cli-common = { workspace = true }
+spk-cmd-make-binary = { workspace = true }
+spk-cmd-make-source = { workspace = true }
+spk-workspace = { workspace = true }
+spk-schema = { workspace = true }
+tracing = { workspace = true }
+colored = { workspace = true }

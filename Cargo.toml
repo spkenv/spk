@@ -133,6 +133,7 @@ spk-cmd-make-source = { path = "crates/spk-cli/cmd-make-source" }
 spk-cmd-render = { path = "crates/spk-cli/cmd-render" }
 spk-cmd-repo = { path = "crates/spk-cli/cmd-repo" }
 spk-cmd-test = { path = "crates/spk-cli/cmd-test" }
+spk-cmd-workspace = { path = "crates/spk-cli/cmd-workspace" }
 spk-config = { path = "crates/spk-config" }
 spk-exec = { path = "crates/spk-exec" }
 spk-schema = { path = "crates/spk-schema" }

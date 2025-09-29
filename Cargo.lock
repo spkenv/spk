@@ -4228,6 +4228,7 @@ dependencies = [
  "spk-cmd-render",
  "spk-cmd-repo",
  "spk-cmd-test",
+ "spk-cmd-workspace",
  "spk-exec",
  "spk-schema",
  "spk-solve",
@@ -4631,6 +4632,24 @@ dependencies = [
  "spk-storage",
  "tempfile",
  "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "spk-cmd-workspace"
+version = "0.44.0"
+dependencies = [
+ "async-trait",
+ "clap 4.5.47",
+ "colored",
+ "itertools 0.14.0",
+ "miette",
+ "spfs",
+ "spk-cli-common",
+ "spk-cmd-make-binary",
+ "spk-cmd-make-source",
+ "spk-schema",
+ "spk-workspace",
  "tracing",
 ]
 
