@@ -3086,3 +3086,32 @@ async fn request_for_all_component_picks_correct_version(
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
     assert_resolved!(solution, "mypkg", version = version);
 }
+
+/// An install.requirements of a global var should be present in the Solution
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
+#[tokio::test]
+async fn install_requirement_vars_found_in_solution(#[case] mut solver: SolverImpl) {
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "mypkg/1.0.0",
+                "install": {
+                    "requirements": [{"var": "varname/value"}]
+                }
+            },
+        ]
+    );
+    let repo = Arc::new(repo);
+
+    solver.add_repository(repo);
+    solver.add_request(request!("mypkg"));
+
+    let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
+    assert!(
+        solution.options().get(opt_name!("varname")) == Some(&"value".to_string()),
+        "expected varname/value to be in solution options, got: {:#?}",
+        solution.options()
+    );
+}
