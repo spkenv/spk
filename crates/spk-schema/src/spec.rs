@@ -454,6 +454,11 @@ impl FromYaml for SpecRecipe {
                     .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
                 Ok(Self::V0Platform(inner))
             }
+            ApiVersion::V1Platform => {
+                let inner = serde_yaml::from_str(&yaml)
+                    .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
+                Ok(Self::V1Platform(inner))
+            }
             ApiVersion::V0Requirements => {
                 // Reading a list of requests/requirements file is not
                 // supported here. But it might be in future.
@@ -510,7 +515,8 @@ impl SpecFileData {
         }
     }
 
-    pub fn from_yaml<S: Into<String>>(yaml: S) -> Result<SpecFileData> {
+    /// Parse the provided string as a yaml-encoded [`SpecFileData`].
+    pub fn from_yaml<S: Into<String>>(yaml: S) -> Result<Self> {
         let yaml = yaml.into();
 
         let value: serde_yaml::Value =
@@ -528,20 +534,27 @@ impl SpecFileData {
             Ok(m) => m,
         };
 
-        // Create the appropriate object from the parsed value
+        // Create the appropriate object from the original yaml
+        // NOTE: parsing the yaml value as a string again is more work but
+        // provides contextualized error messages that highlight source locations
         let spec = match with_version.api {
             ApiVersion::V0Package => {
-                let inner = serde_yaml::from_value(value)
+                let inner = serde_yaml::from_str(&yaml)
                     .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
                 SpecFileData::Recipe(Arc::new(SpecRecipe::V0Package(inner)))
             }
             ApiVersion::V0Platform => {
-                let inner = serde_yaml::from_value(value)
+                let inner = serde_yaml::from_str(&yaml)
                     .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
                 SpecFileData::Recipe(Arc::new(SpecRecipe::V0Platform(inner)))
             }
+            ApiVersion::V1Platform => {
+                let inner = serde_yaml::from_str(&yaml)
+                    .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
+                SpecFileData::Recipe(Arc::new(SpecRecipe::V1Platform(inner)))
+            }
             ApiVersion::V0Requirements => {
-                let requests: v0::Requirements = serde_yaml::from_value(value)
+                let requests: v0::Requirements = serde_yaml::from_str(&yaml)
                     .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
                 SpecFileData::Requests(requests)
             }
@@ -818,10 +831,19 @@ impl FromYaml for Spec {
                     .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
                 Ok(Self::V0Package(inner))
             }
-            ApiVersion::V0Requirements => {
-                // Reading a list of requests/requirement file is not
-                // supported here. But it might be in future.
-                unimplemented!()
+            v @ ApiVersion::V0Requirements | v @ ApiVersion::V1Platform => {
+                let api_version = v.to_string();
+                let (start, end) = match yaml.find(&api_version) {
+                    Some(start) => (Some(start), Some(start + api_version.len())),
+                    None => (None, None),
+                };
+                let error = Box::new(crate::Error::String(format!(
+                    "api version '{api_version}' is not currently supported in this context"
+                ))) as Box<dyn std::error::Error>;
+                Err(format_serde_error::SerdeError::new(
+                    yaml,
+                    (error, start, end),
+                ))
             }
         }
     }
@@ -833,13 +855,19 @@ impl AsRef<Spec> for Spec {
     }
 }
 
-#[derive(Deserialize, Serialize, Copy, Clone)]
+#[derive(Deserialize, Serialize, Copy, Clone, strum::Display)]
 pub enum ApiVersion {
     #[serde(rename = "v0/package")]
+    #[strum(to_string = "v0/package")]
     V0Package,
     #[serde(rename = "v0/platform")]
+    #[strum(to_string = "v0/platform")]
     V0Platform,
+    #[serde(rename = "v1/platform")]
+    #[strum(to_string = "v1/platform")]
+    V1Platform,
     #[serde(rename = "v0/requirements")]
+    #[strum(to_string = "v0/requirements")]
     V0Requirements,
 }
 
