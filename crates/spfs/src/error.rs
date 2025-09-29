@@ -194,6 +194,16 @@ impl Error {
         Error::Errno(msg, errno)
     }
 
+    /// Return true if this error suggests the call might succeed if retried on
+    /// a secondary repository.
+    #[inline]
+    pub fn try_next_repo(&self) -> bool {
+        matches!(
+            self,
+            Error::UnknownObject(_) | Error::ObjectMissingPayload(_, _)
+        )
+    }
+
     #[cfg(unix)]
     pub fn wrap_nix<E: Into<String>>(err: nix::Error, prefix: E) -> Error {
         let err = Self::from(err);
