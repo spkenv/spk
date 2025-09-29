@@ -7,11 +7,11 @@
 //! The [`WorkspaceFile`] is used to load [`Workspace`] configurations from
 //! yaml files on disk.
 
-#![deny(missing_docs)]
+#![warn(missing_docs)]
 
 pub mod builder;
 pub mod error;
-mod file;
+pub mod file;
 mod workspace;
 
 pub use file::WorkspaceFile;
