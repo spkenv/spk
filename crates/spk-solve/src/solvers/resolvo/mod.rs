@@ -27,6 +27,7 @@ use spk_schema::ident::{
     InclusionPolicy,
     LocatedBuildIdent,
     PinPolicy,
+    PinnableValue,
     PkgRequest,
     RangeIdent,
     RequestedBy,
@@ -295,6 +296,13 @@ impl Solver {
                             }
                         }
                     }
+                }
+            }
+            for option in package.runtime_requirements().iter() {
+                if let Request::Var(var_req) = option
+                    && let PinnableValue::Pinned(value) = &var_req.value
+                {
+                    solution_options.insert(var_req.var.clone(), value.to_string());
                 }
             }
             let next_index = solution_adds.len();

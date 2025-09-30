@@ -19,6 +19,7 @@ use spk_schema::ident::{
     parse_ident_range,
 };
 use spk_schema::ident_build::{Build, BuildId};
+use spk_schema::name::OptName;
 use spk_schema::prelude::*;
 use spk_schema::{recipe, v0};
 use spk_solve_macros::{make_build, make_build_and_components, make_package, make_repo, request};
@@ -3154,17 +3155,23 @@ async fn build_options_not_checked_on_dependencies(#[case] mut solver: SolverImp
 }
 
 /// An install.requirements of a global var should be present in the Solution
+/// Any var install.requirements of packages in the Solution should be present
+/// in the Solution's options.
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn install_requirement_vars_found_in_solution(#[case] mut solver: SolverImpl) {
+async fn install_requirement_vars_found_in_solution(
+    #[case] mut solver: SolverImpl,
+    // test both non-namespaced and namespaced var names
+    #[values(opt_name!("varname"), opt_name!("pkg.varname"))] var_name: &OptName,
+) {
     let repo = make_repo!(
         [
             {
                 "pkg": "mypkg/1.0.0",
                 "install": {
-                    "requirements": [{"var": "varname/value"}]
+                    "requirements": [{"var": format!("{var_name}/value")}]
                 }
             },
         ]
@@ -3176,8 +3183,8 @@ async fn install_requirement_vars_found_in_solution(#[case] mut solver: SolverIm
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
     assert!(
-        solution.options().get(opt_name!("varname")) == Some(&"value".to_string()),
-        "expected varname/value to be in solution options, got: {:#?}",
+        solution.options().get(var_name) == Some(&"value".to_string()),
+        "expected {var_name}/value to be in solution options, got: {:#?}",
         solution.options()
     );
 }
