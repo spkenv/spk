@@ -127,6 +127,10 @@ where
         self.inner.has_payload(digest).await
     }
 
+    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+        self.inner.payload_size(digest).await
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         self.inner.iter_payload_digests()
     }

@@ -70,6 +70,18 @@ impl proto::payload_service_server::PayloadService for PayloadService {
         Ok(Response::new(result))
     }
 
+    async fn payload_size(
+        &self,
+        request: Request<proto::PayloadSizeRequest>,
+    ) -> Result<Response<proto::PayloadSizeResponse>, Status> {
+        let request = request.into_inner();
+        let digest = convert_digest(request.digest)
+            .map_err(|err| Status::invalid_argument(err.to_string()))?;
+        let size = proto::handle_error!(self.repo.payload_size(digest).await);
+        let result = proto::PayloadSizeResponse::ok(size);
+        Ok(Response::new(result))
+    }
+
     async fn open_payload(
         &self,
         request: Request<proto::OpenPayloadRequest>,
