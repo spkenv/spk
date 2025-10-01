@@ -461,7 +461,6 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
             self.sync_payload_with_perms_opt(*blob.payload(), perms)
                 .await?
         };
-        self.dest.write_blob(blob.to_owned()).await?;
         self.processed_digests.insert(*digest);
         let res = SyncBlobResult::Synced {
             blob: blob.to_owned(),

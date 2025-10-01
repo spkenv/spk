@@ -1168,8 +1168,7 @@ impl Storage {
         let data = match annotation.value() {
             AnnotationValue::String(s) => s,
             AnnotationValue::Blob(digest) => {
-                let blob = self.inner.read_blob(*digest).await?;
-                let (mut payload, filename) = self.inner.open_payload(*blob.digest()).await?;
+                let (mut payload, filename) = self.inner.open_payload(*digest).await?;
                 let mut writer: Vec<u8> = vec![];
                 tokio::io::copy(&mut payload, &mut writer)
                     .await

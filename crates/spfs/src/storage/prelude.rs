@@ -5,8 +5,6 @@
 pub use super::config::{FromConfig, FromUrl};
 pub use super::{
     Address,
-    BlobStorage,
-    BlobStorageExt,
     LayerStorage,
     LayerStorageExt,
     ManifestStorage,

@@ -9,9 +9,8 @@ use futures::future::ready;
 use futures::{Stream, StreamExt, TryFutureExt};
 
 use super::{MaybeOpenFsRepository, OpenFsRepository};
-use crate::storage::prelude::*;
 use crate::tracking::BlobRead;
-use crate::{Error, Result, encoding, graph};
+use crate::{Error, Result, encoding};
 
 #[async_trait::async_trait]
 impl crate::storage::PayloadStorage for MaybeOpenFsRepository {
@@ -77,25 +76,15 @@ impl crate::storage::PayloadStorage for OpenFsRepository {
         match tokio::fs::File::open(&path).await {
             Ok(file) => Ok((Box::pin(tokio::io::BufReader::new(file)), path)),
             Err(err) => match err.kind() {
-                ErrorKind::NotFound => {
-                    // Return an error specific to this situation, whether the
-                    // blob is really unknown or just the payload is missing.
-                    match self.read_blob(digest).await {
-                        Ok(blob) => Err(Error::ObjectMissingPayload(blob.into(), digest)),
-                        Err(
-                            err @ Error::NotCorrectKind {
-                                desired: graph::ObjectKind::Blob,
-                                ..
-                            },
-                        ) => Err(err),
-                        Err(_) => Err(Error::UnknownObject(digest)),
-                    }
-                }
+                ErrorKind::NotFound => Err(Error::UnknownObject(digest)),
                 _ => Err(Error::StorageReadError("open on payload", path, err)),
             },
         }
     }
 
+    // TODO: This operation is unsafe, a payload must not be removed if _any_
+    // reference to it still exists, which could be in Manifests, Layer
+    // annotations, tags (can you tag a blob directly?), etc.
     async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
         let path = self.payloads.build_digest_path(&digest);
         match tokio::fs::remove_file(&path).await {
