@@ -21,6 +21,11 @@ impl crate::storage::PayloadStorage for MaybeOpenFsRepository {
         opened.has_payload(digest).await
     }
 
+    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+        let opened = self.opened().await?;
+        opened.payload_size(digest).await
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         self.opened()
             .and_then(|opened| ready(Ok(opened.iter_payload_digests())))
@@ -50,6 +55,17 @@ impl crate::storage::PayloadStorage for OpenFsRepository {
     async fn has_payload(&self, digest: encoding::Digest) -> bool {
         let path = self.payloads.build_digest_path(&digest);
         tokio::fs::symlink_metadata(path).await.is_ok()
+    }
+
+    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+        let path = self.payloads.build_digest_path(&digest);
+        tokio::fs::symlink_metadata(&path)
+            .await
+            .map(|meta| meta.len())
+            .map_err(|err| match err.kind() {
+                ErrorKind::NotFound => Error::UnknownObject(digest),
+                _ => Error::StorageReadError("symlink_metadata on payload", path, err),
+            })
     }
 
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {

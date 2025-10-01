@@ -202,6 +202,21 @@ impl graph::DatabaseExt for ProxyRepository {
     }
 }
 
+pub(crate) async fn payload_size<R>(repo: R, digest: encoding::Digest) -> Result<u64>
+where
+    R: ProxyRepositoryExt,
+{
+    if let Ok(size) = repo.primary().payload_size(digest).await {
+        return Ok(size);
+    }
+    for secondary in repo.secondary().iter() {
+        if let Ok(size) = secondary.payload_size(digest).await {
+            return Ok(size);
+        }
+    }
+    Err(crate::Error::UnknownObject(digest))
+}
+
 #[async_trait::async_trait]
 impl PayloadStorage for ProxyRepository {
     async fn has_payload(&self, digest: encoding::Digest) -> bool {
@@ -214,6 +229,10 @@ impl PayloadStorage for ProxyRepository {
             }
         }
         false
+    }
+
+    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+        payload_size(self, digest).await
     }
 
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {

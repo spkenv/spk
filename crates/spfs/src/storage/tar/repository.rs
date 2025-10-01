@@ -287,6 +287,10 @@ impl PayloadStorage for TarRepository {
         self.repo.has_payload(digest).await
     }
 
+    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+        self.repo.payload_size(digest).await
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         self.repo.iter_payload_digests()
     }
