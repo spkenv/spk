@@ -163,7 +163,6 @@ async fn test_auto_merge_layers_with_edit(tmpdir: tempfile::TempDir) {
     let d = dirs.last().unwrap();
     for node in d.to_tracking_manifest().walk_abs("/spfs") {
         // There should only be one node/entry, the file.
-        let blob = repo.read_blob(node.entry.object).await.unwrap();
         println!(
             " {} {}",
             node.path,
@@ -172,7 +171,7 @@ async fn test_auto_merge_layers_with_edit(tmpdir: tempfile::TempDir) {
                 .unwrap(),
         );
 
-        let (mut payload, _filename) = repo.open_payload(*blob.digest()).await.unwrap();
+        let (mut payload, _filename) = repo.open_payload(node.entry.object).await.unwrap();
         let mut writer: Vec<u8> = vec![];
         tokio::io::copy(&mut payload, &mut writer).await.unwrap();
         let contents = String::from_utf8(writer).unwrap();

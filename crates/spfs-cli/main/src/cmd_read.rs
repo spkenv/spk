@@ -38,8 +38,8 @@ impl CmdRead {
 
         let item = repo.read_ref(&self.reference.to_string()).await?;
         use spfs::graph::object::Enum;
-        let blob = match item.to_enum() {
-            Enum::Blob(blob) => blob,
+        let digest = match item.to_enum() {
+            Enum::Blob(blob) => *blob.digest(),
             _ => {
                 let path = match &self.path {
                     None => {
@@ -59,11 +59,11 @@ impl CmdRead {
                     tracing::error!("path is a directory or masked file: {path}");
                     return Ok(1);
                 }
-                repo.read_blob(entry.object).await?
+                entry.object
             }
         };
 
-        let (mut payload, filename) = repo.open_payload(*blob.digest()).await?;
+        let (mut payload, filename) = repo.open_payload(digest).await?;
         tokio::io::copy(&mut payload, &mut tokio::io::stdout())
             .await
             .map_err(|err| Error::StorageReadError("copy of payload to stdout", filename, err))?;
