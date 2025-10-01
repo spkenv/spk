@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use rstest::{fixture, rstest};
@@ -3085,4 +3086,64 @@ async fn request_for_all_component_picks_correct_version(
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
     assert_resolved!(solution, "mypkg", version = version);
+}
+
+/// Test that adding options to the solver make the solver pick the build that
+/// satisfies those options, when possible.
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
+#[tokio::test]
+async fn options_influence_build_choice(
+    #[case] mut solver: SolverImpl,
+    #[values(true, false)] scope_var: bool,
+) {
+    // Create 10 builds of a package, varying the value of an option called
+    // "num".
+    let builds = (0..10)
+        .map(|num| {
+            (
+                num.to_string(),
+                make_build!({
+                    "pkg": "mypkg/1.0.0",
+                    "build": {"options": [{"var": format!("num/{num}")}]},
+                }),
+            )
+        })
+        .inspect(|(num, spec)| {
+            eprintln!("Created build with num {num}: {}", spec.ident().build());
+        })
+        .collect::<HashMap<_, _>>();
+
+    let repo = make_repo!([]);
+    let _options = option_map! {};
+    for spec in builds.values() {
+        let (s, cmpts) = make_package!(repo, spec, _options);
+        repo.publish_package(&s, &cmpts).await.unwrap();
+    }
+
+    let repo = Arc::new(repo);
+
+    // For each option value from above, ask the solver to resolve mypkg using
+    // an option with that value for "num". It is expected that it will pick the
+    // build that was created with that value for "num".
+    //
+    // Since there are 10 builds, the odds of this succeeding by chance are 1 in
+    // 10 billion.
+    for (num, spec) in &builds {
+        solver.reset();
+
+        solver.add_repository(Arc::clone(&repo));
+        solver.add_request(request!("mypkg"));
+
+        let options = if scope_var {
+            option_map! { "mypkg.num" => num.to_string() }
+        } else {
+            option_map! { "num" => num.to_string() }
+        };
+        solver.update_options(options);
+
+        let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
+        assert_resolved!(solution, "mypkg", build = *spec.ident().build());
+    }
 }
