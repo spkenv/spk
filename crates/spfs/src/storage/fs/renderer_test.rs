@@ -48,7 +48,7 @@ async fn test_render_manifest(
                 .await
                 .unwrap();
             storage
-                .commit_blob(Box::pin(tokio::io::BufReader::new(data)))
+                .commit_payload(Box::pin(tokio::io::BufReader::new(data)))
                 .await
                 .unwrap();
         }
