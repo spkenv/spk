@@ -1063,7 +1063,7 @@ impl Storage {
     /// Create a new blob payload to hold the given string value
     pub(crate) async fn create_blob_for_string(&self, payload: String) -> Result<Digest> {
         self.inner
-            .commit_blob(Box::pin(std::io::Cursor::new(payload.into_bytes())))
+            .commit_payload(Box::pin(std::io::Cursor::new(payload.into_bytes())))
             .await
     }
 
@@ -1261,7 +1261,7 @@ impl Storage {
         let (_, config_digest) = tokio::try_join!(
             self.inner.write_object(&platform),
             self.inner
-                .commit_blob(Box::pin(std::io::Cursor::new(config_data.into_bytes())),)
+                .commit_payload(Box::pin(std::io::Cursor::new(config_data.into_bytes())),)
         )?;
 
         tokio::try_join!(
