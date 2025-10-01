@@ -23,8 +23,9 @@ mod workspace_test;
 /// can be used to determine the number and order of
 /// packages to be built in order to efficiently satisfy
 /// and entire set of requirements for an environment.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Workspace {
+    root: Option<std::path::PathBuf>,
     /// Spec templates available in this workspace.
     ///
     /// A workspace may contain multiple recipes for a single
@@ -42,6 +43,14 @@ impl Workspace {
     /// Create a new workspace [`crate::builder::WorkspaceBuilder`].
     pub fn builder() -> crate::builder::WorkspaceBuilder {
         crate::builder::WorkspaceBuilder::default()
+    }
+
+    /// The logical root directory for this workspace.
+    ///
+    /// May be none in cases where the workspace was constructed
+    /// manually or is the default.
+    pub fn root(&self) -> Option<&std::path::Path> {
+        self.root.as_deref()
     }
 
     /// Iterate over all templates in the workspace.

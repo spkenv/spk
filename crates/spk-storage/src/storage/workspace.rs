@@ -1,0 +1,235 @@
+// Copyright (c) Contributors to the SPK project.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/spkenv/spk
+
+use std::collections::{BTreeSet, HashMap, HashSet};
+use std::sync::Arc;
+
+use spk_schema::foundation::ident_component::Component;
+use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
+use spk_schema::foundation::option_map;
+use spk_schema::foundation::version::Version;
+use spk_schema::prelude::HasVersion;
+use spk_schema::{BuildIdent, Spec, SpecRecipe, Template, VersionIdent};
+
+use super::Repository;
+use super::repository::{PublishPolicy, Storage};
+use crate::{Error, Result};
+
+/// A repository that represents package build for
+/// and from an [`spk_workspace::Workspace`].
+#[derive(Clone, Debug)]
+pub struct WorkspaceRepository {
+    address: url::Url,
+    name: RepositoryNameBuf,
+    inner: spk_workspace::Workspace,
+}
+
+impl std::hash::Hash for WorkspaceRepository {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.address.hash(state);
+    }
+}
+
+impl Eq for WorkspaceRepository {}
+impl PartialEq for WorkspaceRepository {
+    fn eq(&self, other: &Self) -> bool {
+        self.address == other.address
+    }
+}
+
+impl Ord for WorkspaceRepository {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.address.cmp(&other.address)
+    }
+}
+
+impl PartialOrd for WorkspaceRepository {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl WorkspaceRepository {
+    /// Build a workspace repository from its parts.
+    pub fn new(
+        root: &std::path::Path,
+        name: RepositoryNameBuf,
+        workspace: spk_workspace::Workspace,
+    ) -> Self {
+        let address = Self::address_from_root(root);
+        Self {
+            address,
+            name,
+            inner: workspace,
+        }
+    }
+
+    /// Open a workspace repository from its root directory, using the default name.
+    ///
+    /// Panics if the workspace cannot be loaded at the given path.
+    #[cfg(test)]
+    pub fn open(root: &std::path::Path) -> Result<Self> {
+        // this function is not allowed outside of testing because it will
+        // panic if the workspace is invalid
+        let address = Self::address_from_root(root);
+        Ok(Self {
+            address,
+            name: "workspace".try_into()?,
+            inner: spk_workspace::Workspace::builder()
+                .load_from_dir(root)?
+                .build()?,
+        })
+    }
+
+    fn address_from_root(root: &std::path::Path) -> url::Url {
+        let address = format!("workspace://{}", root.display());
+        match url::Url::parse(&address) {
+            Ok(a) => a,
+            Err(err) => {
+                tracing::error!(
+                    "failed to create valid address for path {:?}: {:?}",
+                    root,
+                    err
+                );
+                url::Url::parse(&format!("workspace://{}", root.to_string_lossy()))
+                    .expect("Failed to create url from path (fallback)")
+            }
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl Storage for WorkspaceRepository {
+    type Recipe = SpecRecipe;
+    type Package = Spec;
+
+    async fn get_concrete_package_builds(
+        &self,
+        _pkg: &VersionIdent,
+    ) -> Result<HashSet<BuildIdent>> {
+        // a workspace does not claim any concrete package builds
+        Ok(HashSet::default())
+    }
+
+    async fn get_embedded_package_builds(
+        &self,
+        _pkg: &VersionIdent,
+    ) -> Result<HashSet<BuildIdent>> {
+        // Can't publish packages to a workspace so there can't be any stubs
+        Ok(HashSet::default())
+    }
+
+    async fn publish_embed_stub_to_storage(&self, _spec: &Self::Package) -> Result<()> {
+        Err(Error::String(
+            "Cannot publish to a workspace repository".into(),
+        ))
+    }
+
+    async fn publish_package_to_storage(
+        &self,
+        _package: &<Self::Recipe as spk_schema::Recipe>::Output,
+        _components: &HashMap<Component, spfs::encoding::Digest>,
+    ) -> Result<()> {
+        Err(Error::String(
+            "Cannot publish to a workspace repository".into(),
+        ))
+    }
+
+    async fn publish_recipe_to_storage(
+        &self,
+        _spec: &Self::Recipe,
+        _publish_policy: PublishPolicy,
+    ) -> Result<()> {
+        Err(Error::String(
+            "Cannot publish to a workspace repository".into(),
+        ))
+    }
+
+    async fn read_components_from_storage(
+        &self,
+        _pkg: &BuildIdent,
+    ) -> Result<HashMap<Component, spfs::encoding::Digest>> {
+        Ok(HashMap::new())
+    }
+
+    async fn read_package_from_storage(
+        &self,
+        pkg: &BuildIdent,
+    ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>> {
+        Err(Error::PackageNotFound(Box::new(
+            pkg.clone().into_any_ident(),
+        )))
+    }
+
+    async fn remove_embed_stub_from_storage(&self, _pkg: &BuildIdent) -> Result<()> {
+        Err(Error::String("Cannot modify a workspace repository".into()))
+    }
+
+    async fn remove_package_from_storage(&self, _pkg: &BuildIdent) -> Result<()> {
+        Err(Error::String("Cannot modify a workspace repository".into()))
+    }
+}
+
+#[async_trait::async_trait]
+impl Repository for WorkspaceRepository {
+    fn address(&self) -> &url::Url {
+        &self.address
+    }
+
+    fn name(&self) -> &RepositoryName {
+        &self.name
+    }
+
+    async fn list_packages(&self) -> Result<Vec<PkgNameBuf>> {
+        let unique = self
+            .inner
+            .iter()
+            .map(|(name, _)| name.to_owned())
+            .collect::<BTreeSet<_>>();
+        Ok(unique.into_iter().collect())
+    }
+
+    async fn list_package_versions(&self, _name: &PkgName) -> Result<Arc<Vec<Arc<Version>>>> {
+        Ok(Arc::new(Vec::new()))
+    }
+
+    async fn list_build_components(&self, pkg: &BuildIdent) -> Result<Vec<Component>> {
+        Err(Error::PackageNotFound(Box::new(pkg.to_any_ident())))
+    }
+
+    async fn read_embed_stub(&self, pkg: &BuildIdent) -> Result<Arc<Self::Package>> {
+        Err(Error::PackageNotFound(Box::new(pkg.to_any_ident())))
+    }
+
+    async fn read_recipe(&self, pkg: &VersionIdent) -> Result<Arc<Self::Recipe>> {
+        let candidates = self
+            .inner
+            .iter()
+            .filter_map(|(name, tpl)| {
+                if name != pkg.name() {
+                    return None;
+                }
+                let options = option_map! { "version" => pkg.version().to_string() };
+                let rendered = tpl.template.render(&options).ok()?;
+                let recipe = rendered.into_recipe().ok()?;
+                if recipe.version() == pkg.version() {
+                    Some(recipe)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        if candidates.len() > 1 {
+            tracing::warn!("multiple viable recipes found in workspace for {pkg}");
+        }
+        candidates
+            .into_iter()
+            .next()
+            .ok_or_else(|| Error::PackageNotFound(Box::new(pkg.to_any_ident(None))))
+    }
+
+    async fn remove_recipe(&self, _pkg: &VersionIdent) -> Result<()> {
+        Err(Error::String("Cannot modify a workspace repository".into()))
+    }
+}
