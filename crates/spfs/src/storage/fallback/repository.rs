@@ -284,13 +284,8 @@ impl PayloadStorage for FallbackProxy {
         self.primary.iter_payload_digests()
     }
 
-    async unsafe fn write_data(
-        &self,
-        reader: Pin<Box<dyn BlobRead>>,
-    ) -> Result<(encoding::Digest, u64)> {
-        // Safety: we are wrapping the same underlying unsafe function and
-        // so the same safety holds for our callers
-        let res = unsafe { self.primary.write_data(reader).await? };
+    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
+        let res = self.primary.write_data(reader).await?;
         Ok(res)
     }
 
