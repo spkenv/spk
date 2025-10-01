@@ -258,7 +258,7 @@ async fn check_missing_annotation_blob(#[future] tmprepo: TempRepo) {
     let tmprepo = tmprepo.await;
 
     let blob = tmprepo
-        .commit_blob(Box::pin(b"this is some data".as_slice()))
+        .commit_payload(Box::pin(b"this is some data".as_slice()))
         .await
         .unwrap();
 

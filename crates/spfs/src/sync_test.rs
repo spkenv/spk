@@ -170,7 +170,7 @@ async fn test_sync_ref_including_annotation_blob(
     // Set up an annotation in a blob for this test
     let value = "this is a test annotation blob for syncing";
     let annotation_digest = repo_a
-        .commit_blob(Box::pin(std::io::Cursor::new(
+        .commit_payload(Box::pin(std::io::Cursor::new(
             value.to_owned().into_bytes(),
         )))
         .await
