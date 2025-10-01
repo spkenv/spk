@@ -393,7 +393,7 @@ impl Storage for SpfsRepository {
         })?;
         let digest = self
             .inner
-            .commit_blob(Box::pin(std::io::Cursor::new(payload.into_bytes())))
+            .commit_payload(Box::pin(std::io::Cursor::new(payload.into_bytes())))
             .await?;
         self.inner.push_tag(&tag_spec, &digest).await?;
         self.invalidate_caches();
@@ -442,7 +442,7 @@ impl Storage for SpfsRepository {
         })?;
         let digest = self
             .inner
-            .commit_blob(Box::pin(std::io::Cursor::new(payload.into_bytes())))
+            .commit_payload(Box::pin(std::io::Cursor::new(payload.into_bytes())))
             .await?;
         self.inner.push_tag(&tag_spec, &digest).await?;
         self.invalidate_caches();
@@ -470,7 +470,7 @@ impl Storage for SpfsRepository {
         })?;
         let digest = self
             .inner
-            .commit_blob(Box::pin(std::io::Cursor::new(payload.into_bytes())))
+            .commit_payload(Box::pin(std::io::Cursor::new(payload.into_bytes())))
             .await?;
         self.inner.push_tag(&tag_spec, &digest).await?;
         self.invalidate_caches();
@@ -1019,7 +1019,7 @@ impl SpfsRepository {
         let yaml = serde_yaml::to_string(meta).map_err(Error::InvalidRepositoryMetadata)?;
         let digest = self
             .inner
-            .commit_blob(Box::pin(std::io::Cursor::new(yaml.into_bytes())))
+            .commit_payload(Box::pin(std::io::Cursor::new(yaml.into_bytes())))
             .await?;
         self.inner.push_tag(&tag_spec, &digest).await?;
         self.invalidate_caches();

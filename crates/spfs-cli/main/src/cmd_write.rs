@@ -55,7 +55,7 @@ impl CmdWrite {
             None => Box::pin(tokio::io::BufReader::new(tokio::io::stdin())),
         };
 
-        let digest = repo.commit_blob(reader).await?;
+        let digest = repo.commit_payload(reader).await?;
 
         tracing::info!(%digest, "created");
         for tag in self.tags.iter() {

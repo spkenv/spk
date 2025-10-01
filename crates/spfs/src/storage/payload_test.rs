@@ -99,15 +99,15 @@ async fn test_payloads_iter(
 
     let mut expected = vec![
         tmprepo
-            .commit_blob(reader_0)
+            .commit_payload(reader_0)
             .await
             .expect("failed to write payload data"),
         tmprepo
-            .commit_blob(reader_1)
+            .commit_payload(reader_1)
             .await
             .expect("failed to write payload data"),
         tmprepo
-            .commit_blob(reader_2)
+            .commit_payload(reader_2)
             .await
             .expect("failed to write payload data"),
     ];
