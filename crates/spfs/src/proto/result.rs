@@ -128,6 +128,11 @@ rpc_result!(
 );
 
 rpc_result!(
+    g::PayloadSizeResponse,
+    g::payload_size_response::Result,
+    u64
+);
+rpc_result!(
     g::WritePayloadResponse,
     g::write_payload_response::Result,
     g::write_payload_response::UploadOption

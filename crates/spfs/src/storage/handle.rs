@@ -257,6 +257,10 @@ impl PayloadStorage for RepositoryHandle {
         each_variant!(self, repo, { repo.has_payload(digest).await })
     }
 
+    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+        each_variant!(self, repo, { repo.payload_size(digest).await })
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         each_variant!(self, repo, { repo.iter_payload_digests() })
     }
@@ -425,6 +429,10 @@ impl TagStorage for Arc<RepositoryHandle> {
 impl PayloadStorage for Arc<RepositoryHandle> {
     async fn has_payload(&self, digest: encoding::Digest) -> bool {
         each_variant!(&**self, repo, { repo.has_payload(digest).await })
+    }
+
+    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+        each_variant!(&**self, repo, { repo.payload_size(digest).await })
     }
 
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
