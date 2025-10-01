@@ -3086,3 +3086,69 @@ async fn request_for_all_component_picks_correct_version(
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
     assert_resolved!(solution, "mypkg", version = version);
 }
+
+/// Verify that when solving the dependencies of a package, the build options of
+/// the candidates do not factor into the selection of the candidate.
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
+#[tokio::test]
+async fn build_options_not_checked_on_dependencies(#[case] mut solver: SolverImpl) {
+    // Suppose a platform exists
+    let spi_platform_2024_1_1_1 =
+        make_build!({"pkg": "spi-platform/2024.1.1.1", "compat": "x.x.a.b"});
+    // And a library package targets that platform version
+    let openimageio_1_2_3 = make_build!(
+            {
+                "pkg": "openimageio/1.2.3",
+                "build": {
+                    "options": [
+                        { "pkg": "spi-platform/~2024.1.1.1" },
+                    ],
+                },
+            },
+            [spi_platform_2024_1_1_1]
+    );
+    // And an application package depends on that library package
+    let my_app_4_5_6 = make_build!(
+            {
+                "pkg": "my-app/4.5.6",
+                "build": {
+                    "options": [
+                        { "pkg": "openimageio" },
+                    ],
+                },
+                "install": {
+                    "requirements": [
+                        { "pkg": "openimageio", "fromBuildEnv": true },
+                    ],
+                },
+            },
+            [openimageio_1_2_3]
+    );
+    // And a new version of the platform is published
+    let spi_platform_2025_1_1_1 =
+        make_build!({"pkg": "spi-platform/2025.1.1.1", "compat": "x.x.a.b"});
+    let repo = make_repo!([
+        spi_platform_2024_1_1_1,
+        openimageio_1_2_3,
+        my_app_4_5_6,
+        spi_platform_2025_1_1_1,
+    ]);
+
+    // Then we want to solve for my-app using the new platform version.
+    // Although the only build of openimageio was built using the old platform,
+    // it is expected to be resolvable when using the new platform.
+    let repo = Arc::new(repo);
+
+    solver.add_repository(repo);
+    // The platform version is specified as a build option rather than a request
+    solver.update_options(option_map! {
+        "spi-platform" => "~2025.1.1.1"
+    });
+    solver.add_request(request!("my-app"));
+
+    let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
+    assert_resolved!(solution, "my-app", "4.5.6");
+    assert_resolved!(solution, "openimageio", "1.2.3");
+}
