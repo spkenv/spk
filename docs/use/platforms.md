@@ -91,3 +91,30 @@ requirements:
     atRuntime: 3.7
   # - pkg: imath not present
 ```
+
+### Interaction with Templated Recipes
+
+The true power of platforms is revealed when they are used in combination with [Templated Recipes]({{< ref "./create/templated-recipes" >}}). This pairing enables a highly automated and agile workflow for keeping your software platforms up-to-date.
+
+Imagine a new version of Python, `3.9.22`, is released. With a traditional setup, a developer would need to manually edit a central configuration file to "allow" this new version to be built.
+
+With platforms and templated recipes, the process is seamless:
+
+1. A developer simply updates a platform file to request the new version:
+
+  ```yaml
+  # In my-dcc-platform.spk.yaml
+  requirements:
+    - pkg: python
+      build:
+        version: 3.9.22 # Updated
+      atBuild: =3.9.22  # Updated
+      atRuntime: 3.9
+  ```
+
+2. When this platform is built, SPK sees the build for `python/3.9.22`.
+3. It finds the **templated recipe** for `python`.
+4. It automatically runs the version discovery logic defined in the template (e.g., checking for new git tags).
+5. It finds that `3.9.22` is a valid new version, renders a concrete recipe for it, and builds it on-demand.
+
+There is no second step. The platform definition itself becomes the single source of truth for driving software updates, and the system automatically builds what is necessary to satisfy it. This removes significant manual effort and allows your studio to adopt new software versions with much greater speed and reliability.

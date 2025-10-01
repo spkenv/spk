@@ -10,16 +10,17 @@ This document details each data structure and field that does or can exist withi
 
 The root package spec defines which fields can and should exist at the top level of a spec file.
 
-| Field      | Type                              | Description                                                                                                                                           |
-| ---------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| pkg        | _[Identifier](#identifier)_       | The name and version number of this package                                                                                                           |
-| meta       | [Meta](#meta)                     | Extra package metadata such as description, license, etc                                                                                              |
-| compat     | _[Compat](#compat)_               | The compatibility semantics of this packages versioning scheme                                                                                        |
-| deprecated | _boolean_                         | True if this package has been deprecated, this is usually reserved for internal use only and should not generally be specified directly in spec files |
-| sources    | _List[[SourceSpec](#sourcespec)]_ | Specifies where to get source files for building this package                                                                                         |
-| build      | _[BuildSpec](#buildspec)_         | Specifies how the package is to be built                                                                                                              |
-| tests      | _List[[TestSpec](#testspec)]_     | Specifies any number of tests to validate the package and software                                                                                    |
-| install    | _[InstallSpec](#installspec)_     | Specifies how the package is to be installed                                                                                                          |
+| Field      | Type                              | Description                                                                                                                                                                                          |
+| ---------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| pkg        | _[Identifier](#identifier)_       | The name and version number of this package                                                                                                                                                          |
+| template   | _[TemplateSpec](#templatespec)_   | (Optional) If present, this file is treated as a recipe template. Contains metadata for discovering and rendering versions. See [Templated Recipes]({{< ref "../../use/create/templated-recipes" >}}) for details. |
+| meta       | [Meta](#meta)                     | Extra package metadata such as description, license, etc                                                                                                                                             |
+| compat     | _[Compat](#compat)_               | The compatibility semantics of this packages versioning scheme                                                                                                                                       |
+| deprecated | _boolean_                         | True if this package has been deprecated, this is usually reserved for internal use only and should not generally be specified directly in spec files                                                 |
+| sources    | _List[[SourceSpec](#sourcespec)]_ | Specifies where to get source files for building this package                                                                                                                                        |
+| build      | _[BuildSpec](#buildspec)_         | Specifies how the package is to be built                                                                                                                                                             |
+| tests      | _List[[TestSpec](#testspec)]_     | Specifies any number of tests to validate the package and software                                                                                                                                   |
+| install    | _[InstallSpec](#installspec)_     | Specifies how the package is to be installed                                                                                                                                                         |
 
 ## Meta
 
@@ -431,4 +432,51 @@ The package identifier takes the form `<name>[/<version>[/<build>]]`, where:
 
 ## Compat
 
-Specifies the compatibility contract of a version number. The compat string is a dot-separated set of characters that define contract, for example `x.a.b` (the default contract) says that major version changes are not compatible, minor version changes provides **A**PI compatibility, and patch version changes provide **B**inary compatibility.
+Specifies the compatibility contract of a version number. The compat string is a dot-separated set of characters that define contract, for example `x.a.b` (the default contract) says that major version changes are not compatible, minor version changes provides **A**PI compatibility, and patch version changes provide **B**inary compatibility. Multiple characters can be put together if necessary: `x.ab`.
+
+If not specified, the default value for this field is: `x.a.b`. This means that at build time and on the command line, when API compatibility is needed, any minor version of this package can be considered compatible (eg `my-package/1.0.0` could resolve any `my-package/1.*`). When resolving dependencies however, when binary compatibility is needed, only the patch version is considered (eg `my-package/1.0.0` could resolve any `my-package/1.0.*`).
+
+Pre-releases and post-releases of the same version are treated as compatible, however this can be controlled by adding an extra compatibility clause to the `compat` field. For example, `x.x.x-x+x` would mark a build as completely incompatible with any other build, including other pre- or post-releases of the same version.
+
+```yaml
+pkg: my-package/1.0.0
+compat: x.a.b
+# where major versions are not compatible
+# minor versions are API-compatible
+# patch versions are binary compatible
+```
+
+The compat field of the new version is checked before install/update. Because of this, the compat field is more af a contract with past versions rather than future ones. Although it's recommended that your version compatibility remain constant for all versions of a package, this is not strictly required.
+
+## TemplateSpec
+
+The `template` block identifies a spec file as a template for building multiple versions of a package. It contains metadata that the build system uses to discover buildable versions and render a concrete recipe for a specific version. This block is only used during the templating phase and is not part of the final, evaluated recipe.
+
+For a complete guide, see [Templated Recipes and Version Discovery]({{< ref "../../use/create/templated-recipes" >}}).
+
+| Field    | Type                               | Description                                                                                                                            |
+| -------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| for      | _str_                              | **Required**. The name of the package that this template builds (e.g., `python`).                                                      |
+| versions | _[VersionDiscovery](#versiondiscovery)_ | **Required**. An object that defines how the list of buildable versions is generated, either statically or through discovery. |
+
+### VersionDiscovery
+
+| Field    | Type                               | Description                                                                                                                            |
+| -------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| discover | _[DiscoveryStrategy](#discoverystrategy)_ | An object defining the dynamic strategy for discovering versions from an external source. |
+
+### DiscoveryStrategy
+
+Currently, only one discovery strategy is supported.
+
+| Field    | Type                               | Description                                                                                                                            |
+| -------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| git_tags | _[GitTagsDiscovery](#gittagsdiscovery)_ | The configuration for discovering versions from the tags of a git repository. |
+
+### GitTagsDiscovery
+
+| Field   | Type  | Description                                                                                             |
+| ------- | ----- | ------------------------------------------------------------------------------------------------------- |
+| url     | _str_ | The URL of the git repository to query for tags.                                                        |
+| match   | _str_ | A glob-style pattern to filter which tags are considered (e.g., `v3.9.*`).                              |
+| extract | _str_ | (Optional) A regular expression with one capture group to extract the version string from the tag name. |
