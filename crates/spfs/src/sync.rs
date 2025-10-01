@@ -514,9 +514,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
             payload = Box::pin(payload.with_permissions(perms));
         }
 
-        // Safety: this is the unsafe part where we actually create
-        // the payload without a corresponding blob
-        let (created_digest, size) = unsafe { self.dest.write_data(payload).await? };
+        let (created_digest, size) = self.dest.write_data(payload).await?;
         if digest != created_digest {
             return Err(Error::String(format!(
                 "Source repository provided payload that did not match the requested digest: wanted {digest}, got {created_digest}. wrote {size} bytes",

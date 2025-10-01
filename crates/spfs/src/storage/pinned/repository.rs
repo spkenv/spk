@@ -131,17 +131,12 @@ where
         self.inner.iter_payload_digests()
     }
 
-    async unsafe fn write_data(
-        &self,
-        reader: Pin<Box<dyn BlobRead>>,
-    ) -> Result<(encoding::Digest, u64)> {
+    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
         // payloads are stored by digest, not time, and so can still
         // be safely written to a past repository view. In practice,
         // this allows some recovery and sync operations to still function
         // on pinned repositories
-
-        // Safety: we are simply calling the same inner unsafe function
-        unsafe { self.inner.write_data(reader).await }
+        self.inner.write_data(reader).await
     }
 
     async fn open_payload(
