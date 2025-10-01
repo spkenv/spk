@@ -3,7 +3,6 @@
 // https://github.com/spkenv/spk
 
 mod address;
-mod blob;
 mod error;
 mod layer;
 mod manifest;
@@ -24,7 +23,6 @@ pub mod rpc;
 pub mod tar;
 
 pub use address::Address;
-pub use blob::{BlobStorage, BlobStorageExt};
 pub use error::OpenRepositoryError;
 pub use handle::RepositoryHandle;
 pub use layer::{LayerStorage, LayerStorageExt};

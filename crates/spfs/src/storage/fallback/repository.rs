@@ -304,16 +304,7 @@ impl PayloadStorage for FallbackProxy {
             let missing_payload_error = match self.primary.open_payload(digest).await {
                 Ok(r) => return Ok(r),
                 Err(err @ Error::ObjectMissingPayload(_, _)) => err,
-                Err(err @ Error::UnknownObject(_)) => {
-                    // Try to repair the missing blob. There can be hash
-                    // collisions so use `read_blob` specifically in case
-                    // there is an object of some other type with the same
-                    // digest.
-                    if self.read_blob(digest).await.is_ok() {
-                        continue;
-                    }
-                    return Err(err);
-                }
+                Err(err @ Error::UnknownObject(_)) => err,
                 Err(err) => return Err(err),
             };
 

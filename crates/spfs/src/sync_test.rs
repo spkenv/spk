@@ -205,7 +205,7 @@ async fn test_sync_ref_including_annotation_blob(
             .has_object(layer_with_annotation.digest().unwrap())
             .await
     );
-    assert!(repo_b.has_object(annotation_digest).await);
+    assert!(repo_b.has_payload(annotation_digest).await);
 
     Syncer::new(&repo_b, &repo_a)
         .sync_ref("testing")
@@ -218,7 +218,7 @@ async fn test_sync_ref_including_annotation_blob(
             .has_object(layer_with_annotation.digest().unwrap())
             .await
     );
-    assert!(repo_a.has_object(annotation_digest).await);
+    assert!(repo_a.has_payload(annotation_digest).await);
 }
 
 #[rstest]

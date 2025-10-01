@@ -197,7 +197,7 @@ async fn test_check_missing_object_recover(#[future] tmprepo: TempRepo) {
 
     tracing::info!(digest=%file.object(), "remove object");
     tmprepo
-        .remove_object(*file.object())
+        .remove_payload(*file.object())
         .await
         .expect("failed to remove object");
 

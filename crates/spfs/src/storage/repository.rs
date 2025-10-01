@@ -43,7 +43,6 @@ pub trait Repository:
     + super::TagStorage
     + super::PayloadStorage
     + super::ManifestStorage
-    + super::BlobStorage
     + super::LayerStorage
     + super::PlatformStorage
     + graph::Database
@@ -107,7 +106,6 @@ impl<T> Repository for T where
         + super::TagStorage
         + super::PayloadStorage
         + super::ManifestStorage
-        + super::BlobStorage
         + super::LayerStorage
         + super::PlatformStorage
         + graph::Database
