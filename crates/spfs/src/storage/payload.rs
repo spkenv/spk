@@ -23,16 +23,7 @@ pub trait PayloadStorage: Sync + Send {
     async fn has_payload(&self, digest: encoding::Digest) -> bool;
 
     /// Store the contents of the given stream, returning its digest and size
-    ///
-    /// # Safety
-    ///
-    /// It is unsafe to write payload data without also creating a blob
-    /// to track that payload in the database. Usually, its better to
-    /// call [`super::RepositoryExt::commit_payload`] instead.
-    async unsafe fn write_data(
-        &self,
-        reader: Pin<Box<dyn BlobRead>>,
-    ) -> Result<(encoding::Digest, u64)>;
+    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)>;
 
     /// Return a handle and filename to the full content of a payload.
     ///
@@ -60,13 +51,8 @@ impl<T: PayloadStorage> PayloadStorage for &T {
         PayloadStorage::iter_payload_digests(&**self)
     }
 
-    async unsafe fn write_data(
-        &self,
-        reader: Pin<Box<dyn BlobRead>>,
-    ) -> Result<(encoding::Digest, u64)> {
-        // Safety: we are wrapping the same underlying unsafe function and
-        // so the same safety holds for our callers
-        unsafe { PayloadStorage::write_data(&**self, reader).await }
+    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
+        PayloadStorage::write_data(&**self, reader).await
     }
 
     async fn open_payload(

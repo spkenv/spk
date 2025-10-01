@@ -120,9 +120,7 @@ impl<T> Repository for T where
 pub trait RepositoryExt: super::PayloadStorage + graph::DatabaseExt {
     /// Commit the data from 'reader' as a payload in this repository
     async fn commit_payload(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
-        // Safety: it is unsafe to write data without also creating a blob
-        // to track that payload, which is exactly what this function is doing
-        let (digest, size) = unsafe { self.write_data(reader).await? };
+        let (digest, size) = self.write_data(reader).await?;
         let blob = graph::Blob::new(digest, size);
         self.write_object(&blob).await?;
         Ok(digest)
