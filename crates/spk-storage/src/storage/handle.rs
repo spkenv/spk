@@ -6,7 +6,8 @@ use spk_schema::{Spec, SpecRecipe};
 
 use super::Repository;
 
-type Handle = dyn Repository<Recipe = SpecRecipe, Package = Spec>;
+/// A type alias for a boxed repository trait object.
+pub type Handle = dyn Repository<Recipe = SpecRecipe, Package = Spec>;
 
 #[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[allow(clippy::large_enum_variant)]
@@ -14,6 +15,7 @@ pub enum RepositoryHandle {
     SPFS(super::SpfsRepository),
     Mem(super::MemRepository<SpecRecipe>),
     Runtime(super::RuntimeRepository),
+    Workspace(super::WorkspaceRepository),
 }
 
 impl RepositoryHandle {
@@ -47,6 +49,7 @@ impl RepositoryHandle {
             Self::SPFS(repo) => Box::new(repo),
             Self::Mem(repo) => Box::new(repo),
             Self::Runtime(repo) => Box::new(repo),
+            Self::Workspace(repo) => Box::new(repo),
         }
     }
 }
@@ -59,6 +62,7 @@ impl std::ops::Deref for RepositoryHandle {
             RepositoryHandle::SPFS(repo) => repo,
             RepositoryHandle::Mem(repo) => repo,
             RepositoryHandle::Runtime(repo) => repo,
+            RepositoryHandle::Workspace(repo) => repo,
         }
     }
 }
@@ -69,6 +73,7 @@ impl std::ops::DerefMut for RepositoryHandle {
             RepositoryHandle::SPFS(repo) => repo,
             RepositoryHandle::Mem(repo) => repo,
             RepositoryHandle::Runtime(repo) => repo,
+            RepositoryHandle::Workspace(repo) => repo,
         }
     }
 }
@@ -88,5 +93,11 @@ impl From<super::MemRepository<SpecRecipe>> for RepositoryHandle {
 impl From<super::RuntimeRepository> for RepositoryHandle {
     fn from(repo: super::RuntimeRepository) -> Self {
         RepositoryHandle::Runtime(repo)
+    }
+}
+
+impl From<super::WorkspaceRepository> for RepositoryHandle {
+    fn from(repo: super::WorkspaceRepository) -> Self {
+        RepositoryHandle::Workspace(repo)
     }
 }
