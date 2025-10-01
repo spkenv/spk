@@ -280,6 +280,10 @@ impl PayloadStorage for FallbackProxy {
         false
     }
 
+    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+        crate::storage::proxy::payload_size(self, digest).await
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         self.primary.iter_payload_digests()
     }
