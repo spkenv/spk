@@ -25,6 +25,8 @@ generate_s ==> sp[Package]
 generate_b ==> bp[Package]
 ```
 
+The lifecycle begins with a `Template`, but only package spec file containing a top-level `template` block is treated as a template. The `render` step can use metadata within this block to discover and validate input `variables` (such as the version number) against external sources. Once validated, the metadata is stripped and the variables are injected into the rest of the file to produce a concrete, single-version `Recipe`. This recipe is then used to generate the source and binary packages. For more information, see the guide on [Templated Recipes]({{< ref "../use/create/templated-recipes" >}}).
+
 ### Metadata vs Payloads
 
 Each package is made up of two pieces which are important to differentiate: the package `payload` and `specification (spec)`. The package payload is the set of files on disk that package 'contains'. When you install a package, the payload is the files that you actually see in `/spfs`. The package specification (or metadata) is information about the package: how it was built, what it's dependencies are, and everything else that's important for both spk and developers to know.
