@@ -268,7 +268,7 @@ impl OptNameBuf {
 
 impl EnvName for OptNameBuf {
     fn env_name(&self) -> String {
-        self.0.replace('-', "_")
+        self.0.replace(['-', '.'], "_")
     }
 }
 
