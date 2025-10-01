@@ -28,14 +28,9 @@ impl crate::storage::PayloadStorage for MaybeOpenFsRepository {
             .boxed()
     }
 
-    async unsafe fn write_data(
-        &self,
-        reader: Pin<Box<dyn BlobRead>>,
-    ) -> Result<(encoding::Digest, u64)> {
+    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
         let opened = self.opened().await?;
-        // Safety: we are simply deferring this function to the inner
-        // one and so the same safety rules apply to our caller
-        unsafe { opened.write_data(reader).await }
+        opened.write_data(reader).await
     }
 
     async fn open_payload(
@@ -61,10 +56,7 @@ impl crate::storage::PayloadStorage for OpenFsRepository {
         Box::pin(self.payloads.iter())
     }
 
-    async unsafe fn write_data(
-        &self,
-        reader: Pin<Box<dyn BlobRead>>,
-    ) -> Result<(encoding::Digest, u64)> {
+    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
         self.payloads.write_data(reader).await
     }
 
