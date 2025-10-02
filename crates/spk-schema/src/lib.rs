@@ -77,7 +77,15 @@ pub use spk_schema_foundation::{
     version,
     version_range,
 };
-pub use template::{Template, TemplateData, TemplateExt};
+pub use template::{
+    DiscoveryStrategy,
+    GitTagsDiscovery,
+    Template,
+    TemplateData,
+    TemplateExt,
+    TemplateSpec,
+    VersionDiscovery,
+};
 pub use test::{Test, TestStage};
 pub use v0::{AutoHostVars, RecipeComponentSpec, Script};
 pub use validation::{ValidationRule, ValidationSpec};

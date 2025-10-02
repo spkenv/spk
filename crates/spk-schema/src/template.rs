@@ -5,8 +5,39 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use crate::foundation::option_map::OptionMap;
+use serde::{Deserialize, Serialize};
+use spk_schema_foundation::option_map::OptionMap;
+
 use crate::{Result, SpecFileData};
+
+/// A recipe template for building multiple versions of a package.
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Deserialize, Serialize)]
+pub struct TemplateSpec {
+    pub versions: VersionDiscovery,
+}
+
+/// Defines how to discover the versions a template supports.
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Deserialize, Serialize)]
+pub struct VersionDiscovery {
+    pub discover: DiscoveryStrategy,
+}
+
+/// The strategy for discovering versions.
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscoveryStrategy {
+    pub git_tags: GitTagsDiscovery,
+}
+
+/// Configuration for discovering versions from git tags.
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Deserialize, Serialize)]
+pub struct GitTagsDiscovery {
+    pub url: String,
+    #[serde(rename = "match")]
+    pub match_pattern: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extract: Option<String>,
+}
 
 /// Can be rendered into a recipe.
 #[enum_dispatch::enum_dispatch]
