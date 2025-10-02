@@ -321,9 +321,9 @@ sources:
   - git: https://downloads.testing/my-package/v{{ opt.typo }}
 "#;
     let tpl = SpecTemplate {
+        template_spec: None,
         name: Some(PkgName::new("my-package").unwrap().to_owned()),
         file_path: "my-package.spk.yaml".into(),
-        versions: Default::default(),
         template: SPEC.into(),
     };
     let options = option_map! {"version" => "1.0.0"};
@@ -346,9 +346,9 @@ fn test_template_namespace_options() {
     format_serde_error::never_color();
     static SPEC: &str = r#"pkg: mypackage/{{ opt.namespace.version }}"#;
     let tpl = SpecTemplate {
+        template_spec: None,
         name: Some(PkgName::new("my-package").unwrap().to_owned()),
         file_path: "my-package.spk.yaml".into(),
-        versions: Default::default(),
         template: SPEC.into(),
     };
     let options = option_map! {"namespace.version" => "1.0.0"};

@@ -40,6 +40,7 @@ use crate::{
     RuntimeEnvironment,
     Template,
     TemplateExt,
+    TemplateSpec,
     Test,
     TestStage,
     Variant,
@@ -135,13 +136,18 @@ macro_rules! spec {
     }};
 }
 
-/// A generic, structured data object that can be turned into a recipe
-/// when provided with the necessary option values
+/// A recipe template that can be rendered into a full recipe spec.
+///
+/// This struct represents a spec file that may contain a top-level `template` block,
+/// which defines how to discover versions and render the recipe for a specific version.
 #[derive(Debug, Clone)]
 pub struct SpecTemplate {
+    /// The structured metadata from the `template:` block.
+    template_spec: Option<TemplateSpec>,
     name: Option<PkgNameBuf>,
-    versions: HashSet<Version>,
+    /// The path to the file this template was loaded from.
     file_path: std::path::PathBuf,
+    /// The full source of the file this template was loaded from.
     template: Arc<str>,
 }
 
@@ -156,19 +162,12 @@ impl SpecTemplate {
         self.name.as_ref()
     }
 
-    /// The versions that are available to create with this template.
+    /// Discover the versions that are available to create with this template.
     ///
-    /// An empty set does not signify no versions, but rather that
-    /// nothing has been specified or discerned.
-    pub fn versions(&self) -> &HashSet<Version> {
-        &self.versions
-    }
-
-    /// Clear and reset the versions that are available to create
-    /// with this template.
-    pub fn set_versions(&mut self, versions: impl IntoIterator<Item = Version>) {
-        self.versions.clear();
-        self.versions.extend(versions);
+    /// In a real implementation, this would be async and perform I/O.
+    /// For now, it returns a placeholder.
+    pub fn discover_versions(&self) -> Result<HashSet<Version>> {
+        todo!()
     }
 }
 
@@ -206,7 +205,7 @@ impl TemplateExt for SpecTemplate {
 
         // validate that the template is still a valid yaml mapping even
         // though we will need to re-process it again later on
-        let template_value: serde_yaml::Mapping = match serde_yaml::from_str(&template) {
+        let mut template_value: serde_yaml::Mapping = match serde_yaml::from_str(&template) {
             Err(err) => {
                 return Err(Error::InvalidYaml(SerdeError::new(
                     template,
@@ -262,10 +261,24 @@ impl TemplateExt for SpecTemplate {
             Some(PkgNameBuf::from_str(pkg.split('/').next().unwrap_or(pkg))?)
         };
 
+        let template_spec =
+            template_value.remove(serde_yaml::Value::String("template".to_string()));
+        let template_spec = match template_spec {
+            Some(s) => match serde_yaml::from_value(s) {
+                Ok(v) => Some(v),
+                Err(err) => {
+                    return Err(
+                        format_serde_error::SerdeError::new(template, SerdeYamlError(err)).into(),
+                    );
+                }
+            },
+            None => None,
+        };
+
         Ok(Self {
+            template_spec,
             file_path,
             name,
-            versions: Default::default(),
             template: template.into(),
         })
     }
