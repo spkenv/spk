@@ -78,13 +78,14 @@ pub use spk_schema_foundation::{
     version_range,
 };
 pub use template::{
-    DiscoveryStrategy,
+    DiscoverStrategy,
+    DiscoverVersions,
     GitTagsDiscovery,
+    OrderedVersionSet,
     Template,
     TemplateData,
     TemplateExt,
     TemplateSpec,
-    VersionDiscovery,
 };
 pub use test::{Test, TestStage};
 pub use v0::{AutoHostVars, RecipeComponentSpec, Script};

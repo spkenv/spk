@@ -4,7 +4,7 @@
 
 //! Find and/or build workspaces.
 
-use std::collections::HashMap;
+use std::collections::BTreeSet;
 
 use crate::error;
 
@@ -13,7 +13,7 @@ use crate::error;
 #[derive(Default)]
 pub struct WorkspaceBuilder {
     root: Option<std::path::PathBuf>,
-    spec_files: HashMap<std::path::PathBuf, crate::file::TemplateConfig>,
+    spec_files: BTreeSet<std::path::PathBuf>,
 }
 
 impl WorkspaceBuilder {
@@ -68,10 +68,7 @@ impl WorkspaceBuilder {
             .unwrap_or(item.path.as_str());
         let mut glob_results = glob::glob(pattern)?;
         while let Some(path) = glob_results.next().transpose()? {
-            self.spec_files
-                .entry(path)
-                .or_default()
-                .update(item.config.clone());
+            self.spec_files.insert(path);
         }
 
         Ok(self)
@@ -89,15 +86,14 @@ impl WorkspaceBuilder {
     ) -> Result<Self, error::FromFileError> {
         self.with_recipes_item(&crate::file::RecipesItem {
             path: glob::Pattern::new(pattern.as_ref())?,
-            config: Default::default(),
         })
     }
 
     /// Build the workspace as configured.
     pub fn build(self) -> Result<super::Workspace, error::BuildError> {
         let mut workspace = super::Workspace::default();
-        for (file, config) in self.spec_files {
-            match workspace.load_template_file_with_config(&file, config) {
+        for file in self.spec_files {
+            match workspace.load_template_file(&file) {
                 Ok(_) => {}
                 Err(e) => {
                     tracing::warn!(

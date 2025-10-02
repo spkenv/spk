@@ -10,11 +10,15 @@ use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, Reposito
 use spk_schema::foundation::option_map;
 use spk_schema::foundation::version::Version;
 use spk_schema::prelude::HasVersion;
-use spk_schema::{BuildIdent, Spec, SpecRecipe, Template, VersionIdent};
+use spk_schema::{BuildIdent, DiscoverVersions, Spec, SpecRecipe, Template, VersionIdent};
 
 use super::Repository;
 use super::repository::{PublishPolicy, Storage};
 use crate::{Error, Result};
+
+#[cfg(test)]
+#[path = "./workspace_test.rs"]
+mod workspace_test;
 
 /// A repository that represents package build for
 /// and from an [`spk_workspace::Workspace`].
@@ -190,8 +194,18 @@ impl Repository for WorkspaceRepository {
         Ok(unique.into_iter().collect())
     }
 
-    async fn list_package_versions(&self, _name: &PkgName) -> Result<Arc<Vec<Arc<Version>>>> {
-        Ok(Arc::new(Vec::new()))
+    async fn list_package_versions(&self, name: &PkgName) -> Result<Arc<Vec<Arc<Version>>>> {
+        let mut versions = HashSet::new();
+        for (tpl_name, tpl) in self.inner.iter() {
+            if tpl_name != name {
+                continue;
+            }
+            let discovered = tpl.discover_versions()?;
+            versions.extend(discovered.into_iter().map(Arc::new));
+        }
+        let mut sorted = versions.into_iter().collect::<Vec<_>>();
+        sorted.sort();
+        Ok(Arc::new(sorted))
     }
 
     async fn list_build_components(&self, pkg: &BuildIdent) -> Result<Vec<Component>> {
@@ -211,7 +225,7 @@ impl Repository for WorkspaceRepository {
                     return None;
                 }
                 let options = option_map! { "version" => pkg.version().to_string() };
-                let rendered = tpl.template.render(&options).ok()?;
+                let rendered = tpl.render(&options).ok()?;
                 let recipe = rendered.into_recipe().ok()?;
                 if recipe.version() == pkg.version() {
                     Some(recipe)
