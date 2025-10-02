@@ -6,15 +6,10 @@
 //!
 //! The format and loading process for workspace yaml files.
 
-use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 
-use bracoxide::OxidizationError;
-use bracoxide::tokenizer::TokenizationError;
 use serde::Deserialize;
 use spk_schema::foundation::FromYaml;
-use spk_schema::version::Version;
 
 use crate::error::LoadWorkspaceFileError;
 
@@ -84,8 +79,6 @@ impl WorkspaceFile {
 pub struct RecipesItem {
     /// The path to a recipe file or files in the workspace.
     pub path: glob::Pattern,
-    /// Configuration for how the recipe template should be used.
-    pub config: TemplateConfig,
 }
 
 impl<'de> serde::de::Deserialize<'de> for RecipesItem {
@@ -107,10 +100,7 @@ impl<'de> serde::de::Deserialize<'de> for RecipesItem {
                 E: serde::de::Error,
             {
                 let path = glob::Pattern::new(v).map_err(serde::de::Error::custom)?;
-                Ok(RecipesItem {
-                    path,
-                    config: Default::default(),
-                })
+                Ok(RecipesItem { path })
             }
 
             fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
@@ -120,105 +110,14 @@ impl<'de> serde::de::Deserialize<'de> for RecipesItem {
                 #[derive(Deserialize)]
                 struct RawRecipeItem {
                     path: String,
-                    #[serde(flatten)]
-                    config: TemplateConfig,
                 }
 
-                let RawRecipeItem { path, config } =
+                let RawRecipeItem { path } =
                     RawRecipeItem::deserialize(serde::de::value::MapAccessDeserializer::new(map))?;
-                let mut base = self.visit_str(&path)?;
-                base.config = config;
-                Ok(base)
+                self.visit_str(&path)
             }
         }
 
         deserializer.deserialize_any(RecipeCollectorVisitor)
-    }
-}
-
-/// Defines how a template can and should be used.
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Default)]
-pub struct TemplateConfig {
-    /// Ordered set of versions that this template can produce.
-    ///
-    /// An empty set of versions does not mean that no versions can
-    /// be produced, but rather that any can be attempted. It's also
-    /// typical for a template to have a single hard-coded version inside
-    /// and so not need to specify values for this field.
-    pub versions: BTreeSet<Version>,
-}
-
-impl TemplateConfig {
-    /// Update this config with newly specified data.
-    ///
-    /// Default values in the provided `other` value do not
-    /// overwrite existing data in this instance.
-    pub fn update(&mut self, other: Self) {
-        let Self { versions } = other;
-        if !versions.is_empty() {
-            self.versions = versions;
-        }
-    }
-}
-
-impl<'de> serde::de::Deserialize<'de> for TemplateConfig {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::de::Deserializer<'de>,
-    {
-        struct TemplateConfigVisitor;
-
-        impl<'de> serde::de::Visitor<'de> for TemplateConfigVisitor {
-            type Value = TemplateConfig;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                formatter.write_str("additional recipe collection configuration")
-            }
-
-            fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
-            where
-                A: serde::de::MapAccess<'de>,
-            {
-                #[derive(Deserialize)]
-                struct RawConfig {
-                    versions: Vec<String>,
-                }
-
-                let raw_config =
-                    RawConfig::deserialize(serde::de::value::MapAccessDeserializer::new(map))?;
-                let mut base = TemplateConfig::default();
-                for (i, version_expr) in raw_config.versions.into_iter().enumerate() {
-                    let expand_result = bracoxide::bracoxidize(&version_expr);
-                    let expanded = match expand_result {
-                        Ok(expanded) => expanded,
-                        Err(OxidizationError::TokenizationError(TokenizationError::NoBraces))
-                        | Err(OxidizationError::TokenizationError(
-                            TokenizationError::EmptyContent,
-                        ))
-                        | Err(OxidizationError::TokenizationError(
-                            TokenizationError::FormatNotSupported,
-                        )) => {
-                            vec![version_expr]
-                        }
-                        Err(err) => {
-                            return Err(serde::de::Error::custom(format!(
-                                "invalid brace expansion in position {i}: {err:?}"
-                            )));
-                        }
-                    };
-                    for version in expanded {
-                        let parsed = Version::from_str(&version).map_err(|err| {
-                            serde::de::Error::custom(format!(
-                                "brace expansion in position {i} produced invalid version '{version}': {err}"
-                            ))
-                        })?;
-                        base.versions.insert(parsed);
-                    }
-                }
-                Ok(base)
-            }
-        }
-
-        deserializer.deserialize_map(TemplateConfigVisitor)
     }
 }

@@ -493,16 +493,16 @@ impl View {
         workspace: &mut spk_workspace::Workspace,
         show_variants_with_tests: bool,
     ) -> Result<i32> {
-        let configured = match self.package.as_ref() {
+        let template = match self.package.as_ref() {
             Some(name) => workspace.find_or_load_package_template(name),
             None => workspace.default_package_template().map_err(From::from),
         }
         .wrap_err("did not find recipe template")?;
-        let rendered_data = configured.template.render(options)?;
+        let rendered_data = template.render(options)?;
         let recipe = rendered_data.into_recipe().wrap_err_with(|| {
             format!(
                 "{filename} was expected to contain a recipe",
-                filename = configured.template.file_path().to_string_lossy()
+                filename = template.file_path().to_string_lossy()
             )
         })?;
 
