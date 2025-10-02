@@ -455,13 +455,9 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
             return Ok(SyncBlobResult::Skipped);
         }
         self.reporter.visit_blob(blob);
-        // Safety: sync_payload is unsafe to call unless the blob
-        // is synced with it, which is the purpose of this function.
-        let result = unsafe {
-            self.sync_payload_with_perms_opt(*blob.payload(), perms)
-                .await?
-        };
-        self.dest.write_blob(blob.to_owned()).await?;
+        let result = self
+            .sync_payload_with_perms_opt(*blob.payload(), perms)
+            .await?;
         self.processed_digests.insert(*digest);
         let res = SyncBlobResult::Synced {
             blob: blob.to_owned(),
@@ -472,26 +468,13 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
     }
 
     /// Sync a payload with the provided digest
-    ///
-    /// # Safety
-    ///
-    /// It is unsafe to call this sync function on its own,
-    /// as any payload should be synced alongside its
-    /// corresponding Blob instance - use [`Self::sync_blob`] instead
-    pub async unsafe fn sync_payload(&self, digest: encoding::Digest) -> Result<SyncPayloadResult> {
-        // Safety: these concerns are passed on to the caller
-        unsafe { self.sync_payload_with_perms_opt(digest, None).await }
+    pub async fn sync_payload(&self, digest: encoding::Digest) -> Result<SyncPayloadResult> {
+        self.sync_payload_with_perms_opt(digest, None).await
     }
 
     /// Sync a payload with the provided digest and optional set
     /// of desired permissions.
-    ///
-    /// # Safety
-    ///
-    /// It is unsafe to call this sync function on its own,
-    /// as any payload should be synced alongside its
-    /// corresponding Blob instance - use [`Self::sync_blob`] instead
-    pub(crate) async unsafe fn sync_payload_with_perms_opt(
+    pub(crate) async fn sync_payload_with_perms_opt(
         &self,
         digest: encoding::Digest,
         perms: Option<u32>,
@@ -515,9 +498,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
             payload = Box::pin(payload.with_permissions(perms));
         }
 
-        // Safety: this is the unsafe part where we actually create
-        // the payload without a corresponding blob
-        let (created_digest, size) = unsafe { self.dest.write_data(payload).await? };
+        let (created_digest, size) = self.dest.write_data(payload).await?;
         if digest != created_digest {
             return Err(Error::String(format!(
                 "Source repository provided payload that did not match the requested digest: wanted {digest}, got {created_digest}. wrote {size} bytes",

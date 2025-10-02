@@ -202,6 +202,21 @@ impl graph::DatabaseExt for ProxyRepository {
     }
 }
 
+pub(crate) async fn payload_size<R>(repo: R, digest: encoding::Digest) -> Result<u64>
+where
+    R: ProxyRepositoryExt,
+{
+    if let Ok(size) = repo.primary().payload_size(digest).await {
+        return Ok(size);
+    }
+    for secondary in repo.secondary().iter() {
+        if let Ok(size) = secondary.payload_size(digest).await {
+            return Ok(size);
+        }
+    }
+    Err(crate::Error::UnknownObject(digest))
+}
+
 #[async_trait::async_trait]
 impl PayloadStorage for ProxyRepository {
     async fn has_payload(&self, digest: encoding::Digest) -> bool {
@@ -216,18 +231,16 @@ impl PayloadStorage for ProxyRepository {
         false
     }
 
+    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+        payload_size(self, digest).await
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         self.primary.iter_payload_digests()
     }
 
-    async unsafe fn write_data(
-        &self,
-        reader: Pin<Box<dyn BlobRead>>,
-    ) -> Result<(encoding::Digest, u64)> {
-        // Safety: we are wrapping the same underlying unsafe function and
-        // so the same safety holds for our callers
-        let res = unsafe { self.primary.write_data(reader).await? };
-        Ok(res)
+    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
+        self.primary.write_data(reader).await
     }
 
     async fn open_payload(

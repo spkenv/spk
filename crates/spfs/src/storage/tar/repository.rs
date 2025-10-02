@@ -287,17 +287,16 @@ impl PayloadStorage for TarRepository {
         self.repo.has_payload(digest).await
     }
 
+    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+        self.repo.payload_size(digest).await
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         self.repo.iter_payload_digests()
     }
 
-    async unsafe fn write_data(
-        &self,
-        reader: Pin<Box<dyn BlobRead>>,
-    ) -> Result<(encoding::Digest, u64)> {
-        // Safety: we are wrapping the same underlying unsafe function and
-        // so the same safety holds for our callers
-        let res = unsafe { self.repo.write_data(reader).await? };
+    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
+        let res = self.repo.write_data(reader).await?;
         self.up_to_date
             .store(false, std::sync::atomic::Ordering::Release);
         Ok(res)

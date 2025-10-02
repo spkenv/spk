@@ -280,17 +280,16 @@ impl PayloadStorage for FallbackProxy {
         false
     }
 
+    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+        crate::storage::proxy::payload_size(self, digest).await
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         self.primary.iter_payload_digests()
     }
 
-    async unsafe fn write_data(
-        &self,
-        reader: Pin<Box<dyn BlobRead>>,
-    ) -> Result<(encoding::Digest, u64)> {
-        // Safety: we are wrapping the same underlying unsafe function and
-        // so the same safety holds for our callers
-        let res = unsafe { self.primary.write_data(reader).await? };
+    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
+        let res = self.primary.write_data(reader).await?;
         Ok(res)
     }
 
@@ -304,16 +303,7 @@ impl PayloadStorage for FallbackProxy {
             let missing_payload_error = match self.primary.open_payload(digest).await {
                 Ok(r) => return Ok(r),
                 Err(err @ Error::ObjectMissingPayload(_, _)) => err,
-                Err(err @ Error::UnknownObject(_)) => {
-                    // Try to repair the missing blob. There can be hash
-                    // collisions so use `read_blob` specifically in case
-                    // there is an object of some other type with the same
-                    // digest.
-                    if self.read_blob(digest).await.is_ok() {
-                        continue;
-                    }
-                    return Err(err);
-                }
+                Err(err @ Error::UnknownObject(_)) => err,
                 Err(err) => return Err(err),
             };
 

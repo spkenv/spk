@@ -197,7 +197,7 @@ async fn test_check_missing_object_recover(#[future] tmprepo: TempRepo) {
 
     tracing::info!(digest=%file.object(), "remove object");
     tmprepo
-        .remove_object(*file.object())
+        .remove_payload(*file.object())
         .await
         .expect("failed to remove object");
 
@@ -258,7 +258,7 @@ async fn check_missing_annotation_blob(#[future] tmprepo: TempRepo) {
     let tmprepo = tmprepo.await;
 
     let blob = tmprepo
-        .commit_blob(Box::pin(b"this is some data".as_slice()))
+        .commit_payload(Box::pin(b"this is some data".as_slice()))
         .await
         .unwrap();
 

@@ -257,17 +257,16 @@ impl PayloadStorage for RepositoryHandle {
         each_variant!(self, repo, { repo.has_payload(digest).await })
     }
 
+    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+        each_variant!(self, repo, { repo.payload_size(digest).await })
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         each_variant!(self, repo, { repo.iter_payload_digests() })
     }
 
-    async unsafe fn write_data(
-        &self,
-        reader: Pin<Box<dyn BlobRead>>,
-    ) -> Result<(encoding::Digest, u64)> {
-        // Safety: we are wrapping the same underlying unsafe function and
-        // so the same safety holds for our callers
-        unsafe { each_variant!(self, repo, { repo.write_data(reader).await }) }
+    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
+        each_variant!(self, repo, { repo.write_data(reader).await })
     }
 
     async fn open_payload(
@@ -432,17 +431,16 @@ impl PayloadStorage for Arc<RepositoryHandle> {
         each_variant!(&**self, repo, { repo.has_payload(digest).await })
     }
 
+    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+        each_variant!(&**self, repo, { repo.payload_size(digest).await })
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         each_variant!(&**self, repo, { repo.iter_payload_digests() })
     }
 
-    async unsafe fn write_data(
-        &self,
-        reader: Pin<Box<dyn BlobRead>>,
-    ) -> Result<(encoding::Digest, u64)> {
-        // Safety: we are wrapping the same underlying unsafe function and
-        // so the same safety holds for our callers
-        unsafe { each_variant!(&**self, repo, { repo.write_data(reader).await }) }
+    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
+        each_variant!(&**self, repo, { repo.write_data(reader).await })
     }
 
     async fn open_payload(

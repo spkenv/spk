@@ -27,6 +27,20 @@ impl storage::PayloadStorage for super::RpcRepository {
             .unwrap_or(false)
     }
 
+    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+        let request = proto::PayloadSizeRequest {
+            digest: Some(digest.into()),
+        };
+        let response = self
+            .payload_client
+            .clone()
+            .payload_size(request)
+            .await?
+            .into_inner()
+            .to_result()?;
+        Ok(response)
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         let request = proto::IterDigestsRequest {};
         let mut client = self.payload_client.clone();
@@ -39,10 +53,7 @@ impl storage::PayloadStorage for super::RpcRepository {
         Box::pin(stream)
     }
 
-    async unsafe fn write_data(
-        &self,
-        reader: Pin<Box<dyn BlobRead>>,
-    ) -> Result<(encoding::Digest, u64)> {
+    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
         let request = proto::WritePayloadRequest {};
         let option = self
             .payload_client

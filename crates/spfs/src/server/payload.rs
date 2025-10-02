@@ -70,6 +70,18 @@ impl proto::payload_service_server::PayloadService for PayloadService {
         Ok(Response::new(result))
     }
 
+    async fn payload_size(
+        &self,
+        request: Request<proto::PayloadSizeRequest>,
+    ) -> Result<Response<proto::PayloadSizeResponse>, Status> {
+        let request = request.into_inner();
+        let digest = convert_digest(request.digest)
+            .map_err(|err| Status::invalid_argument(err.to_string()))?;
+        let size = proto::handle_error!(self.repo.payload_size(digest).await);
+        let result = proto::PayloadSizeResponse::ok(size);
+        Ok(Response::new(result))
+    }
+
     async fn open_payload(
         &self,
         request: Request<proto::OpenPayloadRequest>,
@@ -180,11 +192,7 @@ async fn handle_uncompressed_upload(
     repo: Arc<storage::RepositoryHandle>,
     reader: Pin<Box<dyn crate::tracking::BlobRead>>,
 ) -> crate::Result<hyper::Response<ResponseBody>> {
-    // Safety: it is unsafe to create a payload without its corresponding
-    // blob, but this payload http server is part of a larger repository
-    // and does not intend to be responsible for ensuring the integrity
-    // of the object graph - only the up/down of payload data
-    let result = unsafe { repo.write_data(reader).await };
+    let result = repo.write_data(reader).await;
     let (digest, size) = result.map_err(|err| {
         crate::Error::String(format!(
             "An error occurred while spawning a thread for this operation: {err:?}"
