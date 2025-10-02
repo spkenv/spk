@@ -64,6 +64,15 @@ pub const TAG_SEP: &str = ".";
 pub const SENTINEL_LABEL: &str = "Tail";
 pub const POSITION_LABELS: &[&str] = &["Major", "Minor", "Patch"];
 
+/// A macro to create a new version from a string literal, panics if the version is invalid.
+#[macro_export]
+macro_rules! version {
+    ($version:literal) => {
+        <$crate::version::Version as ::std::str::FromStr>::from_str($version)
+            .expect("invalid version")
+    };
+}
+
 /// Returns the name of the version component at the given position.
 ///
 /// Position zero corresponds to 'Major', 1 to 'Minor' and so on.

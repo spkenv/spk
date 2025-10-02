@@ -11,7 +11,6 @@ use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::{
     BuildIdent,
     InclusionPolicy,
-    NameAndValue,
     PkgRequest,
     RangeIdent,
     Request,
@@ -21,7 +20,7 @@ use spk_schema_foundation::ident::{
 };
 use spk_schema_foundation::ident_build::{Build, BuildId};
 use spk_schema_foundation::ident_component::Component;
-use spk_schema_foundation::name::{OptName, PkgName};
+use spk_schema_foundation::name::{OptName, OptNameBuf, PkgName, PkgNameBuf};
 use spk_schema_foundation::option_map::{HOST_OPTIONS, OptionMap};
 use spk_schema_foundation::spec_ops::{HasVersion, Named, Versioned};
 use spk_schema_foundation::version::Version;
@@ -301,7 +300,7 @@ impl PlatformRequirement {
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PlatformPkgRequirement {
-    pkg: VersionIdent,
+    pkg: PkgNameBuf,
     #[serde(
         default,
         with = "value_or_false",
@@ -318,7 +317,7 @@ pub struct PlatformPkgRequirement {
 
 impl Named<OptName> for PlatformPkgRequirement {
     fn name(&self) -> &OptName {
-        self.pkg.name().as_opt_name()
+        self.pkg.as_opt_name()
     }
 }
 
@@ -346,7 +345,7 @@ impl PlatformPkgRequirement {
                     .insert_or_replace(Request::Pkg(PkgRequest {
                         pkg: RangeIdent {
                             repository_name: None,
-                            name: self.pkg.name().to_owned(),
+                            name: self.pkg.clone(),
                             version: v.clone(),
                             components: Default::default(),
                             build: None,
@@ -374,7 +373,7 @@ impl PlatformPkgRequirement {
                     .insert_or_replace(Request::Pkg(PkgRequest {
                         pkg: RangeIdent {
                             repository_name: None,
-                            name: self.pkg.name().to_owned(),
+                            name: self.pkg.clone(),
                             version: v.clone(),
                             components: Default::default(),
                             build: None,
@@ -396,7 +395,7 @@ impl PlatformPkgRequirement {
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PlatformVarRequirement {
-    var: NameAndValue,
+    var: OptNameBuf,
     #[serde(
         default,
         with = "value_or_false",
@@ -413,7 +412,7 @@ pub struct PlatformVarRequirement {
 
 impl Named<OptName> for PlatformVarRequirement {
     fn name(&self) -> &OptName {
-        &self.var.0
+        &self.var
     }
 }
 
@@ -443,7 +442,7 @@ impl PlatformVarRequirement {
                 build_component
                     .requirements
                     .insert_or_replace(Request::Var(VarRequest {
-                        var: self.var.0.clone(),
+                        var: self.var.clone(),
                         value: spk_schema_foundation::ident::PinnableValue::Pinned(Arc::from(
                             v.as_str(),
                         )),
@@ -463,7 +462,7 @@ impl PlatformVarRequirement {
                 runtime_component
                     .requirements
                     .insert_or_replace(Request::Var(VarRequest {
-                        var: self.var.0.clone(),
+                        var: self.var.clone(),
                         value: spk_schema_foundation::ident::PinnableValue::Pinned(Arc::from(
                             v.as_str(),
                         )),

@@ -4709,6 +4709,7 @@ dependencies = [
 name = "spk-schema"
 version = "0.44.0"
 dependencies = [
+ "bracoxide",
  "config",
  "data-encoding",
  "dunce",
@@ -4739,6 +4740,7 @@ dependencies = [
  "tempfile",
  "thiserror 1.0.69",
  "tracing",
+ "url",
 ]
 
 [[package]]

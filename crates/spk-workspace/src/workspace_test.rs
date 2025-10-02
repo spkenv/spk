@@ -5,7 +5,7 @@
 use std::vec;
 
 use rstest::{fixture, rstest};
-use spk_schema::Template;
+use spk_schema::{DiscoverVersions, Template};
 
 use super::Workspace;
 
@@ -45,13 +45,9 @@ fn test_config_specialization(tmpdir: tempfile::TempDir) {
             recipes: vec![
                 crate::file::RecipesItem {
                     path: "*.spk.yaml".parse().unwrap(),
-                    config: Default::default(),
                 },
                 crate::file::RecipesItem {
                     path: "pkg-a.spk.yaml".parse().unwrap(),
-                    config: crate::file::TemplateConfig {
-                        versions: vec![v1.clone()].into_iter().collect(),
-                    },
                 },
             ],
         })
@@ -61,9 +57,8 @@ fn test_config_specialization(tmpdir: tempfile::TempDir) {
 
     let found = workspace.find_package_template("pkg-a").unwrap();
     assert!(
-        found.config.versions.contains(&v1),
-        "config specialization should apply based on workspace file order, got: {:?}",
-        found.config
+        found.discover_versions().unwrap().contains(&v1),
+        "config specialization should apply based on workspace file order, got: {found:?}",
     )
 }
 
@@ -131,7 +126,6 @@ fn test_workspace_find_template(
     let result = result.expect("should be found");
     assert_eq!(
         result
-            .template
             .file_path()
             .file_name()
             .expect("template has file name")
@@ -161,19 +155,12 @@ fn test_workspace_find_by_version(tmpdir: tempfile::TempDir) {
             recipes: vec![
                 crate::file::RecipesItem {
                     path: "*.spk.yaml".parse().unwrap(),
-                    config: Default::default(),
                 },
                 crate::file::RecipesItem {
                     path: "1.spk.yaml".parse().unwrap(),
-                    config: crate::file::TemplateConfig {
-                        versions: vec![v1.clone()].into_iter().collect(),
-                    },
                 },
                 crate::file::RecipesItem {
                     path: "2.spk.yaml".parse().unwrap(),
-                    config: crate::file::TemplateConfig {
-                        versions: vec!["2.0.0".parse().unwrap()].into_iter().collect(),
-                    },
                 },
             ],
         })
@@ -195,8 +182,7 @@ fn test_workspace_find_by_version(tmpdir: tempfile::TempDir) {
         .find_package_template("my-package/1")
         .expect("should find template when multiple exist but an unambiguous version is given");
     assert!(
-        found.config.versions.contains(&v1),
-        "should select the requested version, got: {:?}",
-        found.config
+        found.discover_versions().unwrap().contains(&v1),
+        "should select the requested version, got: {found:?}",
     )
 }

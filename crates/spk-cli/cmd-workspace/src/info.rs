@@ -3,7 +3,7 @@ use colored::Colorize;
 use itertools::Itertools;
 use miette::{IntoDiagnostic, Result};
 use spk_cli_common::{CommandArgs, Run};
-use spk_schema::Template;
+use spk_schema::{DiscoverVersions, Template};
 
 /// Print information about the current workspace
 #[derive(Args, Clone)]
@@ -40,8 +40,7 @@ impl Run for Info {
         packages.sort_by(|a, b| a.0.cmp(b.0));
         for (pkg, tpl) in packages {
             let mut versions = tpl
-                .config
-                .versions
+                .discover_versions()?
                 .iter()
                 .map(|v| v.to_string())
                 .collect_vec();
@@ -50,7 +49,7 @@ impl Run for Info {
                 versions.truncate(5);
                 versions.push(tail);
             }
-            let path = tpl.template.file_path();
+            let path = tpl.file_path();
             // try to get a relative workspace path, if possible
             let path = path
                 .strip_prefix(&root)
