@@ -8,9 +8,10 @@ use std::str::FromStr;
 
 use bracoxide::OxidizationError;
 use bracoxide::tokenizer::TokenizationError;
+use serde::de::value::MapAccessDeserializer;
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::option_map::OptionMap;
+use spk_schema_foundation::option_map::{OptionMap, Stringified};
 use spk_schema_foundation::version::Version;
 
 use crate::{Error, Result, SpecFileData};
@@ -176,11 +177,49 @@ impl serde::Serialize for OrderedVersionSet {
 }
 
 /// The strategy for discovering versions.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 #[enum_dispatch::enum_dispatch(DiscoverVersions)]
 pub enum DiscoverStrategy {
     GitTags(GitTagsDiscovery),
+}
+
+impl<'de> Deserialize<'de> for DiscoverStrategy {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct DiscoverStrategyVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for DiscoverStrategyVisitor {
+            type Value = DiscoverStrategy;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a version discovery method")
+            }
+
+            fn visit_map<A>(self, map: A) -> std::result::Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let mut peekable = serde_peekable::PeekableMapAccess::from(map);
+                let first_key = peekable.peek_key::<Stringified>()?;
+                let Some(first_key) = first_key else {
+                    return Err(serde::de::Error::missing_field("pkg or var"));
+                };
+                match first_key.as_ref() {
+                    "gitTags" => Ok(DiscoverStrategy::GitTags(Deserialize::deserialize(
+                        MapAccessDeserializer::new(peekable),
+                    )?)),
+                    _ => Err(serde::de::Error::custom(
+                        "expected 'gitTags' as the first key",
+                    )),
+                }
+            }
+        }
+
+        deserializer.deserialize_any(DiscoverStrategyVisitor)
+    }
 }
 
 /// Discover versions from git tags.
@@ -354,7 +393,7 @@ mod serde_regex {
     where
         D: serde::de::Deserializer<'de>,
     {
-        deserializer.deserialize_map(RegexVisitor)
+        deserializer.deserialize_any(RegexVisitor)
     }
 
     pub fn serialize<S>(
