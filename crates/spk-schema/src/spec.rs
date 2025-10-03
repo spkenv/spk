@@ -24,7 +24,7 @@ use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{PkgRequest, Request, Satisfy, VarRequest};
 use crate::metadata::Meta;
-use crate::template::DiscoverVersions;
+use crate::template::{DiscoverVersions, TemplateRenderConfig, TemplateSpec};
 use crate::{
     BuildEnv,
     Deprecate,
@@ -41,7 +41,6 @@ use crate::{
     RuntimeEnvironment,
     Template,
     TemplateExt,
-    TemplateSpec,
     Test,
     TestStage,
     Variant,
@@ -145,6 +144,8 @@ macro_rules! spec {
 pub struct SpecTemplate {
     /// The structured metadata from the `template:` block.
     template_spec: TemplateSpec,
+    /// Cached set of discovered versions, to avoid costly re-discovery.
+    supported_versions: once_cell::sync::OnceCell<BTreeSet<Version>>,
     /// The name of the api item that this template is for, if any.
     ///
     /// Some api items are unnamed, in which case this will be `None`.
@@ -169,7 +170,9 @@ impl SpecTemplate {
 
 impl DiscoverVersions for SpecTemplate {
     fn discover_versions(&self) -> Result<BTreeSet<Version>> {
-        self.template_spec.versions.discover_versions()
+        self.supported_versions
+            .get_or_try_init(|| self.template_spec.versions.discover_versions())
+            .cloned()
     }
 }
 
@@ -178,20 +181,35 @@ impl Template for SpecTemplate {
         &self.file_path
     }
 
-    fn render_to_string(&self, options: &OptionMap) -> Result<String> {
-        let versions = self.discover_versions()?;
-        if versions.is_empty() {
-            return Err(Error::String("No versions found".to_string()));
-        } else if versions.len() > 1 {
-            return Err(Error::String("Too many versions".to_string()));
-        };
-        let data = super::TemplateData::new(
-            versions
-                .first()
-                .expect("validated that one version exists")
-                .clone(),
+    fn render_to_string(&self, data: TemplateRenderConfig) -> Result<String> {
+        let TemplateRenderConfig {
+            version,
             options,
-        );
+            environment,
+        } = data;
+        let supported_versions = self.discover_versions()?;
+        if supported_versions.is_empty() {
+            return Err(Error::String("No versions found".to_string()));
+        }
+        let version = match version {
+            Some(v) if supported_versions.contains(&v) => v,
+            Some(v) => {
+                return Err(Error::String(format!(
+                    "Requested version '{v}' is not supported by this template"
+                )));
+            }
+            None if supported_versions.len() == 1 => supported_versions
+                .into_iter()
+                .next()
+                .expect("len was validated"),
+            None => {
+                return Err(Error::String(
+                    "No version specified, but multiple versions are supported".to_string(),
+                ));
+            }
+        };
+
+        let data = super::template::TemplateData::new(version, options, environment);
         let rendered = spk_schema_tera::render_template(
             self.file_path.to_string_lossy(),
             &self.template,
@@ -294,6 +312,7 @@ impl TemplateExt for SpecTemplate {
 
         Ok(Self {
             template_spec,
+            supported_versions: Default::default(),
             file_path,
             name,
             template: template.into(),

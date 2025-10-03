@@ -498,7 +498,10 @@ impl View {
             None => workspace.default_package_template().map_err(From::from),
         }
         .wrap_err("did not find recipe template")?;
-        let rendered_data = template.render(options)?;
+        let rendered_data = template.render(spk_schema::template::TemplateRenderConfig {
+            options: options.clone(),
+            ..Default::default()
+        })?;
         let recipe = rendered_data.into_recipe().wrap_err_with(|| {
             format!(
                 "{filename} was expected to contain a recipe",
