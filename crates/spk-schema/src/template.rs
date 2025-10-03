@@ -8,9 +8,10 @@ use std::str::FromStr;
 
 use bracoxide::OxidizationError;
 use bracoxide::tokenizer::TokenizationError;
+use serde::de::value::MapAccessDeserializer;
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::option_map::OptionMap;
+use spk_schema_foundation::option_map::{OptionMap, Stringified};
 use spk_schema_foundation::version::Version;
 
 use crate::{Error, Result, SpecFileData};
@@ -176,7 +177,7 @@ impl serde::Serialize for OrderedVersionSet {
 }
 
 /// The strategy for discovering versions.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 #[enum_dispatch::enum_dispatch(DiscoverVersions)]
 pub enum DiscoverStrategy {
@@ -354,7 +355,7 @@ mod serde_regex {
     where
         D: serde::de::Deserializer<'de>,
     {
-        deserializer.deserialize_map(RegexVisitor)
+        deserializer.deserialize_any(RegexVisitor)
     }
 
     pub fn serialize<S>(
