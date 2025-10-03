@@ -8,7 +8,7 @@ use spk_build::BinaryPackageBuilder;
 use spk_schema::Package;
 use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
 use spk_solve::solution::{PackageSource, Solution};
-use spk_solve::{SolverExt, SolverMut};
+use spk_solve::{DecisionFormatter, SolverExt, SolverMut};
 use spk_storage as storage;
 
 use crate::Result;
@@ -18,6 +18,7 @@ use crate::Result;
 /// Returns a new solution of only binary packages.
 pub async fn build_required_packages<Solver>(
     solution: &Solution,
+    formatter: &DecisionFormatter,
     solver: Solver,
 ) -> Result<Solution>
 where
@@ -29,8 +30,8 @@ where
     let options = solution.options();
     let mut compiled_solution = Solution::new(options.clone());
     for item in solution.items() {
-        let recipe = match &item.source {
-            PackageSource::BuildFromSource { recipe, .. } => recipe,
+        let (recipe, repo) = match &item.source {
+            PackageSource::BuildFromSource { recipe, repo } => (recipe, repo),
             source => {
                 compiled_solution.add(item.request.clone(), Arc::clone(&item.spec), source.clone());
                 continue;
@@ -44,11 +45,14 @@ where
         );
         let (package, components) =
             BinaryPackageBuilder::from_recipe_with_solver((**recipe).clone(), solver.clone())
+                .with_repository(Arc::clone(repo))
                 .with_repositories(repos.clone())
+                .with_source_formatter(formatter.clone())
+                .with_build_formatter(formatter.clone())
                 .build_and_publish(&options, &*local_repo)
                 .await?;
         let source = PackageSource::Repository {
-            repo: local_repo.clone(),
+            repo: Arc::clone(&local_repo),
             components,
         };
         compiled_solution.add(item.request.clone(), Arc::new(package), source);
