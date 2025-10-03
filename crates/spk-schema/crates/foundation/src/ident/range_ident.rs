@@ -89,6 +89,12 @@ impl RangeIdent {
         }
     }
 
+    /// Set the repository name for this range ident.
+    pub fn with_repository(mut self, repository: Option<RepositoryNameBuf>) -> Self {
+        self.repository_name = repository;
+        self
+    }
+
     /// Create a range ident that requests the identified package using `==` semantics.
     ///
     /// The returned range will request the identified components of the given package.
