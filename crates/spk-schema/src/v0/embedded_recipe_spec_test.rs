@@ -9,7 +9,6 @@ use spk_schema_foundation::ident_component::Component;
 
 use crate::foundation::FromYaml;
 use crate::foundation::fixtures::*;
-use crate::foundation::option_map::OptionMap;
 use crate::spec::SpecTemplate;
 use crate::v0::EmbeddedRecipeSpec;
 use crate::{Opt, Recipe, SourceSpec, Template, TemplateExt};
@@ -42,7 +41,7 @@ fn test_sources_relative_to_spec_file(tmpdir: tempfile::TempDir) {
 
     let spec = SpecTemplate::from_file(&spec_file)
         .unwrap()
-        .render(&OptionMap::default())
+        .render(crate::template::TemplateRenderConfig::default())
         .unwrap();
     let crate::Spec::V0Package(recipe) = spec
         .into_recipe()

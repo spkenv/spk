@@ -8,10 +8,9 @@ use std::str::FromStr;
 
 use bracoxide::OxidizationError;
 use bracoxide::tokenizer::TokenizationError;
-use serde::de::value::MapAccessDeserializer;
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::option_map::{OptionMap, Stringified};
+use spk_schema_foundation::option_map::OptionMap;
 use spk_schema_foundation::version::Version;
 
 use crate::{Error, Result, SpecFileData};
@@ -81,8 +80,8 @@ impl DiscoverVersions for TemplateVersions {
 /// expansion patterns.
 ///
 /// ```
-/// let versions: spk_schema::OrderedVersionSet = serde_yaml::from_str(r#"['1.0.{1..5}', '1.1.{1..3}']"#).unwrap();
-/// assert_eq!(versions, spk_schema::OrderedVersionSet(std::collections::BTreeSet::from_iter(vec![
+/// let versions: spk_schema::template::OrderedVersionSet = serde_yaml::from_str(r#"['1.0.{1..5}', '1.1.{1..3}']"#).unwrap();
+/// assert_eq!(versions, spk_schema::template::OrderedVersionSet(std::collections::BTreeSet::from_iter(vec![
 ///     spk_schema::version!("1.0.1"),
 ///     spk_schema::version!("1.0.2"),
 ///     spk_schema::version!("1.0.3"),
@@ -257,11 +256,11 @@ pub trait Template: Sized {
     fn file_path(&self) -> &Path;
 
     /// Render this template to a string with the provided values.
-    fn render_to_string(&self, options: &OptionMap) -> Result<String>;
+    fn render_to_string(&self, data: TemplateRenderConfig) -> Result<String>;
 
     /// Render this template with the provided values and parse the output.
-    fn render(&self, options: &OptionMap) -> Result<SpecFileData> {
-        let rendered = self.render_to_string(options)?;
+    fn render(&self, data: TemplateRenderConfig) -> Result<SpecFileData> {
+        let rendered = self.render_to_string(data)?;
         SpecFileData::from_yaml(rendered)
     }
 }
@@ -269,6 +268,60 @@ pub trait Template: Sized {
 pub trait TemplateExt: Template {
     /// Load this template from a file on disk
     fn from_file(path: &Path) -> Result<Self>;
+}
+
+/// Used to configure aspects of how a template will be rendered.
+#[derive(Debug, Default, Clone)]
+pub struct TemplateRenderConfig {
+    /// The version of the package to build.
+    ///
+    /// Exposed via the `version` variable in templates.
+    ///
+    /// If given, this version must be allowed by the template
+    /// and will be validated. If not given, the template must
+    /// either have a clear default or only be setup to build
+    /// a single version.
+    pub version: Option<Version>,
+    /// Additional options for the template rendering.
+    ///
+    /// These are exposed as the `opt` variable in templates
+    pub options: OptionMap,
+    /// Sets environment variables for the template data.
+    ///
+    /// These values will override any that are actually in the environment
+    /// when rendering. Exposed via the `env` variable in templates.
+    pub environment: HashMap<String, String>,
+}
+
+impl TemplateRenderConfig {
+    /// Sets the package version for the template data.
+    pub fn with_version(mut self, version: Version) -> Self {
+        self.version = Some(version);
+        self
+    }
+
+    /// Sets additional options for the template data.
+    pub fn with_options<I, T>(mut self, opt: I) -> Self
+    where
+        OptionMap: Extend<T>,
+        I: IntoIterator<Item = T>,
+    {
+        self.options.extend(opt);
+        self
+    }
+
+    /// Sets environment variables for the template data.
+    ///
+    /// These values will override any that are actually in the environment
+    /// when rendering.
+    pub fn with_environment_vars<I, T>(mut self, env: I) -> Self
+    where
+        HashMap<String, String>: Extend<T>,
+        I: IntoIterator<Item = T>,
+    {
+        self.environment.extend(env);
+        self
+    }
 }
 
 /// The structured data that should be made available
@@ -288,6 +341,21 @@ pub struct TemplateData {
     env: HashMap<String, String>,
 }
 
+impl TemplateData {
+    /// Create the set of templating data for the current process and options
+    pub fn new(version: Version, options: OptionMap, mut env: HashMap<String, String>) -> Self {
+        for (k, v) in std::env::vars() {
+            env.entry(k).or_insert(v);
+        }
+        TemplateData {
+            spk: SpkInfo::default(),
+            version,
+            opt: options.into_yaml_value_expanded(),
+            env,
+        }
+    }
+}
+
 /// The structured data that should be made available
 /// when rendering spk templates into recipes
 #[derive(serde::Serialize, Debug, Clone)]
@@ -299,18 +367,6 @@ impl Default for SpkInfo {
     fn default() -> Self {
         Self {
             version: env!("CARGO_PKG_VERSION"),
-        }
-    }
-}
-
-impl TemplateData {
-    /// Create the set of templating data for the current process and options
-    pub fn new(version: Version, options: &OptionMap) -> Self {
-        TemplateData {
-            spk: SpkInfo::default(),
-            version,
-            opt: options.to_yaml_value_expanded(),
-            env: std::env::vars().collect(),
         }
     }
 }
