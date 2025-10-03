@@ -35,8 +35,9 @@ regex = { workspace = true }
 relative-path = { workspace = true }
 ring = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-serde_yaml = { workspace = true }
 serde_json = { workspace = true }
+serde-peekable = { workspace = true }
+serde_yaml = { workspace = true }
 spfs = { workspace = true }
 shellexpand = "3.1.0"
 spk-config = { workspace = true }
