@@ -5,7 +5,8 @@
 use std::vec;
 
 use rstest::{fixture, rstest};
-use spk_schema::{DiscoverVersions, Template};
+use spk_schema::Template;
+use spk_schema::template::DiscoverVersions;
 
 use super::Workspace;
 

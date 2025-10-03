@@ -6,8 +6,9 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use spk_schema::name::{PkgName, PkgNameBuf};
+use spk_schema::template::DiscoverVersions;
 use spk_schema::version_range::{LowestSpecifiedRange, Ranged};
-use spk_schema::{DiscoverVersions, SpecTemplate, Template, TemplateExt};
+use spk_schema::{SpecTemplate, Template, TemplateExt};
 
 use crate::error::{self, BuildError};
 
