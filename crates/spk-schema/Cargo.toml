@@ -37,6 +37,7 @@ relative-path = { workspace = true }
 ring = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+serde-peekable = { workspace = true }
 serde_yaml = { workspace = true }
 shellexpand = "3.1.0"
 spfs = { workspace = true }
