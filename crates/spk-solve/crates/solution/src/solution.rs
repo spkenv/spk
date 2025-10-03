@@ -245,14 +245,8 @@ impl SolvedRequest {
                 // available here yet.
                 None
             }
-            PackageSource::BuildFromSource { .. } => {
-                // Packages that need building are not in a repo yet.
-                None
-            }
-            PackageSource::Repository {
-                repo,
-                components: _,
-            } => Some(repo.name().into()),
+            PackageSource::BuildFromSource { repo, .. }
+            | PackageSource::Repository { repo, .. } => Some(repo.name().into()),
             PackageSource::SpkInternalTest => None,
         }
     }
