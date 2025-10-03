@@ -3,7 +3,8 @@ use colored::Colorize;
 use itertools::Itertools;
 use miette::{IntoDiagnostic, Result};
 use spk_cli_common::{CommandArgs, Run};
-use spk_schema::{DiscoverVersions, Template};
+use spk_schema::Template;
+use spk_schema::template::DiscoverVersions;
 
 /// Print information about the current workspace
 #[derive(Args, Clone)]

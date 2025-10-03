@@ -433,7 +433,11 @@ impl Requests {
                 let template = ws
                     .find_or_load_package_template(package)
                     .wrap_err("did not find recipe template")?;
-                let rendered_data = template.render(options)?;
+                let rendered_data =
+                    template.render(spk_schema::template::TemplateRenderConfig {
+                        options: options.clone(),
+                        ..Default::default()
+                    })?;
                 let recipe = rendered_data.into_recipe().wrap_err_with(|| {
                     format!(
                         "{filename} was expected to contain a recipe",
@@ -763,7 +767,7 @@ impl Workspace {
             | Err(spk_workspace::error::FromPathError::LoadWorkspaceFileError(
                 spk_workspace::error::LoadWorkspaceFileError::WorkspaceNotFound(_),
             )) => {
-                let mut builder = spk_workspace::Workspace::builder();
+                let mut builder = spk_workspace::Workspace::builder().with_ignore_invalid_files(true);
 
                 if self.workspace.is_dir() {
                     tracing::debug!(
@@ -983,12 +987,17 @@ where
             }
         }
     };
-    let found = template.render(options).wrap_err_with(|| {
-        format!(
-            "{filename} was expected to contain a valid spk yaml data file",
-            filename = template.file_path().to_string_lossy()
-        )
-    })?;
+    let found = template
+        .render(spk_schema::template::TemplateRenderConfig {
+            options: options.clone(),
+            ..Default::default()
+        })
+        .wrap_err_with(|| {
+            format!(
+                "{filename} was expected to contain a valid spk yaml data file",
+                filename = template.file_path().to_string_lossy()
+            )
+        })?;
     tracing::debug!(
         "Rendered template from the data in {:?}",
         template.file_path()

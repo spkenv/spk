@@ -36,7 +36,7 @@ fn test_sources_relative_to_spec_file(tmpdir: tempfile::TempDir) {
 
     let spec = SpecTemplate::from_file(&spec_file)
         .unwrap()
-        .render(&OptionMap::default())
+        .render(crate::template::TemplateRenderConfig::default())
         .unwrap();
     let crate::Spec::V0Package(recipe) = spec
         .into_recipe()

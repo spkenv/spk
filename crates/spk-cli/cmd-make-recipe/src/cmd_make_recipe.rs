@@ -6,6 +6,7 @@ use clap::Args;
 use miette::{Context, Result};
 use spk_cli_common::{CommandArgs, Run, flags};
 use spk_schema::foundation::format::FormatOptionMap;
+use spk_schema::template::TemplateRenderConfig;
 use spk_schema::{SpecFileData, Template};
 
 /// Render a package spec template into a recipe
@@ -60,10 +61,16 @@ impl Run for MakeRecipe {
         }
         tracing::info!("using options {}", options.format_option_map());
         let rendered = template
-            .render_to_string(&options)
+            .render_to_string(TemplateRenderConfig {
+                options: options.clone(),
+                ..Default::default()
+            })
             .wrap_err("Failed to render template")?;
         print!("{rendered}");
-        match template.render(&options) {
+        match template.render(TemplateRenderConfig {
+            options: options.clone(),
+            ..Default::default()
+        }) {
             Err(err) => {
                 tracing::error!("This template did not render into a valid spec {err}");
                 Ok(1)

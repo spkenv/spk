@@ -20,7 +20,7 @@ mod recipe;
 mod requirements_list;
 mod source_spec;
 mod spec;
-mod template;
+pub mod template;
 mod test;
 pub mod v0;
 pub mod v1;
@@ -77,16 +77,7 @@ pub use spk_schema_foundation::{
     version,
     version_range,
 };
-pub use template::{
-    DiscoverStrategy,
-    DiscoverVersions,
-    GitTagsDiscovery,
-    OrderedVersionSet,
-    Template,
-    TemplateData,
-    TemplateExt,
-    TemplateSpec,
-};
+pub use template::{Template, TemplateExt};
 pub use test::{Test, TestStage};
 pub use v0::{AutoHostVars, RecipeComponentSpec, Script};
 pub use validation::{ValidationRule, ValidationSpec};

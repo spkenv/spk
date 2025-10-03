@@ -4669,8 +4669,6 @@ dependencies = [
  "spk-cmd-make-binary",
  "spk-cmd-make-source",
  "spk-schema",
- "spk-solve",
- "spk-storage",
  "spk-workspace",
  "tracing",
 ]
@@ -4744,6 +4742,7 @@ dependencies = [
  "miette",
  "nom",
  "nom-supreme",
+ "once_cell",
  "proptest",
  "regex",
  "relative-path",
