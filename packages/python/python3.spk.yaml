@@ -1,16 +1,21 @@
-# {% set opt = opt | default_opts(version="3.7.3") %}
-# {% set cpXX = opt.version | replace_regex(from="(\d+)\.(\d+).*", to="cp$1$2") %}
-pkg: python/{{ opt.version }}
+template:
+  versions:
+    discover:
+      gitTags: v3\.\d+\.\d+
+      url: https://github.com/python/cpython
+      extract: v(\d+\.\d+\.\d+)
+
+# {% set cpXX = version | replace_regex(from="(\d+)\.(\d+).*", to="cp$1$2") %}
+pkg: python/{{ version }}
 api: v0/package
 sources:
   - git: https://github.com/python/cpython
-    ref: v{{ opt.version }}
+    ref: v{{ version }}
 build:
   options:
     - var: os
     - var: arch
     - var: centos
-    - pkg: gcc
     - pkg: stdfs
     - pkg: bzip2
     - pkg: ncurses
@@ -26,8 +31,8 @@ build:
     - var: debug
       default: off
       choices: [on, off]
-  variants:
-    - { gcc: 6.3, abi: "{{cpXX}}m", debug: off }
+  # variants:
+  #   - { gcc: 6.3, abi: "{{cpXX}}m", debug: off }
   script:
     - |
       case "$SPK_OPT_debug" in
@@ -91,8 +96,6 @@ install:
     - set: PYTHONDONTWRITEBYTECODE
       value: 1
   requirements:
-    - pkg: binutils
-      fromBuildEnv: Binary
     - pkg: gcc
       fromBuildEnv: Binary
       include: IfAlreadyPresent

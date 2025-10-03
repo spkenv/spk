@@ -1,0 +1,10 @@
+api: v1/platform
+platform: vfx-reference/2024
+requirements:
+  - pkg: gcc
+    atBuild: 11.2.1
+  - pkg: python
+    build:
+      version: 3.11
+    atBuild: 3.11.0
+    atRuntime: 3.11
