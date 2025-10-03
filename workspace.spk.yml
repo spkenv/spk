@@ -1,4 +1,0 @@
-api: v0/workspace
-
-recipes:
-  - packages/**.spk.yml
