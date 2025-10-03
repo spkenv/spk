@@ -883,7 +883,23 @@ impl Solver {
                             }
                             res => res?,
                         };
+
+                        let PackageSource::Repository { repo, .. } = &source else {
+                            notes.push(Note::SkipPackageNote(Box::new(
+                                SkipPackageNote::new_from_message(
+                                    spec.ident().to_any_ident(),
+                                    "building from source not possible: src package was not from a repository"
+                                ),
+                            )));
+                            debug_assert!(
+                                false,
+                                "this should not be possible, where else would this source package be from?"
+                            );
+                            continue;
+                        };
+
                         let new_source = PackageSource::BuildFromSource {
+                            repo: Arc::clone(repo),
                             recipe: Arc::clone(&recipe),
                         };
 
@@ -901,7 +917,7 @@ impl Solver {
 
                         match Decision::builder(&node.state)
                             .with_components(&request.pkg.components)
-                            .build_package(&recipe, &new_spec)
+                            .build_package(repo, &recipe, &new_spec)
                         {
                             Ok(decision) => decision,
                             Err(err) => {

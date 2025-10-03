@@ -30,7 +30,7 @@ where
     let mut compiled_solution = Solution::new(options.clone());
     for item in solution.items() {
         let recipe = match &item.source {
-            PackageSource::BuildFromSource { recipe } => recipe,
+            PackageSource::BuildFromSource { recipe, .. } => recipe,
             source => {
                 compiled_solution.add(item.request.clone(), Arc::clone(&item.spec), source.clone());
                 continue;

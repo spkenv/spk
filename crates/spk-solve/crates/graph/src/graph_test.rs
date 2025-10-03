@@ -11,6 +11,7 @@ use spk_schema::foundation::name::PkgName;
 use spk_schema::foundation::{opt_name, option_map};
 use spk_schema::{recipe, spec};
 use spk_solve_solution::PackageSource;
+use spk_storage::RepositoryHandle;
 
 use super::DecisionBuilder;
 use crate::{Decision, graph};
@@ -28,10 +29,11 @@ fn test_resolve_build_same_result() {
     let build_spec = spec!({"pkg": "test/1.0.0/3I42H3S6"});
     let build_spec = Arc::new(build_spec);
     let source = PackageSource::SpkInternalTest;
+    let repo = Arc::new(RepositoryHandle::new_mem());
 
     let resolve = Decision::builder(&base).resolve_package(&build_spec, source);
     let build = Decision::builder(&base)
-        .build_package(&recipe, &build_spec)
+        .build_package(&repo, &recipe, &build_spec)
         .unwrap();
 
     let with_binary = resolve.apply(&base);
@@ -123,9 +125,10 @@ fn test_request_default_component() {
             .contains(&Component::default_for_run()),
         "default component should be injected when none specified"
     );
+    let repo = Arc::new(RepositoryHandle::new_mem());
 
     let build_state = DecisionBuilder::new(&base)
-        .build_package(&recipe, &spec)
+        .build_package(&repo, &recipe, &spec)
         .unwrap()
         .apply(&base);
     let request = build_state

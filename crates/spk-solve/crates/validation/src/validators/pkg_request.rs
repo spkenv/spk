@@ -84,7 +84,14 @@ impl ValidatorT for PkgRequestValidator {
         if let Some(rn) = &request.pkg.repository_name {
             // If the request names a repository, then the source has to match.
             match source {
-                PackageSource::Repository { repo, .. } if repo.name() != rn => {
+                PackageSource::BuildFromSource { repo, .. }
+                | PackageSource::Repository { repo, .. }
+                    if repo.name() == rn =>
+                {
+                    // the only allowed cases
+                }
+                PackageSource::BuildFromSource { repo, .. }
+                | PackageSource::Repository { repo, .. } => {
                     return Ok(Compatibility::Incompatible(
                         IncompatibleReason::PackageRepoMismatch(
                             PackageRepoProblem::WrongSourceRepository {
@@ -94,7 +101,6 @@ impl ValidatorT for PkgRequestValidator {
                         ),
                     ));
                 }
-                PackageSource::Repository { .. } => {} // okay
                 PackageSource::Embedded { parent, .. } => {
                     // TODO: from the right repo still?
                     return Ok(Compatibility::Incompatible(
@@ -102,14 +108,6 @@ impl ValidatorT for PkgRequestValidator {
                             PackageRepoProblem::EmbeddedInPackageFromWrongRepository {
                                 parent_ident: parent.to_string(),
                             },
-                        ),
-                    ));
-                }
-                PackageSource::BuildFromSource { .. } => {
-                    // TODO: from the right repo still?
-                    return Ok(Compatibility::Incompatible(
-                        IncompatibleReason::PackageRepoMismatch(
-                            PackageRepoProblem::FromRecipeFromWrongRepository,
                         ),
                     ));
                 }
