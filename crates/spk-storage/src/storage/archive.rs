@@ -183,7 +183,10 @@ async fn copy_package(
     let syncer = spfs::Syncer::new(src_repo, dst_repo)
         .with_reporter(spfs::sync::reporter::SyncReporters::console());
     let desired = components.iter().map(|i| *i.1).collect();
-    syncer.sync_env(desired).await?;
+    syncer
+        .sync_env(desired)
+        .await
+        .map_err(|err| Error::String(format!("failed to sync env: {err}")))?;
     dst_repo.publish_package(&spec, &components).await?;
     Ok(())
 }

@@ -5,11 +5,14 @@
 use std::io;
 use std::path::PathBuf;
 use std::str::Utf8Error;
+use std::sync::Arc;
 
 use miette::Diagnostic;
+use spfs_encoding::PartialDigest;
 use thiserror::Error;
 
-use crate::{encoding, graph, storage};
+use crate::tracking::TagSpec;
+use crate::{Digest, encoding, graph, storage};
 
 #[derive(Diagnostic, Debug, Error)]
 #[diagnostic(
@@ -384,3 +387,39 @@ impl OsError for std::io::Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Diagnostic, Debug, Clone, Error)]
+#[diagnostic(
+    url(
+        "https://spkenv.dev/error_codes#{}",
+        self.code().unwrap_or_else(|| Box::new("spfs::generic"))
+    )
+)]
+pub enum SyncError {
+    #[error("reference '{0}' could not be parsed: {1}")]
+    ReferenceParseError(String, Arc<Error>),
+    #[error("tag '{0}' could not be resolved: {1}")]
+    TagResolveError(TagSpec, Arc<Error>),
+    #[error("tag '{0}' could not be inserted: {1}")]
+    TagInsertError(TagSpec, Arc<Error>),
+    #[error("partial digest '{0}' could not be resolved: {1}")]
+    DigestResolveError(PartialDigest, Arc<Error>),
+    #[error("flatbuffer object digest() failed: {0}")]
+    ObjectDigestError(Arc<Error>),
+    #[error("object '{0}' could not be read: {1}")]
+    ObjectReadError(Digest, Arc<Error>),
+    #[error("object write failed: {0}")]
+    ObjectWriteError(Arc<Error>),
+    #[error("manifest '{0}' could not be read: {1}")]
+    ManifestReadError(Digest, Arc<Error>),
+    #[error("payload '{0}' could not be read: {1}")]
+    PayloadReadError(Digest, Arc<Error>),
+    #[error("payload '{0}' could not be written: {1}")]
+    PayloadWriteError(Digest, Arc<Error>),
+    #[error(
+        "source repository provided payload that did not match the requested digest: wanted {0}, got {1}. wrote {2} bytes"
+    )]
+    PayloadDigestMismatch(Digest, Digest, u64),
+}
+
+pub type SyncResult<T> = std::result::Result<T, SyncError>;

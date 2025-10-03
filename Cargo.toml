@@ -76,6 +76,7 @@ is_default_derive_macro = { path = "crates/is_default_derive_macro" }
 itertools = "0.14"
 libc = "0.2.172"
 miette = "7.0"
+moka = "0.12.11"
 nix = { version = "0.29", features = ["mount", "sched", "user"] }
 nom = "7.1"
 nom-supreme = "0.8"
