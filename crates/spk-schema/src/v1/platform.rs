@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::{
     InclusionPolicy,
-    NameAndValue,
+
     PinnableRequest,
     PkgRequest,
     PkgRequestOptions,
@@ -364,19 +364,21 @@ impl<'de> Deserialize<'de> for PlatformRequirement {
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PlatformPkgRequirement {
-    pkg: PkgNameBuf,
+    pub pkg: PkgNameBuf,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub build: Option<PlatformPkgBuildConfig>,
     #[serde(
         default,
         with = "value_or_false",
         skip_serializing_if = "Option::is_none"
     )]
-    at_build: Option<Override<VersionFilter>>,
+    pub at_build: Option<Override<VersionFilter>>,
     #[serde(
         default,
         with = "value_or_false",
         skip_serializing_if = "Option::is_none"
     )]
-    at_runtime: Option<Override<VersionFilter>>,
+    pub at_runtime: Option<Override<VersionFilter>>,
 }
 
 impl Named<OptName> for PlatformPkgRequirement {
@@ -459,19 +461,19 @@ impl PlatformPkgRequirement {
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PlatformVarRequirement {
-    var: OptNameBuf,
+    pub var: OptNameBuf,
     #[serde(
         default,
         with = "value_or_false",
         skip_serializing_if = "Option::is_none"
     )]
-    at_build: Option<Override<String>>,
+    pub at_build: Option<Override<String>>,
     #[serde(
         default,
         with = "value_or_false",
         skip_serializing_if = "Option::is_none"
     )]
-    at_runtime: Option<Override<String>>,
+    pub at_runtime: Option<Override<String>>,
 }
 
 impl Named<OptName> for PlatformVarRequirement {
@@ -506,7 +508,7 @@ impl PlatformVarRequirement {
                 build_component
                     .requirements
                     .insert_or_replace(PinnableRequest::Var(VarRequest {
-                        var: self.var.0.clone(),
+                        var: self.var.clone(),
                         value: spk_schema_foundation::ident::PinnableValue::Pinned(Arc::from(
                             v.as_str(),
                         )),
@@ -526,7 +528,7 @@ impl PlatformVarRequirement {
                 runtime_component
                     .requirements
                     .insert_or_replace(PinnableRequest::Var(VarRequest {
-                        var: self.var.0.clone(),
+                        var: self.var.clone(),
                         value: spk_schema_foundation::ident::PinnableValue::Pinned(Arc::from(
                             v.as_str(),
                         )),
@@ -537,6 +539,13 @@ impl PlatformVarRequirement {
 
         Ok(())
     }
+}
+
+/// Marks a package to be buildable in a platform.
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Deserialize, Serialize)]
+pub struct PlatformPkgBuildConfig {
+    /// The version to build when building this platform
+    pub version: Version,
 }
 
 /// Overrides the value of some request within a platform
