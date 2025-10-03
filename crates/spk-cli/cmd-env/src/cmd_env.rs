@@ -90,7 +90,7 @@ impl Run for Env {
             .get_formatter(self.verbose)?;
         let solution = solver.run_and_print_resolve(&formatter).await?;
 
-        let solution = build_required_packages(&solution, solver).await?;
+        let solution = build_required_packages(&solution, &formatter, solver).await?;
 
         rt.status.editable =
             self.runtime.editable() || self.requests.any_build_stage_requests(&self.requested)?;

@@ -47,6 +47,8 @@ pub enum PackageSource {
     },
     /// The package needs to be build from the given recipe.
     BuildFromSource {
+        /// the actual repository that this source spec was loaded from, if any
+        repo: Arc<RepositoryHandle>,
         /// The recipe that this package is to be built from.
         recipe: Arc<SpecRecipe>,
     },
@@ -67,7 +69,7 @@ impl PackageSource {
 
     pub async fn read_recipe(&self, ident: &VersionIdent) -> Result<Arc<SpecRecipe>> {
         match self {
-            PackageSource::BuildFromSource { recipe } => Ok(Arc::clone(recipe)),
+            PackageSource::BuildFromSource { recipe, .. } => Ok(Arc::clone(recipe)),
             PackageSource::Repository { repo, .. } => Ok(repo.read_recipe(ident).await?),
             PackageSource::Embedded { .. } => {
                 // TODO: what are the implications of this?
@@ -98,7 +100,7 @@ impl Ord for PackageSource {
             (SpkInternalTest, Embedded { .. }) => Ordering::Less,
             (Embedded { .. } | SpkInternalTest, BuildFromSource { .. }) => Ordering::Less,
             (BuildFromSource { .. }, Embedded { .. } | SpkInternalTest) => Ordering::Greater,
-            (BuildFromSource { recipe: this }, BuildFromSource { recipe: other }) => {
+            (BuildFromSource { recipe: this, .. }, BuildFromSource { recipe: other, .. }) => {
                 this.ident().cmp(other.ident())
             }
             (SpkInternalTest, SpkInternalTest) => Ordering::Equal,
@@ -243,14 +245,8 @@ impl SolvedRequest {
                 // available here yet.
                 None
             }
-            PackageSource::BuildFromSource { .. } => {
-                // Packages that need building are not in a repo yet.
-                None
-            }
-            PackageSource::Repository {
-                repo,
-                components: _,
-            } => Some(repo.name().into()),
+            PackageSource::BuildFromSource { repo, .. }
+            | PackageSource::Repository { repo, .. } => Some(repo.name().into()),
             PackageSource::SpkInternalTest => None,
         }
     }
@@ -267,7 +263,7 @@ impl std::fmt::Debug for SolvedRequest {
                     PackageSource::Repository { repo, .. } => {
                         format!("Repository={}", repo.name())
                     }
-                    PackageSource::BuildFromSource { recipe } => {
+                    PackageSource::BuildFromSource { recipe, .. } => {
                         format!("BuildFromSource={}", recipe.ident())
                     }
                     PackageSource::Embedded { parent, .. } => format!("Embedded={parent}"),

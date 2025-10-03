@@ -20,7 +20,7 @@ mod recipe;
 mod requirements_list;
 mod source_spec;
 mod spec;
-mod template;
+pub mod template;
 mod test;
 pub mod v0;
 pub mod v1;
@@ -75,7 +75,7 @@ pub use spk_schema_foundation::{
     version,
     version_range,
 };
-pub use template::{Template, TemplateData, TemplateExt};
+pub use template::{Template, TemplateExt};
 pub use test::{Test, TestStage};
 pub use validation::{ValidationRule, ValidationSpec};
 pub use variant::{Variant, VariantExt};

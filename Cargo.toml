@@ -106,6 +106,7 @@ sentry-miette = { version = "0.1.0", path = "crates/sentry-miette" }
 sentry-tracing = { version = "0.34" }
 serde = "1.0"
 serde_json = "1.0"
+serde-peekable = { path = "crates/serde-peekable" }
 serde_yaml = "0.9.25"
 serial_test = "3.1"
 shellexpand = "3.1.0"
@@ -133,6 +134,7 @@ spk-cmd-make-source = { path = "crates/spk-cli/cmd-make-source" }
 spk-cmd-render = { path = "crates/spk-cli/cmd-render" }
 spk-cmd-repo = { path = "crates/spk-cli/cmd-repo" }
 spk-cmd-test = { path = "crates/spk-cli/cmd-test" }
+spk-cmd-workspace = { path = "crates/spk-cli/cmd-workspace" }
 spk-config = { path = "crates/spk-config" }
 spk-exec = { path = "crates/spk-exec" }
 spk-schema = { path = "crates/spk-schema" }
@@ -164,6 +166,7 @@ tracing-capture = "0.1"
 tracing-subscriber = "=0.3.19"
 ulid = "1.0"
 unix_mode = "0.1.3"
+url = { version = "2.2" }
 variantly = "0.4"
 whoami = "1.5"
 windows = "0.51"

@@ -243,27 +243,32 @@ impl OptionMap {
     /// mapping instead. In the case where there is a value for both `python` and `python.abi`
     /// the former will be dropped.
     pub fn to_yaml_value_expanded(&self) -> serde_yaml::Mapping {
+        self.clone().into_yaml_value_expanded()
+    }
+
+    /// Like [`to_yaml_value_expanded`], but consumes the options to save clone operations.
+    pub fn into_yaml_value_expanded(self) -> serde_yaml::Mapping {
         use serde_yaml::{Mapping, Value};
         let mut yaml = Mapping::default();
-        for (key, value) in self.iter() {
-            let target = match key.namespace() {
-                Some(ns) => {
-                    let ns = Value::String(ns.to_string());
-                    let ns_value = yaml
-                        .entry(ns)
-                        .or_insert_with(|| serde_yaml::Value::Mapping(Default::default()));
-                    if ns_value.as_mapping().is_none() {
-                        *ns_value = serde_yaml::Value::Mapping(Default::default());
-                    }
-                    ns_value
-                        .as_mapping_mut()
-                        .expect("already validated that this is a mapping")
-                }
-                None => &mut yaml,
+        for (key, value) in self.options.into_iter() {
+            let value = serde_yaml::Value::String(value);
+            let Some(ns) = key.namespace() else {
+                // when there is no namespace, efficiently reuse the existing strings
+                yaml.insert(key.into_inner().into(), value);
+                continue;
             };
+            let ns = Value::String(ns.to_string());
+            let ns_value = yaml
+                .entry(ns)
+                .or_insert_with(|| serde_yaml::Value::Mapping(Default::default()));
+            if ns_value.as_mapping().is_none() {
+                *ns_value = serde_yaml::Value::Mapping(Default::default());
+            }
+            let ns_map = ns_value
+                .as_mapping_mut()
+                .expect("already validated that this is a mapping");
             let key = serde_yaml::Value::String(key.base_name().to_string());
-            let value = serde_yaml::Value::String(value.to_string());
-            target.insert(key, value);
+            ns_map.insert(key, value);
         }
         yaml
     }

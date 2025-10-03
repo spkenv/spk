@@ -50,6 +50,7 @@ cli = [
     "dep:spk-cmd-render",
     "dep:spk-cmd-repo",
     "dep:spk-cmd-test",
+    "dep:spk-cmd-workspace",
 ]
 statsd = ["dep:statsd", "spk-solve/statsd"]
 
@@ -80,6 +81,7 @@ spk-cmd-make-recipe = { workspace = true, optional = true }
 spk-cmd-render = { workspace = true, optional = true }
 spk-cmd-repo = { workspace = true, optional = true }
 spk-cmd-test = { workspace = true, optional = true }
+spk-cmd-workspace = { workspace = true, optional = true }
 spk-exec = { workspace = true }
 spk-schema = { workspace = true }
 spk-solve = { workspace = true }

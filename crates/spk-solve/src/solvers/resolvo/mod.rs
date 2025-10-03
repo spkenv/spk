@@ -317,6 +317,7 @@ impl Solver {
                         if located_build_ident_with_component.requires_build_from_source =>
                     {
                         PackageSource::BuildFromSource {
+                            repo: Arc::clone(repo),
                             recipe: repo
                                 .read_recipe(
                                     &located_build_ident_with_component.ident.to_version_ident(),
