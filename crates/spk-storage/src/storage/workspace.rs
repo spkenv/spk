@@ -5,12 +5,14 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
+use itertools::Itertools;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
-use spk_schema::foundation::option_map;
 use spk_schema::foundation::version::Version;
-use spk_schema::prelude::HasVersion;
-use spk_schema::{BuildIdent, DiscoverVersions, Spec, SpecRecipe, Template, VersionIdent};
+use spk_schema::ident::ToAnyIdentWithoutBuild;
+use spk_schema::ident_build::Build;
+use spk_schema::template::DiscoverVersions;
+use spk_schema::{BuildIdent, Recipe, Spec, SpecRecipe, Template, VersionIdent};
 
 use super::Repository;
 use super::repository::{PublishPolicy, Storage};
@@ -103,17 +105,28 @@ impl WorkspaceRepository {
     }
 }
 
+impl std::ops::Deref for WorkspaceRepository {
+    type Target = spk_workspace::Workspace;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
 #[async_trait::async_trait]
 impl Storage for WorkspaceRepository {
     type Recipe = SpecRecipe;
     type Package = Spec;
 
-    async fn get_concrete_package_builds(
-        &self,
-        _pkg: &VersionIdent,
-    ) -> Result<HashSet<BuildIdent>> {
-        // a workspace does not claim any concrete package builds
-        Ok(HashSet::default())
+    async fn get_concrete_package_builds(&self, pkg: &VersionIdent) -> Result<HashSet<BuildIdent>> {
+        // assuming that this version was previously loaded via list_versions,
+        // we can present that a source build is available.
+        // TODO: it's not clear if this assumption will turn out dangerous,
+        // but we generally assume that the solver won't try to look for build
+        // of a package version that it doesn't know exists...
+        let mut builds = HashSet::new();
+        builds.insert(pkg.to_build_ident(Build::Source));
+        Ok(builds)
     }
 
     async fn get_embedded_package_builds(
@@ -161,9 +174,51 @@ impl Storage for WorkspaceRepository {
         &self,
         pkg: &BuildIdent,
     ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>> {
-        Err(Error::PackageNotFound(Box::new(
-            pkg.clone().into_any_ident(),
-        )))
+        if !pkg.is_source() {
+            return Err(Error::PackageNotFound(Box::new(
+                pkg.clone().into_any_ident(),
+            )));
+        }
+
+        let mut candidates = Vec::new();
+        for (name, tpl) in self.inner.iter() {
+            if name != pkg.name() {
+                continue;
+            }
+            let versions = tpl.discover_versions()?;
+            if versions.contains(pkg.version()) {
+                candidates.push(tpl);
+            }
+        }
+        if candidates.is_empty() {
+            return Err(Error::PackageNotFound(Box::new(pkg.to_any_ident())));
+        }
+        if candidates.len() > 1 {
+            tracing::warn!(
+                "multiple viable recipes found in workspace for {pkg} [{}]",
+                candidates
+                    .iter()
+                    .map(|r| r.file_path().to_string_lossy())
+                    .join(", ")
+            );
+        }
+        let rendered = candidates[0].render(spk_schema::template::TemplateRenderConfig {
+            version: Some(pkg.version().to_owned()),
+            ..Default::default()
+        })?;
+        let recipe = rendered.into_recipe().map_err(|err| {
+            Error::String(format!(
+                "Failed to convert rendered template into recipe: {err}"
+            ))
+        })?;
+        let build = recipe.generate_source_build(
+            candidates[0]
+                .file_path()
+                .parent()
+                .or(self.inner.root())
+                .unwrap_or_else(|| std::path::Path::new(".")),
+        )?;
+        Ok(Arc::new(build))
     }
 
     async fn remove_embed_stub_from_storage(&self, _pkg: &BuildIdent) -> Result<()> {
@@ -209,6 +264,9 @@ impl Repository for WorkspaceRepository {
     }
 
     async fn list_build_components(&self, pkg: &BuildIdent) -> Result<Vec<Component>> {
+        if pkg.is_source() {
+            return Ok(vec![Component::Source]);
+        }
         Err(Error::PackageNotFound(Box::new(pkg.to_any_ident())))
     }
 
@@ -217,30 +275,40 @@ impl Repository for WorkspaceRepository {
     }
 
     async fn read_recipe(&self, pkg: &VersionIdent) -> Result<Arc<Self::Recipe>> {
-        let candidates = self
-            .inner
-            .iter()
-            .filter_map(|(name, tpl)| {
-                if name != pkg.name() {
-                    return None;
-                }
-                let options = option_map! { "version" => pkg.version().to_string() };
-                let rendered = tpl.render(&options).ok()?;
-                let recipe = rendered.into_recipe().ok()?;
-                if recipe.version() == pkg.version() {
-                    Some(recipe)
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-        if candidates.len() > 1 {
-            tracing::warn!("multiple viable recipes found in workspace for {pkg}");
+        let mut candidates = Vec::new();
+
+        for (name, tpl) in self.inner.iter() {
+            if name != pkg.name() {
+                continue;
+            }
+            let versions = tpl.discover_versions()?;
+            if versions.contains(pkg.version()) {
+                candidates.push(tpl);
+            }
         }
-        candidates
-            .into_iter()
-            .next()
-            .ok_or_else(|| Error::PackageNotFound(Box::new(pkg.to_any_ident(None))))
+        if candidates.is_empty() {
+            return Err(Error::PackageNotFound(Box::new(
+                pkg.to_any_ident_without_build(),
+            )));
+        }
+        if candidates.len() > 1 {
+            tracing::warn!(
+                "multiple viable recipes found in workspace for {pkg} [{}]",
+                candidates
+                    .iter()
+                    .map(|r| r.file_path().to_string_lossy())
+                    .join(", ")
+            );
+        }
+        let rendered = candidates[0].render(spk_schema::template::TemplateRenderConfig {
+            version: Some(pkg.version().to_owned()),
+            ..Default::default()
+        })?;
+        rendered.into_recipe().map_err(|err| {
+            Error::String(format!(
+                "Failed to convert rendered template into recipe: {err}"
+            ))
+        })
     }
 
     async fn remove_recipe(&self, _pkg: &VersionIdent) -> Result<()> {

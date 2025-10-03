@@ -6,12 +6,14 @@ use std::fs;
 
 use rstest::rstest;
 use spk_schema::foundation::name::PkgNameBuf;
-use spk_schema::version;
+use spk_schema::ident_build::{Build, BuildId};
+use spk_schema::prelude::*;
+use spk_schema::{VersionIdent, version};
 use spk_workspace::Workspace;
 use tempfile::TempDir;
 
-use crate::Repository;
 use crate::storage::workspace::WorkspaceRepository;
+use crate::{Repository, Storage};
 
 struct TestWorkspace {
     _temp_dir: TempDir,
@@ -25,7 +27,9 @@ impl TestWorkspace {
             fs::write(temp_dir.path().join(name), content).unwrap();
         }
         let workspace = Workspace::builder()
-            .load_from_dir(temp_dir.path())
+            .with_root(temp_dir.path())
+            .with_ignore_invalid_files(false)
+            .with_glob_pattern("*.spk.yaml")
             .unwrap()
             .build()
             .unwrap();
@@ -48,27 +52,19 @@ async fn test_list_package_versions_multiple_templates() {
         (
             "pkg-a.spk.yaml",
             r#"
-            pkg: pkg-a
             template:
               versions:
-                discover:
-                  git_tags:
-                    url: https://github.com/spkenv/spk.git
-                    match_pattern: "refs/tags/v0.1.*"
-                    extract: "refs/tags/v(.*)"
+                static: ["0.1.0"]
+            pkg: pkg-a/{{ version }}
             "#,
         ),
         (
             "pkg-a.v2.spk.yaml",
             r#"
-            pkg: pkg-a
             template:
               versions:
-                discover:
-                  git_tags:
-                    url: https://github.com/spkenv/spk.git
-                    match_pattern: "refs/tags/v0.2.*"
-                    extract: "refs/tags/v(.*)"
+                static: ["0.2.0"]
+            pkg: pkg-a/{{ version }}
             "#,
         ),
     ]);
@@ -92,11 +88,7 @@ async fn test_list_package_versions_with_discovery_error() {
             pkg: pkg-a
             template:
               versions:
-                discover:
-                  git_tags:
-                    url: https://github.com/spkenv/spk.git
-                    match_pattern: "refs/tags/v0.1.*"
-                    extract: "refs/tags/v(.*)"
+                static: ["0.1.0"]
             "#,
         ),
         (
@@ -106,19 +98,138 @@ async fn test_list_package_versions_with_discovery_error() {
             template:
               versions:
                 discover:
-                  git_tags:
-                    url: https://invalid.url/spkenv/spk.git
-                    match_pattern: "refs/tags/v0.2.*"
-                    extract: "refs/tags/v(.*)"
+                  gitTags: "v0.2.*"
+                  url: https://invalid.url/spkenv/spk.git
+                  extract: "v(.*)"
             "#,
         ),
     ]);
 
-    let versions = ws
-        .repo
+    ws.repo
         .list_package_versions(&"pkg-a".parse::<PkgNameBuf>().unwrap())
         .await
-        .unwrap();
-    let versions = versions.iter().map(|v| (**v).clone()).collect::<Vec<_>>();
-    assert_eq!(versions, vec![version!("0.1.0")]);
+        .expect_err("should fail when discovery is not possible");
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_get_concrete_package_builds() {
+    let ws = TestWorkspace::new(&[
+        (
+            "pkg-a.spk.yaml",
+            r#"
+            pkg: pkg-a
+            version: 1.0.0
+            "#,
+        ),
+        (
+            "pkg-b.spk.yaml",
+            r#"
+            pkg: pkg-b
+            version: 2.0.0
+            "#,
+        ),
+    ]);
+    let ident = VersionIdent::new("pkg-a".parse().unwrap(), version!("1.0.0"));
+    let builds = ws.repo.get_concrete_package_builds(&ident).await.unwrap();
+    assert_eq!(builds.len(), 1);
+    assert!(builds.contains(&ident.to_build_ident(Build::Source)));
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_read_package_from_storage() {
+    let ws = TestWorkspace::new(&[(
+        "pkg-a.spk.yaml",
+        r#"
+        template:
+          versions:
+            static: ["1.0.0"]
+        pkg: pkg-a/{{ version }}
+        "#,
+    )]);
+    let ident = "pkg-a/1.0.0/src".parse().unwrap();
+    let build = ws.repo.read_package_from_storage(&ident).await.unwrap();
+    assert_eq!(build.ident(), &ident);
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_read_package_from_storage_not_found() {
+    let ws = TestWorkspace::new(&[(
+        "pkg-a.spk.yaml",
+        r#"
+        pkg: pkg-a
+        template:
+          versions:
+            static: ["1.0.0"]
+        "#,
+    )]);
+    let ident = "pkg-a/2.0.0/src".parse().unwrap();
+    let err = ws.repo.read_package_from_storage(&ident).await.unwrap_err();
+    assert!(matches!(err, crate::Error::PackageNotFound(_)));
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_read_package_from_storage_not_source() {
+    let ws = TestWorkspace::new(&[(
+        "pkg-a.spk.yaml",
+        r#"
+        pkg: pkg-a
+        template:
+          versions:
+            static: ["1.0.0"]
+        "#,
+    )]);
+    let ident = VersionIdent::new("pkg-a".parse().unwrap(), version!("1.0.0"))
+        .to_build_ident(Build::BuildId(BuildId::default()));
+    let err = ws.repo.read_package_from_storage(&ident).await.unwrap_err();
+    assert!(matches!(err, crate::Error::PackageNotFound(_)));
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_list_build_components() {
+    let ws = TestWorkspace::new(&[(
+        "pkg-a.spk.yaml",
+        r#"
+        pkg: pkg-a
+        template:
+          versions:
+            static: ["1.0.0"]
+        "#,
+    )]);
+    let ident = "pkg-a/1.0.0/src".parse().unwrap();
+    let components = ws.repo.list_build_components(&ident).await.unwrap();
+    assert_eq!(
+        components,
+        vec![spk_schema::foundation::ident_component::Component::Source]
+    );
+
+    let ident = VersionIdent::new("pkg-a".parse().unwrap(), version!("1.0.0"))
+        .to_build_ident(Build::BuildId(BuildId::default()));
+    let err = ws.repo.list_build_components(&ident).await.unwrap_err();
+    assert!(matches!(err, crate::Error::PackageNotFound(_)));
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_read_recipe() {
+    let ws = TestWorkspace::new(&[(
+        "pkg-a.spk.yaml",
+        r#"
+        pkg: pkg-a/{{ version }}
+        template:
+          versions:
+            static: ["1.0.0"]
+        "#,
+    )]);
+    let ident = "pkg-a/1.0.0".parse().unwrap();
+    let recipe = ws.repo.read_recipe(&ident).await.unwrap();
+    assert_eq!(recipe.ident(), &ident);
+
+    let ident = "pkg-a/2.0.0".parse().unwrap();
+    let err = ws.repo.read_recipe(&ident).await.unwrap_err();
+    assert!(matches!(err, crate::Error::PackageNotFound(_)));
 }
