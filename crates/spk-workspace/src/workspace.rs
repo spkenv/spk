@@ -123,6 +123,8 @@ impl Workspace {
                 ident.name()
             );
             self.find_package_template_for_version(ident.name(), range)
+        } else if let Ok(ident) = spk_schema::ident::RangeIdent::from_str(package) {
+            self.find_package_template_for_version(&ident.name, ident.version)
         } else {
             tracing::debug!("Find package template by path: {package}");
             self.find_package_template_by_file(std::path::Path::new(package))
