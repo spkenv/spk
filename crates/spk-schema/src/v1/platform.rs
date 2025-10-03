@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use std::path::Path;
 use std::sync::Arc;
 
+use serde::de::value::MapAccessDeserializer;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::{
