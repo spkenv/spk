@@ -7,7 +7,7 @@ use rstest::rstest;
 use super::{Config, Remote, RemoteConfig, RepositoryConfig};
 use crate::storage::RepositoryHandle;
 use crate::storage::prelude::*;
-use crate::{get_config, load_config};
+use crate::{get_config, load_config, reset_config};
 
 #[rstest]
 fn test_config_list_remote_names_empty() {
@@ -121,17 +121,19 @@ fn test_config_expands_tilde_in_paths() {
 #[rstest]
 #[serial_test::serial(config)]
 fn test_make_current_updates_config() {
-    let config1 = Config::default();
-    config1.make_current().unwrap();
+    reset_config! {
+        let config1 = Config::default();
+        config1.make_current().unwrap();
 
-    let changed_name = "changed";
+        let changed_name = "changed";
 
-    let mut config2 = Config::default();
-    changed_name.clone_into(&mut config2.user.name);
-    config2.make_current().unwrap();
+        let mut config2 = Config::default();
+        changed_name.clone_into(&mut config2.user.name);
+        config2.make_current().unwrap();
 
-    let current_config = get_config().unwrap();
-    assert_eq!(current_config.user.name, changed_name);
+        let current_config = get_config().unwrap();
+        assert_eq!(current_config.user.name, changed_name);
+    }
 }
 
 #[rstest]
