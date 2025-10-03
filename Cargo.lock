@@ -3651,6 +3651,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde-peekable"
+version = "0.44.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "serde_cbor"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4649,6 +4657,8 @@ dependencies = [
  "spk-cmd-make-binary",
  "spk-cmd-make-source",
  "spk-schema",
+ "spk-solve",
+ "spk-storage",
  "spk-workspace",
  "tracing",
 ]
@@ -4728,6 +4738,7 @@ dependencies = [
  "ring",
  "rstest",
  "serde",
+ "serde-peekable",
  "serde_json",
  "serde_yaml 0.9.34+deprecated",
  "shellexpand",

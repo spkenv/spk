@@ -106,6 +106,7 @@ sentry-miette = { version = "0.1.0", path = "crates/sentry-miette" }
 sentry-tracing = { version = "0.34" }
 serde = "1.0"
 serde_json = "1.0"
+serde-peekable = { path = "crates/serde-peekable" }
 serde_yaml = "0.9.25"
 serial_test = "3.1"
 shellexpand = "3.1.0"
