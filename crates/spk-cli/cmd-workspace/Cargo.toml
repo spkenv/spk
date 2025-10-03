@@ -25,10 +25,13 @@ clap = { workspace = true }
 itertools = { workspace = true }
 miette = { workspace = true, features = ["fancy"] }
 spfs = { workspace = true }
+spk-build = { workspace = true }
 spk-cli-common = { workspace = true }
 spk-cmd-make-binary = { workspace = true }
 spk-cmd-make-source = { workspace = true }
 spk-workspace = { workspace = true }
 spk-schema = { workspace = true }
+spk-solve = { workspace = true }
+spk-storage = { workspace = true }
 tracing = { workspace = true }
 colored = { workspace = true }

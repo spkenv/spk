@@ -6,8 +6,6 @@ use clap::{Args, Subcommand};
 use miette::Result;
 use spk_cli_common::{CommandArgs, Run};
 
-use crate::info::Info;
-
 /// Query and operate on an spk workspace directory.
 #[derive(Args, Clone)]
 #[clap(visible_aliases = &["ws", "w"])]
@@ -17,8 +15,10 @@ pub struct Workspace {
 }
 
 #[derive(Subcommand, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum Command {
-    Info(Info),
+    Info(crate::info::Info),
+    Build(crate::build::Build),
 }
 
 #[async_trait::async_trait]
@@ -27,7 +27,8 @@ impl Run for Workspace {
 
     async fn run(&mut self) -> Result<Self::Output> {
         match &mut self.cmd {
-            Command::Info(info) => info.run().await,
+            Command::Info(cmd) => cmd.run().await,
+            Command::Build(cmd) => cmd.run().await,
         }
     }
 }
@@ -35,7 +36,8 @@ impl Run for Workspace {
 impl CommandArgs for Workspace {
     fn get_positional_args(&self) -> Vec<String> {
         match &self.cmd {
-            Command::Info(info) => info.get_positional_args(),
+            Command::Info(cmd) => cmd.get_positional_args(),
+            Command::Build(cmd) => cmd.get_positional_args(),
         }
     }
 }

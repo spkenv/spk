@@ -4653,6 +4653,7 @@ dependencies = [
  "itertools 0.14.0",
  "miette",
  "spfs",
+ "spk-build",
  "spk-cli-common",
  "spk-cmd-make-binary",
  "spk-cmd-make-source",
