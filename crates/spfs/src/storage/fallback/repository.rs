@@ -28,7 +28,7 @@ use crate::storage::{
 };
 use crate::sync::reporter::SyncReporters;
 use crate::tracking::BlobRead;
-use crate::{Error, Result, encoding, graph, storage, tracking};
+use crate::{Error, Result, SyncError, encoding, graph, storage, tracking};
 
 #[cfg(test)]
 #[path = "./repository_test.rs"]
@@ -356,10 +356,11 @@ impl PayloadStorage for FallbackProxy {
                 if let Some(err) = repair_failure {
                     return Err(err);
                 }
-                Err(Error::UnknownObject(digest))
+                // Probably can only get here if there are no secondary repos.
+                Err(SyncError::PayloadReadError(digest, Error::String("no repositories could successfully read the payload".into()).into()))
             })
             .await
-            .map_err(|err| (*err).clone())?;
+            .map_err(|err| Error::String(format!("failed to open payload: {err}")))?;
 
         // Then each caller needs to try to open the payload again, to get their
         // own handle to it.

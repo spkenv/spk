@@ -232,7 +232,8 @@ impl Publisher {
             syncer
                 .with_reporter(spfs::sync::reporter::SyncReporters::console())
                 .sync_env(env_spec)
-                .await?;
+                .await
+                .map_err(|err| Error::String(format!("failed to sync env: {err}")))?;
             self.to.publish_package(&spec, &components).await?;
         }
 
