@@ -528,7 +528,7 @@ where
 
                             impl std::fmt::Display for OriginalError {
                                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                                    write!(f, "failed to deserialize request")
+                                    write!(f, "failed to deserialize request: {}", self.source)
                                 }
                             }
 

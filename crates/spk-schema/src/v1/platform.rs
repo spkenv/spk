@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::{
     InclusionPolicy,
-
     PinnableRequest,
     PkgRequest,
     PkgRequestOptions,
@@ -545,7 +544,55 @@ impl PlatformVarRequirement {
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Deserialize, Serialize)]
 pub struct PlatformPkgBuildConfig {
     /// The version to build when building this platform
+    #[serde(deserialize_with = "deserialize_version_allow_number")]
     pub version: Version,
+}
+
+fn deserialize_version_allow_number<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Version, D::Error>
+where
+    D: serde::de::Deserializer<'de>,
+{
+    struct VersionVisitor;
+
+    impl<'de> serde::de::Visitor<'de> for VersionVisitor {
+        type Value = Version;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a string or number representing a version")
+        }
+
+        fn visit_i64<E>(self, v: i64) -> std::result::Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            self.visit_str(&v.to_string())
+        }
+
+        fn visit_u64<E>(self, v: u64) -> std::result::Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            self.visit_str(&v.to_string())
+        }
+
+        fn visit_f64<E>(self, v: f64) -> std::result::Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            self.visit_str(&v.to_string())
+        }
+
+        fn visit_str<E>(self, v: &str) -> std::result::Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            v.parse().map_err(serde::de::Error::custom)
+        }
+    }
+
+    deserializer.deserialize_any(VersionVisitor)
 }
 
 /// Overrides the value of some request within a platform

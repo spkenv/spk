@@ -332,3 +332,42 @@ fn test_platform_requirement_deserialize_numbers() {
     assert_requirements!(build:Run contains "test3/1.0.0");
     assert_requirements!(build:Run len 3);
 }
+
+#[rstest]
+fn test_platform_requirement_deserialize_vfx_reference() {
+    let yaml = r#"
+api: v1/platform
+platform: vfx-reference/2024
+requirements:
+  - pkg: gcc
+    atBuild: 11.2.1
+  - pkg: python
+    build:
+      version: 3.11
+    atBuild: 3.11.0
+    atRuntime: 3.11
+    "#;
+
+    let res: Result<Platform, _> = serde_yaml::from_str(yaml);
+    match res {
+        Ok(_) => {}
+        Err(e) => panic!("Deserialization failed with: {}", e),
+    }
+}
+
+#[rstest]
+fn test_platform_requirement_deserialize_310() {
+    let yaml = r#"
+api: v1/platform
+platform: vfx-reference/2024
+requirements:
+  - pkg: python
+    build:
+      version: 3.10
+    atBuild: 3.10
+    atRuntime: 3.10
+    "#;
+
+    let res: Result<Platform, _> = serde_yaml::from_str(yaml);
+    println!("{:#?}", res.unwrap().requirements);
+}
