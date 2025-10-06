@@ -3,20 +3,13 @@ use std::vec;
 
 use clap::Args;
 use miette::{Context, IntoDiagnostic, Result};
-use spk_cli_common::{BuildResult, CommandArgs, Run, build_required_packages, flags};
-use spk_cmd_make_source::cmd_make_source;
+use spk_cli_common::{CommandArgs, Run, build_required_packages, flags};
 use spk_schema::foundation::format::FormatIdent;
-use spk_schema::ident::{
-    AsVersionIdent,
-    PinnableValue,
-    RangeIdent,
-    ToAnyIdentWithoutBuild,
-    VarRequest,
-};
+use spk_schema::ident::{PinnableValue, RangeIdent, RequestWithOptions, ToAnyIdentWithoutBuild, VarRequest};
 use spk_schema::name::RepositoryName;
 use spk_schema::v1::{Override, PlatformRequirement};
-use spk_schema::{ApiVersion, SpecFileData, SpecRecipe, Template, TemplateExt, VersionIdent};
-use spk_solve::{Package, PkgRequest, Request, SolverExt, SolverMut};
+use spk_schema::{ApiVersion, SpecFileData, SpecRecipe, Template, VersionIdent};
+use spk_solve::{Package, PkgRequest, SolverExt, SolverMut};
 
 /// Build a set of packages from this workspace
 #[derive(Args, Clone)]
@@ -47,9 +40,8 @@ impl Run for Build {
 
         let mut workspace = self.workspace.load_or_default()?;
         let options = self.options.get_options()?;
-        let platform_path = std::path::Path::new(&self.platform);
-        let tpl = spk_schema::SpecTemplate::from_file(platform_path)?;
-        let recipe = tpl
+        let template = workspace.find_or_load_package_template(&self.platform)?;
+        let recipe = template
             .render(spk_schema::template::TemplateRenderConfig {
                 options,
                 ..Default::default()
@@ -61,6 +53,10 @@ impl Run for Build {
                 ApiVersion::V1Platform
             )
         };
+        // currently, no other solver is able to properly handle
+        // source builds, which we need in order to determine what
+        // to build from the workspace.
+        self.solver.decision_formatter_settings.solver_to_run = flags::SolverToRun::Cli;
         let mut solver = self.solver.get_solver(&self.options).await?;
 
         let root = match workspace.root() {
@@ -92,7 +88,7 @@ impl Run for Build {
                     let range_ident = RangeIdent::equals(&to_build, None)
                         .with_repository(Some(repo_name.to_owned()));
                     tracing::info!(" > pkg: {range_ident}");
-                    Request::Pkg(PkgRequest::new(range_ident, requested_by.clone()))
+                    RequestWithOptions::from(PkgRequest::new(range_ident, requested_by.clone()))
                 }
                 PlatformRequirement::Var(var) => {
                     let Some(Override::Replace(value)) = &var.at_build else {
@@ -100,11 +96,11 @@ impl Run for Build {
                     };
                     let inner = VarRequest {
                         var: var.var.clone(),
-                        value: PinnableValue::Pinned(Arc::from(value.as_str())),
+                        value: Arc::from(value.as_str()),
                         description: None,
                     };
                     tracing::info!(" > var: {inner}");
-                    Request::Var(inner)
+                    RequestWithOptions::from(inner)
                 }
             };
             solver.add_request(request);
@@ -126,6 +122,8 @@ impl Run for Build {
             .solver
             .decision_formatter_settings
             .get_formatter(self.verbose)?;
+        // the key to this whole process is that we allow the solver to
+        // imagine the builds that this workspace can produce
         solver.set_binary_only(false);
         let solution = solver.run_and_print_resolve(&formatter).await?;
 
@@ -148,7 +146,7 @@ impl Run for Build {
                 ident.format_ident()
             );
 
-            let mut templates = workspace_repo.find_package_template_for_version(
+            let templates = workspace_repo.find_package_template_for_version(
                 ident.name(),
                 spk_schema::version_range::DoubleEqualsVersion::new(ident.version().clone()),
             );

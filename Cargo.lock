@@ -4670,6 +4670,8 @@ dependencies = [
  "spk-cmd-make-binary",
  "spk-cmd-make-source",
  "spk-schema",
+ "spk-solve",
+ "spk-storage",
  "spk-workspace",
  "tracing",
 ]
