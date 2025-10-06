@@ -13,9 +13,6 @@ sources:
     ref: v{{ version }}
 build:
   options:
-    - var: os
-    - var: arch
-    - var: centos
     - pkg: stdfs
     - pkg: bzip2
     - pkg: ncurses
@@ -31,8 +28,6 @@ build:
     - var: debug
       default: off
       choices: [on, off]
-  # variants:
-  #   - { gcc: 6.3, abi: "{{cpXX}}m", debug: off }
   script:
     - |
       case "$SPK_OPT_debug" in
@@ -114,7 +109,7 @@ install:
         - /etc/
         - /bin/
         - /lib/
-        - '!/lib/pkgconfig'
+        - "!/lib/pkgconfig"
     - name: build
       uses: [run]
       files:
