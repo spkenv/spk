@@ -16,6 +16,7 @@ workspace = true
 migration-to-components = ["spk-schema-foundation/migration-to-components"]
 
 [dependencies]
+bracoxide = { workspace = true }
 config = { workspace = true }
 data-encoding = "2.3"
 dunce = { workspace = true }
@@ -30,12 +31,14 @@ is_default_derive_macro = { workspace = true }
 itertools = { workspace = true }
 nom = { workspace = true }
 nom-supreme = { workspace = true }
+once_cell = { workspace = true }
 regex = { workspace = true }
 relative-path = { workspace = true }
 ring = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-serde_yaml = { workspace = true }
 serde_json = { workspace = true }
+serde-peekable = { workspace = true }
+serde_yaml = { workspace = true }
 spfs = { workspace = true }
 shellexpand = "3.1.0"
 spk-config = { workspace = true }
@@ -46,6 +49,7 @@ sys-info = "0.9.0"
 tempfile = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+url = { workspace = true, features = ["serde"] }
 miette = { workspace = true }
 
 [dev-dependencies]

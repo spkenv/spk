@@ -28,7 +28,12 @@ impl Run for Lint {
         let options = self.options.get_options()?;
         let mut out = 0;
         for spec in self.packages.iter() {
-            let result = SpecTemplate::from_file(spec).and_then(|t| t.render(&options));
+            let result = SpecTemplate::from_file(spec).and_then(|t| {
+                t.render(spk_schema::template::TemplateRenderConfig {
+                    options: options.clone(),
+                    ..Default::default()
+                })
+            });
             match result {
                 Ok(_) => println!("{} {}", "OK".green(), spec.display()),
                 Err(err) => {

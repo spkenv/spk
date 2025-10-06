@@ -40,7 +40,9 @@ async fn test_archive_create_parents(#[case] solver: SolverImpl) {
     let filename = rt.tmpdir.path().join("deep/nested/path/archive.spk");
     let repo = match &*rt.tmprepo {
         spk_solve::RepositoryHandle::SPFS(repo) => repo,
-        spk_solve::RepositoryHandle::Mem(_) | spk_solve::RepositoryHandle::Runtime(_) => {
+        spk_solve::RepositoryHandle::Mem(_)
+        | spk_solve::RepositoryHandle::Runtime(_)
+        | spk_solve::RepositoryHandle::Workspace(_) => {
             panic!("only spfs repositories are supported")
         }
     };

@@ -6,12 +6,12 @@ use std::borrow::Cow;
 use std::path::Path;
 use std::sync::Arc;
 
+use serde::de::value::MapAccessDeserializer;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::{
     BuildIdent,
     InclusionPolicy,
-    NameAndValue,
     PkgRequest,
     RangeIdent,
     Request,
@@ -21,8 +21,8 @@ use spk_schema_foundation::ident::{
 };
 use spk_schema_foundation::ident_build::{Build, BuildId};
 use spk_schema_foundation::ident_component::Component;
-use spk_schema_foundation::name::{OptName, PkgName};
-use spk_schema_foundation::option_map::{HOST_OPTIONS, OptionMap};
+use spk_schema_foundation::name::{OptName, OptNameBuf, PkgName, PkgNameBuf};
+use spk_schema_foundation::option_map::{HOST_OPTIONS, OptionMap, Stringified};
 use spk_schema_foundation::spec_ops::{HasVersion, Named, Versioned};
 use spk_schema_foundation::version::Version;
 use spk_schema_foundation::version_range::VersionFilter;
@@ -264,7 +264,7 @@ fn apply_inherit_from_base_component(
     }
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
 pub enum PlatformRequirement {
     Pkg(PlatformPkgRequirement),
@@ -298,27 +298,70 @@ impl PlatformRequirement {
     }
 }
 
+impl<'de> Deserialize<'de> for PlatformRequirement {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct PlatformRequirementVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for PlatformRequirementVisitor {
+            type Value = PlatformRequirement;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a pkg or var requirement")
+            }
+
+            fn visit_map<A>(self, map: A) -> std::result::Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let mut peekable = serde_peekable::PeekableMapAccess::from(map);
+                let first_key = peekable.peek_key::<Stringified>()?;
+                let Some(first_key) = first_key else {
+                    return Err(serde::de::Error::missing_field("pkg or var"));
+                };
+                match first_key.as_ref() {
+                    "pkg" => Ok(PlatformRequirement::Pkg(Deserialize::deserialize(
+                        MapAccessDeserializer::new(peekable),
+                    )?)),
+                    "var" => Ok(PlatformRequirement::Var(Deserialize::deserialize(
+                        MapAccessDeserializer::new(peekable),
+                    )?)),
+                    _ => Err(serde::de::Error::custom(
+                        "expected 'pkg' or 'var' as the first key",
+                    )),
+                }
+            }
+        }
+
+        deserializer.deserialize_any(PlatformRequirementVisitor)
+    }
+}
+
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PlatformPkgRequirement {
-    pkg: VersionIdent,
+    pub pkg: PkgNameBuf,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub build: Option<PlatformPkgBuildConfig>,
     #[serde(
         default,
         with = "value_or_false",
         skip_serializing_if = "Option::is_none"
     )]
-    at_build: Option<Override<VersionFilter>>,
+    pub at_build: Option<Override<VersionFilter>>,
     #[serde(
         default,
         with = "value_or_false",
         skip_serializing_if = "Option::is_none"
     )]
-    at_runtime: Option<Override<VersionFilter>>,
+    pub at_runtime: Option<Override<VersionFilter>>,
 }
 
 impl Named<OptName> for PlatformPkgRequirement {
     fn name(&self) -> &OptName {
-        self.pkg.name().as_opt_name()
+        self.pkg.as_opt_name()
     }
 }
 
@@ -346,7 +389,7 @@ impl PlatformPkgRequirement {
                     .insert_or_replace(Request::Pkg(PkgRequest {
                         pkg: RangeIdent {
                             repository_name: None,
-                            name: self.pkg.name().to_owned(),
+                            name: self.pkg.clone(),
                             version: v.clone(),
                             components: Default::default(),
                             build: None,
@@ -374,7 +417,7 @@ impl PlatformPkgRequirement {
                     .insert_or_replace(Request::Pkg(PkgRequest {
                         pkg: RangeIdent {
                             repository_name: None,
-                            name: self.pkg.name().to_owned(),
+                            name: self.pkg.clone(),
                             version: v.clone(),
                             components: Default::default(),
                             build: None,
@@ -396,24 +439,24 @@ impl PlatformPkgRequirement {
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PlatformVarRequirement {
-    var: NameAndValue,
+    pub var: OptNameBuf,
     #[serde(
         default,
         with = "value_or_false",
         skip_serializing_if = "Option::is_none"
     )]
-    at_build: Option<Override<String>>,
+    pub at_build: Option<Override<String>>,
     #[serde(
         default,
         with = "value_or_false",
         skip_serializing_if = "Option::is_none"
     )]
-    at_runtime: Option<Override<String>>,
+    pub at_runtime: Option<Override<String>>,
 }
 
 impl Named<OptName> for PlatformVarRequirement {
     fn name(&self) -> &OptName {
-        &self.var.0
+        &self.var
     }
 }
 
@@ -443,7 +486,7 @@ impl PlatformVarRequirement {
                 build_component
                     .requirements
                     .insert_or_replace(Request::Var(VarRequest {
-                        var: self.var.0.clone(),
+                        var: self.var.clone(),
                         value: spk_schema_foundation::ident::PinnableValue::Pinned(Arc::from(
                             v.as_str(),
                         )),
@@ -463,7 +506,7 @@ impl PlatformVarRequirement {
                 runtime_component
                     .requirements
                     .insert_or_replace(Request::Var(VarRequest {
-                        var: self.var.0.clone(),
+                        var: self.var.clone(),
                         value: spk_schema_foundation::ident::PinnableValue::Pinned(Arc::from(
                             v.as_str(),
                         )),
@@ -474,6 +517,13 @@ impl PlatformVarRequirement {
 
         Ok(())
     }
+}
+
+/// Marks a package to be buildable in a platform.
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Deserialize, Serialize)]
+pub struct PlatformPkgBuildConfig {
+    /// The version to build when building this platform
+    pub version: Version,
 }
 
 /// Overrides the value of some request within a platform
@@ -519,6 +569,27 @@ mod value_or_false {
                     serde::de::Unexpected::Bool(v),
                     &self,
                 ))
+            }
+
+            fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                self.visit_str(&v.to_string())
+            }
+
+            fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                self.visit_str(&v.to_string())
+            }
+
+            fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                self.visit_str(&v.to_string())
             }
 
             fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>

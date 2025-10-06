@@ -8,12 +8,14 @@ mod mem;
 mod repository;
 mod runtime;
 mod spfs;
+mod workspace;
 
 pub use archive::export_package;
 pub use handle::RepositoryHandle;
 pub use mem::MemRepository;
 pub use repository::{CachePolicy, Repository, Storage};
 pub use runtime::{RuntimeRepository, find_path_providers, pretty_print_filepath};
+pub use workspace::WorkspaceRepository;
 
 pub use self::spfs::{
     NameAndRepository,

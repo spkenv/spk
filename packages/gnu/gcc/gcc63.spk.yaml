@@ -1,9 +1,12 @@
-# {% set opt = opt | default_opts(version="6.3.0") %}
-pkg: gcc/{{ opt.version }}
+template:
+  versions:
+    static: 6.3.0
+
+pkg: gcc/{{ version }}
 api: v0/package
 
 sources:
-  - tar: http://ftpmirror.gnu.org/gnu/gcc/gcc-{{ opt.version }}/gcc-{{ opt.version }}.tar.gz
+  - tar: http://ftpmirror.gnu.org/gnu/gcc/gcc-{{ version }}/gcc-{{ version }}.tar.gz
 
 build:
   options:
@@ -23,9 +26,9 @@ build:
     - pkg: coreutils
     - pkg: make
     - pkg: zip
-    - pkg: gcc/<={{ opt.version }}
+    - pkg: gcc/<={{ version }}
   script:
-    - cd gcc-{{ opt.version }}
+    - cd gcc-{{ version }}
     - ./configure
       --prefix=/spfs
       --with-mpfr=/spfs

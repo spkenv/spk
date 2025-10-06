@@ -3,7 +3,7 @@
 // https://github.com/spkenv/spk
 
 use std::borrow::Cow;
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 use std::io::Read;
 use std::path::Path;
 use std::str::FromStr;
@@ -24,6 +24,7 @@ use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{PkgRequest, Request, Satisfy, VarRequest};
 use crate::metadata::Meta;
+use crate::template::{DiscoverVersions, TemplateRenderConfig, TemplateSpec};
 use crate::{
     BuildEnv,
     Deprecate,
@@ -135,13 +136,23 @@ macro_rules! spec {
     }};
 }
 
-/// A generic, structured data object that can be turned into a recipe
-/// when provided with the necessary option values
+/// A recipe template that can be rendered into a full recipe spec.
+///
+/// This struct represents a spec file that may contain a top-level `template` block,
+/// which defines how to discover versions and render the recipe for a specific version.
 #[derive(Debug, Clone)]
 pub struct SpecTemplate {
+    /// The structured metadata from the `template:` block.
+    template_spec: TemplateSpec,
+    /// Cached set of discovered versions, to avoid costly re-discovery.
+    supported_versions: once_cell::sync::OnceCell<BTreeSet<Version>>,
+    /// The name of the api item that this template is for, if any.
+    ///
+    /// Some api items are unnamed, in which case this will be `None`.
     name: Option<PkgNameBuf>,
-    versions: HashSet<Version>,
+    /// The path to the file this template was loaded from.
     file_path: std::path::PathBuf,
+    /// The full source of the file this template was loaded from.
     template: Arc<str>,
 }
 
@@ -155,20 +166,13 @@ impl SpecTemplate {
     pub fn name(&self) -> Option<&PkgNameBuf> {
         self.name.as_ref()
     }
+}
 
-    /// The versions that are available to create with this template.
-    ///
-    /// An empty set does not signify no versions, but rather that
-    /// nothing has been specified or discerned.
-    pub fn versions(&self) -> &HashSet<Version> {
-        &self.versions
-    }
-
-    /// Clear and reset the versions that are available to create
-    /// with this template.
-    pub fn set_versions(&mut self, versions: impl IntoIterator<Item = Version>) {
-        self.versions.clear();
-        self.versions.extend(versions);
+impl DiscoverVersions for SpecTemplate {
+    fn discover_versions(&self) -> Result<BTreeSet<Version>> {
+        self.supported_versions
+            .get_or_try_init(|| self.template_spec.versions.discover_versions())
+            .cloned()
     }
 }
 
@@ -177,8 +181,35 @@ impl Template for SpecTemplate {
         &self.file_path
     }
 
-    fn render(&self, options: &OptionMap) -> Result<SpecFileData> {
-        let data = super::TemplateData::new(options);
+    fn render_to_string(&self, data: TemplateRenderConfig) -> Result<String> {
+        let TemplateRenderConfig {
+            version,
+            options,
+            environment,
+        } = data;
+        let supported_versions = self.discover_versions()?;
+        if supported_versions.is_empty() {
+            return Err(Error::String("No versions found".to_string()));
+        }
+        let version = match version {
+            Some(v) if supported_versions.contains(&v) => v,
+            Some(v) => {
+                return Err(Error::String(format!(
+                    "Requested version '{v}' is not supported by this template"
+                )));
+            }
+            None if supported_versions.len() == 1 => supported_versions
+                .into_iter()
+                .next()
+                .expect("len was validated"),
+            None => {
+                return Err(Error::String(
+                    "No version specified, but multiple versions are supported".to_string(),
+                ));
+            }
+        };
+
+        let data = super::template::TemplateData::new(version, options, environment);
         let rendered = spk_schema_tera::render_template(
             self.file_path.to_string_lossy(),
             &self.template,
@@ -186,8 +217,7 @@ impl Template for SpecTemplate {
         )
         .map_err(Error::InvalidTemplate)?;
 
-        let file_data = SpecFileData::from_yaml(rendered)?;
-        Ok(file_data)
+        Ok(rendered)
     }
 }
 
@@ -204,9 +234,17 @@ impl TemplateExt for SpecTemplate {
             .read_to_string(&mut template)
             .map_err(|err| Error::String(format!("Failed to read file {path:?}: {err}")))?;
 
+        #[derive(serde::Deserialize)]
+        struct PartialTemplate {
+            api: Option<ApiVersion>,
+            template: Option<TemplateSpec>,
+            #[serde(flatten)]
+            body: serde_yaml::Mapping,
+        }
+
         // validate that the template is still a valid yaml mapping even
         // though we will need to re-process it again later on
-        let template_value: serde_yaml::Mapping = match serde_yaml::from_str(&template) {
+        let partial = match serde_yaml::from_str::<PartialTemplate>(&template) {
             Err(err) => {
                 return Err(Error::InvalidYaml(SerdeError::new(
                     template,
@@ -216,9 +254,7 @@ impl TemplateExt for SpecTemplate {
             Ok(v) => v,
         };
 
-        let api = template_value.get(serde_yaml::Value::String("api".to_string()));
-
-        if api.is_none() {
+        let api = partial.api.unwrap_or_else(|| {
             tracing::warn!(
                 spec_file = %file_path.to_string_lossy(),
                 "Spec file is missing the 'api' field, this may be an error in the future"
@@ -226,46 +262,59 @@ impl TemplateExt for SpecTemplate {
             tracing::warn!(
                 " > for package specs in the original spk format, add a 'api: v0/package' line"
             );
-        }
+            ApiVersion::V0Package
+        });
 
         let name_field = match api {
-            Some(serde_yaml::Value::String(api)) => {
-                let field = api.split("/").nth(1).unwrap_or("pkg");
-                if field == "package" { "pkg" } else { field }
-            }
-            Some(_) => "pkg",
-            None => "pkg",
+            ApiVersion::V0Package => Some("pkg"),
+            ApiVersion::V0Platform | ApiVersion::V1Platform => Some("platform"),
+            ApiVersion::V0Requirements => None,
         };
 
-        let name = if name_field == "requirements" {
-            // This is Spec data and does not have a name, e.g. Requests(V0::Requirements)
-            None
-        } else {
-            // Read the name from the name field, check it is a valid
-            // string, and turn it into a PkgNameBuf
-            let pkg = template_value
-                .get(serde_yaml::Value::String(name_field.to_string()))
-                .ok_or_else(|| {
+        let (name, version) = match name_field {
+            None => (None, None),
+            Some(name_field) => {
+                // Read the name from the name field, check it is a valid
+                // string, and turn it into a PkgNameBuf
+                let name = partial.body.get(name_field).ok_or_else(|| {
                     crate::Error::String(format!(
                         "Missing '{name_field}' field in spec file: {file_path:?}"
                     ))
                 })?;
 
-            let pkg = pkg.as_str().ok_or_else(|| {
-                crate::Error::String(format!(
-                    "Invalid value for '{name_field}' field: expected string, got {pkg:?} in {file_path:?}"
-                ))
-            })?;
+                let name = name.as_str().ok_or_else(|| {
+                    crate::Error::String(format!(
+                        "Invalid value for '{name_field}' field: expected string, got {name:?} in {file_path:?}"
+                    ))
+                })?;
 
-            // it should never be possible for split to return 0 results
-            // but this trick avoids the use of unwrap
-            Some(PkgNameBuf::from_str(pkg.split('/').next().unwrap_or(pkg))?)
+                let mut components = name.split('/');
+                // it should never be possible for split to return 0 results
+                // but this trick avoids the use of unwrap
+                let name = components.next().unwrap_or(name);
+                let version = components.next().unwrap_or("");
+
+                (
+                    Some(PkgNameBuf::from_str(name)?),
+                    Version::from_str(version).ok(),
+                )
+            }
+        };
+
+        let template_spec = match (partial.template, version) {
+            (Some(mut template_spec), v) => {
+                template_spec.versions.in_spec = v;
+                template_spec
+            }
+            (None, Some(v)) => TemplateSpec::from_single_version(v),
+            (None, None) => TemplateSpec::from_single_version(Version::default()),
         };
 
         Ok(Self {
+            template_spec,
+            supported_versions: Default::default(),
             file_path,
             name,
-            versions: Default::default(),
             template: template.into(),
         })
     }
@@ -454,6 +503,11 @@ impl FromYaml for SpecRecipe {
                     .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
                 Ok(Self::V0Platform(inner))
             }
+            ApiVersion::V1Platform => {
+                let inner = serde_yaml::from_str(&yaml)
+                    .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
+                Ok(Self::V1Platform(inner))
+            }
             ApiVersion::V0Requirements => {
                 // Reading a list of requests/requirements file is not
                 // supported here. But it might be in future.
@@ -510,7 +564,8 @@ impl SpecFileData {
         }
     }
 
-    pub fn from_yaml<S: Into<String>>(yaml: S) -> Result<SpecFileData> {
+    /// Parse the provided string as a yaml-encoded [`SpecFileData`].
+    pub fn from_yaml<S: Into<String>>(yaml: S) -> Result<Self> {
         let yaml = yaml.into();
 
         let value: serde_yaml::Value =
@@ -528,20 +583,27 @@ impl SpecFileData {
             Ok(m) => m,
         };
 
-        // Create the appropriate object from the parsed value
+        // Create the appropriate object from the original yaml
+        // NOTE: parsing the yaml value as a string again is more work but
+        // provides contextualized error messages that highlight source locations
         let spec = match with_version.api {
             ApiVersion::V0Package => {
-                let inner = serde_yaml::from_value(value)
+                let inner = serde_yaml::from_str(&yaml)
                     .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
                 SpecFileData::Recipe(Arc::new(SpecRecipe::V0Package(inner)))
             }
             ApiVersion::V0Platform => {
-                let inner = serde_yaml::from_value(value)
+                let inner = serde_yaml::from_str(&yaml)
                     .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
                 SpecFileData::Recipe(Arc::new(SpecRecipe::V0Platform(inner)))
             }
+            ApiVersion::V1Platform => {
+                let inner = serde_yaml::from_str(&yaml)
+                    .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
+                SpecFileData::Recipe(Arc::new(SpecRecipe::V1Platform(inner)))
+            }
             ApiVersion::V0Requirements => {
-                let requests: v0::Requirements = serde_yaml::from_value(value)
+                let requests: v0::Requirements = serde_yaml::from_str(&yaml)
                     .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
                 SpecFileData::Requests(requests)
             }
@@ -818,10 +880,19 @@ impl FromYaml for Spec {
                     .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
                 Ok(Self::V0Package(inner))
             }
-            ApiVersion::V0Requirements => {
-                // Reading a list of requests/requirement file is not
-                // supported here. But it might be in future.
-                unimplemented!()
+            v @ ApiVersion::V0Requirements | v @ ApiVersion::V1Platform => {
+                let api_version = v.to_string();
+                let (start, end) = match yaml.find(&api_version) {
+                    Some(start) => (Some(start), Some(start + api_version.len())),
+                    None => (None, None),
+                };
+                let error = Box::new(crate::Error::String(format!(
+                    "api version '{api_version}' is not currently supported in this context"
+                ))) as Box<dyn std::error::Error>;
+                Err(format_serde_error::SerdeError::new(
+                    yaml,
+                    (error, start, end),
+                ))
             }
         }
     }
@@ -833,13 +904,19 @@ impl AsRef<Spec> for Spec {
     }
 }
 
-#[derive(Deserialize, Serialize, Copy, Clone)]
+#[derive(Deserialize, Serialize, Copy, Clone, strum::Display)]
 pub enum ApiVersion {
     #[serde(rename = "v0/package")]
+    #[strum(to_string = "v0/package")]
     V0Package,
     #[serde(rename = "v0/platform")]
+    #[strum(to_string = "v0/platform")]
     V0Platform,
+    #[serde(rename = "v1/platform")]
+    #[strum(to_string = "v1/platform")]
+    V1Platform,
     #[serde(rename = "v0/requirements")]
+    #[strum(to_string = "v0/requirements")]
     V0Requirements,
 }
 

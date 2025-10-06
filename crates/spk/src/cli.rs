@@ -29,6 +29,7 @@ use spk_cmd_make_source::cmd_make_source;
 use spk_cmd_render::cmd_render;
 use spk_cmd_repo::cmd_repo;
 use spk_cmd_test::cmd_test;
+use spk_cmd_workspace::cmd_workspace;
 use spk_schema::foundation::format::FormatError;
 #[cfg(feature = "statsd")]
 use spk_solve::{
@@ -175,6 +176,7 @@ pub enum Command {
     Undeprecate(cmd_undeprecate::Undeprecate),
     Version(cmd_version::Version),
     View(cmd_view::View),
+    Workspace(cmd_workspace::Workspace),
 }
 
 // At the time of writing, enum_dispatch is not working to generate this code
@@ -215,6 +217,7 @@ impl Run for Command {
             Command::Undeprecate(cmd) => cmd.run().await,
             Command::Version(cmd) => cmd.run().await,
             Command::View(cmd) => cmd.run().await,
+            Command::Workspace(cmd) => cmd.run().await,
         }
     }
 }
@@ -251,6 +254,7 @@ impl CommandArgs for Command {
             Command::Undeprecate(cmd) => cmd.get_positional_args(),
             Command::Version(cmd) => cmd.get_positional_args(),
             Command::View(cmd) => cmd.get_positional_args(),
+            Command::Workspace(cmd) => cmd.get_positional_args(),
         }
     }
 }

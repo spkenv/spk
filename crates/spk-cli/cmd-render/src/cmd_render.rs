@@ -55,7 +55,7 @@ impl Run for Render {
             .get_formatter(self.verbose)?;
         let solution = solver.run_and_print_resolve(&formatter).await?;
 
-        let solution = build_required_packages(&solution, solver.clone()).await?;
+        let solution = build_required_packages(&solution, &formatter, solver.clone()).await?;
         let stack = resolve_runtime_layers(true, &solution).await?;
         std::fs::create_dir_all(&self.target)
             .into_diagnostic()

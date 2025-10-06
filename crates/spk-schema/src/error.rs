@@ -71,6 +71,14 @@ pub enum Error {
     #[error(transparent)]
     #[diagnostic(forward(0))]
     SpkConfigError(#[from] spk_config::Error),
+
+    #[error("Failed to run git command: {0}")]
+    GitCommandFailed(#[from] std::io::Error),
+    #[error("git command failed with exit code {0}: {1}")]
+    GitCommandExited(i32, String),
+    #[error("Failed to parse discovered tag as version: {0}")]
+    #[diagnostic(help = "consider adding or adjusting the tag regex and extraction pattern(s)")]
+    FailedToParseTagAsVersion(spk_schema_foundation::version::Error),
 }
 
 impl Error {

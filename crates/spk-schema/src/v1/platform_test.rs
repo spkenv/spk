@@ -148,7 +148,7 @@ fn test_platform_single_inheritance() {
                         platform: base/1.0.0
                         requirements:
                         - pkg: inherit-me
-                          atRuntime: 1.0.0
+                          atRuntime: 1.0
                     "#,
             )
             .unwrap();
@@ -306,4 +306,30 @@ fn test_platform_inheritance_with_override_and_removal() {
     assert_requirements!(build:Run contains "inherit-me3/1.0.0");
     assert_requirements!(build:Run len 2);
     assert_requirements!(build:Build len 3);
+}
+
+#[rstest]
+fn test_platform_requirement_deserialize_numbers() {
+    // test that any version-like value can be deserialized
+    // in platform requirements. Notably floating point and
+    // integer values
+
+    let yaml = r#"
+    platform: test-platform
+    requirements:
+      - pkg: test1
+        atRuntime: 1.0.0
+      - pkg: test2
+        atRuntime: 1.0
+      - pkg: test3
+        atRuntime: 1
+    "#;
+
+    let spec: Platform = serde_yaml::from_str(yaml).unwrap();
+    let build = spec.generate_binary_build(&option_map! {}, &()).unwrap();
+
+    assert_requirements!(build:Run contains "test1/1.0.0");
+    assert_requirements!(build:Run contains "test2/1.0.0");
+    assert_requirements!(build:Run contains "test3/1.0.0");
+    assert_requirements!(build:Run len 3);
 }

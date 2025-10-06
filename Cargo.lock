@@ -3651,6 +3651,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde-peekable"
+version = "0.44.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "serde_cbor"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4228,6 +4236,7 @@ dependencies = [
  "spk-cmd-render",
  "spk-cmd-repo",
  "spk-cmd-test",
+ "spk-cmd-workspace",
  "spk-exec",
  "spk-schema",
  "spk-solve",
@@ -4635,6 +4644,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "spk-cmd-workspace"
+version = "0.44.0"
+dependencies = [
+ "async-trait",
+ "clap 4.5.47",
+ "colored",
+ "itertools 0.14.0",
+ "miette",
+ "spfs",
+ "spk-build",
+ "spk-cli-common",
+ "spk-cmd-make-binary",
+ "spk-cmd-make-source",
+ "spk-schema",
+ "spk-solve",
+ "spk-storage",
+ "spk-workspace",
+ "tracing",
+]
+
+[[package]]
 name = "spk-config"
 version = "0.44.0"
 dependencies = [
@@ -4690,6 +4720,7 @@ dependencies = [
 name = "spk-schema"
 version = "0.44.0"
 dependencies = [
+ "bracoxide",
  "config",
  "data-encoding",
  "dunce",
@@ -4702,12 +4733,14 @@ dependencies = [
  "miette",
  "nom",
  "nom-supreme",
+ "once_cell",
  "proptest",
  "regex",
  "relative-path",
  "ring",
  "rstest",
  "serde",
+ "serde-peekable",
  "serde_json",
  "serde_yaml 0.9.34+deprecated",
  "shellexpand",
@@ -4720,6 +4753,7 @@ dependencies = [
  "tempfile",
  "thiserror 1.0.69",
  "tracing",
+ "url",
 ]
 
 [[package]]
@@ -4955,6 +4989,7 @@ dependencies = [
  "serde_yaml 0.9.34+deprecated",
  "spfs",
  "spk-schema",
+ "spk-workspace",
  "sys-info",
  "tar",
  "tempfile",
@@ -4982,7 +5017,6 @@ dependencies = [
  "serde_json",
  "serde_yaml 0.9.34+deprecated",
  "spk-schema",
- "spk-solve",
  "tempfile",
  "thiserror 1.0.69",
  "tracing",

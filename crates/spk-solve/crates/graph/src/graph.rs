@@ -34,6 +34,7 @@ use spk_schema::{
 };
 use spk_solve_package_iterator::{PackageIterator, PromotionPatterns};
 use spk_solve_solution::{PackageSource, Solution};
+use spk_storage::RepositoryHandle;
 use thiserror::Error;
 
 #[cfg(test)]
@@ -162,7 +163,7 @@ impl FormatChange for Change {
                                     // requested and added in the same state during a solve.
                                     // We can use their PackageSource data to find what
                                     // requested them.
-                                    PackageSource::BuildFromSource { recipe } => {
+                                    PackageSource::BuildFromSource { recipe, .. } => {
                                         vec![
                                             RequestedBy::PackageVersion(recipe.ident().clone())
                                                 .to_string(),
@@ -271,11 +272,13 @@ impl<'state> DecisionBuilder<'state, '_> {
     /// can be included in the final solution.
     pub fn build_package(
         self,
+        repo: &Arc<RepositoryHandle>,
         recipe: &Arc<SpecRecipe>,
         spec: &Arc<Spec>,
     ) -> crate::Result<Decision> {
         let generate_changes = || -> crate::Result<Vec<_>> {
             let mut changes = vec![Change::SetPackageBuild(Box::new(SetPackageBuild::new(
+                Arc::clone(repo),
                 Arc::clone(spec),
                 Arc::clone(recipe),
             )))];
@@ -1086,10 +1089,10 @@ pub struct SetPackageBuild {
 }
 
 impl SetPackageBuild {
-    pub fn new(spec: Arc<Spec>, recipe: Arc<SpecRecipe>) -> Self {
+    pub fn new(repo: Arc<RepositoryHandle>, spec: Arc<Spec>, recipe: Arc<SpecRecipe>) -> Self {
         SetPackageBuild {
             spec,
-            source: PackageSource::BuildFromSource { recipe },
+            source: PackageSource::BuildFromSource { recipe, repo },
         }
     }
 
