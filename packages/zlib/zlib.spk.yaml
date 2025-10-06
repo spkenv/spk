@@ -1,35 +1,36 @@
-pkg: zlib/1.2.11+r.1
+template:
+  versions:
+    discover:
+      gitTags: v1\.\d+\.\d+
+      url: https://github.com/madler/zlib
+      extract: v(\d+\.\d+\.?\d*)
+
+pkg: zlib/{{ version }}
 api: v0/package
- # - name: "zlib"
-  # - description: "Compression library"
-  # - license: Zlib
-  # - url: https://www.zlib.net
+meta:
+  description: "Compression library"
+  license: Zlib
+  homepage: https://www.zlib.net
 
 sources:
   # This idiom can work with any of (a) a local clone, (b) a git submodule,
   # or (c) nothing (does a fresh clone).
   - path: ./
   - script:
-    - if [ ! -d zlib ] ; then git clone https://github.com/madler/zlib.git -b v1.2.11 ; fi
+      - if [ ! -d zlib ] ; then git clone https://github.com/madler/zlib.git -b v{{ version }} ; fi
 
 build:
   options:
-    - pkg: stdfs # provides the default filesystem structure (bin, lib, etc)
-    - var: arch    # rebuild if the arch changes
-    - var: os      # rebuild if the os changes
-    - var: centos  # rebuild if centos version changes
-    - pkg: gcc/6.3
+    - pkg: stdfs
+    - pkg: gcc
     - pkg: cmake/^3.13
   # Because this is a pure C library, just build with any gcc and don't
   # specify multiple gcc variants.
   script:
     - cmake -S zlib -B build
-        -DCMAKE_BUILD_TYPE=Release
-        -DCMAKE_INSTALL_PREFIX=${PREFIX}
+      -DCMAKE_BUILD_TYPE=Release
+      -DCMAKE_INSTALL_PREFIX=${PREFIX}
     - cmake --build build --target install
-  variants:
-    - {gcc: 4.8}
-    - {gcc: 6.3}
 
 install:
   requirements:
