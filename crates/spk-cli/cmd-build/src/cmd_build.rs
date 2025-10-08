@@ -165,7 +165,9 @@ impl Run for Build {
                         current_package_version,
                         &idents,
                     )
-                    .await?;
+                    .await
+                    .unwrap_or(0);
+
                     total_packages_size += version_builds_size;
                     self.print_total_size(current_package_version, version_builds_size)
                         .await;
@@ -181,7 +183,9 @@ impl Run for Build {
 
             // Build sizes are calculated separately because we want
             // to show the disk usage of each build on its own.
-            let size = spk_storage::get_build_disk_usage(&repos, ident).await?;
+            let size = spk_storage::get_build_disk_usage(&repos, ident)
+                .await
+                .unwrap_or(0);
 
             // This total will include some double counting in some packages
             total_builds_size += size;
@@ -196,7 +200,9 @@ impl Run for Build {
                 current_package_version,
                 &idents,
             )
-            .await?;
+            .await
+            .unwrap_or(0);
+
             total_packages_size += version_builds_size;
             self.print_total_size(current_package_version, version_builds_size)
                 .await;
