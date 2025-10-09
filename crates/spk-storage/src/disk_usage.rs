@@ -641,9 +641,9 @@ pub async fn get_version_builds_disk_usage(
 /// components) in the given repo(s).
 ///
 /// Note: builds with no files (at all) will return a
-/// DiskUsageBuildNotFound error because at least on file is needed to
+/// DiskUsageBuildNotFound error because at least one file is needed to
 /// calculate a walked disk usage entry. For example, commands like
-/// 'spk pip convert ...'  can generate /src builds for python
+/// 'spk convert pip ...'  can generate /src builds for python
 /// packages that have no files in them.
 pub async fn get_build_disk_usage(
     repos: &Vec<(String, RepositoryHandle)>,
