@@ -16,6 +16,10 @@ use spfs::prelude::*;
 use spfs::{self};
 use spfs_cli_common as cli;
 
+#[cfg(test)]
+#[path = "./cmd_info_test.rs"]
+mod cmd_info_test;
+
 /// Display information about the current environment, or specific items
 #[derive(Debug, Args)]
 pub struct CmdInfo {
