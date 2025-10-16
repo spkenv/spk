@@ -33,7 +33,7 @@ pub use renderer::{
     RenderType,
     Renderer,
 };
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub use repository::MaybeOpenFsRepositoryImpl;
 pub use repository::{
     Config,
