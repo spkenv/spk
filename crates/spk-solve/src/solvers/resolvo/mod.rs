@@ -145,7 +145,6 @@ impl Solver {
     pub async fn solve(&self) -> Result<Solution> {
         let repos = self.repos.clone();
         let requests = self.requests.clone();
-        let options = self.options.clone();
         let binary_only = self.binary_only;
         let build_from_source_trail = self.build_from_source_trail.clone();
         // Use a blocking thread so resolvo can call `block_on` on the runtime.
@@ -160,11 +159,7 @@ impl Solver {
                 loop_counter += 1;
                 let mut this_iter_provider = provider.take().expect("provider is always Some");
                 let pkg_requirements = this_iter_provider.root_pkg_requirements(&requests);
-                let mut var_requirements = this_iter_provider.var_requirements(&requests);
-                // XXX: Not sure if this will result in the desired precedence
-                // when options and var requests for the same thing exist.
-                var_requirements
-                    .extend(this_iter_provider.var_requirements_from_options(options.clone()));
+                let var_requirements = this_iter_provider.var_requirements(&requests);
                 let mut solver = resolvo::Solver::new(this_iter_provider)
                     .with_runtime(tokio::runtime::Handle::current());
                 let problem = resolvo::Problem::new()
