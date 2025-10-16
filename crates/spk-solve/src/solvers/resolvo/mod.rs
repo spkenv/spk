@@ -27,6 +27,7 @@ use spk_schema::ident::{
     InclusionPolicy,
     LocatedBuildIdent,
     PinPolicy,
+    PinnableValue,
     PkgRequest,
     RangeIdent,
     RequestedBy,
@@ -42,6 +43,7 @@ use spk_solve_validation::{Validators, default_validators};
 use spk_storage::RepositoryHandle;
 
 use crate::solver::Solver as SolverTrait;
+use crate::solvers::resolvo::pkg_request_version_set::LocatedBuildIdentWithComponent;
 use crate::{DecisionFormatter, Error, Result, SolverExt, SolverMut, show_search_space_stats};
 
 #[cfg(test)]
@@ -196,16 +198,9 @@ impl Solver {
             let pool = &solver.provider().pool;
             Ok(solved
                 .into_iter()
-                .filter_map(|solvable_id| {
+                .map(|solvable_id| {
                     let solvable = pool.resolve_solvable(solvable_id);
-                    if let SpkSolvable::LocatedBuildIdentWithComponent(
-                        located_build_ident_with_component,
-                    ) = &solvable.record
-                    {
-                        Some(located_build_ident_with_component.clone())
-                    } else {
-                        None
-                    }
+                    solvable.record.clone()
                 })
                 .collect::<Vec<_>>())
         })
@@ -220,16 +215,22 @@ impl Solver {
         // two entries in this list with the same package name are for the same
         // package and this merging of components is valid.
         let mut seen_packages = HashMap::new();
-        for located_build_ident_with_component in solvables {
-            let SyntheticComponent::Actual(solvable_component) =
-                &located_build_ident_with_component.component
+        for spk_solvable in solvables {
+            if let SpkSolvable::GlobalVar { key, value } = &spk_solvable {
+                solution_options.insert(key.clone(), value.to_string());
+                continue;
+            }
+
+            let SpkSolvable::LocatedBuildIdentWithComponent(LocatedBuildIdentWithComponent {
+                ident,
+                component: SyntheticComponent::Actual(solvable_component),
+                requires_build_from_source,
+            }) = &spk_solvable
             else {
                 continue;
             };
 
-            if let Some(existing_index) =
-                seen_packages.get(located_build_ident_with_component.ident.name())
-            {
+            if let Some(existing_index) = seen_packages.get(ident.name()) {
                 if let Some((
                     PkgRequest {
                         pkg: RangeIdent { components, .. },
@@ -253,7 +254,7 @@ impl Solver {
             let pkg_request = PkgRequest {
                 pkg: RangeIdent {
                     repository_name: None,
-                    name: located_build_ident_with_component.ident.name().to_owned(),
+                    name: ident.name().to_owned(),
                     components: BTreeSet::from_iter([solvable_component.clone()]),
                     version: VersionFilter::default(),
                     build: None,
@@ -268,13 +269,9 @@ impl Solver {
             let repo = self
                 .repos
                 .iter()
-                .find(|repo| {
-                    repo.name() == located_build_ident_with_component.ident.repository_name()
-                })
+                .find(|repo| repo.name() == ident.repository_name())
                 .expect("Expected solved package's repository to be in the list of repositories");
-            let package = repo
-                .read_package(located_build_ident_with_component.ident.target())
-                .await?;
+            let package = repo.read_package(ident.target()).await?;
             let rendered_version = package.compat().render(package.version());
             solution_options.insert(package.name().as_opt_name().to_owned(), rendered_version);
             for option in package.get_build_options() {
@@ -301,22 +298,20 @@ impl Solver {
                     }
                 }
             }
+            for option in package.runtime_requirements().iter() {
+                if let Request::Var(var_req) = option
+                    && let PinnableValue::Pinned(value) = &var_req.value
+                {
+                    solution_options.insert(var_req.var.clone(), value.to_string());
+                }
+            }
             let next_index = solution_adds.len();
-            seen_packages.insert(
-                located_build_ident_with_component.ident.name().to_owned(),
-                next_index,
-            );
+            seen_packages.insert(ident.name().to_owned(), next_index);
             solution_adds.push((pkg_request, package, {
-                match located_build_ident_with_component.ident.build() {
-                    spk_schema::ident_build::Build::Source
-                        if located_build_ident_with_component.requires_build_from_source =>
-                    {
+                match ident.build() {
+                    spk_schema::ident_build::Build::Source if *requires_build_from_source => {
                         PackageSource::BuildFromSource {
-                            recipe: repo
-                                .read_recipe(
-                                    &located_build_ident_with_component.ident.to_version_ident(),
-                                )
-                                .await?,
+                            recipe: repo.read_recipe(&ident.clone().to_version_ident()).await?,
                         }
                     }
                     spk_schema::ident_build::Build::Source => {
@@ -325,9 +320,7 @@ impl Solver {
                         PackageSource::Repository {
                             repo: Arc::clone(repo),
                             // XXX: Why is this needed?
-                            components: repo
-                                .read_components(located_build_ident_with_component.ident.target())
-                                .await?,
+                            components: repo.read_components(ident.target()).await?,
                         }
                     }
                     spk_schema::ident_build::Build::Embedded(embedded_source) => {
@@ -339,9 +332,7 @@ impl Solver {
                                     parent: (**embedded_source_package).clone().try_into()?,
                                     // XXX: Why is this needed?
                                     components: repo
-                                        .read_components(
-                                            located_build_ident_with_component.ident.target(),
-                                        )
+                                        .read_components(ident.target())
                                         .await?
                                         .keys()
                                         .cloned()
@@ -355,9 +346,7 @@ impl Solver {
                         PackageSource::Repository {
                             repo: Arc::clone(repo),
                             // XXX: Why is this needed?
-                            components: repo
-                                .read_components(located_build_ident_with_component.ident.target())
-                                .await?,
+                            components: repo.read_components(ident.target()).await?,
                         }
                     }
                 }
