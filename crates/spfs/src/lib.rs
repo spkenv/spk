@@ -6,7 +6,7 @@
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub mod fixtures;
 
 pub mod bootstrap;
