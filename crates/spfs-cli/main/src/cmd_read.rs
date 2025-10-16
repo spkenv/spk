@@ -8,6 +8,10 @@ use spfs::Error;
 use spfs::prelude::*;
 use spfs_cli_common as cli;
 
+#[cfg(test)]
+#[path = "./cmd_read_test.rs"]
+mod cmd_read_test;
+
 /// Output the contents of a blob to stdout
 #[derive(Debug, Args)]
 #[clap(visible_aliases = &["read-file", "cat", "cat-file"])]
