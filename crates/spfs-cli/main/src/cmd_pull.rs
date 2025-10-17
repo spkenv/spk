@@ -4,6 +4,7 @@
 
 use clap::Args;
 use miette::Result;
+use spfs::sync::reporter::Summary;
 use spfs_cli_common as cli;
 
 /// Pull one or more objects to the local repository

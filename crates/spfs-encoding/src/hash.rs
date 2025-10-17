@@ -259,7 +259,10 @@ impl Decodable for String {
     }
 }
 
-/// The first N bytes of a digest that may still be unambiguous as a reference
+/// The first N bytes of a digest that may still be unambiguous as a reference.
+///
+/// This type can represent a full digest, but it does not require that an item
+/// exists with that digest or what type of item it is.
 #[derive(Deserialize, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Clone)]
 pub struct PartialDigest(Vec<u8>);
 

@@ -5,10 +5,12 @@
 use std::io::ErrorKind;
 use std::pin::Pin;
 
+use chrono::{DateTime, Utc};
 use futures::future::ready;
 use futures::{Stream, StreamExt, TryFutureExt};
 
 use super::{MaybeOpenFsRepository, OpenFsRepository};
+use crate::storage::fs::database::remove_file_if_older_than;
 use crate::tracking::BlobRead;
 use crate::{Error, Result, encoding};
 
@@ -47,6 +49,17 @@ impl crate::storage::PayloadStorage for MaybeOpenFsRepository {
 
     async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
         self.opened().await?.remove_payload(digest).await
+    }
+
+    async fn remove_payload_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> Result<bool> {
+        self.opened()
+            .await?
+            .remove_payload_if_older_than(older_than, digest)
+            .await
     }
 }
 
@@ -106,5 +119,14 @@ impl crate::storage::PayloadStorage for OpenFsRepository {
                 )),
             },
         }
+    }
+
+    async fn remove_payload_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> Result<bool> {
+        let filepath = self.payloads.build_digest_path(&digest);
+        remove_file_if_older_than(older_than, &filepath, digest).await
     }
 }

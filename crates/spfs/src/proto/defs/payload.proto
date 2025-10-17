@@ -79,6 +79,17 @@ message RemovePayloadResponse{
     }
 }
 
+message RemovePayloadIfOlderThanRequest{
+    DateTime older_than = 1;
+    Digest digest = 2;
+}
+message RemovePayloadIfOlderThanResponse{
+    oneof result {
+        Error error = 1;
+        bool ok = 2;
+    }
+}
+
 service PayloadService {
     rpc IterDigests(IterDigestsRequest) returns (stream IterDigestsResponse);
     rpc HasPayload(HasPayloadRequest) returns (HasPayloadResponse);
@@ -86,4 +97,5 @@ service PayloadService {
     rpc WritePayload(WritePayloadRequest) returns (WritePayloadResponse);
     rpc OpenPayload(OpenPayloadRequest) returns (OpenPayloadResponse);
     rpc RemovePayload(RemovePayloadRequest) returns (RemovePayloadResponse);
+    rpc RemovePayloadIfOlderThan(RemovePayloadIfOlderThanRequest) returns (RemovePayloadIfOlderThanResponse);
 }

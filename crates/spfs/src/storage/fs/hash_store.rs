@@ -79,10 +79,10 @@ impl FsHashStore {
         self.root.join(WORK_DIRNAME)
     }
 
-    async fn find_in_entry(
-        search_criteria: crate::graph::DigestSearchCriteria,
+    async fn find_in_entry<'a>(
+        search_criteria: &'a crate::graph::DigestSearchCriteria,
         entry: DirEntry,
-    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send + Sync + 'static>> {
+    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send + Sync + 'a>> {
         let entry_filename = entry.file_name();
         let entry_filename = entry_filename.to_string_lossy().into_owned();
         if entry_filename == WORK_DIRNAME || entry_filename == PROXY_DIRNAME {
@@ -163,10 +163,10 @@ impl FsHashStore {
         })
     }
 
-    pub fn find(
+    pub fn find<'a>(
         &self,
-        search_criteria: crate::graph::DigestSearchCriteria,
-    ) -> impl Stream<Item = Result<encoding::Digest>> + use<> {
+        search_criteria: &'a crate::graph::DigestSearchCriteria,
+    ) -> impl Stream<Item = Result<encoding::Digest>> + use<'a> {
         // Don't capture self inside try_stream.
         let root = self.root.clone();
 
@@ -176,7 +176,7 @@ impl FsHashStore {
                 let entry_filename = entry.file_name();
                 let entry_filename = entry_filename.to_string_lossy();
 
-                let mut entry_stream = Self::find_in_entry(search_criteria.clone(), entry).await;
+                let mut entry_stream = Self::find_in_entry(search_criteria, entry).await;
                 while let Some(digest) = entry_stream.try_next().await? {
                     yield digest
                 }
@@ -198,7 +198,7 @@ impl FsHashStore {
     }
 
     pub fn iter(&self) -> impl Stream<Item = Result<encoding::Digest>> + use<> {
-        self.find(crate::graph::DigestSearchCriteria::All)
+        self.find(&crate::graph::DigestSearchCriteria::All)
     }
 
     /// Return true if the given digest is stored in this storage

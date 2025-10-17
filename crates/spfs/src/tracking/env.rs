@@ -228,16 +228,25 @@ pub enum EnvSpecItem {
 }
 
 impl EnvSpecItem {
-    /// Find the object digest for this item.
+    /// Find the digest for this env spec item.
     ///
-    /// Any necessary lookups are done using the provided repository
+    /// Any necessary lookups are done using the provided repository.
+    ///
+    /// It is possible for this to succeed for tags even when no object or
+    /// digest exists with the digest.
+    ///
+    /// The returned digest may refer to an object, a payload, or a non-existent
+    /// item.
     pub async fn resolve_digest<R>(&self, repo: &R) -> Result<encoding::Digest>
     where
         R: crate::storage::Repository + ?Sized,
     {
         match self {
             Self::TagSpec(spec) => repo.resolve_tag(spec).await.map(|t| t.target),
-            Self::PartialDigest(part) => repo.resolve_full_digest(part).await,
+            Self::PartialDigest(part) => repo
+                .resolve_full_digest(part)
+                .await
+                .map(|found_digest| found_digest.into_digest()),
             Self::Digest(digest) => Ok(*digest),
             Self::SpecFile(_) => Err(Error::String(String::from(
                 "Impossible operation: spfs env files do not have digests",
