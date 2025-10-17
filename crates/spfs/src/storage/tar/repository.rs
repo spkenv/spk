@@ -14,7 +14,7 @@ use relative_path::RelativePath;
 use tar::{Archive, Builder};
 
 use crate::config::{ToAddress, pathbuf_deserialize_with_tilde_expansion};
-use crate::graph::ObjectProto;
+use crate::graph::{FoundDigest, ObjectProto};
 use crate::prelude::*;
 use crate::storage::fs::DURABLE_EDITS_DIR;
 use crate::storage::tag::TagSpecAndTagStream;
@@ -225,10 +225,10 @@ impl graph::DatabaseView for TarRepository {
         self.repo.read_object(digest).await
     }
 
-    fn find_digests(
+    fn find_digests<'a>(
         &self,
-        search_criteria: graph::DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+        search_criteria: &'a graph::DigestSearchCriteria,
+    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>> {
         self.repo.find_digests(search_criteria)
     }
 
@@ -240,10 +240,7 @@ impl graph::DatabaseView for TarRepository {
         self.repo.walk_objects(root)
     }
 
-    async fn resolve_full_digest(
-        &self,
-        partial: &encoding::PartialDigest,
-    ) -> Result<encoding::Digest> {
+    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<FoundDigest> {
         self.repo.resolve_full_digest(partial).await
     }
 }
@@ -314,6 +311,22 @@ impl PayloadStorage for TarRepository {
         self.up_to_date
             .store(false, std::sync::atomic::Ordering::Release);
         Ok(())
+    }
+
+    async fn remove_payload_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> Result<bool> {
+        let deleted = self
+            .repo
+            .remove_payload_if_older_than(older_than, digest)
+            .await?;
+        if deleted {
+            self.up_to_date
+                .store(false, std::sync::atomic::Ordering::Release);
+        }
+        Ok(deleted)
     }
 }
 

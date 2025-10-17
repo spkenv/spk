@@ -11,7 +11,7 @@ use futures::Stream;
 use relative_path::RelativePath;
 
 use crate::config::{ToAddress, default_fallback_repo_include_secondary_tags};
-use crate::graph::ObjectProto;
+use crate::graph::{FoundDigest, ObjectProto};
 use crate::prelude::*;
 use crate::storage::fs::{FsHashStore, ManifestRenderPath, OpenFsRepository, RenderStore};
 use crate::storage::proxy::ProxyRepositoryExt;
@@ -223,10 +223,10 @@ impl graph::DatabaseView for FallbackProxy {
         res
     }
 
-    fn find_digests(
+    fn find_digests<'a>(
         &self,
-        search_criteria: graph::DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+        search_criteria: &'a graph::DigestSearchCriteria,
+    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>> {
         self.primary.find_digests(search_criteria)
     }
 
@@ -318,7 +318,7 @@ impl PayloadStorage for FallbackProxy {
                         // context, so don't make another one here.
                         SyncReporters::silent(),
                     );
-                match syncer.sync_digest(digest).await {
+                match syncer.sync_payload(digest).await {
                     Ok(_) => {
                         // Warn for non-sentry users; info for sentry users.
                         #[cfg(not(feature = "sentry"))]
@@ -359,6 +359,17 @@ impl PayloadStorage for FallbackProxy {
     async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
         self.primary.remove_payload(digest).await?;
         Ok(())
+    }
+
+    async fn remove_payload_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> Result<bool> {
+        Ok(self
+            .primary
+            .remove_payload_if_older_than(older_than, digest)
+            .await?)
     }
 }
 

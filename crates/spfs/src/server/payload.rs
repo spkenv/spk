@@ -5,13 +5,14 @@
 use std::pin::Pin;
 use std::sync::Arc;
 
+use chrono::{DateTime, Utc};
 use futures::{Stream, StreamExt, TryStreamExt};
 use prost::Message;
 use tonic::{Request, Response, Status};
 
 use crate::prelude::*;
 use crate::proto::payload_service_server::PayloadServiceServer;
-use crate::proto::{self, RpcResult, convert_digest};
+use crate::proto::{self, RpcResult, convert_digest, convert_to_datetime};
 use crate::storage;
 
 /// The payload service is both a gRPC service AND an http server
@@ -109,6 +110,23 @@ impl proto::payload_service_server::PayloadService for PayloadService {
         let digest: crate::encoding::Digest = proto::handle_error!(convert_digest(request.digest));
         proto::handle_error!(self.repo.remove_payload(digest).await);
         let result = proto::RemovePayloadResponse::ok(proto::Ok {});
+        Ok(Response::new(result))
+    }
+
+    async fn remove_payload_if_older_than(
+        &self,
+        request: Request<proto::RemovePayloadIfOlderThanRequest>,
+    ) -> Result<Response<proto::RemovePayloadIfOlderThanResponse>, Status> {
+        let request = request.into_inner();
+        let older_than: DateTime<Utc> =
+            proto::handle_error!(convert_to_datetime(request.older_than));
+        let digest: crate::encoding::Digest = proto::handle_error!(convert_digest(request.digest));
+        let deleted = proto::handle_error!(
+            self.repo
+                .remove_payload_if_older_than(older_than, digest)
+                .await
+        );
+        let result = proto::RemovePayloadIfOlderThanResponse::ok(deleted);
         Ok(Response::new(result))
     }
 }

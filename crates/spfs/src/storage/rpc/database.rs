@@ -8,7 +8,7 @@ use std::pin::Pin;
 use futures::{Stream, TryStreamExt};
 use proto::RpcResult;
 
-use crate::graph::{self, ObjectProto};
+use crate::graph::{self, FoundDigest, ObjectProto};
 use crate::{Result, encoding, proto};
 
 #[async_trait::async_trait]
@@ -40,12 +40,12 @@ impl graph::DatabaseView for super::RpcRepository {
         obj.try_into()
     }
 
-    fn find_digests(
+    fn find_digests<'a>(
         &self,
-        search_criteria: graph::DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+        search_criteria: &'a graph::DigestSearchCriteria,
+    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>> {
         let request = proto::FindDigestsRequest {
-            search_criteria: Some(search_criteria.into()),
+            search_criteria: Some(search_criteria.clone().into()),
         };
         let mut client = self.db_client.clone();
         let stream = futures::stream::once(async move { client.find_digests(request).await })

@@ -66,10 +66,10 @@ async fn test_proxy_object_read_through(tmpdir: tempfile::TempDir) {
         include_secondary_tags: default_proxy_repo_include_secondary_tags(),
     };
 
-    proxy
-        .read_object(payload)
-        .await
-        .expect("object should be loadable via the secondary repo");
+    assert!(
+        proxy.has_payload(payload).await,
+        "payload should exist via the secondary repo"
+    );
 }
 
 #[rstest]

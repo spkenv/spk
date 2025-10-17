@@ -20,7 +20,10 @@ pub trait ManifestStorage: graph::Database + Sync + Send {
     /// Iterate the objects in this storage which are manifests.
     fn iter_manifests<'db>(&'db self) -> Pin<Box<dyn Stream<Item = ManifestStreamItem> + 'db>> {
         let stream = self.iter_objects().filter_map(|res| match res {
-            Ok((digest, obj)) => obj.into_manifest().map(|b| Ok((digest, b))),
+            Ok(graph::DatabaseItem::Object(digest, obj)) => {
+                obj.into_manifest().map(|b| Ok((digest, b)))
+            }
+            Ok(graph::DatabaseItem::Payload(_digest)) => None,
             Err(err) => Some(Err(err)),
         });
         Box::pin(stream)

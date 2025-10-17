@@ -13,7 +13,7 @@ use futures::{Stream, StreamExt, future};
 use relative_path::RelativePath;
 
 use crate::config::{ToAddress, default_proxy_repo_include_secondary_tags};
-use crate::graph::ObjectProto;
+use crate::graph::{FoundDigest, ObjectProto};
 use crate::prelude::*;
 use crate::storage::proxy::ProxyRepositoryExt;
 use crate::storage::tag::TagSpecAndTagStream;
@@ -159,10 +159,10 @@ impl graph::DatabaseView for ProxyRepository {
         res
     }
 
-    fn find_digests(
+    fn find_digests<'a>(
         &self,
-        search_criteria: graph::DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+        search_criteria: &'a graph::DigestSearchCriteria,
+    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>> {
         self.primary.find_digests(search_criteria)
     }
 
@@ -265,6 +265,17 @@ impl PayloadStorage for ProxyRepository {
     async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
         self.primary.remove_payload(digest).await?;
         Ok(())
+    }
+
+    async fn remove_payload_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> Result<bool> {
+        Ok(self
+            .primary
+            .remove_payload_if_older_than(older_than, digest)
+            .await?)
     }
 }
 

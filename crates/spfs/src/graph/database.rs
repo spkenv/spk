@@ -7,7 +7,7 @@ use std::pin::Pin;
 use std::task::Poll;
 
 use chrono::{DateTime, Utc};
-use futures::{Future, Stream, StreamExt, TryStreamExt};
+use futures::{Future, FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
 
 use super::{FlatObject, Object, ObjectProto};
 use crate::{Error, Result, encoding};
@@ -77,11 +77,8 @@ impl Stream for DatabaseWalker<'_> {
 #[allow(clippy::type_complexity)]
 pub struct DatabaseIterator<'db> {
     db: &'db dyn DatabaseView,
-    next: Option<(
-        encoding::Digest,
-        Pin<Box<dyn Future<Output = Result<Object>> + Send + 'db>>,
-    )>,
-    inner: Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>>,
+    next: Option<Pin<Box<dyn Future<Output = Result<DatabaseItem>> + Send + 'db>>>,
+    inner: Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send>>,
 }
 
 impl<'db> DatabaseIterator<'db> {
@@ -91,7 +88,7 @@ impl<'db> DatabaseIterator<'db> {
     /// # Errors
     /// The same as [`DatabaseView::read_object`]
     pub fn new(db: &'db dyn DatabaseView) -> Self {
-        let iter = db.find_digests(crate::graph::DigestSearchCriteria::All);
+        let iter = db.find_digests(&crate::graph::DigestSearchCriteria::All);
         DatabaseIterator {
             db,
             inner: iter,
@@ -100,32 +97,57 @@ impl<'db> DatabaseIterator<'db> {
     }
 }
 
+/// An item returned by [`DatabaseIterator`].
+pub enum DatabaseItem {
+    Object(encoding::Digest, Object),
+    Payload(encoding::Digest),
+}
+
+impl DatabaseItem {
+    /// Borrow the inner digest.
+    #[inline]
+    pub fn digest(&self) -> &encoding::Digest {
+        match self {
+            DatabaseItem::Object(d, _) => d,
+            DatabaseItem::Payload(d) => d,
+        }
+    }
+}
+
 impl Stream for DatabaseIterator<'_> {
-    type Item = Result<(encoding::Digest, Object)>;
+    type Item = Result<DatabaseItem>;
 
     fn poll_next(
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        let (digest, mut current_future) = match self.next.take() {
+        let mut current_future = match self.next.take() {
             Some(f) => f,
             None => match Pin::new(&mut self.inner).poll_next(cx) {
                 Poll::Pending => return Poll::Pending,
                 Poll::Ready(inner_next) => match inner_next {
                     None => return Poll::Ready(None),
                     Some(Err(err)) => return Poll::Ready(Some(Err(err))),
-                    Some(Ok(digest)) => (digest, self.db.read_object(digest)),
+                    Some(Ok(FoundDigest::Object(digest))) => self
+                        .db
+                        .read_object(digest)
+                        .map_ok(move |x| DatabaseItem::Object(digest, x))
+                        .map_err(move |err| format!("Error reading object {digest}: {err}").into())
+                        .boxed(),
+                    Some(Ok(FoundDigest::Payload(digest))) => {
+                        futures::future::ready(Ok(DatabaseItem::Payload(digest))).boxed()
+                    }
                 },
             },
         };
         match Pin::new(&mut current_future).poll(cx) {
             Poll::Pending => {
-                self.next = Some((digest, current_future));
+                self.next = Some(current_future);
                 Poll::Pending
             }
             Poll::Ready(res) => Poll::Ready(match res {
-                Ok(obj) => Some(Ok((digest, obj))),
-                Err(err) => Some(Err(format!("Error reading object {digest}: {err}").into())),
+                Ok(obj) => Some(Ok(obj)),
+                Err(err) => Some(Err(err)),
             }),
         }
     }
@@ -137,6 +159,42 @@ pub enum DigestSearchCriteria {
     StartsWith(encoding::PartialDigest),
 }
 
+/// The types of digests that can exist in a database.
+#[derive(PartialEq, Eq)]
+pub enum FoundDigest {
+    Object(encoding::Digest),
+    Payload(encoding::Digest),
+}
+
+impl FoundDigest {
+    /// Borrow the inner digest.
+    #[inline]
+    pub fn digest(&self) -> &encoding::Digest {
+        match self {
+            FoundDigest::Object(d) => d,
+            FoundDigest::Payload(d) => d,
+        }
+    }
+
+    /// Return the inner digest.
+    #[inline]
+    pub fn into_digest(self) -> encoding::Digest {
+        match self {
+            FoundDigest::Object(d) => d,
+            FoundDigest::Payload(d) => d,
+        }
+    }
+
+    /// Return the digest as a byte slice.
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
+        match self {
+            FoundDigest::Object(d) => d.as_bytes(),
+            FoundDigest::Payload(d) => d.as_bytes(),
+        }
+    }
+}
+
 /// A read-only object database.
 #[async_trait::async_trait]
 pub trait DatabaseView: Sync + Send {
@@ -146,19 +204,23 @@ pub trait DatabaseView: Sync + Send {
     /// - [`Error::UnknownObject`]: if the object is not in this database
     async fn read_object(&self, digest: encoding::Digest) -> Result<Object>;
 
-    /// Find the object digests in this database matching a search criteria.
-    fn find_digests(
+    /// Find the digests in this database matching a search criteria.
+    ///
+    /// This can include both object digests and payload digests.
+    fn find_digests<'a>(
         &self,
-        search_criteria: DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>>;
+        search_criteria: &'a DigestSearchCriteria,
+    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>>;
 
-    /// Return true if this database contains the identified object
+    /// Return true if this database contains the identified object.
+    ///
+    /// This does not check for payloads.
     async fn has_object(&self, digest: encoding::Digest) -> bool;
 
-    /// Iterate all the object in this database.
+    /// Iterate all the objects and payloads in this database.
     fn iter_objects(&self) -> DatabaseIterator<'_>;
 
-    /// Walk all objects connected to the given root object.
+    /// Walk all objects and payloads connected to the given root object.
     fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> DatabaseWalker<'db>;
 
     /// Return the shortened version of the given digest.
@@ -169,9 +231,9 @@ pub trait DatabaseView: Sync + Send {
         const SIZE_STEP: usize = 5; // creates 8 char string at base 32
         let mut shortest_size: usize = SIZE_STEP;
         let mut shortest = &digest.as_bytes()[..shortest_size];
-        let mut digests = self.find_digests(DigestSearchCriteria::StartsWith(
-            encoding::PartialDigest::from(shortest),
-        ));
+        let search_criteria =
+            DigestSearchCriteria::StartsWith(encoding::PartialDigest::from(shortest));
+        let mut digests = self.find_digests(&search_criteria);
         while let Some(other) = digests.next().await {
             match other {
                 Err(_) => continue,
@@ -179,7 +241,7 @@ pub trait DatabaseView: Sync + Send {
                     if &other.as_bytes()[0..shortest_size] != shortest {
                         continue;
                     }
-                    if other == digest {
+                    if *other.digest() == digest {
                         continue;
                     }
                     while &other.as_bytes()[..shortest_size] == shortest {
@@ -192,23 +254,17 @@ pub trait DatabaseView: Sync + Send {
         data_encoding::BASE32.encode(shortest)
     }
 
-    /// Resolve the complete object digest from a shortened one.
+    /// Resolve the complete item digest from a shortened one.
     ///
-    /// By default this is an O(n) operation defined by the number of objects.
+    /// By default this is an O(n) operation defined by the number of items.
     /// Other implementations may provide better results.
     ///
     /// # Errors
     /// - UnknownReferenceError: if the digest cannot be resolved
-    /// - AmbiguousReferenceError: if the digest could point to multiple objects
-    async fn resolve_full_digest(
-        &self,
-        partial: &encoding::PartialDigest,
-    ) -> Result<encoding::Digest> {
-        if let Some(digest) = partial.to_digest() {
-            return Ok(digest);
-        }
+    /// - AmbiguousReferenceError: if the digest could point to multiple items
+    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<FoundDigest> {
         let options: Vec<_> = self
-            .find_digests(crate::graph::DigestSearchCriteria::StartsWith(
+            .find_digests(&crate::graph::DigestSearchCriteria::StartsWith(
                 partial.clone(),
             ))
             .try_collect()
@@ -216,7 +272,7 @@ pub trait DatabaseView: Sync + Send {
 
         match options.len() {
             0 => Err(Error::UnknownReference(partial.to_string())),
-            1 => Ok(options.first().unwrap().to_owned()),
+            1 => Ok(options.into_iter().next().unwrap()),
             _ => Err(Error::AmbiguousReference(partial.to_string())),
         }
     }
@@ -232,10 +288,10 @@ impl<T: DatabaseView> DatabaseView for &T {
         DatabaseView::read_object(&**self, digest).await
     }
 
-    fn find_digests(
+    fn find_digests<'a>(
         &self,
-        search_criteria: DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+        search_criteria: &'a DigestSearchCriteria,
+    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>> {
         DatabaseView::find_digests(&**self, search_criteria)
     }
 

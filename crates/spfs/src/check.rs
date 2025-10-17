@@ -7,15 +7,16 @@ use std::future::ready;
 use std::sync::Arc;
 
 use colored::Colorize;
+use futures::StreamExt;
 use futures::stream::{FuturesUnordered, TryStreamExt};
 use once_cell::sync::OnceCell;
 use progress_bar_derive_macro::ProgressBar;
 use tokio::sync::Semaphore;
 
-use crate::graph::AnnotationValue;
+use crate::graph::{AnnotationValue, FoundDigest};
 use crate::prelude::*;
 use crate::sync::SyncPolicy;
-use crate::sync::reporter::{SyncObjectResult, SyncPayloadResult};
+use crate::sync::reporter::{Summary, SyncObjectResult, SyncPayloadResult};
 use crate::{Error, Result, encoding, graph, storage, tracking};
 
 #[cfg(test)]
@@ -120,8 +121,19 @@ where
     /// Validate that all of the children exist for all of the objects in the repository.
     pub async fn check_all_objects(&self) -> Result<Vec<CheckObjectResult>> {
         self.repo
-            .find_digests(graph::DigestSearchCriteria::All)
-            .and_then(|digest| ready(Ok(self.check_digest(digest))))
+            .find_digests(&graph::DigestSearchCriteria::All)
+            .filter_map(|res| async move {
+                match res {
+                    Ok(FoundDigest::Object(digest)) => Some(Ok(digest)),
+                    Ok(FoundDigest::Payload(_digest)) => {
+                        // Payloads are skipped on the basis that they have no
+                        // child objects.
+                        None
+                    }
+                    Err(err) => Some(Err(err)),
+                }
+            })
+            .and_then(|digest| ready(Ok(self.check_object_digest(digest))))
             .try_buffer_unordered(50)
             .try_collect()
             .await
@@ -150,13 +162,12 @@ where
     pub async fn check_env_item(&self, item: tracking::EnvSpecItem) -> Result<CheckEnvItemResult> {
         let res = match item {
             tracking::EnvSpecItem::Digest(digest) => self
-                .check_digest(digest)
+                .check_object_digest(digest)
                 .await
                 .map(CheckEnvItemResult::Object)?,
-            tracking::EnvSpecItem::PartialDigest(digest) => self
-                .check_partial_digest(digest)
-                .await
-                .map(CheckEnvItemResult::Object)?,
+            tracking::EnvSpecItem::PartialDigest(digest) => {
+                self.check_partial_digest(digest).await.map(Into::into)?
+            }
             tracking::EnvSpecItem::TagSpec(tag_spec) => self
                 .check_tag_spec(tag_spec)
                 .await
@@ -205,7 +216,7 @@ where
     pub async fn check_tag(&self, tag: tracking::Tag) -> Result<CheckTagResult> {
         tracing::debug!(?tag, "Checking tag");
         self.reporter.visit_tag(&tag);
-        let result = self.check_digest(tag.target).await?;
+        let result = self.check_item_digest(tag.target).await?;
         let res = CheckTagResult::Checked {
             tag: Box::new(tag),
             result,
@@ -218,21 +229,38 @@ where
     pub async fn check_partial_digest(
         &self,
         partial: encoding::PartialDigest,
-    ) -> Result<CheckObjectResult> {
-        let digest = self.repo.resolve_full_digest(&partial).await?;
-        self.check_digest(digest).await
+    ) -> Result<CheckItemResult> {
+        match self.repo.resolve_full_digest(&partial).await? {
+            FoundDigest::Object(digest) => self
+                .check_object_digest(digest)
+                .await
+                .map(CheckItemResult::Object),
+            FoundDigest::Payload(digest) => self
+                .check_payload(digest)
+                .await
+                .map(CheckItemResult::Payload),
+        }
+    }
+
+    /// Validate that the identified item exists and all of its children.
+    ///
+    /// This works for object and payload digests.
+    pub async fn check_item_digest(&self, digest: encoding::Digest) -> Result<CheckItemResult> {
+        match self.check_object_digest(digest).await? {
+            CheckObjectResult::Missing(_) => self
+                .check_payload(digest)
+                .await
+                .map(CheckItemResult::Payload),
+            obj_result => Ok(CheckItemResult::Object(obj_result)),
+        }
     }
 
     /// Validate that the identified object exists and all of its children.
-    pub async fn check_digest(&self, digest: encoding::Digest) -> Result<CheckObjectResult> {
-        self.check_digest_with_perms_opt(digest, None).await
-    }
-
-    async fn check_digest_with_perms_opt(
-        &self,
-        digest: encoding::Digest,
-        perms: Option<u32>,
-    ) -> Result<CheckObjectResult> {
+    ///
+    /// This only checks objects, not payloads. To check payloads, use
+    /// [`Self::check_payload`]
+    #[async_recursion::async_recursion]
+    pub async fn check_object_digest(&self, digest: encoding::Digest) -> Result<CheckObjectResult> {
         // don't write the digest here, as that is the responsibility
         // of the function that actually handles the data copying.
         // a short-circuit is still nice when possible, though
@@ -254,7 +282,7 @@ where
             }
             Err(err) => Err(err),
             Ok((obj, fallback)) => {
-                let mut res = self.check_object_with_perms_opt(obj, perms).await?;
+                let mut res = self.check_object(obj).await?;
                 if matches!(fallback, Fallback::Repaired) {
                     tracing::trace!(?digest, ?res, "setting repaired flag");
                     res.set_repaired();
@@ -266,21 +294,8 @@ where
 
     /// Validate that the identified object's children all exist.
     ///
-    /// To also check if the object exists, use [`Self::check_digest`]
+    /// To also check if the object exists, use [`Self::check_object_digest`]
     pub async fn check_object(&self, obj: graph::Object) -> Result<CheckObjectResult> {
-        self.check_object_with_perms_opt(obj, None).await
-    }
-
-    /// Validate that all children of this object exist.
-    ///
-    /// Any provided permissions are associated with the blob when
-    /// syncing it. See [`tracking::BlobRead::permissions`].
-    #[async_recursion::async_recursion]
-    async fn check_object_with_perms_opt(
-        &self,
-        obj: graph::Object,
-        perms: Option<u32>,
-    ) -> Result<CheckObjectResult> {
         use graph::object::Enum;
         if let Some(CheckProgress::CheckStarted) = self
             .processed_digests
@@ -292,8 +307,8 @@ where
         let res = match obj.into_enum() {
             Enum::Layer(obj) => CheckObjectResult::Layer(self.check_layer(obj).await?.into()),
             Enum::Platform(obj) => CheckObjectResult::Platform(self.check_platform(obj).await?),
-            Enum::Blob(obj) => {
-                CheckObjectResult::Blob(self.must_check_blob_with_perms_opt(&obj, perms).await?)
+            Enum::Blob(_obj) => {
+                return Err("internal error: check_object called on blob".into());
             }
             Enum::Manifest(obj) => CheckObjectResult::Manifest(self.check_manifest(obj).await?),
         };
@@ -303,11 +318,11 @@ where
 
     /// Validate that the identified platform's children all exist.
     ///
-    /// To also check if the platform object exists, use [`Self::check_digest`]
+    /// To also check if the platform object exists, use [`Self::check_object_digest`]
     pub async fn check_platform(&self, platform: graph::Platform) -> Result<CheckPlatformResult> {
         let futures: FuturesUnordered<_> = platform
             .iter_bottom_up()
-            .map(|d| self.check_digest(*d))
+            .map(|d| self.check_object_digest(*d))
             .collect();
         let results = futures.try_collect().await?;
         let res = CheckPlatformResult {
@@ -320,10 +335,10 @@ where
 
     /// Validate that the identified layer's children all exist.
     ///
-    /// To also check if the layer object exists, use [`Self::check_digest`]
+    /// To also check if the layer object exists, use [`Self::check_object_digest`]
     pub async fn check_layer(&self, layer: graph::Layer) -> Result<CheckLayerResult> {
         let manifest_result = if let Some(manifest_digest) = layer.manifest() {
-            self.check_digest(*manifest_digest).await?
+            self.check_object_digest(*manifest_digest).await?
         } else {
             // This layer has no manifest, don't worry about it
             CheckObjectResult::Ignorable
@@ -356,14 +371,14 @@ where
 
     /// Validate that the identified manifest's children all exist.
     ///
-    /// To also check if the manifest object exists, use [`Self::check_digest`]
+    /// To also check if the manifest object exists, use [`Self::check_object_digest`]
     pub async fn check_manifest(&self, manifest: graph::Manifest) -> Result<CheckManifestResult> {
         let futures: FuturesUnordered<_> = manifest
             .iter_entries()
             .filter(|e| e.kind().is_blob())
-            // run through check_digest to ensure that blobs can be loaded
+            // run through check_digest to ensure that payloads can be loaded
             // from the db and allow for possible repairs
-            .map(|e| self.check_digest_with_perms_opt(*e.object(), Some(e.mode())))
+            .map(|e| self.check_payload_with_perms_opt(*e.object(), Some(e.mode())))
             .collect();
         let results = futures.try_collect().await?;
         let res = CheckManifestResult {
@@ -382,50 +397,15 @@ where
         let res = match annotation.value() {
             AnnotationValue::String(_) => CheckAnnotationResult::InternalValue,
             AnnotationValue::Blob(d) => {
-                // Need to check the child blob object and its payload exist.
-                let result = self.check_digest_with_perms_opt(*d, None).await?;
+                // Need to check the child payload exists.
+                let result = self.check_payload_with_perms_opt(*d, None).await?;
                 CheckAnnotationResult::Checked {
                     digest: *d,
-                    result: result.try_into()?,
+                    result,
                     repaired: false,
                 }
             }
         };
-        Ok(res)
-    }
-
-    /// Validate that the identified blob has its payload.
-    pub async fn check_blob(&self, blob: &graph::Blob) -> Result<CheckBlobResult> {
-        let digest = blob.digest();
-        if let Some(CheckProgress::CheckStarted) = self
-            .processed_digests
-            .insert(*digest, CheckProgress::CheckStarted)
-        {
-            return Ok(CheckBlobResult::Duplicate);
-        }
-        self.must_check_blob_with_perms_opt(blob, None).await
-    }
-
-    /// Checks a blob, ignoring whether it has already been checked and
-    /// without logging that it has been checked.
-    ///
-    /// Any provided permissions are associated with the blob when
-    /// syncing it. See [`tracking::BlobRead::permissions`].
-    async fn must_check_blob_with_perms_opt(
-        &self,
-        blob: &graph::Blob,
-        perms: Option<u32>,
-    ) -> Result<CheckBlobResult> {
-        self.reporter.visit_blob(blob);
-        let result = self
-            .check_payload_with_perms_opt(*blob.payload(), perms)
-            .await?;
-        let res = CheckBlobResult::Checked {
-            blob: blob.to_owned(),
-            result,
-            repaired: result == CheckPayloadResult::Repaired,
-        };
-        self.reporter.checked_blob(&res);
         Ok(res)
     }
 
@@ -443,13 +423,14 @@ where
     ) -> Result<CheckPayloadResult> {
         self.reporter.visit_payload(digest);
         let mut result = CheckPayloadResult::Missing(digest);
-        if self.repo.has_payload(digest).await {
-            result = CheckPayloadResult::Ok;
+        if let Ok(size_bytes) = self.repo.payload_size(digest).await {
+            result = CheckPayloadResult::Ok { size_bytes };
         } else if let Some(syncer) = &self.repair_with
             && let Ok(r) = syncer.sync_payload_with_perms_opt(digest, perms).await
         {
+            let size_bytes = r.summary().synced_payload_bytes;
             self.reporter.repaired_payload(&r);
-            result = CheckPayloadResult::Repaired;
+            result = CheckPayloadResult::Repaired { size_bytes };
         }
         self.reporter.checked_payload(&result);
         Ok(result)
@@ -469,7 +450,7 @@ where
                 let Some(syncer) = &self.repair_with else {
                     return Err(err);
                 };
-                if let Ok(result) = syncer.sync_digest(digest).await {
+                if let Ok(result) = syncer.sync_object_digest(digest).await {
                     self.reporter.repaired_object(&result);
                     self.repo
                         .read_object(digest)
@@ -535,9 +516,6 @@ pub trait CheckReporter: Send + Sync {
 
     /// Called when a blob has been identified to check
     fn visit_blob(&self, _blob: &graph::Blob) {}
-
-    /// Called when a blob has finished being checked
-    fn checked_blob(&self, _result: &CheckBlobResult) {}
 
     /// Called when a payload has been identified to check
     fn visit_payload(&self, _digest: encoding::Digest) {}
@@ -637,27 +615,27 @@ pub struct CheckSummary {
     /// The number of missing tags
     pub missing_tags: usize,
     /// The number of tags checked and found to be okay
-    pub checked_tags: usize,
+    pub valid_tags: usize,
     /// The missing objects that were discovered
     pub missing_objects: HashSet<encoding::Digest>,
     /// The number of missing objects that were repaired
     pub repaired_objects: usize,
     /// The number of objects checked and found to be okay
-    pub checked_objects: usize,
+    pub valid_objects: usize,
     /// The missing payloads that were discovered
     pub missing_payloads: HashSet<encoding::Digest>,
     /// The number of missing payloads that were repaired
     pub repaired_payloads: usize,
     /// The number of payloads checked and found to be okay
-    pub checked_payloads: usize,
-    /// The total number of payload bytes checked
-    pub checked_payload_bytes: u64,
+    pub valid_payloads: usize,
+    /// The total size of valid payloads checked, in bytes
+    pub valid_payload_bytes: u64,
 }
 
 impl CheckSummary {
     fn checked_one_object() -> Self {
         Self {
-            checked_objects: 1,
+            valid_objects: 1,
             ..Default::default()
         }
     }
@@ -669,22 +647,22 @@ impl std::ops::AddAssign for CheckSummary {
         // (causing compile errors for new ones that need to be added)
         let CheckSummary {
             missing_tags,
-            checked_tags,
+            valid_tags,
             missing_objects,
-            checked_objects,
-            checked_payloads,
+            valid_objects,
+            valid_payloads,
             missing_payloads,
-            checked_payload_bytes,
+            valid_payload_bytes,
             repaired_objects,
             repaired_payloads,
         } = rhs;
         self.missing_tags += missing_tags;
-        self.checked_tags += checked_tags;
+        self.valid_tags += valid_tags;
         self.missing_objects.extend(missing_objects);
-        self.checked_objects += checked_objects;
-        self.checked_payloads += checked_payloads;
+        self.valid_objects += valid_objects;
+        self.valid_payloads += valid_payloads;
         self.missing_payloads.extend(missing_payloads);
-        self.checked_payload_bytes += checked_payload_bytes;
+        self.valid_payload_bytes += valid_payload_bytes;
         self.repaired_objects += repaired_objects;
         self.repaired_payloads += repaired_payloads;
     }
@@ -715,6 +693,7 @@ impl CheckEnvResult {
 pub enum CheckEnvItemResult {
     Tag(CheckTagResult),
     Object(CheckObjectResult),
+    Payload(CheckPayloadResult),
 }
 
 impl CheckEnvItemResult {
@@ -722,6 +701,16 @@ impl CheckEnvItemResult {
         match self {
             Self::Tag(r) => r.summary(),
             Self::Object(r) => r.summary(),
+            Self::Payload(r) => r.summary(),
+        }
+    }
+}
+
+impl From<CheckItemResult> for CheckEnvItemResult {
+    fn from(value: CheckItemResult) -> Self {
+        match value {
+            CheckItemResult::Object(r) => CheckEnvItemResult::Object(r),
+            CheckItemResult::Payload(r) => CheckEnvItemResult::Payload(r),
         }
     }
 }
@@ -762,7 +751,7 @@ pub enum CheckTagResult {
     /// The tag was checked
     Checked {
         tag: Box<tracking::Tag>,
-        result: CheckObjectResult,
+        result: CheckItemResult,
     },
 }
 
@@ -775,7 +764,7 @@ impl CheckTagResult {
             },
             Self::Checked { result, .. } => {
                 let mut summary = result.summary();
-                summary.checked_tags += 1;
+                summary.valid_tags += 1;
                 summary
             }
         }
@@ -783,17 +772,31 @@ impl CheckTagResult {
 }
 
 #[derive(Clone, Debug)]
+pub enum CheckItemResult {
+    Object(CheckObjectResult),
+    Payload(CheckPayloadResult),
+}
+
+impl CheckItemResult {
+    pub fn summary(&self) -> CheckSummary {
+        match self {
+            CheckItemResult::Object(res) => res.summary(),
+            CheckItemResult::Payload(res) => res.summary(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub enum CheckObjectResult {
-    /// The object was already checked in this session
+    /// The item was already checked in this session
     Duplicate,
-    /// The object can be ignored, it does not need checking, it has
+    /// The item can be ignored, it does not need checking, it has
     /// no representation in the database.
     Ignorable,
-    /// The object was found to be missing from the database
+    /// The item was found to be missing from the database
     Missing(encoding::Digest),
     Platform(CheckPlatformResult),
     Layer(Box<CheckLayerResult>),
-    Blob(CheckBlobResult),
     Manifest(CheckManifestResult),
     Annotation(CheckAnnotationResult),
 }
@@ -808,26 +811,23 @@ impl CheckObjectResult {
             CheckObjectResult::Missing(_) => (),
             CheckObjectResult::Platform(r) => r.set_repaired(),
             CheckObjectResult::Layer(r) => r.set_repaired(),
-            CheckObjectResult::Blob(r) => r.set_repaired(),
             CheckObjectResult::Manifest(r) => r.set_repaired(),
             CheckObjectResult::Annotation(r) => r.set_repaired(),
         }
     }
 
     pub fn summary(&self) -> CheckSummary {
-        use CheckObjectResult::*;
         match self {
-            Duplicate => CheckSummary::default(),
-            Ignorable => CheckSummary::default(),
-            Missing(digest) => CheckSummary {
+            CheckObjectResult::Duplicate => CheckSummary::default(),
+            CheckObjectResult::Ignorable => CheckSummary::default(),
+            CheckObjectResult::Missing(digest) => CheckSummary {
                 missing_objects: Some(*digest).into_iter().collect(),
                 ..Default::default()
             },
-            Platform(res) => res.summary(),
-            Layer(res) => res.summary(),
-            Blob(res) => res.summary(),
-            Manifest(res) => res.summary(),
-            Annotation(res) => res.summary(),
+            CheckObjectResult::Platform(res) => res.summary(),
+            CheckObjectResult::Layer(res) => res.summary(),
+            CheckObjectResult::Manifest(res) => res.summary(),
+            CheckObjectResult::Annotation(res) => res.summary(),
         }
     }
 }
@@ -882,7 +882,7 @@ impl CheckLayerResult {
 pub struct CheckManifestResult {
     pub repaired: bool,
     pub manifest: graph::Manifest,
-    pub results: Vec<CheckObjectResult>,
+    pub results: Vec<CheckPayloadResult>,
 }
 
 impl CheckManifestResult {
@@ -909,7 +909,7 @@ pub enum CheckAnnotationResult {
     /// The annotation was stored in a blob and was checked
     Checked {
         digest: encoding::Digest,
-        result: CheckBlobResult,
+        result: CheckPayloadResult,
         repaired: bool,
     },
 }
@@ -934,7 +934,7 @@ pub enum CheckEntryResult {
     /// The entry was not one that needed checking
     Skipped,
     /// The entry was checked
-    Checked { result: CheckBlobResult },
+    Checked { result: CheckPayloadResult },
 }
 
 impl CheckEntryResult {
@@ -945,80 +945,14 @@ impl CheckEntryResult {
         }
     }
 }
-
-#[derive(Clone, Debug)]
-pub enum CheckBlobResult {
-    /// The blob was already checked in this session
-    Duplicate,
-    /// The blob was not found in the database
-    Missing(encoding::Digest),
-    /// The blob was checked
-    Checked {
-        repaired: bool,
-        blob: graph::Blob,
-        result: CheckPayloadResult,
-    },
-}
-
-impl CheckBlobResult {
-    /// Marks this result as being repaired.
-    fn set_repaired(&mut self) {
-        if let Self::Checked { repaired, .. } = self {
-            *repaired = true;
-        }
-    }
-
-    pub fn summary(&self) -> CheckSummary {
-        match self {
-            Self::Duplicate => CheckSummary::default(),
-            Self::Missing(digest) => CheckSummary {
-                checked_objects: 1,
-                missing_objects: Some(*digest).into_iter().collect(),
-                ..Default::default()
-            },
-            Self::Checked {
-                repaired,
-                result,
-                blob,
-            } => {
-                let mut summary = result.summary();
-                summary += CheckSummary {
-                    checked_objects: 1,
-                    checked_payload_bytes: blob.size(),
-                    repaired_objects: *repaired as usize,
-                    ..Default::default()
-                };
-                summary
-            }
-        }
-    }
-}
-
-impl TryFrom<CheckObjectResult> for CheckBlobResult {
-    type Error = Error;
-
-    fn try_from(value: CheckObjectResult) -> std::result::Result<Self, Self::Error> {
-        Ok(match value {
-            CheckObjectResult::Duplicate => CheckBlobResult::Duplicate,
-            CheckObjectResult::Missing(digest) => CheckBlobResult::Missing(digest),
-            CheckObjectResult::Blob(check_blob_result) => check_blob_result,
-            err => {
-                return Err(Error::String(format!(
-                    "Unexpected CheckObjectResult variant when converting to CheckBlobResult: {err:?}"
-                )));
-            }
-        })
-    }
-}
-
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum CheckPayloadResult {
     /// The payload is missing from this repository
     Missing(encoding::Digest),
     /// The payload was missing from this repository but was repaired
-    Repaired,
+    Repaired { size_bytes: u64 },
     /// The payload was checked and is present
-    Ok,
+    Ok { size_bytes: u64 },
 }
 
 impl CheckPayloadResult {
@@ -1028,13 +962,15 @@ impl CheckPayloadResult {
                 missing_payloads: Some(*digest).into_iter().collect(),
                 ..Default::default()
             },
-            Self::Repaired => CheckSummary {
-                checked_payloads: 1,
+            Self::Repaired { size_bytes } => CheckSummary {
+                valid_payloads: 1,
                 repaired_payloads: 1,
+                valid_payload_bytes: *size_bytes,
                 ..Default::default()
             },
-            Self::Ok => CheckSummary {
-                checked_payloads: 1,
+            Self::Ok { size_bytes } => CheckSummary {
+                valid_payloads: 1,
+                valid_payload_bytes: *size_bytes,
                 ..Default::default()
             },
         }
