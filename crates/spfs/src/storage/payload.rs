@@ -4,6 +4,7 @@
 
 use std::pin::Pin;
 
+use chrono::{DateTime, Utc};
 use futures::Stream;
 
 use crate::tracking::BlobRead;
@@ -42,6 +43,19 @@ pub trait PayloadStorage: Sync + Send {
     /// Errors:
     /// - [`crate::Error::UnknownObject`]: if the payload does not exist in this storage
     async fn remove_payload(&self, digest: encoding::Digest) -> Result<()>;
+
+    /// Remove the payload identified by the given digest.
+    ///
+    /// It is only removed if it is older than the given timestamp. Returns true
+    /// if the payload was removed, false if it was not.
+    ///
+    /// Errors:
+    /// - [`crate::Error::UnknownObject`]: if the payload does not exist in this storage
+    async fn remove_payload_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> Result<bool>;
 }
 
 #[async_trait::async_trait]
@@ -71,5 +85,13 @@ impl<T: PayloadStorage> PayloadStorage for &T {
 
     async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
         PayloadStorage::remove_payload(&**self, digest).await
+    }
+
+    async fn remove_payload_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> Result<bool> {
+        PayloadStorage::remove_payload_if_older_than(&**self, older_than, digest).await
     }
 }

@@ -28,10 +28,12 @@ pub use blob::Blob;
 pub use database::{
     Database,
     DatabaseExt,
+    DatabaseItem,
     DatabaseIterator,
     DatabaseView,
     DatabaseWalker,
     DigestSearchCriteria,
+    FoundDigest,
 };
 pub use entry::Entry;
 pub use kind::{HasKind, Kind, ObjectKind};

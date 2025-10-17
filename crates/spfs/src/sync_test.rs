@@ -275,7 +275,7 @@ async fn test_sync_missing_from_source(
     let platform_digest = platform.digest().unwrap();
     let partial = platform_digest[..10].into();
     syncer
-        .sync_digest(platform_digest)
+        .sync_object_digest(platform_digest)
         .await
         .expect("Should not fail when object is already in destination");
     syncer

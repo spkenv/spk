@@ -53,7 +53,7 @@ async fn test_hash_store_find_digest(tmpdir: tempfile::TempDir) {
         let partial =
             crate::encoding::PartialDigest::parse(starts_with).expect("valid partial digest");
         let mut matches: Vec<_> = store
-            .find(DigestSearchCriteria::StartsWith(partial))
+            .find(&DigestSearchCriteria::StartsWith(partial))
             .try_collect()
             .await
             .expect("should not fail to search");

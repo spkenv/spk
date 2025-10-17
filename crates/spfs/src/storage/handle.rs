@@ -14,7 +14,7 @@ use spfs_encoding as encoding;
 use super::prelude::*;
 use super::tag::TagSpecAndTagStream;
 use super::{TagNamespace, TagNamespaceBuf, TagStorageMut};
-use crate::graph::ObjectProto;
+use crate::graph::{FoundDigest, ObjectProto};
 use crate::tracking::{self, BlobRead};
 use crate::{Error, Result, graph};
 
@@ -279,6 +279,16 @@ impl PayloadStorage for RepositoryHandle {
     async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
         each_variant!(self, repo, { repo.remove_payload(digest).await })
     }
+
+    async fn remove_payload_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> Result<bool> {
+        each_variant!(self, repo, {
+            repo.remove_payload_if_older_than(older_than, digest).await
+        })
+    }
 }
 
 #[async_trait::async_trait]
@@ -291,10 +301,10 @@ impl DatabaseView for RepositoryHandle {
         each_variant!(self, repo, { repo.read_object(digest).await })
     }
 
-    fn find_digests(
+    fn find_digests<'a>(
         &self,
-        search_criteria: graph::DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+        search_criteria: &'a graph::DigestSearchCriteria,
+    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>> {
         each_variant!(self, repo, { repo.find_digests(search_criteria) })
     }
 
@@ -453,6 +463,16 @@ impl PayloadStorage for Arc<RepositoryHandle> {
     async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
         each_variant!(&**self, repo, { repo.remove_payload(digest).await })
     }
+
+    async fn remove_payload_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> Result<bool> {
+        each_variant!(&**self, repo, {
+            repo.remove_payload_if_older_than(older_than, digest).await
+        })
+    }
 }
 
 #[async_trait::async_trait]
@@ -465,10 +485,10 @@ impl DatabaseView for Arc<RepositoryHandle> {
         each_variant!(&**self, repo, { repo.read_object(digest).await })
     }
 
-    fn find_digests(
+    fn find_digests<'a>(
         &self,
-        search_criteria: graph::DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+        search_criteria: &'a graph::DigestSearchCriteria,
+    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>> {
         each_variant!(&**self, repo, { repo.find_digests(search_criteria) })
     }
 

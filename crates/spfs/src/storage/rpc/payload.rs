@@ -5,6 +5,7 @@
 use std::convert::TryInto;
 use std::pin::Pin;
 
+use chrono::{DateTime, Utc};
 use futures::{Stream, TryStreamExt};
 use prost::Message;
 
@@ -147,6 +148,24 @@ impl storage::PayloadStorage for super::RpcRepository {
             .into_inner()
             .to_result()?;
         Ok(())
+    }
+
+    async fn remove_payload_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> Result<bool> {
+        let request = proto::RemovePayloadIfOlderThanRequest {
+            older_than: Some(proto::convert_from_datetime(&older_than)),
+            digest: Some(digest.into()),
+        };
+        Ok(self
+            .payload_client
+            .clone()
+            .remove_payload_if_older_than(request)
+            .await?
+            .into_inner()
+            .to_result()?)
     }
 }
 
