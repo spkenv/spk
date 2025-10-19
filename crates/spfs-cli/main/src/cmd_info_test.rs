@@ -23,6 +23,7 @@ async fn info_on_payload(
     #[case]
     #[future]
     repo: TempRepo,
+    #[values(true, false)] use_partial_digest: bool,
 ) {
     let repo = repo.await;
 
@@ -32,13 +33,18 @@ async fn info_on_payload(
         .find(|entry| entry.is_regular_file())
         .expect("at least one regular file");
 
-    let mut opt = Opt::try_parse_from([
-        "info",
-        "-r",
-        &repo.address().to_string(),
-        &file.object().to_string(),
-    ])
-    .unwrap();
+    let digest_arg = if use_partial_digest {
+        file.object()
+            .to_string()
+            .chars()
+            .take(12)
+            .collect::<String>()
+    } else {
+        file.object().to_string()
+    };
+
+    let mut opt =
+        Opt::try_parse_from(["info", "-r", &repo.address().to_string(), &digest_arg]).unwrap();
     let config = Config::default();
     let code = opt
         .info
