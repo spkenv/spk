@@ -650,6 +650,7 @@ name = "clean-loom"
 version = "0.44.0"
 dependencies = [
  "loom",
+ "rstest",
 ]
 
 [[package]]
@@ -2264,6 +2265,8 @@ dependencies = [
  "cfg-if",
  "generator",
  "scoped-tls",
+ "serde",
+ "serde_json",
  "tracing",
  "tracing-subscriber",
 ]
