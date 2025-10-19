@@ -26,7 +26,7 @@ use crate::storage::{
     TagStorageMut,
 };
 use crate::tracking::BlobRead;
-use crate::{Result, encoding, graph, storage, tracking};
+use crate::{PayloadResult, Result, encoding, graph, storage, tracking};
 
 #[cfg(test)]
 #[path = "./repository_test.rs"]
@@ -202,7 +202,7 @@ impl graph::DatabaseExt for ProxyRepository {
     }
 }
 
-pub(crate) async fn payload_size<R>(repo: R, digest: encoding::Digest) -> Result<u64>
+pub(crate) async fn payload_size<R>(repo: R, digest: encoding::Digest) -> PayloadResult<u64>
 where
     R: ProxyRepositoryExt,
 {
@@ -214,7 +214,7 @@ where
             return Ok(size);
         }
     }
-    Err(crate::Error::UnknownObject(digest))
+    Err(crate::PayloadError::UnknownPayload(digest))
 }
 
 #[async_trait::async_trait]
@@ -231,29 +231,34 @@ impl PayloadStorage for ProxyRepository {
         false
     }
 
-    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+    async fn payload_size(&self, digest: encoding::Digest) -> PayloadResult<u64> {
         payload_size(self, digest).await
     }
 
-    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+    fn iter_payload_digests(
+        &self,
+    ) -> Pin<Box<dyn Stream<Item = PayloadResult<encoding::Digest>> + Send>> {
         self.primary.iter_payload_digests()
     }
 
-    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
+    async fn write_data(
+        &self,
+        reader: Pin<Box<dyn BlobRead>>,
+    ) -> PayloadResult<(encoding::Digest, u64)> {
         self.primary.write_data(reader).await
     }
 
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
+    ) -> PayloadResult<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
         let mut res = self.primary.open_payload(digest).await;
         if res.is_ok() {
             return res;
         }
 
         for repo in self.secondary.iter() {
-            if !matches!(res, Err(crate::Error::UnknownObject(_))) {
+            if !matches!(res, Err(crate::PayloadError::UnknownPayload(_))) {
                 break;
             }
 
@@ -262,7 +267,7 @@ impl PayloadStorage for ProxyRepository {
         res
     }
 
-    async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
+    async fn remove_payload(&self, digest: encoding::Digest) -> PayloadResult<()> {
         self.primary.remove_payload(digest).await?;
         Ok(())
     }
@@ -271,7 +276,7 @@ impl PayloadStorage for ProxyRepository {
         &self,
         older_than: DateTime<Utc>,
         digest: encoding::Digest,
-    ) -> Result<bool> {
+    ) -> PayloadResult<bool> {
         Ok(self
             .primary
             .remove_payload_if_older_than(older_than, digest)

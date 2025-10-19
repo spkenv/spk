@@ -11,7 +11,7 @@ use tokio_stream::StreamExt;
 
 use super::fs::{FsHashStore, RenderStore};
 use crate::tracking::{self, BlobRead};
-use crate::{Error, Result, encoding, graph};
+use crate::{Error, PayloadResult, Result, encoding, graph};
 
 #[cfg(test)]
 #[path = "./repository_test.rs"]
@@ -129,7 +129,10 @@ impl<T> Repository for T where
 #[async_trait]
 pub trait RepositoryExt: super::PayloadStorage + graph::DatabaseExt {
     /// Commit the data from 'reader' as a payload in this repository
-    async fn commit_payload(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
+    async fn commit_payload(
+        &self,
+        reader: Pin<Box<dyn BlobRead>>,
+    ) -> PayloadResult<encoding::Digest> {
         let (digest, _size) = self.write_data(reader).await?;
         Ok(digest)
     }

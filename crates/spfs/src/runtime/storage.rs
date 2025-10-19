@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
 
-use futures::{Stream, StreamExt, TryStreamExt};
+use futures::{Stream, StreamExt, TryFutureExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 use tokio::io::AsyncReadExt;
@@ -34,7 +34,7 @@ use crate::prelude::*;
 use crate::runtime::LiveLayer;
 use crate::storage::RepositoryHandle;
 use crate::storage::fs::DURABLE_EDITS_DIR;
-use crate::{Error, Result, bootstrap, graph, storage, tracking};
+use crate::{Error, PayloadError, Result, bootstrap, graph, storage, tracking};
 
 #[cfg(test)]
 #[path = "./storage_test.rs"]
@@ -1015,11 +1015,11 @@ impl Storage {
                 .open_payload(digest)
                 .await
                 .map_err(|err| match err {
-                    Error::UnknownObject(_) => Error::UnknownRuntime {
+                    PayloadError::UnknownPayload(_) => Error::UnknownRuntime {
                         runtime: format!("{} in storage {}", name.as_ref(), self.address()),
                         source: Box::new(err),
                     },
-                    _ => err,
+                    _ => Error::String(err.to_string()),
                 })?;
         let mut data = String::new();
         reader
@@ -1065,6 +1065,7 @@ impl Storage {
         self.inner
             .commit_payload(Box::pin(std::io::Cursor::new(payload.into_bytes())))
             .await
+            .map_err(|err| Error::String(format!("commit_payload failed: {err}")))
     }
 
     /// Returns the value from the first annotation object matching
@@ -1168,7 +1169,10 @@ impl Storage {
         let data = match annotation.value() {
             AnnotationValue::String(s) => s,
             AnnotationValue::Blob(digest) => {
-                let (mut payload, filename) = self.inner.open_payload(*digest).await?;
+                let (mut payload, filename) =
+                    self.inner.open_payload(*digest).await.map_err(|err| {
+                        Error::String(format!("failed to open annotation payload: {err}"))
+                    })?;
                 let mut writer: Vec<u8> = vec![];
                 tokio::io::copy(&mut payload, &mut writer)
                     .await
@@ -1262,6 +1266,7 @@ impl Storage {
             self.inner.write_object(&platform),
             self.inner
                 .commit_payload(Box::pin(std::io::Cursor::new(config_data.into_bytes())),)
+                .map_err(|err| Error::String(format!("commit_payload failed: {err}")))
         )?;
 
         tokio::try_join!(

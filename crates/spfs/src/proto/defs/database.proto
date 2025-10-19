@@ -47,8 +47,9 @@ message FindDigestsResponse {
 message IterDigestsRequest{}
 message IterDigestsResponse{
     oneof result {
-        Error error = 1;
+        // 1 was used
         Digest ok = 2;
+        PayloadError error = 3;
     }
 }
 

@@ -50,7 +50,16 @@ pub use clean::Cleaner;
 pub use commit::Committer;
 pub use diff::{diff, diff_runtime_changes, runtime_active_changes};
 pub use encoding::Digest;
-pub use error::{Error, OsError, OsErrorExt, Result, SyncError, SyncResult};
+pub use error::{
+    Error,
+    OsError,
+    OsErrorExt,
+    PayloadError,
+    PayloadResult,
+    Result,
+    SyncError,
+    SyncResult,
+};
 pub use resolve::{
     RenderResult,
     compute_environment_manifest,

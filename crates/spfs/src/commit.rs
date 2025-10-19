@@ -53,7 +53,10 @@ pub struct WriteToRepositoryBlobHasher<'repo> {
 #[tonic::async_trait]
 impl BlobHasher for WriteToRepositoryBlobHasher<'_> {
     async fn hash_blob(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
-        self.repo.commit_payload(reader).await
+        self.repo
+            .commit_payload(reader)
+            .await
+            .map_err(|err| Error::String(format!("commit_payload failed: {err}")))
     }
 }
 
@@ -297,7 +300,7 @@ where
                             .into_bytes();
                         let reader =
                             Box::pin(tokio::io::BufReader::new(std::io::Cursor::new(content)));
-                        self.repo.commit_payload(reader).await?
+                        self.repo.commit_payload(reader).await.map_err(|err| Error::String(format!("commit_payload failed: {err}")))?
                     } else {
                         let file = tokio::fs::File::open(&local_path).await.map_err(|err| {
                             // TODO: add better message for file missing
@@ -308,7 +311,7 @@ where
                             )
                         })?;
                         let reader = Box::pin(tokio::io::BufReader::new(file));
-                        self.repo.commit_payload(reader).await?
+                        self.repo.commit_payload(reader).await.map_err(|err| Error::String(format!("commit_payload failed: {err}")))?
                     };
                     if created != entry.object {
                         return Err(Error::String(format!(

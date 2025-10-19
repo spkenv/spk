@@ -11,7 +11,9 @@ mod generated {
     tonic::include_proto!("spfs");
 }
 
-pub(crate) use conversions::{convert_digest, convert_from_datetime};
+#[cfg(feature = "server")]
+pub(crate) use conversions::convert_digest;
+pub(crate) use conversions::{convert_from_datetime, convert_payload_digest};
 pub use generated::*;
 pub(crate) use result::RpcResult;
 #[cfg(feature = "server")]

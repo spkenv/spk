@@ -16,7 +16,7 @@ use super::tag::TagSpecAndTagStream;
 use super::{TagNamespace, TagNamespaceBuf, TagStorageMut};
 use crate::graph::{FoundDigest, ObjectProto};
 use crate::tracking::{self, BlobRead};
-use crate::{Error, Result, graph};
+use crate::{Error, PayloadResult, Result, graph};
 
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
@@ -257,26 +257,31 @@ impl PayloadStorage for RepositoryHandle {
         each_variant!(self, repo, { repo.has_payload(digest).await })
     }
 
-    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+    async fn payload_size(&self, digest: encoding::Digest) -> PayloadResult<u64> {
         each_variant!(self, repo, { repo.payload_size(digest).await })
     }
 
-    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+    fn iter_payload_digests(
+        &self,
+    ) -> Pin<Box<dyn Stream<Item = PayloadResult<encoding::Digest>> + Send>> {
         each_variant!(self, repo, { repo.iter_payload_digests() })
     }
 
-    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
+    async fn write_data(
+        &self,
+        reader: Pin<Box<dyn BlobRead>>,
+    ) -> PayloadResult<(encoding::Digest, u64)> {
         each_variant!(self, repo, { repo.write_data(reader).await })
     }
 
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
+    ) -> PayloadResult<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
         each_variant!(self, repo, { repo.open_payload(digest).await })
     }
 
-    async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
+    async fn remove_payload(&self, digest: encoding::Digest) -> PayloadResult<()> {
         each_variant!(self, repo, { repo.remove_payload(digest).await })
     }
 
@@ -284,7 +289,7 @@ impl PayloadStorage for RepositoryHandle {
         &self,
         older_than: DateTime<Utc>,
         digest: encoding::Digest,
-    ) -> Result<bool> {
+    ) -> PayloadResult<bool> {
         each_variant!(self, repo, {
             repo.remove_payload_if_older_than(older_than, digest).await
         })
@@ -441,26 +446,31 @@ impl PayloadStorage for Arc<RepositoryHandle> {
         each_variant!(&**self, repo, { repo.has_payload(digest).await })
     }
 
-    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+    async fn payload_size(&self, digest: encoding::Digest) -> PayloadResult<u64> {
         each_variant!(&**self, repo, { repo.payload_size(digest).await })
     }
 
-    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+    fn iter_payload_digests(
+        &self,
+    ) -> Pin<Box<dyn Stream<Item = PayloadResult<encoding::Digest>> + Send>> {
         each_variant!(&**self, repo, { repo.iter_payload_digests() })
     }
 
-    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
+    async fn write_data(
+        &self,
+        reader: Pin<Box<dyn BlobRead>>,
+    ) -> PayloadResult<(encoding::Digest, u64)> {
         each_variant!(&**self, repo, { repo.write_data(reader).await })
     }
 
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
+    ) -> PayloadResult<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
         each_variant!(&**self, repo, { repo.open_payload(digest).await })
     }
 
-    async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
+    async fn remove_payload(&self, digest: encoding::Digest) -> PayloadResult<()> {
         each_variant!(&**self, repo, { repo.remove_payload(digest).await })
     }
 
@@ -468,7 +478,7 @@ impl PayloadStorage for Arc<RepositoryHandle> {
         &self,
         older_than: DateTime<Utc>,
         digest: encoding::Digest,
-    ) -> Result<bool> {
+    ) -> PayloadResult<bool> {
         each_variant!(&**self, repo, {
             repo.remove_payload_if_older_than(older_than, digest).await
         })

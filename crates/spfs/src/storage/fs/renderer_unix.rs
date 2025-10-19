@@ -573,7 +573,7 @@ where
             .repo
             .open_payload(*entry.object())
             .await
-            .map_err(|err| err.wrap("open payload"))?;
+            .map_err(|err| Error::String(err.to_string()).wrap("open payload"))?;
         let target_dir_fd = dir_fd.as_raw_fd();
         if entry.is_symlink() {
             let mut target = String::new();

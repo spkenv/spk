@@ -12,8 +12,8 @@ use tonic::{Request, Response, Status};
 
 use crate::prelude::*;
 use crate::proto::payload_service_server::PayloadServiceServer;
-use crate::proto::{self, RpcResult, convert_digest, convert_to_datetime};
-use crate::storage;
+use crate::proto::{self, RpcResult, convert_payload_digest, convert_to_datetime};
+use crate::{PayloadError, storage};
 
 /// The payload service is both a gRPC service AND an http server
 ///
@@ -64,7 +64,7 @@ impl proto::payload_service_server::PayloadService for PayloadService {
         request: Request<proto::HasPayloadRequest>,
     ) -> Result<Response<proto::HasPayloadResponse>, Status> {
         let request = request.into_inner();
-        let digest = convert_digest(request.digest)
+        let digest = convert_payload_digest(request.digest)
             .map_err(|err| Status::invalid_argument(err.to_string()))?;
         let exists = self.repo.has_payload(digest).await;
         let result = proto::HasPayloadResponse { exists };
@@ -76,7 +76,7 @@ impl proto::payload_service_server::PayloadService for PayloadService {
         request: Request<proto::PayloadSizeRequest>,
     ) -> Result<Response<proto::PayloadSizeResponse>, Status> {
         let request = request.into_inner();
-        let digest = convert_digest(request.digest)
+        let digest = convert_payload_digest(request.digest)
             .map_err(|err| Status::invalid_argument(err.to_string()))?;
         let size = proto::handle_error!(self.repo.payload_size(digest).await);
         let result = proto::PayloadSizeResponse::ok(size);
@@ -88,7 +88,8 @@ impl proto::payload_service_server::PayloadService for PayloadService {
         request: Request<proto::OpenPayloadRequest>,
     ) -> Result<Response<proto::OpenPayloadResponse>, Status> {
         let request = request.into_inner();
-        let digest: crate::encoding::Digest = proto::handle_error!(convert_digest(request.digest));
+        let digest: crate::encoding::Digest =
+            proto::handle_error!(convert_payload_digest(request.digest));
         // do a little effort to determine if we can actually serve the
         // requested payload
         let _ = proto::handle_error!(self.repo.open_payload(digest).await);
@@ -107,7 +108,8 @@ impl proto::payload_service_server::PayloadService for PayloadService {
         request: Request<proto::RemovePayloadRequest>,
     ) -> Result<Response<proto::RemovePayloadResponse>, Status> {
         let request = request.into_inner();
-        let digest: crate::encoding::Digest = proto::handle_error!(convert_digest(request.digest));
+        let digest: crate::encoding::Digest =
+            proto::handle_error!(convert_payload_digest(request.digest));
         proto::handle_error!(self.repo.remove_payload(digest).await);
         let result = proto::RemovePayloadResponse::ok(proto::Ok {});
         Ok(Response::new(result))
@@ -118,9 +120,12 @@ impl proto::payload_service_server::PayloadService for PayloadService {
         request: Request<proto::RemovePayloadIfOlderThanRequest>,
     ) -> Result<Response<proto::RemovePayloadIfOlderThanResponse>, Status> {
         let request = request.into_inner();
-        let older_than: DateTime<Utc> =
-            proto::handle_error!(convert_to_datetime(request.older_than));
-        let digest: crate::encoding::Digest = proto::handle_error!(convert_digest(request.digest));
+        let older_than: DateTime<Utc> = proto::handle_error!(
+            convert_to_datetime(request.older_than)
+                .map_err(|err| PayloadError::String(err.to_string()))
+        );
+        let digest: crate::encoding::Digest =
+            proto::handle_error!(convert_payload_digest(request.digest));
         let deleted = proto::handle_error!(
             self.repo
                 .remove_payload_if_older_than(older_than, digest)
@@ -255,7 +260,10 @@ where
 {
     let relative_path = req.uri().path().trim_start_matches('/');
     let digest = crate::encoding::Digest::parse(relative_path)?;
-    let (uncompressed_reader, _) = repo.open_payload(digest).await?;
+    let (uncompressed_reader, _) = repo
+        .open_payload(digest)
+        .await
+        .map_err(|err| crate::Error::String(format!("failed to open payload: {err}")))?;
     let accepted = req
         .headers_mut()
         .get_all(hyper::http::header::ACCEPT)

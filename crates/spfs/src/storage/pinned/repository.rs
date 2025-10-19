@@ -13,7 +13,7 @@ use spfs_encoding as encoding;
 use crate::graph::{FoundDigest, ObjectProto};
 use crate::storage::prelude::*;
 use crate::tracking::BlobRead;
-use crate::{Error, Result, graph};
+use crate::{Error, PayloadError, PayloadResult, Result, graph};
 
 /// PinnedRepository wraps an existing implementation,
 /// limiting tag read operations to a point in time. In this setup,
@@ -124,15 +124,20 @@ where
         self.inner.has_payload(digest).await
     }
 
-    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+    async fn payload_size(&self, digest: encoding::Digest) -> PayloadResult<u64> {
         self.inner.payload_size(digest).await
     }
 
-    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+    fn iter_payload_digests(
+        &self,
+    ) -> Pin<Box<dyn Stream<Item = PayloadResult<encoding::Digest>> + Send>> {
         self.inner.iter_payload_digests()
     }
 
-    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
+    async fn write_data(
+        &self,
+        reader: Pin<Box<dyn BlobRead>>,
+    ) -> PayloadResult<(encoding::Digest, u64)> {
         // payloads are stored by digest, not time, and so can still
         // be safely written to a past repository view. In practice,
         // this allows some recovery and sync operations to still function
@@ -143,20 +148,20 @@ where
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
+    ) -> PayloadResult<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
         self.inner.open_payload(digest).await
     }
 
-    async fn remove_payload(&self, _digest: encoding::Digest) -> Result<()> {
-        Err(Error::RepositoryIsPinned)
+    async fn remove_payload(&self, _digest: encoding::Digest) -> PayloadResult<()> {
+        Err(PayloadError::RepositoryIsPinned)
     }
 
     async fn remove_payload_if_older_than(
         &self,
         _older_than: DateTime<Utc>,
         _digest: encoding::Digest,
-    ) -> Result<bool> {
-        Err(Error::RepositoryIsPinned)
+    ) -> PayloadResult<bool> {
+        Err(PayloadError::RepositoryIsPinned)
     }
 }
 

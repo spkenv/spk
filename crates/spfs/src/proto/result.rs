@@ -6,11 +6,12 @@
 #[allow(dead_code)]
 pub(crate) trait RpcResult: Sized {
     type Ok;
-    type Result;
-    fn error(err: crate::Error) -> Self;
+    type Error;
+    type ProtoResult;
+    fn error(err: Self::Error) -> Self;
     fn ok(data: Self::Ok) -> Self;
-    fn to_result(self) -> crate::Result<Self::Ok>;
-    fn from_result<T: Into<Self::Ok>>(result: crate::Result<T>) -> Self {
+    fn to_result(self) -> std::result::Result<Self::Ok, Self::Error>;
+    fn from_result<T: Into<Self::Ok>>(result: std::result::Result<T, Self::Error>) -> Self {
         match result {
             Err(err) => Self::error(err),
             Ok(ok) => Self::ok(ok.into()),
@@ -32,26 +33,33 @@ macro_rules! handle_error {
 pub(crate) use handle_error;
 
 macro_rules! rpc_result {
-    ($typename:ty, $result:ty) => {
-        rpc_result!($typename, $result, super::Ok);
+    ($typename:ty, $proto_result:ty) => {
+        rpc_result!($typename, $proto_result, super::Ok);
     };
-    ($typename:ty, $result:ty, $ok_type:ty) => {
+    ($typename:ty, $proto_result:ty, error = $error_type:ty) => {
+        rpc_result!($typename, $proto_result, super::Ok, $error_type);
+    };
+    ($typename:ty, $proto_result:ty, $ok_type:ty) => {
+        rpc_result!($typename, $proto_result, $ok_type, $crate::Error);
+    };
+    ($typename:ty, $proto_result:ty, $ok_type:ty, $error_type:ty) => {
         impl RpcResult for $typename {
             type Ok = $ok_type;
-            type Result = $result;
-            fn error(err: crate::Error) -> Self {
-                let result = Some(Self::Result::Error(err.into()));
+            type Error = $error_type;
+            type ProtoResult = $proto_result;
+            fn error(err: $error_type) -> Self {
+                let result = Some(Self::ProtoResult::Error(err.into()));
                 Self { result }
             }
             fn ok(data: Self::Ok) -> Self {
-                let result = Some(Self::Result::Ok(data));
+                let result = Some(Self::ProtoResult::Ok(data));
                 Self { result }
             }
-            fn to_result(self) -> crate::Result<Self::Ok> {
+            fn to_result(self) -> std::result::Result<Self::Ok, Self::Error> {
                 match self.result {
-                    Some(Self::Result::Error(err)) => Err(err.into()),
-                    Some(Self::Result::Ok(data)) => Ok(data),
-                    None => Err(crate::Error::String(format!(
+                    Some(Self::ProtoResult::Error(err)) => Err(err.into()),
+                    Some(Self::ProtoResult::Ok(data)) => Ok(data),
+                    None => Err(<$error_type>::String(format!(
                         "Unexpected empty result from the server"
                     ))),
                 }
@@ -107,7 +115,8 @@ rpc_result!(
 rpc_result!(
     g::IterDigestsResponse,
     g::iter_digests_response::Result,
-    g::Digest
+    g::Digest,
+    crate::PayloadError
 );
 rpc_result!(
     g::IterObjectsResponse,
@@ -130,26 +139,35 @@ rpc_result!(
 rpc_result!(
     g::PayloadSizeResponse,
     g::payload_size_response::Result,
-    u64
+    u64,
+    crate::PayloadError
 );
 rpc_result!(
     g::WritePayloadResponse,
     g::write_payload_response::Result,
-    g::write_payload_response::UploadOption
+    g::write_payload_response::UploadOption,
+    crate::PayloadError
 );
 rpc_result!(
     g::OpenPayloadResponse,
     g::open_payload_response::Result,
-    g::open_payload_response::DownloadOption
+    g::open_payload_response::DownloadOption,
+    crate::PayloadError
 );
-rpc_result!(g::RemovePayloadResponse, g::remove_payload_response::Result);
+rpc_result!(
+    g::RemovePayloadResponse,
+    g::remove_payload_response::Result,
+    error = crate::PayloadError
+);
 rpc_result!(
     g::write_payload_response::UploadResponse,
     g::write_payload_response::upload_response::Result,
-    g::write_payload_response::upload_response::UploadResult
+    g::write_payload_response::upload_response::UploadResult,
+    crate::PayloadError
 );
 rpc_result!(
     g::RemovePayloadIfOlderThanResponse,
     g::remove_payload_if_older_than_response::Result,
-    bool
+    bool,
+    crate::PayloadError
 );

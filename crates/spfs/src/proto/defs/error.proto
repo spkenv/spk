@@ -19,6 +19,9 @@ message AmbiguousReferenceError {
 message InvalidReferenceError {
     string message = 1;
 }
+message UnknownPayloadError {
+    string message = 1;
+}
 
 message Error {
     oneof kind {
@@ -27,5 +30,12 @@ message Error {
         UnknownReferenceError UnknownReference = 3;
         AmbiguousReferenceError AmbiguousReference = 4;
         InvalidReferenceError InvalidReference = 5;
+    }
+}
+
+message PayloadError {
+    oneof kind {
+        string other = 1;
+        UnknownPayloadError UnknownPayload = 2;
     }
 }

@@ -27,7 +27,7 @@ use crate::storage::{
 };
 use crate::sync::reporter::SyncReporters;
 use crate::tracking::BlobRead;
-use crate::{Error, Result, encoding, graph, storage, tracking};
+use crate::{PayloadError, PayloadResult, Result, encoding, graph, storage, tracking};
 
 #[cfg(test)]
 #[path = "./repository_test.rs"]
@@ -280,15 +280,20 @@ impl PayloadStorage for FallbackProxy {
         false
     }
 
-    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+    async fn payload_size(&self, digest: encoding::Digest) -> PayloadResult<u64> {
         crate::storage::proxy::payload_size(self, digest).await
     }
 
-    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+    fn iter_payload_digests(
+        &self,
+    ) -> Pin<Box<dyn Stream<Item = PayloadResult<encoding::Digest>> + Send>> {
         self.primary.iter_payload_digests()
     }
 
-    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
+    async fn write_data(
+        &self,
+        reader: Pin<Box<dyn BlobRead>>,
+    ) -> PayloadResult<(encoding::Digest, u64)> {
         let res = self.primary.write_data(reader).await?;
         Ok(res)
     }
@@ -296,14 +301,13 @@ impl PayloadStorage for FallbackProxy {
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
+    ) -> PayloadResult<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
         let mut fallbacks = self.secondary.iter();
 
         'retry_open: loop {
             let missing_payload_error = match self.primary.open_payload(digest).await {
                 Ok(r) => return Ok(r),
-                Err(err @ Error::ObjectMissingPayload(_, _)) => err,
-                Err(err @ Error::UnknownObject(_)) => err,
+                Err(err @ PayloadError::UnknownPayload(_)) => err,
                 Err(err) => return Err(err),
             };
 
@@ -356,7 +360,7 @@ impl PayloadStorage for FallbackProxy {
         }
     }
 
-    async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
+    async fn remove_payload(&self, digest: encoding::Digest) -> PayloadResult<()> {
         self.primary.remove_payload(digest).await?;
         Ok(())
     }
@@ -365,7 +369,7 @@ impl PayloadStorage for FallbackProxy {
         &self,
         older_than: DateTime<Utc>,
         digest: encoding::Digest,
-    ) -> Result<bool> {
+    ) -> PayloadResult<bool> {
         Ok(self
             .primary
             .remove_payload_if_older_than(older_than, digest)

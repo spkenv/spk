@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 use futures::Stream;
 
 use crate::tracking::BlobRead;
-use crate::{Result, encoding};
+use crate::{PayloadResult, encoding};
 
 #[cfg(test)]
 #[path = "payload_test.rs"]
@@ -18,16 +18,21 @@ mod payload_test;
 #[async_trait::async_trait]
 pub trait PayloadStorage: Sync + Send {
     /// Iterate all the payloads in this storage.
-    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>>;
+    fn iter_payload_digests(
+        &self,
+    ) -> Pin<Box<dyn Stream<Item = PayloadResult<encoding::Digest>> + Send>>;
 
     /// Return true if the identified payload exists.
     async fn has_payload(&self, digest: encoding::Digest) -> bool;
 
     /// Return the payload size if the identified payload exists.
-    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64>;
+    async fn payload_size(&self, digest: encoding::Digest) -> PayloadResult<u64>;
 
     /// Store the contents of the given stream, returning its digest and size
-    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)>;
+    async fn write_data(
+        &self,
+        reader: Pin<Box<dyn BlobRead>>,
+    ) -> PayloadResult<(encoding::Digest, u64)>;
 
     /// Return a handle and filename to the full content of a payload.
     ///
@@ -36,13 +41,13 @@ pub trait PayloadStorage: Sync + Send {
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)>;
+    ) -> PayloadResult<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)>;
 
     /// Remove the payload identified by the given digest.
     ///
     /// Errors:
     /// - [`crate::Error::UnknownObject`]: if the payload does not exist in this storage
-    async fn remove_payload(&self, digest: encoding::Digest) -> Result<()>;
+    async fn remove_payload(&self, digest: encoding::Digest) -> PayloadResult<()>;
 
     /// Remove the payload identified by the given digest.
     ///
@@ -55,7 +60,7 @@ pub trait PayloadStorage: Sync + Send {
         &self,
         older_than: DateTime<Utc>,
         digest: encoding::Digest,
-    ) -> Result<bool>;
+    ) -> PayloadResult<bool>;
 }
 
 #[async_trait::async_trait]
@@ -64,26 +69,31 @@ impl<T: PayloadStorage> PayloadStorage for &T {
         PayloadStorage::has_payload(&**self, digest).await
     }
 
-    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+    async fn payload_size(&self, digest: encoding::Digest) -> PayloadResult<u64> {
         PayloadStorage::payload_size(&**self, digest).await
     }
 
-    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+    fn iter_payload_digests(
+        &self,
+    ) -> Pin<Box<dyn Stream<Item = PayloadResult<encoding::Digest>> + Send>> {
         PayloadStorage::iter_payload_digests(&**self)
     }
 
-    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
+    async fn write_data(
+        &self,
+        reader: Pin<Box<dyn BlobRead>>,
+    ) -> PayloadResult<(encoding::Digest, u64)> {
         PayloadStorage::write_data(&**self, reader).await
     }
 
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
+    ) -> PayloadResult<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
         PayloadStorage::open_payload(&**self, digest).await
     }
 
-    async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
+    async fn remove_payload(&self, digest: encoding::Digest) -> PayloadResult<()> {
         PayloadStorage::remove_payload(&**self, digest).await
     }
 
@@ -91,7 +101,7 @@ impl<T: PayloadStorage> PayloadStorage for &T {
         &self,
         older_than: DateTime<Utc>,
         digest: encoding::Digest,
-    ) -> Result<bool> {
+    ) -> PayloadResult<bool> {
         PayloadStorage::remove_payload_if_older_than(&**self, older_than, digest).await
     }
 }

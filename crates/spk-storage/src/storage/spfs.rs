@@ -394,7 +394,8 @@ impl Storage for SpfsRepository {
         let digest = self
             .inner
             .commit_payload(Box::pin(std::io::Cursor::new(payload.into_bytes())))
-            .await?;
+            .await
+            .map_err(|err| format!("failed to commit payload: {err}"))?;
         self.inner.push_tag(&tag_spec, &digest).await?;
         self.invalidate_caches();
         Ok(())
@@ -443,7 +444,8 @@ impl Storage for SpfsRepository {
         let digest = self
             .inner
             .commit_payload(Box::pin(std::io::Cursor::new(payload.into_bytes())))
-            .await?;
+            .await
+            .map_err(|err| format!("failed to commit payload: {err}"))?;
         self.inner.push_tag(&tag_spec, &digest).await?;
         self.invalidate_caches();
         Ok(())
@@ -471,7 +473,8 @@ impl Storage for SpfsRepository {
         let digest = self
             .inner
             .commit_payload(Box::pin(std::io::Cursor::new(payload.into_bytes())))
-            .await?;
+            .await
+            .map_err(|err| format!("failed to commit payload: {err}"))?;
         self.inner.push_tag(&tag_spec, &digest).await?;
         self.invalidate_caches();
         Ok(())
@@ -510,7 +513,11 @@ impl Storage for SpfsRepository {
             let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
             let tag = self.resolve_tag(|| pkg.to_any_ident(), &tag_spec).await?;
 
-            let (mut reader, filename) = self.inner.open_payload(tag.target).await?;
+            let (mut reader, filename) = self
+                .inner
+                .open_payload(tag.target)
+                .await
+                .map_err(|err| format!("failed to open payload: {err}"))?;
             let mut yaml = String::new();
             reader
                 .read_to_string(&mut yaml)
@@ -761,7 +768,11 @@ impl crate::Repository for SpfsRepository {
             let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
             let tag = self.resolve_tag(|| pkg.to_any_ident(), &tag_spec).await?;
 
-            let (mut reader, _) = self.inner.open_payload(tag.target).await?;
+            let (mut reader, _) = self
+                .inner
+                .open_payload(tag.target)
+                .await
+                .map_err(|err| format!("failed to open payload: {err}"))?;
             let mut yaml = String::new();
             reader
                 .read_to_string(&mut yaml)
@@ -797,7 +808,11 @@ impl crate::Repository for SpfsRepository {
                 .resolve_tag(|| pkg.to_any_ident(None), &tag_spec)
                 .await?;
 
-            let (mut reader, _) = self.inner.open_payload(tag.target).await?;
+            let (mut reader, _) = self
+                .inner
+                .open_payload(tag.target)
+                .await
+                .map_err(|err| format!("failed to open payload: {err}"))?;
             let mut yaml = String::new();
             reader
                 .read_to_string(&mut yaml)
@@ -974,7 +989,11 @@ impl SpfsRepository {
             Err(spfs::Error::UnknownReference(_)) => return Ok(Default::default()),
             Err(err) => return Err(err.into()),
         };
-        let (mut reader, _) = self.inner.open_payload(digest).await?;
+        let (mut reader, _) = self
+            .inner
+            .open_payload(digest)
+            .await
+            .map_err(|err| format!("open_payload failed: {err}"))?;
         let mut yaml = String::new();
         reader
             .read_to_string(&mut yaml)
@@ -1020,7 +1039,8 @@ impl SpfsRepository {
         let digest = self
             .inner
             .commit_payload(Box::pin(std::io::Cursor::new(yaml.into_bytes())))
-            .await?;
+            .await
+            .map_err(|err| format!("failed to commit payload: {err}"))?;
         self.inner.push_tag(&tag_spec, &digest).await?;
         self.invalidate_caches();
         Ok(())
