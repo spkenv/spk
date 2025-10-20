@@ -12,8 +12,10 @@ use core::task::{Context, Poll};
 use std::fmt;
 use std::time::Duration;
 
+#[cfg(unix)]
+use futures::StreamExt;
 use futures::stream::Fuse;
-use futures::{Future, Stream, StreamExt, ready};
+use futures::{Future, Stream, ready};
 use pin_project_lite::pin_project;
 use tokio::time::{Instant, Sleep};
 

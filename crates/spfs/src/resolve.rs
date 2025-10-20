@@ -2,20 +2,27 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+#[cfg(unix)]
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use futures::{FutureExt, TryFutureExt, TryStreamExt};
 use itertools::Itertools;
+#[cfg(unix)]
 use nonempty::NonEmpty;
 use serde::{Deserialize, Serialize};
 
 use super::config::get_config;
+#[cfg(unix)]
 use crate::config::OverlayFsOptions;
 use crate::prelude::*;
+#[cfg(unix)]
+use crate::runtime;
+#[cfg(unix)]
 use crate::storage::fallback::FallbackProxy;
+#[cfg(unix)]
 use crate::storage::fs::{CliRenderType, ManifestRenderPath, RenderSummary};
-use crate::{Error, Result, graph, runtime, storage, tracking};
+use crate::{Error, Result, graph, storage, tracking};
 
 #[cfg(test)]
 #[path = "./resolve_test.rs"]

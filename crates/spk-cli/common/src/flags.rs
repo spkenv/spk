@@ -38,6 +38,7 @@ use spk_schema::ident::{
 };
 use spk_schema::option_map::HOST_OPTIONS;
 use spk_schema::{Recipe, SpecFileData, SpecRecipe, Template, TestStage, VariantExt};
+#[cfg(unix)]
 #[cfg(feature = "statsd")]
 use spk_solve::{SPK_RUN_TIME_METRIC, get_metrics_client};
 use spk_workspace::{FindOrLoadPackageTemplateError, FindPackageTemplateError};
