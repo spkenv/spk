@@ -568,3 +568,48 @@ fn list_files<P: AsRef<std::path::Path>>(dirname: P) -> Vec<String> {
     }
     all_files
 }
+
+/// Clean must not delete items that referenced by other items.
+#[rstest]
+#[tokio::test]
+async fn clean_must_not_violate_invariants(#[future] tmprepo: TempRepo) {
+    init_logging();
+    let tmprepo = tmprepo.await;
+    let manifest = tracking::Manifest::<()>::default();
+    tmprepo
+        .write_object(&manifest.to_graph_manifest())
+        .await
+        .unwrap();
+    let layer = tmprepo
+        .create_layer(&manifest.to_graph_manifest())
+        .await
+        .unwrap();
+
+    // Note current time now.
+    let time_before_platform = Utc::now();
+
+    // Time passes...
+    sleep(Duration::from_millis(250)).await;
+
+    let platform = tmprepo
+        .create_platform(layer.digest().unwrap().into())
+        .await
+        .unwrap();
+
+    let cleaner = Cleaner::new(&tmprepo)
+        .with_required_age_cutoff(time_before_platform)
+        .with_reporter(TracingCleanReporter);
+    let result = cleaner
+        .prune_all_tags_and_clean()
+        .await
+        .expect("failed to clean objects");
+    println!("{result:#?}");
+
+    if let Err(Error::UnknownObject(_)) = tmprepo.read_platform(platform.digest().unwrap()).await {
+        panic!("expected platform to not be cleaned, because it is newer than the cutoff")
+    }
+
+    if let Err(Error::UnknownObject(_)) = tmprepo.read_layer(layer.digest().unwrap()).await {
+        panic!("expected layer to not be cleaned, because it is referenced by the platform")
+    }
+}
