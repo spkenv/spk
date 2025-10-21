@@ -311,7 +311,7 @@ impl winfsp::filesystem::FileSystemContext for Mount {
                             // TODO: are there attribute flags to identify this as a non-seekable file?
                             return;
                         }
-                        Err(spfs::Error::UnknownObject(_)) => continue,
+                        Err(spfs::PayloadError::UnknownPayload(_)) => continue,
                         Err(err) => err!(send, err),
                     },
                 }

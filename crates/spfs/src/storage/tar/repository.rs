@@ -27,7 +27,7 @@ use crate::storage::{
     TagStorageMut,
 };
 use crate::tracking::BlobRead;
-use crate::{Error, Result, encoding, graph, storage, tracking};
+use crate::{Error, PayloadResult, Result, encoding, graph, storage, tracking};
 
 /// Configuration for a tar repository
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
@@ -284,15 +284,20 @@ impl PayloadStorage for TarRepository {
         self.repo.has_payload(digest).await
     }
 
-    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+    async fn payload_size(&self, digest: encoding::Digest) -> PayloadResult<u64> {
         self.repo.payload_size(digest).await
     }
 
-    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+    fn iter_payload_digests(
+        &self,
+    ) -> Pin<Box<dyn Stream<Item = PayloadResult<encoding::Digest>> + Send>> {
         self.repo.iter_payload_digests()
     }
 
-    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
+    async fn write_data(
+        &self,
+        reader: Pin<Box<dyn BlobRead>>,
+    ) -> PayloadResult<(encoding::Digest, u64)> {
         let res = self.repo.write_data(reader).await?;
         self.up_to_date
             .store(false, std::sync::atomic::Ordering::Release);
@@ -302,11 +307,11 @@ impl PayloadStorage for TarRepository {
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
+    ) -> PayloadResult<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
         self.repo.open_payload(digest).await
     }
 
-    async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
+    async fn remove_payload(&self, digest: encoding::Digest) -> PayloadResult<()> {
         self.repo.remove_payload(digest).await?;
         self.up_to_date
             .store(false, std::sync::atomic::Ordering::Release);
@@ -317,7 +322,7 @@ impl PayloadStorage for TarRepository {
         &self,
         older_than: DateTime<Utc>,
         digest: encoding::Digest,
-    ) -> Result<bool> {
+    ) -> PayloadResult<bool> {
         let deleted = self
             .repo
             .remove_payload_if_older_than(older_than, digest)

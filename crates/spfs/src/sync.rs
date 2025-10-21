@@ -27,7 +27,7 @@ use tokio::sync::Semaphore;
 use crate::graph::AnnotationValue;
 use crate::prelude::*;
 use crate::sync::reporter::SyncItemResult;
-use crate::{Error, Result, encoding, graph, storage, tracking};
+use crate::{Error, SyncError, SyncResult, encoding, graph, storage, tracking};
 
 /// The default limit for concurrent manifest sync operations
 /// per-syncer if not otherwise specified using
@@ -177,13 +177,15 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
     /// Sync the object(s) referenced by the given string.
     ///
     /// Any valid [`crate::tracking::EnvSpec`] is accepted as a reference.
-    pub async fn sync_ref<R: AsRef<str>>(&self, reference: R) -> Result<SyncEnvResult> {
-        let env_spec = reference.as_ref().parse()?;
+    pub async fn sync_ref<R: AsRef<str>>(&self, reference: R) -> SyncResult<SyncEnvResult> {
+        let env_spec = reference.as_ref().parse().map_err(|err: Error| {
+            SyncError::ReferenceParseError(reference.as_ref().to_string(), err.into())
+        })?;
         self.sync_env(env_spec).await
     }
 
     /// Sync all of the objects identified by the given env.
-    pub async fn sync_env(&self, env: tracking::EnvSpec) -> Result<SyncEnvResult> {
+    pub async fn sync_env(&self, env: tracking::EnvSpec) -> SyncResult<SyncEnvResult> {
         self.reporter.visit_env(&env);
         let mut futures = FuturesUnordered::new();
         for item in env.iter().cloned() {
@@ -199,13 +201,16 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
     }
 
     /// Sync one environment item and any associated data.
-    pub async fn sync_env_item(&self, item: tracking::EnvSpecItem) -> Result<SyncEnvItemResult> {
+    pub async fn sync_env_item(
+        &self,
+        item: tracking::EnvSpecItem,
+    ) -> SyncResult<SyncEnvItemResult> {
         tracing::debug!(?item, "Syncing item");
         self.reporter.visit_env_item(&item);
         let res = match item {
             tracking::EnvSpecItem::Digest(digest) => match self.sync_object_digest(digest).await {
                 Ok(r) => SyncEnvItemResult::Object(r),
-                Err(Error::UnknownObject(digest)) => self
+                Err(SyncError::ObjectReadError(digest, _)) => self
                     .sync_payload(digest)
                     .await
                     .map(SyncEnvItemResult::Payload)?,
@@ -227,21 +232,28 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
     }
 
     /// Sync the identified tag instance and its target.
-    pub async fn sync_tag(&self, tag: tracking::TagSpec) -> Result<SyncTagResult> {
+    pub async fn sync_tag(&self, tag: tracking::TagSpec) -> SyncResult<SyncTagResult> {
         if self.policy.check_existing_tags() && self.dest.resolve_tag(&tag).await.is_ok() {
             return Ok(SyncTagResult::Skipped);
         }
         self.reporter.visit_tag(&tag);
-        let resolved = self.src.resolve_tag(&tag).await?;
+        let resolved = self
+            .src
+            .resolve_tag(&tag)
+            .await
+            .map_err(|err| SyncError::TagResolveError(tag.clone(), err.into()))?;
         let result = match self.sync_object_digest(resolved.target).await {
             Ok(r) => SyncItemResult::Object(r),
-            Err(Error::UnknownObject(digest)) => self
+            Err(SyncError::ObjectReadError(digest, _)) => self
                 .sync_payload(digest)
                 .await
                 .map(SyncItemResult::Payload)?,
             Err(e) => return Err(e),
         };
-        self.dest.insert_tag(&resolved).await?;
+        self.dest
+            .insert_tag(&resolved)
+            .await
+            .map_err(|err| SyncError::TagInsertError(tag.clone(), err.into()))?;
         let res = SyncTagResult::Synced { tag, result };
         self.reporter.synced_tag(&res);
         Ok(res)
@@ -250,7 +262,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
     pub async fn sync_partial_digest(
         &self,
         partial: encoding::PartialDigest,
-    ) -> Result<SyncItemResult> {
+    ) -> SyncResult<SyncItemResult> {
         let res = self.src.resolve_full_digest(&partial).await;
         let found_digest = match res {
             Err(err) if self.policy.check_existing_objects() => {
@@ -268,7 +280,8 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
                     .map_err(|_| err)
             }
             res => res,
-        }?;
+        }
+        .map_err(|err| SyncError::DigestResolveError(partial, err.into()))?;
         match found_digest {
             graph::FoundDigest::Object(digest) => {
                 let obj_result = self.sync_object_digest(digest).await?;
@@ -281,7 +294,10 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         }
     }
 
-    pub async fn sync_object_digest(&self, digest: encoding::Digest) -> Result<SyncObjectResult> {
+    pub async fn sync_object_digest(
+        &self,
+        digest: encoding::Digest,
+    ) -> SyncResult<SyncObjectResult> {
         // don't write the digest here, as that is the responsibility
         // of the function that actually handles the data copying.
         // a short-circuit is still nice when possible, though
@@ -293,7 +309,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
     }
 
     #[async_recursion::async_recursion]
-    pub async fn sync_object(&self, obj: graph::Object) -> Result<SyncObjectResult> {
+    pub async fn sync_object(&self, obj: graph::Object) -> SyncResult<SyncObjectResult> {
         use graph::object::Enum;
         self.reporter.visit_object(&obj);
         let res = match obj.into_enum() {
@@ -306,8 +322,10 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         Ok(res)
     }
 
-    pub async fn sync_platform(&self, platform: graph::Platform) -> Result<SyncPlatformResult> {
-        let digest = platform.digest()?;
+    pub async fn sync_platform(&self, platform: graph::Platform) -> SyncResult<SyncPlatformResult> {
+        let digest = platform
+            .digest()
+            .map_err(|err| SyncError::ObjectDigestError(err.into()))?;
         if !self.processed_digests.insert(digest) {
             return Ok(SyncPlatformResult::Duplicate);
         }
@@ -325,15 +343,20 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
             results.push(result);
         }
 
-        self.dest.write_object(&platform).await?;
+        self.dest
+            .write_object(&platform)
+            .await
+            .map_err(|err| SyncError::ObjectWriteError(err.into()))?;
 
         let res = SyncPlatformResult::Synced { platform, results };
         self.reporter.synced_platform(&res);
         Ok(res)
     }
 
-    pub async fn sync_layer(&self, layer: graph::Layer) -> Result<SyncLayerResult> {
-        let layer_digest = layer.digest()?;
+    pub async fn sync_layer(&self, layer: graph::Layer) -> SyncResult<SyncLayerResult> {
+        let layer_digest = layer
+            .digest()
+            .map_err(|err| SyncError::ObjectDigestError(err.into()))?;
         if !self.processed_digests.insert(layer_digest) {
             return Ok(SyncLayerResult::Duplicate);
         }
@@ -344,7 +367,11 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         self.reporter.visit_layer(&layer);
 
         let manifest_result = if let Some(manifest_digest) = layer.manifest() {
-            let manifest = self.src.read_manifest(*manifest_digest).await?;
+            let manifest = self
+                .src
+                .read_manifest(*manifest_digest)
+                .await
+                .map_err(|err| SyncError::ManifestReadError(*manifest_digest, err.into()))?;
             self.sync_manifest(manifest).await?
         } else {
             SyncManifestResult::Skipped
@@ -364,7 +391,10 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
             results
         };
 
-        self.dest.write_object(&layer).await?;
+        self.dest
+            .write_object(&layer)
+            .await
+            .map_err(|err| SyncError::ObjectWriteError(err.into()))?;
 
         let mut results = vec![SyncObjectResult::Manifest(manifest_result)];
         results.extend(annotation_results);
@@ -374,8 +404,10 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         Ok(res)
     }
 
-    pub async fn sync_manifest(&self, manifest: graph::Manifest) -> Result<SyncManifestResult> {
-        let manifest_digest = manifest.digest()?;
+    pub async fn sync_manifest(&self, manifest: graph::Manifest) -> SyncResult<SyncManifestResult> {
+        let manifest_digest = manifest
+            .digest()
+            .map_err(|err| SyncError::ObjectDigestError(err.into()))?;
         if !self.processed_digests.insert(manifest_digest) {
             return Ok(SyncManifestResult::Duplicate);
         }
@@ -402,7 +434,10 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
             results.push(res);
         }
 
-        self.dest.write_object(&manifest).await?;
+        self.dest
+            .write_object(&manifest)
+            .await
+            .map_err(|err| SyncError::ObjectWriteError(err.into()))?;
 
         drop(futures);
         let res = SyncManifestResult::Synced { manifest, results };
@@ -413,7 +448,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
     async fn sync_annotation(
         &self,
         annotation: graph::Annotation<'_>,
-    ) -> Result<SyncAnnotationResult> {
+    ) -> SyncResult<SyncAnnotationResult> {
         match annotation.value() {
             AnnotationValue::String(_) => Ok(SyncAnnotationResult::InternalValue),
             AnnotationValue::Blob(digest) => {
@@ -435,7 +470,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         }
     }
 
-    async fn sync_entry(&self, entry: graph::Entry<'_>) -> Result<SyncEntryResult> {
+    async fn sync_entry(&self, entry: graph::Entry<'_>) -> SyncResult<SyncEntryResult> {
         if !entry.kind().is_blob() {
             return Ok(SyncEntryResult::Skipped);
         }
@@ -450,7 +485,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
     }
 
     /// Sync the identified blob to the destination repository.
-    pub async fn sync_blob(&self, blob: &graph::Blob) -> Result<SyncBlobResult> {
+    pub async fn sync_blob(&self, blob: &graph::Blob) -> SyncResult<SyncBlobResult> {
         self.sync_blob_with_perms_opt(blob, None).await
     }
 
@@ -458,7 +493,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         &self,
         blob: &graph::Blob,
         perms: Option<u32>,
-    ) -> Result<SyncBlobResult> {
+    ) -> SyncResult<SyncBlobResult> {
         let digest = blob.digest();
         if self.processed_digests.contains(digest) {
             // do not insert here because blobs share a digest with payloads
@@ -484,7 +519,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
     }
 
     /// Sync a payload with the provided digest
-    pub async fn sync_payload(&self, digest: encoding::Digest) -> Result<SyncPayloadResult> {
+    pub async fn sync_payload(&self, digest: encoding::Digest) -> SyncResult<SyncPayloadResult> {
         self.sync_payload_with_perms_opt(digest, None).await
     }
 
@@ -494,7 +529,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         &self,
         digest: encoding::Digest,
         perms: Option<u32>,
-    ) -> Result<SyncPayloadResult> {
+    ) -> SyncResult<SyncPayloadResult> {
         if self.processed_digests.contains(&digest) {
             return Ok(SyncPayloadResult::Duplicate);
         }
@@ -509,16 +544,26 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
             _permit.is_ok(),
             "We never close the semaphore and so should never see errors"
         );
-        let (mut payload, _) = self.src.open_payload(digest).await?;
+        let (mut payload, _) = self
+            .src
+            .open_payload(digest)
+            .await
+            .map_err(|err| SyncError::PayloadReadError(digest, err.into()))?;
         if let Some(perms) = perms {
             payload = Box::pin(payload.with_permissions(perms));
         }
 
-        let (created_digest, size) = self.dest.write_data(payload).await?;
+        let (created_digest, size) = self
+            .dest
+            .write_data(payload)
+            .await
+            .map_err(|err| SyncError::PayloadWriteError(digest, err.into()))?;
         if digest != created_digest {
-            return Err(Error::String(format!(
-                "Source repository provided payload that did not match the requested digest: wanted {digest}, got {created_digest}. wrote {size} bytes",
-            )));
+            return Err(SyncError::PayloadDigestMismatch(
+                digest,
+                created_digest,
+                size,
+            ));
         }
 
         let res = SyncPayloadResult::Synced { size };
@@ -526,8 +571,15 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         Ok(res)
     }
 
-    async fn read_object_with_fallback(&self, digest: encoding::Digest) -> Result<graph::Object> {
-        let res = self.src.read_object(digest).await;
+    async fn read_object_with_fallback(
+        &self,
+        digest: encoding::Digest,
+    ) -> SyncResult<graph::Object> {
+        let res = self
+            .src
+            .read_object(digest)
+            .await
+            .map_err(|err| SyncError::ObjectReadError(digest, err.into()));
         match res {
             Err(err) if self.policy.check_existing_objects() => {
                 // since objects are unique by digest, we can recover

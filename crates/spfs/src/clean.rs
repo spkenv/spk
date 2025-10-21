@@ -22,7 +22,7 @@ use crate::prelude::*;
 use crate::runtime::makedirs_with_perms;
 use crate::storage::fs::FsRepositoryOps;
 use crate::storage::{TagNamespace, TagNamespaceBuf};
-use crate::{Digest, Error, Result, encoding, graph, storage, tracking};
+use crate::{Digest, Error, PayloadError, Result, encoding, graph, storage, tracking};
 
 #[cfg(test)]
 #[path = "./clean_test.rs"]
@@ -544,6 +544,11 @@ where
     /// objects has completed successfully and with no errors. Otherwise, it may
     /// remove data that is still being used
     async unsafe fn remove_unvisited_objects_and_payloads(&self) -> Result<CleanResult> {
+        enum ErrorFlavor {
+            Spfs(Error),
+            Payload(PayloadError),
+        }
+
         let mut result = CleanResult::default();
         let mut stream = self
             .repo
@@ -571,17 +576,19 @@ where
                     graph::DatabaseItem::Object(digest, _flat_object) => self
                         .repo
                         .remove_object_if_older_than(self.must_be_older_than, *digest)
+                        .map_err(ErrorFlavor::Spfs)
                         .boxed(),
                     graph::DatabaseItem::Payload(digest) => self
                         .repo
                         .remove_payload_if_older_than(self.must_be_older_than, *digest)
+                        .map_err(ErrorFlavor::Payload)
                         .boxed(),
                 })
-                .map(|res| {
-                    if let Err(Error::UnknownObject(_)) = res {
-                        return Ok(true);
-                    }
-                    res
+                .map(|res| match res {
+                    Err(ErrorFlavor::Spfs(Error::UnknownObject(_))) => Ok(true),
+                    Err(ErrorFlavor::Spfs(err)) => Err(err),
+                    Err(ErrorFlavor::Payload(err)) => Err(Error::String(err.to_string())),
+                    Ok(removed) => Ok(removed),
                 })
                 .map_ok(move |removed| (item, removed))
                 .boxed();

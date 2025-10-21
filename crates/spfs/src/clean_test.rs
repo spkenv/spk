@@ -13,7 +13,7 @@ use tokio::time::sleep;
 use super::{Cleaner, TracingCleanReporter};
 use crate::encoding::prelude::*;
 use crate::fixtures::*;
-use crate::{Error, storage, tracking};
+use crate::{Error, PayloadError, storage, tracking};
 
 #[rstest]
 #[tokio::test]
@@ -150,7 +150,7 @@ async fn test_clean_untagged_objects(#[future] tmprepo: TempRepo, tmpdir: tempfi
             continue;
         }
         let res = tmprepo.open_payload(node.entry.object).await;
-        if let Err(Error::UnknownObject(_)) = res {
+        if let Err(PayloadError::UnknownPayload(_)) = res {
             continue;
         }
         if let Err(err) = res {
@@ -264,7 +264,7 @@ async fn test_clean_on_repo_with_tag_namespace(
             continue;
         }
         let res = namespaced_tmprepo.open_payload(node.entry.object).await;
-        if let Err(Error::UnknownObject(_)) = res {
+        if let Err(PayloadError::UnknownPayload(_)) = res {
             continue;
         }
         if let Err(err) = res {
@@ -378,7 +378,7 @@ async fn test_clean_on_repo_with_tag_namespace_set(
             continue;
         }
         let res = namespaced_tmprepo.open_payload(node.entry.object).await;
-        if let Err(Error::UnknownObject(_)) = res {
+        if let Err(PayloadError::UnknownPayload(_)) = res {
             continue;
         }
         if let Err(err) = res {

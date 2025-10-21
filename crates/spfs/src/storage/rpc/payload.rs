@@ -11,7 +11,7 @@ use prost::Message;
 
 use crate::proto::{self, RpcResult};
 use crate::tracking::BlobRead;
-use crate::{Error, Result, encoding, storage};
+use crate::{Error, PayloadResult, Result, encoding, storage};
 
 #[async_trait::async_trait]
 impl storage::PayloadStorage for super::RpcRepository {
@@ -28,7 +28,7 @@ impl storage::PayloadStorage for super::RpcRepository {
             .unwrap_or(false)
     }
 
-    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+    async fn payload_size(&self, digest: encoding::Digest) -> PayloadResult<u64> {
         let request = proto::PayloadSizeRequest {
             digest: Some(digest.into()),
         };
@@ -42,19 +42,28 @@ impl storage::PayloadStorage for super::RpcRepository {
         Ok(response)
     }
 
-    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+    fn iter_payload_digests(
+        &self,
+    ) -> Pin<Box<dyn Stream<Item = PayloadResult<encoding::Digest>> + Send>> {
         let request = proto::IterDigestsRequest {};
         let mut client = self.payload_client.clone();
         let stream = futures::stream::once(async move { client.iter_digests(request).await })
-            .map_err(crate::Error::from)
-            .map_ok(|r| r.into_inner().map_err(crate::Error::from))
+            .map_err(crate::PayloadError::from)
+            .map_ok(|r| r.into_inner().map_err(crate::PayloadError::from))
             .try_flatten()
             .and_then(|d| async { d.to_result() })
-            .and_then(|d| async { d.try_into() });
+            .and_then(|d| async {
+                d.try_into().map_err(|err: crate::Error| {
+                    crate::PayloadError::InvalidDigest(err.to_string())
+                })
+            });
         Box::pin(stream)
     }
 
-    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
+    async fn write_data(
+        &self,
+        reader: Pin<Box<dyn BlobRead>>,
+    ) -> PayloadResult<(encoding::Digest, u64)> {
         let request = proto::WritePayloadRequest {};
         let option = self
             .payload_client
@@ -72,13 +81,15 @@ impl storage::PayloadStorage for super::RpcRepository {
             .uri(&option.url)
             .body(stream_body)
             .map_err(|err| {
-                crate::Error::String(format!("Failed to build upload request: {err:?}"))
+                crate::PayloadError::String(format!("Failed to build upload request: {err:?}"))
             })?;
-        let resp = self.send_http_request(request).await?;
+        let resp = self.send_http_request(request).await.map_err(|err| {
+            crate::PayloadError::String(format!("error in send_http_request: {err}"))
+        })?;
         if !resp.status().is_success() {
             // the server is expected to return all errors via the gRPC message
             // payload in the body. Any other status code is unexpected
-            return Err(crate::Error::String(format!(
+            return Err(crate::PayloadError::String(format!(
                 "Unexpected status code from payload server: {}",
                 resp.status()
             )));
@@ -94,13 +105,13 @@ impl storage::PayloadStorage for super::RpcRepository {
         let result = crate::proto::write_payload_response::UploadResponse::decode(bytes.as_slice())
             .map_err(|err| format!("Payload server returned invalid response data: {err:?}"))?
             .to_result()?;
-        Ok((proto::convert_digest(result.digest)?, result.size))
+        Ok((proto::convert_payload_digest(result.digest)?, result.size))
     }
 
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
+    ) -> PayloadResult<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
         let request = proto::OpenPayloadRequest {
             digest: Some(digest.into()),
         };
@@ -111,10 +122,9 @@ impl storage::PayloadStorage for super::RpcRepository {
             .await?
             .into_inner()
             .to_result()?;
-        let url_str = option
-            .locations
-            .first()
-            .ok_or_else(|| crate::Error::String("upload option gave no locations to try".into()))?;
+        let url_str = option.locations.first().ok_or_else(|| {
+            crate::PayloadError::String("upload option gave no locations to try".into())
+        })?;
         let req = hyper::Request::builder()
             .uri(url_str)
             .method(hyper::http::Method::GET)
@@ -122,22 +132,26 @@ impl storage::PayloadStorage for super::RpcRepository {
             .header(hyper::http::header::ACCEPT, "application/octet-stream")
             .body(http_body_util::Empty::<hyper::body::Bytes>::new())
             .map_err(|err| {
-                crate::Error::String(format!("Failed to build download request: {err:?}"))
+                crate::PayloadError::String(format!("Failed to build download request: {err:?}"))
             })?;
-        let resp = self.send_http_request(req).await?;
+        let resp = self.send_http_request(req).await.map_err(|err| {
+            crate::PayloadError::String(format!("error in send_http_request: {err}"))
+        })?;
         if !resp.status().is_success() {
             // the server is expected to return all errors via the gRPC message
             // payload in the body. Any other status code is unexpected
-            return Err(crate::Error::String(format!(
+            return Err(crate::PayloadError::String(format!(
                 "Unexpected status code from payload server: {}",
                 resp.status()
             )));
         }
-        let stream = open_download_stream(resp)?;
+        let stream = open_download_stream(resp).map_err(|err| {
+            crate::PayloadError::String(format!("error in open_download_stream: {err}"))
+        })?;
         Ok((stream, url_str.into()))
     }
 
-    async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
+    async fn remove_payload(&self, digest: encoding::Digest) -> PayloadResult<()> {
         let request = proto::RemovePayloadRequest {
             digest: Some(digest.into()),
         };
@@ -154,7 +168,7 @@ impl storage::PayloadStorage for super::RpcRepository {
         &self,
         older_than: DateTime<Utc>,
         digest: encoding::Digest,
-    ) -> Result<bool> {
+    ) -> PayloadResult<bool> {
         let request = proto::RemovePayloadIfOlderThanRequest {
             older_than: Some(proto::convert_from_datetime(&older_than)),
             digest: Some(digest.into()),

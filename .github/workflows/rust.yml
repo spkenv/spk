@@ -213,3 +213,6 @@ jobs:
           ${{ matrix.no-default-features }}
           --features "${{ matrix.features }}"
           --all-targets
+          --tests
+          --
+          -D warnings

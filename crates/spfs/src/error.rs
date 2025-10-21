@@ -5,11 +5,14 @@
 use std::io;
 use std::path::PathBuf;
 use std::str::Utf8Error;
+use std::sync::Arc;
 
 use miette::Diagnostic;
+use spfs_encoding::PartialDigest;
 use thiserror::Error;
 
-use crate::{encoding, graph, storage};
+use crate::tracking::TagSpec;
+use crate::{Digest, encoding, graph, storage};
 
 #[derive(Diagnostic, Debug, Error)]
 #[diagnostic(
@@ -384,3 +387,108 @@ impl OsError for std::io::Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Diagnostic, Debug, Clone, Error)]
+#[diagnostic(
+    url(
+        "https://spkenv.dev/error_codes#{}",
+        self.code().unwrap_or_else(|| Box::new("spfs::generic"))
+    )
+)]
+pub enum PayloadError {
+    #[error("payload did not exist: {0}")]
+    UnknownPayload(encoding::Digest),
+    #[error("invalid digest: {0}")]
+    InvalidDigest(String),
+    #[error("storage read error from {0} at {1}: {2}")]
+    StorageReadError(&'static str, std::path::PathBuf, #[source] Arc<io::Error>),
+    #[error("storage write error from {0} at {1}: {2}")]
+    StorageWriteError(&'static str, std::path::PathBuf, #[source] Arc<io::Error>),
+    #[error("Cannot write to a repository which has been pinned in time")]
+    RepositoryIsPinned,
+    #[error("Error communicating with the server: {0:?}")]
+    Tonic(Box<tonic::Status>),
+    #[error("payload error: {0}")]
+    String(String),
+}
+
+impl PayloadError {
+    /// Return true if this error suggests the call might succeed if retried on
+    /// a secondary repository.
+    #[inline]
+    pub fn try_next_repo(&self) -> bool {
+        matches!(self, PayloadError::UnknownPayload(_))
+    }
+}
+
+impl OsError for PayloadError {
+    fn os_error(&self) -> Option<i32> {
+        match self {
+            #[cfg(unix)]
+            Self::UnknownPayload(_) => Some(libc::ENOENT),
+            #[cfg(windows)]
+            Self::UnknownPayload(_) => {
+                Some(windows::Win32::Foundation::ERROR_FILE_NOT_FOUND.0 as i32)
+            }
+            Self::StorageReadError(_, _, err) => err.os_error(),
+            Self::StorageWriteError(_, _, err) => err.os_error(),
+            _ => None,
+        }
+    }
+}
+
+impl From<String> for PayloadError {
+    fn from(err: String) -> Self {
+        Self::String(err)
+    }
+}
+
+impl From<&str> for PayloadError {
+    fn from(err: &str) -> Self {
+        Self::String(err.to_string())
+    }
+}
+
+impl From<tonic::Status> for PayloadError {
+    fn from(value: tonic::Status) -> Self {
+        PayloadError::Tonic(Box::new(value))
+    }
+}
+
+pub type PayloadResult<T> = std::result::Result<T, PayloadError>;
+
+#[derive(Diagnostic, Debug, Clone, Error)]
+#[diagnostic(
+    url(
+        "https://spkenv.dev/error_codes#{}",
+        self.code().unwrap_or_else(|| Box::new("spfs::generic"))
+    )
+)]
+pub enum SyncError {
+    #[error("reference '{0}' could not be parsed: {1}")]
+    ReferenceParseError(String, Arc<Error>),
+    #[error("tag '{0}' could not be resolved: {1}")]
+    TagResolveError(TagSpec, Arc<Error>),
+    #[error("tag '{0}' could not be inserted: {1}")]
+    TagInsertError(TagSpec, Arc<Error>),
+    #[error("partial digest '{0}' could not be resolved: {1}")]
+    DigestResolveError(PartialDigest, Arc<Error>),
+    #[error("flatbuffer object digest() failed: {0}")]
+    ObjectDigestError(Arc<Error>),
+    #[error("object '{0}' could not be read: {1}")]
+    ObjectReadError(Digest, Arc<Error>),
+    #[error("object write failed: {0}")]
+    ObjectWriteError(Arc<Error>),
+    #[error("manifest '{0}' could not be read: {1}")]
+    ManifestReadError(Digest, Arc<Error>),
+    #[error("payload '{0}' could not be read: {1}")]
+    PayloadReadError(Digest, Arc<PayloadError>),
+    #[error("payload '{0}' could not be written: {1}")]
+    PayloadWriteError(Digest, Arc<PayloadError>),
+    #[error(
+        "source repository provided payload that did not match the requested digest: wanted {0}, got {1}. wrote {2} bytes"
+    )]
+    PayloadDigestMismatch(Digest, Digest, u64),
+}
+
+pub type SyncResult<T> = std::result::Result<T, SyncError>;

@@ -11,7 +11,7 @@ use super::Syncer;
 use crate::config::Config;
 use crate::fixtures::*;
 use crate::prelude::*;
-use crate::{Error, encoding, graph, storage, tracking};
+use crate::{SyncError, encoding, graph, storage, tracking};
 
 #[rstest]
 #[tokio::test]
@@ -22,7 +22,7 @@ async fn test_sync_ref_unknown(#[future] config: (tempfile::TempDir, Config)) {
     let origin = config.get_remote("origin").await.unwrap();
     let syncer = Syncer::new(&local, &origin);
     match syncer.sync_ref("--test-unknown--").await {
-        Err(Error::UnknownReference(_)) => (),
+        Err(SyncError::TagResolveError(_, _)) => (),
         Err(err) => panic!("expected unknown reference error, got {err:?}"),
         Ok(_) => panic!("expected unknown reference error, got success"),
     }
@@ -31,7 +31,7 @@ async fn test_sync_ref_unknown(#[future] config: (tempfile::TempDir, Config)) {
         .sync_ref(encoding::Digest::default().to_string())
         .await
     {
-        Err(Error::UnknownObject(_)) => (),
+        Err(SyncError::PayloadReadError(_, _)) => (),
         Err(err) => panic!("expected unknown object error, got {err:?}"),
         Ok(_) => panic!("expected unknown object error, got success"),
     }

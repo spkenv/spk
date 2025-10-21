@@ -5,7 +5,7 @@
 use std::convert::{TryFrom, TryInto};
 use std::ops::Not;
 
-use crate::{Error, Result, encoding, graph, storage, tracking};
+use crate::{Error, PayloadError, PayloadResult, Result, encoding, graph, storage, tracking};
 
 pub(crate) fn convert_to_datetime(
     source: Option<super::DateTime>,
@@ -31,6 +31,10 @@ pub fn convert_digest_ref(source: Option<&super::Digest>) -> Result<&encoding::D
 
 pub fn convert_digest(source: Option<super::Digest>) -> Result<encoding::Digest> {
     Ok(*convert_digest_ref(source.as_ref())?)
+}
+
+pub fn convert_payload_digest(source: Option<super::Digest>) -> PayloadResult<encoding::Digest> {
+    convert_digest(source).map_err(|err| PayloadError::InvalidDigest(err.to_string()))
 }
 
 impl TryFrom<super::Digest> for encoding::Digest {
@@ -176,6 +180,41 @@ impl From<super::Error> for Error {
             }
             Some(super::error::Kind::Other(message)) => Error::String(message),
             None => Error::String("Server did not provide an error message".to_string()),
+        }
+    }
+}
+
+impl From<PayloadError> for super::PayloadError {
+    fn from(err: PayloadError) -> Self {
+        let kind = Some(match err {
+            PayloadError::UnknownPayload(digest) => {
+                super::payload_error::Kind::UnknownPayload(super::UnknownPayloadError {
+                    message: digest.to_string(),
+                })
+            }
+            PayloadError::String(message) => super::payload_error::Kind::Other(message),
+            other => super::payload_error::Kind::Other(other.to_string()),
+        });
+        Self { kind }
+    }
+}
+
+impl From<super::PayloadError> for PayloadError {
+    fn from(rpc: super::PayloadError) -> Self {
+        match rpc.kind {
+            Some(super::payload_error::Kind::UnknownPayload(rpc)) => {
+                match crate::encoding::Digest::parse(&rpc.message) {
+                    Ok(digest) => PayloadError::UnknownPayload(digest),
+                    Err(_) => PayloadError::String(
+                        "Server reported UnknownPayload but did not provide a valid digest"
+                            .to_string(),
+                    ),
+                }
+            }
+            Some(super::payload_error::Kind::Other(message)) => PayloadError::String(message),
+            None => {
+                PayloadError::String("Server did not provide a payload error message".to_string())
+            }
         }
     }
 }

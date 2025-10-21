@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use futures::Stream;
+use moka::future::Cache;
 use relative_path::RelativePath;
 
 use crate::config::{ToAddress, default_fallback_repo_include_secondary_tags};
@@ -27,7 +28,7 @@ use crate::storage::{
 };
 use crate::sync::reporter::SyncReporters;
 use crate::tracking::BlobRead;
-use crate::{Error, Result, encoding, graph, storage, tracking};
+use crate::{PayloadError, PayloadResult, Result, encoding, graph, storage, tracking};
 
 #[cfg(test)]
 #[path = "./repository_test.rs"]
@@ -85,6 +86,7 @@ pub struct FallbackProxy {
     primary: Arc<OpenFsRepository>,
     secondary: Vec<crate::storage::RepositoryHandle>,
     include_secondary_tags: bool,
+    open_payload_cache: Cache<encoding::Digest, ()>,
 }
 
 impl FallbackProxy {
@@ -103,6 +105,12 @@ impl FallbackProxy {
             primary: primary.into(),
             secondary,
             include_secondary_tags,
+            open_payload_cache: Cache::builder()
+                // The TTL thought here is that failed attempts will only get
+                // cached for so long and then reattempted on a subsequent
+                // open_payload call, if any.
+                .time_to_live(std::time::Duration::from_secs(300))
+                .build(),
         }
     }
 }
@@ -162,11 +170,11 @@ impl storage::FromConfig for FallbackProxy {
             Ok(secondary)
         };
         let (primary, secondary) = tokio::try_join!(primary, secondary)?;
-        Ok(Self {
-            primary: primary.into(),
+        Ok(Self::new(
+            Arc::new(primary),
             secondary,
-            include_secondary_tags: config.include_secondary_tags,
-        })
+            config.include_secondary_tags,
+        ))
     }
 }
 
@@ -280,15 +288,20 @@ impl PayloadStorage for FallbackProxy {
         false
     }
 
-    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+    async fn payload_size(&self, digest: encoding::Digest) -> PayloadResult<u64> {
         crate::storage::proxy::payload_size(self, digest).await
     }
 
-    fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+    fn iter_payload_digests(
+        &self,
+    ) -> Pin<Box<dyn Stream<Item = PayloadResult<encoding::Digest>> + Send>> {
         self.primary.iter_payload_digests()
     }
 
-    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
+    async fn write_data(
+        &self,
+        reader: Pin<Box<dyn BlobRead>>,
+    ) -> PayloadResult<(encoding::Digest, u64)> {
         let res = self.primary.write_data(reader).await?;
         Ok(res)
     }
@@ -296,67 +309,69 @@ impl PayloadStorage for FallbackProxy {
     async fn open_payload(
         &self,
         digest: encoding::Digest,
-    ) -> Result<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
+    ) -> PayloadResult<(Pin<Box<dyn BlobRead>>, std::path::PathBuf)> {
+        if let ok @ Ok(_) = self.primary.open_payload(digest).await {
+            return ok;
+        }
+
+        // If a payload is not available in the primary, we want only one task
+        // attempting to download it from the secondary repositories. Other
+        // concurrent attempts to open the same payload should wait for
+        // that attempt to complete, and then try to open the payload again.
         let mut fallbacks = self.secondary.iter();
-
-        'retry_open: loop {
-            let missing_payload_error = match self.primary.open_payload(digest).await {
-                Ok(r) => return Ok(r),
-                Err(err @ Error::ObjectMissingPayload(_, _)) => err,
-                Err(err @ Error::UnknownObject(_)) => err,
-                Err(err) => return Err(err),
-            };
-
-            let mut repair_failure = None;
-
-            let dest_repo = self.primary.clone().into();
-            for fallback in fallbacks.by_ref() {
-                let syncer = crate::Syncer::new(fallback, &dest_repo)
-                    .with_policy(crate::sync::SyncPolicy::ResyncEverything)
-                    .with_reporter(
-                        // There may already be a progress bar in use in this
-                        // context, so don't make another one here.
-                        SyncReporters::silent(),
-                    );
-                match syncer.sync_payload(digest).await {
-                    Ok(_) => {
-                        // Warn for non-sentry users; info for sentry users.
-                        #[cfg(not(feature = "sentry"))]
-                        {
-                            tracing::warn!("Repaired a missing payload! {digest}",);
-                        }
-                        #[cfg(feature = "sentry")]
-                        {
-                            tracing::info!("Repaired a missing payload! {digest}",);
-                            tracing::error!(target: "sentry", object = %digest, "Repaired a missing payload!");
-                        }
-                        continue 'retry_open;
-                    }
-                    Err(err) => {
-                        #[cfg(feature = "sentry")]
-                        tracing::error!(
-                            target: "sentry",
-                            object = %digest,
-                            ?err,
-                            "Could not repair a missing payload"
+        let dest_repo = self.primary.clone().into();
+        self.open_payload_cache
+            .try_get_with(digest, async move {
+                let mut repair_failure = None;
+                for fallback in fallbacks.by_ref() {
+                    let syncer = crate::Syncer::new(fallback, &dest_repo)
+                        .with_policy(crate::sync::SyncPolicy::ResyncEverything)
+                        .with_reporter(
+                            // There may already be a progress bar in use in this
+                            // context, so don't make another one here.
+                            SyncReporters::silent(),
                         );
+                    match syncer.sync_payload(digest).await {
+                        Ok(_) => {
+                            // Warn for non-sentry users; info for sentry users.
+                            #[cfg(not(feature = "sentry"))]
+                            {
+                                tracing::warn!("Repaired a missing payload! {digest}",);
+                            }
+                            #[cfg(feature = "sentry")]
+                            {
+                                tracing::info!("Repaired a missing payload! {digest}",);
+                                tracing::error!(target: "sentry", object = %digest, "Repaired a missing payload!");
+                            }
+                            return Ok(());
+                        }
+                        Err(err) => {
+                            #[cfg(feature = "sentry")]
+                            tracing::error!(
+                                target: "sentry",
+                                object = %digest,
+                                ?err,
+                                "Could not repair a missing payload"
+                            );
 
-                        repair_failure = Some(err);
+                            repair_failure = Some(PayloadError::String(format!("failed to repair payload: {err}")));
+                        }
                     }
                 }
-            }
+                if let Some(err) = repair_failure {
+                    return Err(err);
+                }
+                // Probably can only get here if there were no secondary repos.
+                Err(PayloadError::String("no repositories could successfully read the payload".into()))
+            })
+            .await.map_err(|err| (*err).clone())?;
 
-            if let Some(err) = repair_failure {
-                // The different fallbacks may fail for different reasons,
-                // we just show the most recent failure here.
-                tracing::warn!("Could not repair a missing payload: {err}");
-            }
-
-            return Err(missing_payload_error);
-        }
+        // Then each caller needs to try to open the payload again, to get their
+        // own handle to it.
+        self.primary.open_payload(digest).await
     }
 
-    async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
+    async fn remove_payload(&self, digest: encoding::Digest) -> PayloadResult<()> {
         self.primary.remove_payload(digest).await?;
         Ok(())
     }
@@ -365,7 +380,7 @@ impl PayloadStorage for FallbackProxy {
         &self,
         older_than: DateTime<Utc>,
         digest: encoding::Digest,
-    ) -> Result<bool> {
+    ) -> PayloadResult<bool> {
         Ok(self
             .primary
             .remove_payload_if_older_than(older_than, digest)

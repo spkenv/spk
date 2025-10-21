@@ -20,7 +20,7 @@ message HasPayloadResponse{
     //     Error error = 1;
     //     bool ok = 2;
     // }
-    bool exists =3;
+    bool exists = 3;
 }
 
 message PayloadSizeRequest{
@@ -28,8 +28,9 @@ message PayloadSizeRequest{
 }
 message PayloadSizeResponse{
     oneof result {
-        Error error = 1;
+        // 1 was used
         uint64 ok = 2;
+        PayloadError error = 3;
     }
 }
 
@@ -46,13 +47,15 @@ message WritePayloadResponse{
             uint64 size = 2;
         }
         oneof result {
-            Error error = 1;
+            // 1 was used
             UploadResult ok = 2;
+            PayloadError error = 3;
         }
     }
     oneof result {
-        Error error = 1;
+        // 1 was used
         UploadOption ok = 2;
+        PayloadError error = 3;
     }
 }
 
@@ -64,8 +67,9 @@ message OpenPayloadResponse{
         repeated string locations = 1;
     }
     oneof result {
-        Error error = 1;
+        // 1 was used
         DownloadOption ok = 2;
+        PayloadError error = 3;
     }
 }
 
@@ -74,8 +78,9 @@ message RemovePayloadRequest{
 }
 message RemovePayloadResponse{
     oneof result {
-        Error error = 1;
+        // 1 was used
         Ok ok = 2;
+        PayloadError error = 3;
     }
 }
 
@@ -85,8 +90,9 @@ message RemovePayloadIfOlderThanRequest{
 }
 message RemovePayloadIfOlderThanResponse{
     oneof result {
-        Error error = 1;
+        // 1 was used
         bool ok = 2;
+        PayloadError error = 3;
     }
 }
 
