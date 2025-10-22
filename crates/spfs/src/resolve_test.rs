@@ -2,15 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+#[cfg(unix)]
 use std::sync::Arc;
 
 use rstest::rstest;
 
 use super::resolve_stack_to_layers;
 use crate::fixtures::*;
+#[cfg(unix)]
+use crate::io;
+#[cfg(unix)]
 use crate::io::DigestFormat;
 use crate::prelude::*;
-use crate::{encoding, graph, io};
+use crate::{encoding, graph};
 
 #[rstest]
 #[tokio::test]
@@ -26,6 +30,8 @@ async fn test_stack_to_layers_dedupe(#[future] tmprepo: TempRepo) {
     assert_eq!(resolved.len(), 1, "should deduplicate layers in resolve");
 }
 
+// `resolve_overlay_dirs` only exists on unix
+#[cfg(unix)]
 /// Test that if there are too many layers to fit on a single mount
 /// that enough layers are merged together so the mount will succeed.
 #[rstest]
@@ -81,6 +87,8 @@ async fn test_auto_merge_layers(tmpdir: tempfile::TempDir) {
     );
 }
 
+// `resolve_overlay_dirs` only exists on unix
+#[cfg(unix)]
 /// Test that if there are too many layers to fit on a single mount
 /// and the topmost layer contains an edit of the next top most layer
 /// that after merging layers the edit remains in the merged layer

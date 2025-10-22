@@ -41,9 +41,13 @@ jobs:
         # --force because cache-hit can be false (matched a partial key?) and
         # then this command will fail if the previous step did restore the file.
         run: cargo install --locked --force ast-grep
-      - name: Install Debug SPFS
+      - name: Cargo Check
         run: |
-          make install-debug-spfs
+          cargo check --tests --features server,spfs/server
+      # Use this someday to do real tests
+      #- name: Install Debug SPFS
+      #  run: |
+      #    make install-debug-spfs
 
   build-and-test:
     name: Linux Build and Test
