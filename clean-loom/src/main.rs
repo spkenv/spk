@@ -300,6 +300,127 @@ fn simulate_proposed_lock_free_clean_behavior(
     });
 }
 
+#[rstest]
+#[case::write_new(4)]
+#[case::write_existing(1)]
+fn simulate_proposed_lock_per_object_clean_behavior(
+    #[case] value_to_write: i32,
+    #[values(true, false)] tags_first: bool,
+) {
+    loom::model(move || {
+        // Start out with `1` already as garbage.
+        let tags = Arc::new(Mutex::new(BTreeSet::<i32>::from_iter([2, 3])));
+        let objects = Arc::new(Mutex::new(BTreeSet::<i32>::from_iter([1, 2, 3])));
+        let staged = Arc::new(Mutex::new(BTreeSet::<i32>::new()));
+        // Because we only ever simulate writing one object, we can use this
+        // single mutex as a stand-in for a per-object lock map. This avoids
+        // clouding the test with having to wrap a map of locks with another
+        // lock.
+        let per_object_lock = Arc::new(Mutex::new(()));
+
+        let writer_per_object_lock = Arc::clone(&per_object_lock);
+        let writer_tags = Arc::clone(&tags);
+        let writer_objects = Arc::clone(&objects);
+        let writer_staged = Arc::clone(&staged);
+        let writer_thread = thread::spawn(move || {
+            // Before writing anything, acquire the per-object lock. It needs to
+            // be held up until the staging file and object are written.
+            let _object_lock_guard = writer_per_object_lock.lock().unwrap();
+
+            // Before writing any objects, a writer must create a hard reference
+            // to them by "staging them":
+            let mut lock = writer_staged.lock().unwrap();
+            lock.insert(value_to_write);
+            drop(lock);
+            // Now it is safe to add to objects.
+            let mut lock = writer_objects.lock().unwrap();
+            lock.insert(value_to_write);
+            drop(lock);
+
+            drop(_object_lock_guard);
+
+            let mut lock = writer_tags.lock().unwrap();
+            lock.insert(value_to_write);
+            drop(lock);
+            // In this variation, the staging file is not safe to delete
+            // immediately. Obviously if the staging file is never deleted, then
+            // the object will never be deleted. In practice, the staging file
+            // will only be enforced for a configurable period of time and then
+            // it could be removed.
+        });
+
+        let cleaner_per_object_lock = Arc::clone(&per_object_lock);
+        let cleaner_tags = Arc::clone(&tags);
+        let cleaner_objects = Arc::clone(&objects);
+        let cleaner_staged = Arc::clone(&staged);
+        let cleaner_thread = thread::spawn(move || {
+            // This version doesn't have a global lock while deleting objects.
+            // But it uses a lock per object to synchronize with writers.
+
+            // Simulate reading tags and objects in either order.
+            // Running two test variants is vastly faster than using threads to
+            // simulate the order being non-deterministic.
+            let (objects_snapshot, tags_snapshot) = if tags_first {
+                let lock = cleaner_tags.lock().unwrap();
+                let _tags_snapshot = (*lock).clone();
+                drop(lock);
+                let lock = cleaner_objects.lock().unwrap();
+                let _objects_snapshot = (*lock).clone();
+                drop(lock);
+                (_objects_snapshot, _tags_snapshot)
+            } else {
+                let lock = cleaner_objects.lock().unwrap();
+                let _objects_snapshot = (*lock).clone();
+                drop(lock);
+                let lock = cleaner_tags.lock().unwrap();
+                let _tags_snapshot = (*lock).clone();
+                drop(lock);
+                (_objects_snapshot, _tags_snapshot)
+            };
+
+            let to_delete = objects_snapshot
+                .difference(&tags_snapshot)
+                .copied()
+                .collect::<BTreeSet<_>>();
+
+            for obj in to_delete {
+                // Acquire the per-object lock to check if it is currently
+                // staged. In this test, this condition is only possible when
+                // `obj` == `value_to_write`.
+                // This lock must be held through to the deletion to stop
+                // writers from staging the object while we delete it.
+                let _guard = if obj == value_to_write {
+                    let _object_lock_guard = cleaner_per_object_lock.lock().unwrap();
+                    let staged_lock = cleaner_staged.lock().unwrap();
+                    if staged_lock.contains(&obj) {
+                        // Still staged, can't delete.
+                        //
+                        // Per #1282, if any individual object is found to be
+                        // ineligible for deletion, then any deletions that have
+                        // already taken place may be a child of this object and
+                        // now the repo is corrupted.
+                        //
+                        // This could perhaps be solved by doing deletions in
+                        // two passes so they can be rolled back if needed.
+                        continue;
+                    }
+                    Some(_object_lock_guard)
+                } else {
+                    None
+                };
+
+                let mut lock = cleaner_objects.lock().unwrap();
+                lock.remove(&obj);
+            }
+        });
+
+        cleaner_thread.join().unwrap();
+        writer_thread.join().unwrap();
+
+        let lock = objects.lock().unwrap();
+        assert_eq!(*lock, BTreeSet::<i32>::from_iter([value_to_write, 2, 3]));
+    });
+}
 fn main() {
     println!("Hello, world!");
 }
