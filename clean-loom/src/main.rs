@@ -4,9 +4,11 @@ use loom::sync::{Arc, Mutex};
 use loom::thread;
 use rstest::rstest;
 
-#[test]
-fn simulate_existing_clean_behavior() {
-    loom::model(|| {
+#[rstest]
+#[case::write_new(4)]
+#[case::write_existing(1)]
+fn simulate_existing_clean_behavior(#[case] value_to_write: i32) {
+    loom::model(move || {
         // Start out with `1` already as garbage.
         let tags = Arc::new(Mutex::new(BTreeSet::<i32>::from_iter([2, 3])));
         let objects = Arc::new(Mutex::new(BTreeSet::<i32>::from_iter([1, 2, 3])));
@@ -18,10 +20,10 @@ fn simulate_existing_clean_behavior() {
             // the underlying objects are written first and the parent objects
             // written second, e.g., blob first and manifest later.
             let mut lock = writer_objects.lock().unwrap();
-            lock.insert(4);
+            lock.insert(value_to_write);
             drop(lock);
             let mut lock = writer_tags.lock().unwrap();
-            lock.insert(4);
+            lock.insert(value_to_write);
         });
 
         let cleaner_tags = Arc::clone(&tags);
@@ -45,13 +47,15 @@ fn simulate_existing_clean_behavior() {
         writer_thread.join().unwrap();
 
         let lock = objects.lock().unwrap();
-        assert_eq!(*lock, BTreeSet::<i32>::from_iter([2, 3, 4]));
+        assert_eq!(*lock, BTreeSet::<i32>::from_iter([value_to_write, 2, 3]));
     });
 }
 
-#[test]
-fn simulate_proposed_clean_behavior() {
-    loom::model(|| {
+#[rstest]
+#[case::write_new(4)]
+#[case::write_existing(1)]
+fn simulate_proposed_clean_behavior(#[case] value_to_write: i32) {
+    loom::model(move || {
         // Start out with `1` already as garbage.
         let tags = Arc::new(Mutex::new(BTreeSet::<i32>::from_iter([2, 3])));
         let objects = Arc::new(Mutex::new(BTreeSet::<i32>::from_iter([1, 2, 3])));
@@ -64,18 +68,18 @@ fn simulate_proposed_clean_behavior() {
             // Before writing any objects, a writer must create a hard reference
             // to them by "staging them":
             let mut lock = writer_staged.lock().unwrap();
-            lock.insert(4);
+            lock.insert(value_to_write);
             drop(lock);
             // Now it is safe to add to objects.
             let mut lock = writer_objects.lock().unwrap();
-            lock.insert(4);
+            lock.insert(value_to_write);
             drop(lock);
             let mut lock = writer_tags.lock().unwrap();
-            lock.insert(4);
+            lock.insert(value_to_write);
             drop(lock);
             // With the tag written, it is now safe to unstage the object.
             let mut lock = writer_staged.lock().unwrap();
-            lock.remove(&4);
+            lock.remove(&value_to_write);
         });
 
         let cleaner_tags = Arc::clone(&tags);
@@ -116,13 +120,15 @@ fn simulate_proposed_clean_behavior() {
         writer_thread.join().unwrap();
 
         let lock = objects.lock().unwrap();
-        assert_eq!(*lock, BTreeSet::<i32>::from_iter([2, 3, 4]));
+        assert_eq!(*lock, BTreeSet::<i32>::from_iter([value_to_write, 2, 3]));
     });
 }
 
-#[test]
-fn simulate_proposed_clean_behavior_version_2() {
-    loom::model(|| {
+#[rstest]
+#[case::write_new(4)]
+#[case::write_existing(1)]
+fn simulate_proposed_clean_behavior_version_2(#[case] value_to_write: i32) {
+    loom::model(move || {
         // Start out with `1` already as garbage.
         let tags = Arc::new(Mutex::new(BTreeSet::<i32>::from_iter([2, 3])));
         let objects = Arc::new(Mutex::new(BTreeSet::<i32>::from_iter([1, 2, 3])));
@@ -135,14 +141,14 @@ fn simulate_proposed_clean_behavior_version_2() {
             // Before writing any objects, a writer must create a hard reference
             // to them by "staging them":
             let mut lock = writer_staged.lock().unwrap();
-            lock.insert(4);
+            lock.insert(value_to_write);
             drop(lock);
             // Now it is safe to add to objects.
             let mut lock = writer_objects.lock().unwrap();
-            lock.insert(4);
+            lock.insert(value_to_write);
             drop(lock);
             let mut lock = writer_tags.lock().unwrap();
-            lock.insert(4);
+            lock.insert(value_to_write);
             // In this behavior, 4 is not unstaged here. In practice, it would
             // be marked as "committed" and pruned later to give a reasonable
             // amount of time to elapse to avoid races. Any new writers of the
@@ -181,7 +187,7 @@ fn simulate_proposed_clean_behavior_version_2() {
         writer_thread.join().unwrap();
 
         let lock = objects.lock().unwrap();
-        assert_eq!(*lock, BTreeSet::<i32>::from_iter([2, 3, 4]));
+        assert_eq!(*lock, BTreeSet::<i32>::from_iter([value_to_write, 2, 3]));
     });
 }
 
