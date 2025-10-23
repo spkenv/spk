@@ -53,6 +53,7 @@ use crate::ident::{
 };
 use crate::metadata::Meta;
 use crate::option::VarOpt;
+use crate::spec::SpecTest;
 use crate::{
     BuildEnv,
     BuildSpec,
@@ -341,6 +342,10 @@ impl Package for Spec<BuildIdent> {
 
     fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
         Cow::Borrowed(&self.install.requirements)
+    }
+
+    fn get_all_tests(&self) -> Vec<SpecTest> {
+        self.tests.clone().into_iter().map(SpecTest::V0).collect()
     }
 
     fn downstream_build_requirements<'a>(

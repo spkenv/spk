@@ -15,6 +15,7 @@ use super::RequirementsList;
 use crate::foundation::ident_component::Component;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::version::Compatibility;
+use crate::spec::SpecTest;
 use crate::{DeprecateMut, Opt, RuntimeEnvironment};
 
 #[cfg(test)]
@@ -113,6 +114,9 @@ pub trait Package:
     /// Requests that must be met to use this package
     fn runtime_requirements(&self) -> Cow<'_, RequirementsList>;
 
+    /// Package's test specs for all test stages
+    fn get_all_tests(&self) -> Vec<SpecTest>;
+
     /// Requests that must be satisfied by the build
     /// environment of any package built against this one
     ///
@@ -197,6 +201,10 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
         (**self).runtime_requirements()
     }
 
+    fn get_all_tests(&self) -> Vec<SpecTest> {
+        (**self).get_all_tests()
+    }
+
     fn downstream_build_requirements<'a>(
         &self,
         components: impl IntoIterator<Item = &'a Component>,
@@ -273,6 +281,10 @@ impl<T: Package + Send + Sync> Package for Box<T> {
         (**self).runtime_requirements()
     }
 
+    fn get_all_tests(&self) -> Vec<SpecTest> {
+        (**self).get_all_tests()
+    }
+
     fn downstream_build_requirements<'a>(
         &self,
         components: impl IntoIterator<Item = &'a Component>,
@@ -347,6 +359,10 @@ impl<T: Package + Send + Sync> Package for &T {
 
     fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
         (**self).runtime_requirements()
+    }
+
+    fn get_all_tests(&self) -> Vec<SpecTest> {
+        (**self).get_all_tests()
     }
 
     fn downstream_build_requirements<'a>(
