@@ -12,7 +12,7 @@ pub trait EnvName {
 
 impl<T> EnvName for T
 where
-    T: Named,
+    T: Named + ?Sized,
 {
     fn env_name(&self) -> String {
         self.name().replace('-', "_")
