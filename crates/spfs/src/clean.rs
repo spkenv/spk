@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, hash_map};
 use std::fmt::Write;
 use std::future::ready;
 use std::num::NonZero;
@@ -14,9 +14,13 @@ use colored::Colorize;
 use dashmap::DashSet;
 use futures::{FutureExt, StreamExt, TryFutureExt, TryStreamExt};
 use once_cell::sync::OnceCell;
+use petgraph::algo::toposort;
+use petgraph::graph::DiGraph;
+use petgraph::visit::Dfs;
 use progress_bar_derive_macro::ProgressBar;
 
 use super::prune::PruneParameters;
+use crate::graph::{DatabaseItem, RichDigest};
 use crate::io::Pluralize;
 use crate::prelude::*;
 use crate::runtime::makedirs_with_perms;
@@ -408,11 +412,14 @@ where
     }
 
     #[async_recursion::async_recursion]
-    async fn walk_attached_objects(&self, digests: &[encoding::Digest]) -> Result<CleanResult> {
+    async fn walk_attached_objects<O>(&self, digests: &[O]) -> Result<CleanResult>
+    where
+        O: AsRef<encoding::Digest> + Sync,
+    {
         let mut result = CleanResult::default();
 
         let mut walk_stream = futures::stream::iter(digests.iter())
-            .then(|digest| ready(self.visit_attached_objects(*digest).boxed()))
+            .then(|digest| ready(self.visit_attached_objects(*digest.as_ref()).boxed()))
             .buffer_unordered(self.discover_concurrency)
             .boxed();
         while let Some(res) = walk_stream.try_next().await? {
@@ -534,7 +541,20 @@ where
 
         // This recursively calls visit_attached_objects() (this
         // method) on any child objects.
-        result += self.walk_attached_objects(&obj.child_objects()).await?;
+        let child_objects = obj
+            .child_items()
+            .into_iter()
+            .filter_map(|child| match child {
+                RichDigest::Object(digest) => Some(digest),
+                RichDigest::Payload(digest) => {
+                    result.visited_payloads += 1;
+                    self.reporter.visit_payload(&digest);
+                    self.attached.insert(digest);
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        result += self.walk_attached_objects(&child_objects).await?;
 
         Ok(result)
     }
@@ -544,15 +564,117 @@ where
     /// objects has completed successfully and with no errors. Otherwise, it may
     /// remove data that is still being used
     async unsafe fn remove_unvisited_objects_and_payloads(&self) -> Result<CleanResult> {
+        #[derive(Debug)]
+        enum Node {
+            DatabaseItem(DatabaseItem),
+            ObjectDigest(encoding::Digest),
+        }
+
+        impl Node {
+            #[inline]
+            fn digest(&self) -> &encoding::Digest {
+                match self {
+                    Node::DatabaseItem(item) => item.digest(),
+                    Node::ObjectDigest(digest) => digest,
+                }
+            }
+        }
+
+        // Construct a graph of all items to be able to delete in topological
+        // order, top down. This is how we avoid creating dangling references.
+        let mut g = DiGraph::new();
+        let mut idx_to_node = HashMap::new();
+        let mut digest_to_idx = HashMap::new();
+
+        let root_attached_node = g.add_node(());
+        let root_unattached_node = g.add_node(());
+
+        let mut stream = self.repo.iter_items();
+
+        while let Some(item) = stream.try_next().await? {
+            let item_digest = *item.item.digest();
+
+            // "Upgrade" the Node from ObjectDigest to DatabaseItem when
+            // possible.
+            let node = if let DatabaseItem::Object(digest, _obj) = &item.item
+                && let Some(node) = digest_to_idx.get(digest)
+            {
+                if let Some(Node::ObjectDigest(_)) = idx_to_node.get(node) {
+                    idx_to_node.insert(*node, Node::DatabaseItem(item.item));
+                }
+                *node
+            } else {
+                let node = g.add_node(());
+                idx_to_node.insert(node, Node::DatabaseItem(item.item));
+                digest_to_idx.insert(item_digest, node);
+                node
+            };
+
+            if let Some(parent) = item.parent {
+                let parent_node = match digest_to_idx.entry(parent) {
+                    hash_map::Entry::Occupied(occupied_entry) => *occupied_entry.get(),
+                    hash_map::Entry::Vacant(vacant_entry) => {
+                        let parent_node = g.add_node(());
+                        idx_to_node.insert(parent_node, Node::ObjectDigest(parent));
+                        vacant_entry.insert(parent_node);
+
+                        parent_node
+                    }
+                };
+
+                if self.attached.contains(&parent) {
+                    g.add_edge(root_attached_node, parent_node, ());
+                } else {
+                    g.add_edge(root_unattached_node, parent_node, ());
+                }
+
+                g.add_edge(parent_node, node, ());
+            } else if !self.attached.contains(&item_digest) {
+                g.add_edge(root_unattached_node, node, ());
+            } else {
+                g.add_edge(root_attached_node, node, ());
+            }
+        }
+
+        let mut dfs = Dfs::new(&g, root_attached_node);
+        let mut attached_nodes = HashSet::new();
+        while let Some(node) = dfs.next(&g) {
+            idx_to_node
+                .get(&node)
+                .map(|node| attached_nodes.insert(node.digest()));
+        }
+
+        let topo = toposort(&g, None).map_err(|_| {
+            Error::String("Cycle detected in object graph during clean operation".to_string())
+        })?;
+
         let mut result = CleanResult::default();
-        let mut stream = self
-            .repo
-            .iter_objects()
-            // we have no interest in removing attached items
-            .try_filter(|item| ready(!self.attached.contains(item.digest())))
-            // we have already visited all attached objects
-            // but also want to report these ones
-            .inspect_ok(|item| match item {
+        for node_idx in topo {
+            let Some(node) = idx_to_node.get(&node_idx) else {
+                continue;
+            };
+            let digest = node.digest();
+            if attached_nodes.contains(digest) {
+                continue;
+            }
+
+            let Node::DatabaseItem(item) = node else {
+                // Can this happen? This item is considered garbage but it was
+                // only ever reported as a parent and the stream never visited
+                // the object itself.
+                debug_assert!(false, "Dangling object digest found during clean");
+
+                // We're not going to clean this item so we also can't clean
+                // anything downstream of it.
+                let mut dfs = Dfs::new(&g, node_idx);
+                while let Some(n) = dfs.next(&g) {
+                    let node = idx_to_node.get(&n).unwrap();
+                    attached_nodes.insert(node.digest());
+                }
+                continue;
+            };
+
+            match item {
                 graph::DatabaseItem::Object(_digest, flat_object) => {
                     self.reporter.visit_object(flat_object);
                     result.visited_objects += 1;
@@ -561,62 +683,56 @@ where
                     self.reporter.visit_payload(digest);
                     result.visited_payloads += 1;
                 }
-            })
-            .and_then(|item| {
-                if self.dry_run {
-                    // XXX: this ignores must_be_older_than
-                    return ready(Ok(ready(Ok((item, true))).boxed()));
+            }
+
+            if self.dry_run {
+                // XXX: this ignores must_be_older_than
+                continue;
+            }
+
+            let future = match &item {
+                graph::DatabaseItem::Object(digest, _flat_object) => futures::future::Either::Left(
+                    self.repo
+                        .remove_object_if_older_than(self.must_be_older_than, *digest),
+                ),
+                graph::DatabaseItem::Payload(digest) => futures::future::Either::Right(
+                    self.repo
+                        .remove_payload_if_older_than(self.must_be_older_than, *digest),
+                ),
+            };
+
+            let was_removed = match future.await {
+                Ok(removed) => removed,
+                Err(Error::UnknownObject(_)) => true,
+                Err(err) => {
+                    self.reporter.error_encountered(&err);
+                    result.errors.push(err);
+                    false
                 }
-                let future = (match &item {
-                    graph::DatabaseItem::Object(digest, _flat_object) => self
-                        .repo
-                        .remove_object_if_older_than(self.must_be_older_than, *digest)
-                        .boxed(),
-                    graph::DatabaseItem::Payload(digest) => self
-                        .repo
-                        .remove_payload_if_older_than(self.must_be_older_than, *digest)
-                        .boxed(),
-                })
-                .map(|res| {
-                    if let Err(Error::UnknownObject(_)) = res {
-                        return Ok(true);
-                    }
-                    res
-                })
-                .map_ok(move |removed| (item, removed))
-                .boxed();
-                ready(Ok(future))
-            })
-            .try_buffer_unordered(self.removal_concurrency)
-            .try_filter_map(|(item, removed)| {
-                if !removed {
-                    // objects that are too new to be removed become
-                    // implicitly attached
-                    self.attached.insert(*item.digest());
+            };
+
+            // If the item wasn't removed, anything downstream of it can't be
+            // removed either.
+            if !was_removed {
+                let mut dfs = Dfs::new(&g, node_idx);
+                while let Some(n) = dfs.next(&g) {
+                    let node = idx_to_node.get(&n).unwrap();
+                    attached_nodes.insert(node.digest());
                 }
-                ready(Ok(removed.then_some(item)))
-            })
-            .inspect_ok(|item| match item {
-                graph::DatabaseItem::Object(_digest, flat_object) => {
+                continue;
+            }
+
+            match item {
+                graph::DatabaseItem::Object(digest, flat_object) => {
                     self.reporter.object_removed(flat_object);
+                    result.removed_objects.insert(*digest);
                 }
                 graph::DatabaseItem::Payload(digest) => {
                     self.reporter.payload_removed(digest);
+                    result.removed_payloads.insert(*digest);
                 }
-            })
-            .boxed();
-        let mut result = CleanResult::default();
-        while let Some(item) = stream.try_next().await? {
-            match item {
-                graph::DatabaseItem::Object(digest, _flat_object) => {
-                    result.removed_objects.insert(digest);
-                }
-                graph::DatabaseItem::Payload(digest) => {
-                    result.removed_payloads.insert(digest);
-                }
-            };
+            }
         }
-        drop(stream);
         Ok(result)
     }
 

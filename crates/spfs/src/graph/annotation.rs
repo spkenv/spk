@@ -5,6 +5,7 @@
 use std::borrow::Cow;
 use std::fmt::Display;
 
+use crate::graph::RichDigest;
 use crate::{Result, encoding};
 
 #[cfg(test)]
@@ -166,13 +167,13 @@ impl<'buf> Annotation<'buf> {
         }
     }
 
-    /// Return the child objects of this object, if any.
-    pub fn child_objects(&self) -> Vec<encoding::Digest> {
+    /// Return the child items of this object, if any.
+    pub fn child_items(&self) -> Vec<RichDigest> {
         let mut result = Vec::new();
         if let Some(data) = self.0.data_as_annotation_digest()
             && let Some(d) = data.digest()
         {
-            result.push(*d)
+            result.push(RichDigest::Payload(*d))
         }
         result
     }

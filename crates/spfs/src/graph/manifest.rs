@@ -9,6 +9,7 @@ use spfs_proto::ManifestArgs;
 
 use super::object::HeaderBuilder;
 use super::{Entry, ObjectKind, Tree};
+use crate::graph::RichDigest;
 use crate::prelude::*;
 use crate::{Result, encoding, tracking};
 
@@ -63,13 +64,13 @@ impl Manifest {
         std::iter::once(self.root()).chain(self.trees())
     }
 
-    /// Return the digests of objects that this manifest refers to.
-    pub fn child_objects(&self) -> Vec<encoding::Digest> {
+    /// Return the digests of items that this manifest refers to.
+    pub fn child_items(&self) -> Vec<RichDigest> {
         let mut children = BTreeSet::new();
         for tree in self.iter_trees() {
             for entry in tree.entries() {
                 if entry.kind().is_blob() {
-                    children.insert(*entry.object());
+                    children.insert(RichDigest::Payload(*entry.object()));
                 }
             }
         }

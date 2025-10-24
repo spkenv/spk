@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use futures::Stream;
 use spfs_encoding as encoding;
 
-use crate::graph::{FoundDigest, ObjectProto};
+use crate::graph::{ObjectProto, RichDigest};
 use crate::storage::prelude::*;
 use crate::tracking::BlobRead;
 use crate::{Error, Result, graph};
@@ -66,19 +66,19 @@ where
     fn find_digests<'a>(
         &self,
         search_criteria: &'a graph::DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Stream<Item = Result<RichDigest>> + Send + 'a>> {
         self.inner.find_digests(search_criteria)
     }
 
-    fn iter_objects(&self) -> graph::DatabaseIterator<'_> {
-        self.inner.iter_objects()
+    fn iter_items(&self) -> graph::DatabaseIterator<'_> {
+        self.inner.iter_items()
     }
 
-    fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> graph::DatabaseWalker<'db> {
-        self.inner.walk_objects(root)
+    fn walk_items<'db>(&'db self, root: RichDigest) -> graph::DatabaseWalker<'db> {
+        self.inner.walk_items(root)
     }
 
-    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<FoundDigest> {
+    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<RichDigest> {
         self.inner.resolve_full_digest(partial).await
     }
 }

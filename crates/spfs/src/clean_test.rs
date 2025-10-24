@@ -187,6 +187,53 @@ async fn test_clean_untagged_objects(#[future] tmprepo: TempRepo, tmpdir: tempfi
 
 #[rstest]
 #[tokio::test]
+async fn test_clean_unattached_payloads(#[future] tmprepo: TempRepo, tmpdir: tempfile::TempDir) {
+    init_logging();
+    let tmprepo = tmprepo.await;
+
+    let data_dir_1 = tmpdir.path().join("data");
+    ensure(data_dir_1.join("dir/dir/test.file"), "1 hello");
+    ensure(data_dir_1.join("dir/dir/test.file2"), "1 hello, world");
+    ensure(data_dir_1.join("dir/dir/test.file4"), "1 hello, world");
+
+    let manifest = crate::Committer::new(&tmprepo)
+        .commit_dir(data_dir_1.as_path())
+        .await
+        .unwrap();
+
+    // Detach all the payloads by deleting the manifest object.
+    tmprepo
+        .remove_object(manifest.to_graph_manifest().digest().unwrap())
+        .await
+        .unwrap();
+
+    let cleaner = Cleaner::new(&tmprepo).with_reporter(TracingCleanReporter);
+    let _result = cleaner
+        .prune_all_tags_and_clean()
+        .await
+        .expect("failed to clean objects");
+
+    // All the payloads should be gone.
+    for node in manifest.walk() {
+        if !node.entry.kind.is_blob() {
+            continue;
+        }
+        let res = tmprepo.open_payload(node.entry.object).await;
+        if let Err(Error::UnknownObject(_)) = res {
+            continue;
+        }
+        if let Err(err) = res {
+            println!("{err:?}");
+        }
+        panic!(
+            "expected payload to be cleaned but it was not: {:?}",
+            node.entry.object
+        );
+    }
+}
+
+#[rstest]
+#[tokio::test]
 async fn test_clean_on_repo_with_tag_namespace(
     #[future] tmprepo: TempRepo,
     tmpdir: tempfile::TempDir,
@@ -419,6 +466,10 @@ async fn test_clean_untagged_objects_layers_platforms(#[future] tmprepo: TempRep
     init_logging();
     let tmprepo = tmprepo.await;
     let manifest = tracking::Manifest::<()>::default();
+    tmprepo
+        .write_object(&manifest.to_graph_manifest())
+        .await
+        .unwrap();
     let layer = tmprepo
         .create_layer(&manifest.to_graph_manifest())
         .await

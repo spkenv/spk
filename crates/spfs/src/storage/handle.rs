@@ -14,7 +14,7 @@ use spfs_encoding as encoding;
 use super::prelude::*;
 use super::tag::TagSpecAndTagStream;
 use super::{TagNamespace, TagNamespaceBuf, TagStorageMut};
-use crate::graph::{FoundDigest, ObjectProto};
+use crate::graph::{ObjectProto, RichDigest};
 use crate::tracking::{self, BlobRead};
 use crate::{Error, Result, graph};
 
@@ -304,16 +304,16 @@ impl DatabaseView for RepositoryHandle {
     fn find_digests<'a>(
         &self,
         search_criteria: &'a graph::DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Stream<Item = Result<RichDigest>> + Send + 'a>> {
         each_variant!(self, repo, { repo.find_digests(search_criteria) })
     }
 
-    fn iter_objects(&self) -> graph::DatabaseIterator<'_> {
-        each_variant!(self, repo, { repo.iter_objects() })
+    fn iter_items(&self) -> graph::DatabaseIterator<'_> {
+        each_variant!(self, repo, { repo.iter_items() })
     }
 
-    fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> graph::DatabaseWalker<'db> {
-        each_variant!(self, repo, { repo.walk_objects(root) })
+    fn walk_items<'db>(&'db self, root: RichDigest) -> graph::DatabaseWalker<'db> {
+        each_variant!(self, repo, { repo.walk_items(root) })
     }
 }
 
@@ -488,16 +488,16 @@ impl DatabaseView for Arc<RepositoryHandle> {
     fn find_digests<'a>(
         &self,
         search_criteria: &'a graph::DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Stream<Item = Result<RichDigest>> + Send + 'a>> {
         each_variant!(&**self, repo, { repo.find_digests(search_criteria) })
     }
 
-    fn iter_objects(&self) -> graph::DatabaseIterator<'_> {
-        each_variant!(&**self, repo, { repo.iter_objects() })
+    fn iter_items(&self) -> graph::DatabaseIterator<'_> {
+        each_variant!(&**self, repo, { repo.iter_items() })
     }
 
-    fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> graph::DatabaseWalker<'db> {
-        each_variant!(&**self, repo, { repo.walk_objects(root) })
+    fn walk_items<'db>(&'db self, root: RichDigest) -> graph::DatabaseWalker<'db> {
+        each_variant!(&**self, repo, { repo.walk_items(root) })
     }
 }
 

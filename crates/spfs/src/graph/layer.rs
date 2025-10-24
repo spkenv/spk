@@ -6,6 +6,7 @@ use spfs_proto::LayerArgs;
 
 use super::object::HeaderBuilder;
 use super::{Annotation, AnnotationValue, ObjectKind};
+use crate::graph::RichDigest;
 use crate::{Error, Result, encoding};
 
 #[cfg(test)]
@@ -105,16 +106,15 @@ impl Layer {
             .collect::<Vec<spfs_proto::Annotation>>()
     }
 
-    /// Return the child object of this one in the object DG.
-    #[inline]
-    pub fn child_objects(&self) -> Vec<encoding::Digest> {
+    /// Return the child items of this one in the DG.
+    pub fn child_items(&self) -> Vec<RichDigest> {
         let mut children = Vec::new();
         if let Some(manifest_digest) = self.manifest() {
-            children.push(*manifest_digest)
+            children.push(RichDigest::Object(*manifest_digest))
         }
         for entry in self.annotations() {
             let annotation: Annotation = entry.into();
-            children.extend(annotation.child_objects());
+            children.extend(annotation.child_items());
         }
         children
     }

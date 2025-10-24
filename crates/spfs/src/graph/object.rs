@@ -12,11 +12,27 @@ use serde::{Deserialize, Serialize};
 use super::error::{ObjectError, ObjectResult};
 use super::{Annotation, Blob, DatabaseView, HasKind, Kind, Layer, Manifest, ObjectKind, Platform};
 use crate::encoding;
+use crate::graph::RichDigest;
 use crate::storage::RepositoryHandle;
 
 #[cfg(test)]
 #[path = "./object_test.rs"]
 mod object_test;
+
+/// A child item digest along with its parent
+pub struct ChildItem {
+    /// The parent object digest of this child.
+    pub parent: encoding::Digest,
+    /// The child item digest.
+    pub child: RichDigest,
+}
+
+impl AsRef<encoding::Digest> for ChildItem {
+    #[inline]
+    fn as_ref(&self) -> &encoding::Digest {
+        self.child.digest()
+    }
+}
 
 /// An node in the spfs object graph
 pub type Object = FlatObject<spfs_proto::AnyObject<'static>>;
@@ -159,11 +175,16 @@ impl Object {
         }
     }
 
-    pub fn child_objects(&self) -> Vec<encoding::Digest> {
+    /// Return digests of all the immediate child items of this object.
+    pub fn child_items(&self) -> Vec<RichDigest> {
         match self.to_enum() {
-            Enum::Platform(platform) => platform.child_objects(),
-            Enum::Layer(layer) => layer.child_objects(),
-            Enum::Manifest(manifest) => manifest.child_objects(),
+            Enum::Platform(platform) => platform
+                .child_objects()
+                .into_iter()
+                .map(RichDigest::Object)
+                .collect(),
+            Enum::Layer(layer) => layer.child_items(),
+            Enum::Manifest(manifest) => manifest.child_items(),
             Enum::Blob(_blob) => Vec::new(),
         }
     }

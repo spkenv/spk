@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::pin::Pin;
 use std::task::Poll;
 
@@ -10,6 +10,7 @@ use chrono::{DateTime, Utc};
 use futures::{Future, FutureExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
 
 use super::{FlatObject, Object, ObjectProto};
+use crate::graph::object::ChildItem;
 use crate::{Error, Result, encoding};
 
 /// Walks an object tree depth-first starting at some root digest
@@ -17,10 +18,10 @@ use crate::{Error, Result, encoding};
 pub struct DatabaseWalker<'db> {
     db: &'db dyn DatabaseView,
     next: Option<(
-        encoding::Digest,
-        Pin<Box<dyn Future<Output = Result<Object>> + Send + 'db>>,
+        ChildItem,
+        Pin<Box<dyn Future<Output = Result<DatabaseItem>> + Send + 'db>>,
     )>,
-    queue: VecDeque<encoding::Digest>,
+    queue: VecDeque<ChildItem>,
 }
 
 impl<'db> DatabaseWalker<'db> {
@@ -29,9 +30,12 @@ impl<'db> DatabaseWalker<'db> {
     ///
     /// # Errors
     /// The same as [`DatabaseView::read_object`]
-    pub fn new(db: &'db dyn DatabaseView, root: encoding::Digest) -> Self {
+    pub fn new(db: &'db dyn DatabaseView, root: RichDigest) -> Self {
         let mut queue = VecDeque::new();
-        queue.push_back(root);
+        queue.push_back(ChildItem {
+            parent: *root.digest(),
+            child: root,
+        });
         DatabaseWalker {
             db,
             queue,
@@ -40,45 +44,109 @@ impl<'db> DatabaseWalker<'db> {
     }
 }
 
+/// An item returned by [`DatabaseWalker`].
+pub struct DatabaseWalkerItem {
+    /// The parent object digest of the currently walked item.
+    pub parent: encoding::Digest,
+    /// The currently walked item.
+    pub child: DatabaseItem,
+}
+
 impl Stream for DatabaseWalker<'_> {
-    type Item = Result<(encoding::Digest, Object)>;
+    type Item = Result<DatabaseWalkerItem>;
 
     fn poll_next(
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        let (digest, mut current_future) = match self.next.take() {
+        let (child_object, mut current_future) = match self.next.take() {
             Some(f) => f,
             None => match self.queue.pop_front() {
                 None => return Poll::Ready(None),
-                Some(digest) => (digest, self.db.read_object(digest)),
+                Some(ChildItem {
+                    parent,
+                    child: RichDigest::Object(digest),
+                }) => (
+                    ChildItem {
+                        parent,
+                        child: RichDigest::Object(digest),
+                    },
+                    self.db
+                        .read_object(digest)
+                        .map_ok(move |obj| DatabaseItem::Object(digest, obj))
+                        .boxed(),
+                ),
+                Some(ChildItem {
+                    parent,
+                    child: RichDigest::Payload(digest),
+                }) => (
+                    ChildItem {
+                        parent,
+                        child: RichDigest::Payload(digest),
+                    },
+                    async move { Ok(DatabaseItem::Payload(digest)) }.boxed(),
+                ),
             },
         };
 
         match Pin::new(&mut current_future).poll(cx) {
             Poll::Pending => {
-                self.next = Some((digest, current_future));
+                self.next = Some((child_object, current_future));
                 Poll::Pending
             }
             Poll::Ready(obj) => Poll::Ready(match obj {
-                Ok(obj) => {
-                    for digest in obj.child_objects() {
-                        self.queue.push_back(digest);
+                Ok(DatabaseItem::Object(_, obj)) => {
+                    for digest in obj.child_items() {
+                        self.queue.push_back(ChildItem {
+                            parent: *child_object.child.digest(),
+                            child: digest,
+                        });
                     }
-                    Some(Ok((digest, obj)))
+                    Some(Ok(DatabaseWalkerItem {
+                        parent: child_object.parent,
+                        child: DatabaseItem::Object(*child_object.child.digest(), obj),
+                    }))
                 }
+                Ok(DatabaseItem::Payload(digest)) => Some(Ok(DatabaseWalkerItem {
+                    parent: child_object.parent,
+                    child: DatabaseItem::Payload(digest),
+                })),
                 Err(err) => Some(Err(err)),
             }),
         }
     }
 }
 
-/// Iterates all objects in a database, in no particular order
+type FindDigestStream = Pin<Box<dyn Stream<Item = Result<RichDigest>> + Send>>;
+type WalkObjectsStream<'db> = Pin<Box<dyn Stream<Item = Result<DatabaseWalkerItem>> + Send + 'db>>;
+
+#[derive(Default)]
+enum DatabaseIterState<'db> {
+    /// Ready to work on the next digest from find_digests
+    NextDigest(FindDigestStream),
+    /// Walking the latest object returned from read_object
+    WalkingObject {
+        digest: encoding::Digest,
+        stream: WalkObjectsStream<'db>,
+        find_digest_stream: FindDigestStream,
+    },
+    #[default]
+    Unit,
+}
+
+/// Iterates all items in a database, in no particular order.
+///
+/// Items will be repeated if they are reachable by multiple paths, allowing
+/// the caller to build a graph if desired. This iterator may not return objects
+/// that were added concurrently after the iterator was created.
 #[allow(clippy::type_complexity)]
 pub struct DatabaseIterator<'db> {
     db: &'db dyn DatabaseView,
-    next: Option<Pin<Box<dyn Future<Output = Result<DatabaseItem>> + Send + 'db>>>,
-    inner: Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send>>,
+    state: DatabaseIterState<'db>,
+    /// Digests are "walked" as they are found, which can visit digests that
+    /// will also be later found by `find_digests`. Track what digests have been
+    /// walked to avoid walking them redundantly.
+    walked_digests: HashSet<encoding::Digest>,
 }
 
 impl<'db> DatabaseIterator<'db> {
@@ -91,13 +159,31 @@ impl<'db> DatabaseIterator<'db> {
         let iter = db.find_digests(&crate::graph::DigestSearchCriteria::All);
         DatabaseIterator {
             db,
-            inner: iter,
-            next: None,
+            state: DatabaseIterState::NextDigest(iter),
+            walked_digests: HashSet::new(),
         }
     }
 }
 
 /// An item returned by [`DatabaseIterator`].
+#[derive(Debug)]
+pub struct DatabaseIterItem {
+    /// The parent object of this item, if any.
+    ///
+    /// A child object may have multiple parents; this is just one of them.
+    /// [`DatabaseIterator`] will yield the same item at least as many times as
+    /// it has different parents, but may also yield it with `None` if no parent
+    /// has been determined yet.
+    ///
+    /// It is possible for objects to be written concurrently while iterating,
+    /// so this may be `None` even for objects that do have a parent.
+    pub parent: Option<encoding::Digest>,
+    /// The item itself.
+    pub item: DatabaseItem,
+}
+
+/// Discriminate digests between objects and payloads.
+#[derive(Debug)]
 pub enum DatabaseItem {
     Object(encoding::Digest, Object),
     Payload(encoding::Digest),
@@ -114,41 +200,112 @@ impl DatabaseItem {
     }
 }
 
+impl From<&DatabaseItem> for RichDigest {
+    fn from(value: &DatabaseItem) -> Self {
+        match value {
+            DatabaseItem::Object(digest, _) => RichDigest::Object(*digest),
+            DatabaseItem::Payload(digest) => RichDigest::Payload(*digest),
+        }
+    }
+}
+
 impl Stream for DatabaseIterator<'_> {
-    type Item = Result<DatabaseItem>;
+    type Item = Result<DatabaseIterItem>;
 
     fn poll_next(
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        let mut current_future = match self.next.take() {
-            Some(f) => f,
-            None => match Pin::new(&mut self.inner).poll_next(cx) {
-                Poll::Pending => return Poll::Pending,
+        match std::mem::take(&mut self.state) {
+            DatabaseIterState::NextDigest(mut find_digest_stream) => {
+                match Pin::new(&mut find_digest_stream).poll_next(cx) {
+                    Poll::Pending => {
+                        self.state = DatabaseIterState::NextDigest(find_digest_stream);
+                        Poll::Pending
+                    }
+                    Poll::Ready(inner_next) => match inner_next {
+                        None => Poll::Ready(None),
+                        Some(Err(err)) => {
+                            self.state = DatabaseIterState::NextDigest(find_digest_stream);
+                            Poll::Ready(Some(Err(err)))
+                        }
+                        Some(Ok(RichDigest::Object(digest))) => {
+                            if self.walked_digests.contains(&digest) {
+                                // Already walked this object, skip it.
+                                self.state = DatabaseIterState::NextDigest(find_digest_stream);
+                                return self.poll_next(cx);
+                            }
+                            let stream = self.db.walk_items(RichDigest::Object(digest));
+                            self.state = DatabaseIterState::WalkingObject {
+                                digest,
+                                stream: stream.boxed(),
+                                find_digest_stream,
+                            };
+                            self.poll_next(cx)
+                        }
+                        Some(Ok(RichDigest::Payload(digest))) => {
+                            self.state = DatabaseIterState::NextDigest(find_digest_stream);
+                            if self.walked_digests.contains(&digest) {
+                                // Already walked this payload, skip it.
+                                return self.poll_next(cx);
+                            }
+                            Poll::Ready(Some(Ok(DatabaseIterItem {
+                                parent: None,
+                                item: DatabaseItem::Payload(digest),
+                            })))
+                        }
+                    },
+                }
+            }
+            DatabaseIterState::WalkingObject {
+                digest,
+                mut stream,
+                find_digest_stream,
+            } => match Stream::poll_next(Pin::new(&mut stream), cx) {
+                Poll::Pending => {
+                    self.state = DatabaseIterState::WalkingObject {
+                        digest,
+                        stream,
+                        find_digest_stream,
+                    };
+                    Poll::Pending
+                }
                 Poll::Ready(inner_next) => match inner_next {
-                    None => return Poll::Ready(None),
-                    Some(Err(err)) => return Poll::Ready(Some(Err(err))),
-                    Some(Ok(FoundDigest::Object(digest))) => self
-                        .db
-                        .read_object(digest)
-                        .map_ok(move |x| DatabaseItem::Object(digest, x))
-                        .map_err(move |err| format!("Error reading object {digest}: {err}").into())
-                        .boxed(),
-                    Some(Ok(FoundDigest::Payload(digest))) => {
-                        futures::future::ready(Ok(DatabaseItem::Payload(digest))).boxed()
+                    None => {
+                        self.state = DatabaseIterState::NextDigest(find_digest_stream);
+                        self.poll_next(cx)
+                    }
+                    Some(Err(err)) => {
+                        self.state = DatabaseIterState::WalkingObject {
+                            digest,
+                            stream,
+                            find_digest_stream,
+                        };
+                        Poll::Ready(Some(Err(err)))
+                    }
+                    Some(Ok(walked_item)) => {
+                        self.state = DatabaseIterState::WalkingObject {
+                            digest,
+                            stream,
+                            find_digest_stream,
+                        };
+                        // Any digests seen here can be considered walked.
+                        self.walked_digests.insert(*walked_item.child.digest());
+                        Poll::Ready(Some(Ok(DatabaseIterItem {
+                            parent: {
+                                // walk_objects yields the root object with
+                                // itself as parent;
+                                (walked_item.parent != *walked_item.child.digest())
+                                    .then_some(walked_item.parent)
+                            },
+                            item: walked_item.child,
+                        })))
                     }
                 },
             },
-        };
-        match Pin::new(&mut current_future).poll(cx) {
-            Poll::Pending => {
-                self.next = Some(current_future);
-                Poll::Pending
+            DatabaseIterState::Unit => {
+                unreachable!()
             }
-            Poll::Ready(res) => Poll::Ready(match res {
-                Ok(obj) => Some(Ok(obj)),
-                Err(err) => Some(Err(err)),
-            }),
         }
     }
 }
@@ -160,19 +317,19 @@ pub enum DigestSearchCriteria {
 }
 
 /// The types of digests that can exist in a database.
-#[derive(PartialEq, Eq)]
-pub enum FoundDigest {
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum RichDigest {
     Object(encoding::Digest),
     Payload(encoding::Digest),
 }
 
-impl FoundDigest {
+impl RichDigest {
     /// Borrow the inner digest.
     #[inline]
     pub fn digest(&self) -> &encoding::Digest {
         match self {
-            FoundDigest::Object(d) => d,
-            FoundDigest::Payload(d) => d,
+            RichDigest::Object(d) => d,
+            RichDigest::Payload(d) => d,
         }
     }
 
@@ -180,8 +337,8 @@ impl FoundDigest {
     #[inline]
     pub fn into_digest(self) -> encoding::Digest {
         match self {
-            FoundDigest::Object(d) => d,
-            FoundDigest::Payload(d) => d,
+            RichDigest::Object(d) => d,
+            RichDigest::Payload(d) => d,
         }
     }
 
@@ -189,8 +346,8 @@ impl FoundDigest {
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         match self {
-            FoundDigest::Object(d) => d.as_bytes(),
-            FoundDigest::Payload(d) => d.as_bytes(),
+            RichDigest::Object(d) => d.as_bytes(),
+            RichDigest::Payload(d) => d.as_bytes(),
         }
     }
 }
@@ -210,7 +367,7 @@ pub trait DatabaseView: Sync + Send {
     fn find_digests<'a>(
         &self,
         search_criteria: &'a DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>>;
+    ) -> Pin<Box<dyn Stream<Item = Result<RichDigest>> + Send + 'a>>;
 
     /// Return true if this database contains the identified object.
     ///
@@ -218,10 +375,12 @@ pub trait DatabaseView: Sync + Send {
     async fn has_object(&self, digest: encoding::Digest) -> bool;
 
     /// Iterate all the objects and payloads in this database.
-    fn iter_objects(&self) -> DatabaseIterator<'_>;
+    fn iter_items(&self) -> DatabaseIterator<'_>;
 
-    /// Walk all objects and payloads connected to the given root object.
-    fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> DatabaseWalker<'db>;
+    /// Walk all objects and payloads connected to the given root item.
+    ///
+    /// The given item is included in the walk.
+    fn walk_items<'db>(&'db self, root: RichDigest) -> DatabaseWalker<'db>;
 
     /// Return the shortened version of the given digest.
     ///
@@ -262,7 +421,7 @@ pub trait DatabaseView: Sync + Send {
     /// # Errors
     /// - UnknownReferenceError: if the digest cannot be resolved
     /// - AmbiguousReferenceError: if the digest could point to multiple items
-    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<FoundDigest> {
+    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<RichDigest> {
         let options: Vec<_> = self
             .find_digests(&crate::graph::DigestSearchCriteria::StartsWith(
                 partial.clone(),
@@ -291,16 +450,16 @@ impl<T: DatabaseView> DatabaseView for &T {
     fn find_digests<'a>(
         &self,
         search_criteria: &'a DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Stream<Item = Result<RichDigest>> + Send + 'a>> {
         DatabaseView::find_digests(&**self, search_criteria)
     }
 
-    fn iter_objects(&self) -> DatabaseIterator<'_> {
-        DatabaseView::iter_objects(&**self)
+    fn iter_items(&self) -> DatabaseIterator<'_> {
+        DatabaseView::iter_items(&**self)
     }
 
-    fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> DatabaseWalker<'db> {
-        DatabaseView::walk_objects(&**self, root)
+    fn walk_items<'db>(&'db self, root: RichDigest) -> DatabaseWalker<'db> {
+        DatabaseView::walk_items(&**self, root)
     }
 }
 

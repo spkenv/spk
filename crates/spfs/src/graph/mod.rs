@@ -29,11 +29,12 @@ pub use database::{
     Database,
     DatabaseExt,
     DatabaseItem,
+    DatabaseIterItem,
     DatabaseIterator,
     DatabaseView,
     DatabaseWalker,
     DigestSearchCriteria,
-    FoundDigest,
+    RichDigest,
 };
 pub use entry::Entry;
 pub use kind::{HasKind, Kind, ObjectKind};

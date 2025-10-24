@@ -270,11 +270,11 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
             res => res,
         }?;
         match found_digest {
-            graph::FoundDigest::Object(digest) => {
+            graph::RichDigest::Object(digest) => {
                 let obj_result = self.sync_object_digest(digest).await?;
                 Ok(SyncItemResult::Object(obj_result))
             }
-            graph::FoundDigest::Payload(digest) => {
+            graph::RichDigest::Payload(digest) => {
                 let payload_result = self.sync_payload(digest).await?;
                 Ok(SyncItemResult::Payload(payload_result))
             }
