@@ -11,7 +11,7 @@ use futures::Stream;
 use relative_path::RelativePath;
 
 use crate::config::{ToAddress, default_fallback_repo_include_secondary_tags};
-use crate::graph::{FoundDigest, ObjectProto};
+use crate::graph::{ObjectProto, RichDigest};
 use crate::prelude::*;
 use crate::storage::fs::{FsHashStore, ManifestRenderPath, OpenFsRepository, RenderStore};
 use crate::storage::proxy::ProxyRepositoryExt;
@@ -226,16 +226,16 @@ impl graph::DatabaseView for FallbackProxy {
     fn find_digests<'a>(
         &self,
         search_criteria: &'a graph::DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Stream<Item = Result<RichDigest>> + Send + 'a>> {
         self.primary.find_digests(search_criteria)
     }
 
-    fn iter_objects(&self) -> graph::DatabaseIterator<'_> {
-        self.primary.iter_objects()
+    fn iter_items(&self) -> graph::DatabaseIterator<'_> {
+        self.primary.iter_items()
     }
 
-    fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> graph::DatabaseWalker<'db> {
-        self.primary.walk_objects(root)
+    fn walk_items<'db>(&'db self, root: RichDigest) -> graph::DatabaseWalker<'db> {
+        self.primary.walk_items(root)
     }
 }
 

@@ -8,7 +8,7 @@ use std::pin::Pin;
 use futures::{Stream, TryStreamExt};
 use proto::RpcResult;
 
-use crate::graph::{self, FoundDigest, ObjectProto};
+use crate::graph::{self, ObjectProto, RichDigest};
 use crate::{Result, encoding, proto};
 
 #[async_trait::async_trait]
@@ -43,7 +43,7 @@ impl graph::DatabaseView for super::RpcRepository {
     fn find_digests<'a>(
         &self,
         search_criteria: &'a graph::DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Stream<Item = Result<RichDigest>> + Send + 'a>> {
         let request = proto::FindDigestsRequest {
             search_criteria: Some(search_criteria.clone().into()),
         };
@@ -57,12 +57,12 @@ impl graph::DatabaseView for super::RpcRepository {
         Box::pin(stream)
     }
 
-    fn iter_objects(&self) -> graph::DatabaseIterator<'_> {
+    fn iter_items(&self) -> graph::DatabaseIterator<'_> {
         graph::DatabaseIterator::new(self)
     }
 
-    fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> graph::DatabaseWalker<'db> {
-        graph::DatabaseWalker::new(self, *root)
+    fn walk_items<'db>(&'db self, root: RichDigest) -> graph::DatabaseWalker<'db> {
+        graph::DatabaseWalker::new(self, root)
     }
 }
 

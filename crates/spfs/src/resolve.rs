@@ -152,8 +152,8 @@ pub async fn compute_environment_manifest(
                 repo.resolve_full_digest(p)
                     .and_then(|found_digest| async move {
                         match found_digest {
-                            graph::FoundDigest::Object(digest) => Ok(digest),
-                            graph::FoundDigest::Payload(_digest) => {
+                            graph::RichDigest::Object(digest) => Ok(digest),
+                            graph::RichDigest::Payload(_digest) => {
                                 Err("unexpected payload digest in environment spec".into())
                             }
                         }

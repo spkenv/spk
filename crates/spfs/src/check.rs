@@ -13,7 +13,7 @@ use once_cell::sync::OnceCell;
 use progress_bar_derive_macro::ProgressBar;
 use tokio::sync::Semaphore;
 
-use crate::graph::{AnnotationValue, FoundDigest};
+use crate::graph::{AnnotationValue, RichDigest};
 use crate::prelude::*;
 use crate::sync::SyncPolicy;
 use crate::sync::reporter::{Summary, SyncObjectResult, SyncPayloadResult};
@@ -124,8 +124,8 @@ where
             .find_digests(&graph::DigestSearchCriteria::All)
             .filter_map(|res| async move {
                 match res {
-                    Ok(FoundDigest::Object(digest)) => Some(Ok(digest)),
-                    Ok(FoundDigest::Payload(_digest)) => {
+                    Ok(RichDigest::Object(digest)) => Some(Ok(digest)),
+                    Ok(RichDigest::Payload(_digest)) => {
                         // Payloads are skipped on the basis that they have no
                         // child objects.
                         None
@@ -231,11 +231,11 @@ where
         partial: encoding::PartialDigest,
     ) -> Result<CheckItemResult> {
         match self.repo.resolve_full_digest(&partial).await? {
-            FoundDigest::Object(digest) => self
+            RichDigest::Object(digest) => self
                 .check_object_digest(digest)
                 .await
                 .map(CheckItemResult::Object),
-            FoundDigest::Payload(digest) => self
+            RichDigest::Payload(digest) => self
                 .check_payload(digest)
                 .await
                 .map(CheckItemResult::Payload),

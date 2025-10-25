@@ -20,7 +20,7 @@ async fn test_read_write_manifest(
     repo: TempRepo,
     tmpdir: tempfile::TempDir,
 ) {
-    use crate::graph::FoundDigest;
+    use crate::graph::RichDigest;
 
     let dir = tmpdir.path();
     let repo = repo.await;
@@ -46,7 +46,7 @@ async fn test_read_write_manifest(
         .collect()
         .await;
     let digests = digests.unwrap();
-    assert!(digests.contains(&FoundDigest::Object(expected)));
+    assert!(digests.contains(&RichDigest::Object(expected)));
 }
 
 #[rstest]

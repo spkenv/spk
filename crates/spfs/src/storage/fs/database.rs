@@ -13,7 +13,7 @@ use encoding::prelude::*;
 use futures::{Stream, StreamExt, TryFutureExt};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-use crate::graph::{DatabaseView, FoundDigest, Object, ObjectProto};
+use crate::graph::{DatabaseView, Object, ObjectProto, RichDigest};
 use crate::{Error, Result, encoding, graph};
 
 #[async_trait::async_trait]
@@ -32,22 +32,22 @@ impl DatabaseView for super::MaybeOpenFsRepository {
     fn find_digests<'a>(
         &self,
         search_criteria: &'a graph::DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Stream<Item = Result<RichDigest>> + Send + 'a>> {
         self.opened()
             .map_ok(|opened| opened.find_digests(search_criteria))
             .try_flatten_stream()
             .boxed()
     }
 
-    fn iter_objects(&self) -> graph::DatabaseIterator<'_> {
+    fn iter_items(&self) -> graph::DatabaseIterator<'_> {
         graph::DatabaseIterator::new(self)
     }
 
-    fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> graph::DatabaseWalker<'db> {
-        graph::DatabaseWalker::new(self, *root)
+    fn walk_items<'db>(&'db self, root: RichDigest) -> graph::DatabaseWalker<'db> {
+        graph::DatabaseWalker::new(self, root)
     }
 
-    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<FoundDigest> {
+    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<RichDigest> {
         self.opened().await?.resolve_full_digest(partial).await
     }
 }
@@ -106,33 +106,33 @@ impl DatabaseView for super::OpenFsRepository {
     fn find_digests<'a>(
         &self,
         search_criteria: &'a graph::DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Stream<Item = Result<RichDigest>> + Send + 'a>> {
         Box::pin(
             self.objects
                 .find(search_criteria)
-                .map(|d| d.map(FoundDigest::Object))
+                .map(|d| d.map(RichDigest::Object))
                 .chain(
                     self.payloads
                         .find(search_criteria)
-                        .map(|d| d.map(FoundDigest::Payload)),
+                        .map(|d| d.map(RichDigest::Payload)),
                 ),
         )
     }
 
-    fn iter_objects(&self) -> graph::DatabaseIterator<'_> {
+    fn iter_items(&self) -> graph::DatabaseIterator<'_> {
         graph::DatabaseIterator::new(self)
     }
 
-    fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> graph::DatabaseWalker<'db> {
-        graph::DatabaseWalker::new(self, *root)
+    fn walk_items<'db>(&'db self, root: RichDigest) -> graph::DatabaseWalker<'db> {
+        graph::DatabaseWalker::new(self, root)
     }
 
-    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<FoundDigest> {
+    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<RichDigest> {
         match self.objects.resolve_full_digest(partial).await {
-            Ok(digest) => Ok(FoundDigest::Object(digest)),
+            Ok(digest) => Ok(RichDigest::Object(digest)),
             Err(_) => {
                 let digest = self.payloads.resolve_full_digest(partial).await?;
-                Ok(FoundDigest::Payload(digest))
+                Ok(RichDigest::Payload(digest))
             }
         }
     }

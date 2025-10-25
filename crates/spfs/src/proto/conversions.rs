@@ -49,30 +49,30 @@ impl<'a> TryFrom<&'a super::Digest> for &'a encoding::Digest {
     }
 }
 
-impl From<graph::FoundDigest> for super::FoundDigest {
-    fn from(source: graph::FoundDigest) -> Self {
+impl From<graph::RichDigest> for super::FoundDigest {
+    fn from(source: graph::RichDigest) -> Self {
         use super::found_digest::Kind;
         match source {
-            graph::FoundDigest::Object(digest) => Self {
+            graph::RichDigest::Object(digest) => Self {
                 kind: Some(Kind::Object(digest.into())),
             },
-            graph::FoundDigest::Payload(digest) => Self {
+            graph::RichDigest::Payload(digest) => Self {
                 kind: Some(Kind::Payload(digest.into())),
             },
         }
     }
 }
 
-impl TryFrom<super::FoundDigest> for graph::FoundDigest {
+impl TryFrom<super::FoundDigest> for graph::RichDigest {
     type Error = Error;
     fn try_from(source: super::FoundDigest) -> Result<Self> {
         match source.kind {
             Some(kind) => match kind {
                 super::found_digest::Kind::Object(digest) => {
-                    Ok(graph::FoundDigest::Object(digest.try_into()?))
+                    Ok(graph::RichDigest::Object(digest.try_into()?))
                 }
                 super::found_digest::Kind::Payload(digest) => {
-                    Ok(graph::FoundDigest::Payload(digest.try_into()?))
+                    Ok(graph::RichDigest::Payload(digest.try_into()?))
                 }
             },
             None => Err("Unknown found digest kind".into()),

@@ -14,7 +14,7 @@ use relative_path::RelativePath;
 use tar::{Archive, Builder};
 
 use crate::config::{ToAddress, pathbuf_deserialize_with_tilde_expansion};
-use crate::graph::{FoundDigest, ObjectProto};
+use crate::graph::{ObjectProto, RichDigest};
 use crate::prelude::*;
 use crate::storage::fs::DURABLE_EDITS_DIR;
 use crate::storage::tag::TagSpecAndTagStream;
@@ -228,19 +228,19 @@ impl graph::DatabaseView for TarRepository {
     fn find_digests<'a>(
         &self,
         search_criteria: &'a graph::DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Stream<Item = Result<RichDigest>> + Send + 'a>> {
         self.repo.find_digests(search_criteria)
     }
 
-    fn iter_objects(&self) -> graph::DatabaseIterator<'_> {
-        self.repo.iter_objects()
+    fn iter_items(&self) -> graph::DatabaseIterator<'_> {
+        self.repo.iter_items()
     }
 
-    fn walk_objects<'db>(&'db self, root: &encoding::Digest) -> graph::DatabaseWalker<'db> {
-        self.repo.walk_objects(root)
+    fn walk_items<'db>(&'db self, root: RichDigest) -> graph::DatabaseWalker<'db> {
+        self.repo.walk_items(root)
     }
 
-    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<FoundDigest> {
+    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<RichDigest> {
         self.repo.resolve_full_digest(partial).await
     }
 }
