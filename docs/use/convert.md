@@ -21,7 +21,7 @@ $ spk env python-gitlab-python --local -- python -c "import gitlab; print(gitlab
 ```
 
 > [!NOTE]
-> The `spk convert pip` command relies on an spk package called `spk-convert-pip`. We provide a recipe for this package in our github repo, which can be used to build and publish it for use in new environments. See [bootstrapping]({{< ref "../../admin/bootstrap" >}}).
+> The `spk convert pip` command relies on an spk package called `spk-convert-pip`. We provide a recipe for this package in our github repo, which can be used to build and publish it for use in new environments. See [bootstrapping]({{< ref "../admin/bootstrap" >}}).
 
 The converted package will also be dependant on the current os and arch since noarch support cannot easily be detected.
 
