@@ -14,6 +14,7 @@ workspace = true
 
 [features]
 default = []
+test-fixtures = ["dep:rstest", "dep:tracing-subscriber"]
 
 # If enabled, will create the "local" repository in a subdirectory
 # of the standard storage root, named "ci/pipeline_${CI_PIPELINE_ID}".
@@ -68,6 +69,8 @@ prost = { workspace = true }
 rand = { workspace = true }
 relative-path = { workspace = true, features = ["serde"] }
 ring = { workspace = true }
+criterion = { version = "0.3", features = ["async_tokio", "html_reports"] }
+rstest = { workspace = true, optional = true }
 semver = "1.0"
 sentry = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
@@ -97,6 +100,9 @@ tokio-stream = { version = "0.1", features = ["fs", "net"] }
 tokio-util = { version = "0.7.3", features = ["compat", "io"] }
 tonic = { workspace = true }
 tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = [
+    "env-filter",
+], optional = true }
 ulid = { workspace = true }
 unix_mode = "0.1.3"
 url = { version = "2.2", features = ["serde"] }

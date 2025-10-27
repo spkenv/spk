@@ -26,7 +26,7 @@ async fn test_proxy_payload_read_through(tmpdir: tempfile::TempDir) {
             .unwrap();
 
     let digest = secondary
-        .commit_blob(Box::pin(b"some data".as_slice()))
+        .commit_payload(Box::pin(b"some data".as_slice()))
         .await
         .unwrap();
 
@@ -56,7 +56,7 @@ async fn test_proxy_object_read_through(tmpdir: tempfile::TempDir) {
             .unwrap();
 
     let payload = secondary
-        .commit_blob(Box::pin(b"some data".as_slice()))
+        .commit_payload(Box::pin(b"some data".as_slice()))
         .await
         .unwrap();
 
@@ -66,10 +66,10 @@ async fn test_proxy_object_read_through(tmpdir: tempfile::TempDir) {
         include_secondary_tags: default_proxy_repo_include_secondary_tags(),
     };
 
-    proxy
-        .read_object(payload)
-        .await
-        .expect("object should be loadable via the secondary repo");
+    assert!(
+        proxy.has_payload(payload).await,
+        "payload should exist via the secondary repo"
+    );
 }
 
 #[rstest]
@@ -86,7 +86,7 @@ async fn test_proxy_tag_read_through(tmpdir: tempfile::TempDir) {
             .unwrap();
 
     let payload = secondary
-        .commit_blob(Box::pin(b"some data".as_slice()))
+        .commit_payload(Box::pin(b"some data".as_slice()))
         .await
         .unwrap();
     let tag_spec = crate::tracking::TagSpec::parse("spfs-test/proxy-read-through").unwrap();
@@ -114,7 +114,7 @@ async fn test_proxy_tag_ls(tmpdir: tempfile::TempDir) {
         .unwrap();
 
     let payload1 = primary
-        .commit_blob(Box::pin(b"some data".as_slice()))
+        .commit_payload(Box::pin(b"some data".as_slice()))
         .await
         .unwrap();
     let tag_spec = crate::tracking::TagSpec::parse("spfs-test/proxy-read-through").unwrap();
@@ -126,7 +126,7 @@ async fn test_proxy_tag_ls(tmpdir: tempfile::TempDir) {
             .unwrap();
 
     let payload2 = secondary
-        .commit_blob(Box::pin(b"some data".as_slice()))
+        .commit_payload(Box::pin(b"some data".as_slice()))
         .await
         .unwrap();
     secondary.push_tag(&tag_spec, &payload2).await.unwrap();
@@ -163,7 +163,7 @@ async fn test_proxy_tag_ls_config_for_primary_only(tmpdir: tempfile::TempDir) {
         .unwrap();
 
     let payload1 = primary
-        .commit_blob(Box::pin(b"some data".as_slice()))
+        .commit_payload(Box::pin(b"some data".as_slice()))
         .await
         .unwrap();
     let tag_spec = crate::tracking::TagSpec::parse("spfs-test/proxy-read-through").unwrap();
@@ -175,7 +175,7 @@ async fn test_proxy_tag_ls_config_for_primary_only(tmpdir: tempfile::TempDir) {
             .unwrap();
 
     let payload2 = secondary
-        .commit_blob(Box::pin(b"some data".as_slice()))
+        .commit_payload(Box::pin(b"some data".as_slice()))
         .await
         .unwrap();
     let tag_spec2 = crate::tracking::TagSpec::parse("spfs-test/proxy-read-through2").unwrap();
@@ -223,7 +223,7 @@ async fn test_proxy_tag_find(tmpdir: tempfile::TempDir) {
         .unwrap();
 
     let payload1 = primary
-        .commit_blob(Box::pin(b"some data".as_slice()))
+        .commit_payload(Box::pin(b"some data".as_slice()))
         .await
         .unwrap();
     let tag_spec = crate::tracking::TagSpec::parse("spfs-test/proxy-read-through").unwrap();
@@ -235,7 +235,7 @@ async fn test_proxy_tag_find(tmpdir: tempfile::TempDir) {
             .unwrap();
 
     let payload2 = secondary
-        .commit_blob(Box::pin(b"some data".as_slice()))
+        .commit_payload(Box::pin(b"some data".as_slice()))
         .await
         .unwrap();
     secondary.push_tag(&tag_spec, &payload2).await.unwrap();
@@ -271,7 +271,7 @@ async fn test_proxy_tag_find_for_primary_only(tmpdir: tempfile::TempDir) {
         .unwrap();
 
     let payload1 = primary
-        .commit_blob(Box::pin(b"some data".as_slice()))
+        .commit_payload(Box::pin(b"some data".as_slice()))
         .await
         .unwrap();
     let tag_spec = crate::tracking::TagSpec::parse("spfs-test/proxy-read-through").unwrap();
@@ -283,7 +283,7 @@ async fn test_proxy_tag_find_for_primary_only(tmpdir: tempfile::TempDir) {
             .unwrap();
 
     let payload2 = secondary
-        .commit_blob(Box::pin(b"some data".as_slice()))
+        .commit_payload(Box::pin(b"some data".as_slice()))
         .await
         .unwrap();
     let tag_spec2 = crate::tracking::TagSpec::parse("spfs-test/proxy-read-through2").unwrap();
@@ -322,7 +322,7 @@ async fn test_proxy_tag_iter_streams(tmpdir: tempfile::TempDir) {
         .unwrap();
 
     let payload1 = primary
-        .commit_blob(Box::pin(b"some data".as_slice()))
+        .commit_payload(Box::pin(b"some data".as_slice()))
         .await
         .unwrap();
     let tag_spec = crate::tracking::TagSpec::parse("spfs-test/proxy-read-through").unwrap();
@@ -334,7 +334,7 @@ async fn test_proxy_tag_iter_streams(tmpdir: tempfile::TempDir) {
             .unwrap();
 
     let payload2 = secondary
-        .commit_blob(Box::pin(b"some data".as_slice()))
+        .commit_payload(Box::pin(b"some data".as_slice()))
         .await
         .unwrap();
     secondary.push_tag(&tag_spec, &payload2).await.unwrap();
@@ -370,7 +370,7 @@ async fn test_proxy_tag_iter_streams_for_primary_only(tmpdir: tempfile::TempDir)
         .unwrap();
 
     let payload1 = primary
-        .commit_blob(Box::pin(b"some data".as_slice()))
+        .commit_payload(Box::pin(b"some data".as_slice()))
         .await
         .unwrap();
     let tag_spec = crate::tracking::TagSpec::parse("spfs-test/proxy-read-through").unwrap();
@@ -382,7 +382,7 @@ async fn test_proxy_tag_iter_streams_for_primary_only(tmpdir: tempfile::TempDir)
             .unwrap();
 
     let payload2 = secondary
-        .commit_blob(Box::pin(b"some data".as_slice()))
+        .commit_payload(Box::pin(b"some data".as_slice()))
         .await
         .unwrap();
     let tag_spec2 = crate::tracking::TagSpec::parse("spfs-test/proxy-read-through2").unwrap();

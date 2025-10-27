@@ -9,6 +9,13 @@ message Digest {
     bytes bytes = 1;
 }
 
+message FoundDigest {
+  oneof kind {
+    Digest object = 1;
+    Digest payload = 2;
+  }
+}
+
 message DateTime {
     string iso_timestamp = 1;
 }

@@ -5,13 +5,14 @@
 use std::pin::Pin;
 use std::sync::Arc;
 
+use chrono::{DateTime, Utc};
 use futures::{Stream, StreamExt, TryStreamExt};
 use prost::Message;
 use tonic::{Request, Response, Status};
 
 use crate::prelude::*;
 use crate::proto::payload_service_server::PayloadServiceServer;
-use crate::proto::{self, RpcResult, convert_digest};
+use crate::proto::{self, RpcResult, convert_digest, convert_to_datetime};
 use crate::storage;
 
 /// The payload service is both a gRPC service AND an http server
@@ -70,6 +71,18 @@ impl proto::payload_service_server::PayloadService for PayloadService {
         Ok(Response::new(result))
     }
 
+    async fn payload_size(
+        &self,
+        request: Request<proto::PayloadSizeRequest>,
+    ) -> Result<Response<proto::PayloadSizeResponse>, Status> {
+        let request = request.into_inner();
+        let digest = convert_digest(request.digest)
+            .map_err(|err| Status::invalid_argument(err.to_string()))?;
+        let size = proto::handle_error!(self.repo.payload_size(digest).await);
+        let result = proto::PayloadSizeResponse::ok(size);
+        Ok(Response::new(result))
+    }
+
     async fn open_payload(
         &self,
         request: Request<proto::OpenPayloadRequest>,
@@ -97,6 +110,23 @@ impl proto::payload_service_server::PayloadService for PayloadService {
         let digest: crate::encoding::Digest = proto::handle_error!(convert_digest(request.digest));
         proto::handle_error!(self.repo.remove_payload(digest).await);
         let result = proto::RemovePayloadResponse::ok(proto::Ok {});
+        Ok(Response::new(result))
+    }
+
+    async fn remove_payload_if_older_than(
+        &self,
+        request: Request<proto::RemovePayloadIfOlderThanRequest>,
+    ) -> Result<Response<proto::RemovePayloadIfOlderThanResponse>, Status> {
+        let request = request.into_inner();
+        let older_than: DateTime<Utc> =
+            proto::handle_error!(convert_to_datetime(request.older_than));
+        let digest: crate::encoding::Digest = proto::handle_error!(convert_digest(request.digest));
+        let deleted = proto::handle_error!(
+            self.repo
+                .remove_payload_if_older_than(older_than, digest)
+                .await
+        );
+        let result = proto::RemovePayloadIfOlderThanResponse::ok(deleted);
         Ok(Response::new(result))
     }
 }
@@ -180,11 +210,7 @@ async fn handle_uncompressed_upload(
     repo: Arc<storage::RepositoryHandle>,
     reader: Pin<Box<dyn crate::tracking::BlobRead>>,
 ) -> crate::Result<hyper::Response<ResponseBody>> {
-    // Safety: it is unsafe to create a payload without its corresponding
-    // blob, but this payload http server is part of a larger repository
-    // and does not intend to be responsible for ensuring the integrity
-    // of the object graph - only the up/down of payload data
-    let result = unsafe { repo.write_data(reader).await };
+    let result = repo.write_data(reader).await;
     let (digest, size) = result.map_err(|err| {
         crate::Error::String(format!(
             "An error occurred while spawning a thread for this operation: {err:?}"

@@ -23,6 +23,16 @@ message HasPayloadResponse{
     bool exists =3;
 }
 
+message PayloadSizeRequest{
+    Digest digest = 1;
+}
+message PayloadSizeResponse{
+    oneof result {
+        Error error = 1;
+        uint64 ok = 2;
+    }
+}
+
 message WritePayloadRequest{}
 message WritePayloadResponse{
     message UploadOption {
@@ -69,10 +79,23 @@ message RemovePayloadResponse{
     }
 }
 
+message RemovePayloadIfOlderThanRequest{
+    DateTime older_than = 1;
+    Digest digest = 2;
+}
+message RemovePayloadIfOlderThanResponse{
+    oneof result {
+        Error error = 1;
+        bool ok = 2;
+    }
+}
+
 service PayloadService {
     rpc IterDigests(IterDigestsRequest) returns (stream IterDigestsResponse);
     rpc HasPayload(HasPayloadRequest) returns (HasPayloadResponse);
+    rpc PayloadSize(PayloadSizeRequest) returns (PayloadSizeResponse);
     rpc WritePayload(WritePayloadRequest) returns (WritePayloadResponse);
     rpc OpenPayload(OpenPayloadRequest) returns (OpenPayloadResponse);
     rpc RemovePayload(RemovePayloadRequest) returns (RemovePayloadResponse);
+    rpc RemovePayloadIfOlderThan(RemovePayloadIfOlderThanRequest) returns (RemovePayloadIfOlderThanResponse);
 }

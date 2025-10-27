@@ -6,8 +6,9 @@ use std::convert::TryInto;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use async_stream::try_stream;
 use chrono::{DateTime, Utc};
-use futures::{Stream, StreamExt};
+use futures::Stream;
 use tonic::{Request, Response, Status};
 
 use crate::prelude::*;
@@ -61,11 +62,12 @@ impl proto::database_service_server::DatabaseService for DatabaseService {
             .search_criteria
             .try_into()
             .map_err(|err: crate::Error| Status::invalid_argument(err.to_string()))?;
-        let stream = self
-            .repo
-            .find_digests(search_criteria)
-            .map(proto::FindDigestsResponse::from_result)
-            .map(Ok);
+        let repo = Arc::clone(&self.repo);
+        let stream = try_stream! {
+            for await result in repo.find_digests(&search_criteria) {
+                yield proto::FindDigestsResponse::from_result(result);
+            }
+        };
         let stream: Self::FindDigestsStream = Box::pin(stream);
         let response = Response::new(stream);
         Ok(response)

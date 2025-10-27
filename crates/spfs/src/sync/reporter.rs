@@ -438,31 +438,54 @@ impl std::iter::Sum<SyncSummary> for SyncSummary {
     }
 }
 
+#[enum_dispatch::enum_dispatch]
+pub trait Summary {
+    fn summary(&self) -> SyncSummary;
+}
+
+impl<T> Summary for &T
+where
+    T: Summary,
+{
+    fn summary(&self) -> SyncSummary {
+        (**self).summary()
+    }
+}
+
 #[derive(Debug)]
 pub struct SyncEnvResult {
     pub env: tracking::EnvSpec,
     pub results: Vec<SyncEnvItemResult>,
 }
 
-impl SyncEnvResult {
-    pub fn summary(&self) -> SyncSummary {
+impl Summary for SyncEnvResult {
+    fn summary(&self) -> SyncSummary {
         self.results.iter().map(|r| r.summary()).sum()
     }
 }
 
 #[derive(Debug)]
+#[enum_dispatch::enum_dispatch(Summary)]
 pub enum SyncEnvItemResult {
     Tag(SyncTagResult),
     Object(SyncObjectResult),
+    Payload(SyncPayloadResult),
 }
 
-impl SyncEnvItemResult {
-    pub fn summary(&self) -> SyncSummary {
-        match self {
-            Self::Tag(r) => r.summary(),
-            Self::Object(r) => r.summary(),
+impl From<SyncItemResult> for SyncEnvItemResult {
+    fn from(value: SyncItemResult) -> Self {
+        match value {
+            SyncItemResult::Object(obj) => Self::Object(obj),
+            SyncItemResult::Payload(payload) => Self::Payload(payload),
         }
     }
+}
+
+#[derive(Debug)]
+#[enum_dispatch::enum_dispatch(Summary)]
+pub enum SyncItemResult {
+    Object(SyncObjectResult),
+    Payload(SyncPayloadResult),
 }
 
 #[derive(Debug)]
@@ -474,12 +497,12 @@ pub enum SyncTagResult {
     /// The tag was synced
     Synced {
         tag: tracking::TagSpec,
-        result: SyncObjectResult,
+        result: SyncItemResult,
     },
 }
 
-impl SyncTagResult {
-    pub fn summary(&self) -> SyncSummary {
+impl Summary for SyncTagResult {
+    fn summary(&self) -> SyncSummary {
         match self {
             Self::Skipped | Self::Duplicate => SyncSummary {
                 skipped_tags: 1,
@@ -508,8 +531,8 @@ pub enum SyncObjectResult {
     Annotation(SyncAnnotationResult),
 }
 
-impl SyncObjectResult {
-    pub fn summary(&self) -> SyncSummary {
+impl Summary for SyncObjectResult {
+    fn summary(&self) -> SyncSummary {
         use SyncObjectResult as R;
         match self {
             R::Duplicate => SyncSummary {
@@ -539,8 +562,8 @@ pub enum SyncPlatformResult {
     },
 }
 
-impl SyncPlatformResult {
-    pub fn summary(&self) -> SyncSummary {
+impl Summary for SyncPlatformResult {
+    fn summary(&self) -> SyncSummary {
         match self {
             Self::Skipped | Self::Duplicate => SyncSummary::skipped_one_object(),
             Self::Synced { results, .. } => {
@@ -565,8 +588,8 @@ pub enum SyncLayerResult {
     },
 }
 
-impl SyncLayerResult {
-    pub fn summary(&self) -> SyncSummary {
+impl Summary for SyncLayerResult {
+    fn summary(&self) -> SyncSummary {
         match self {
             Self::Skipped | Self::Duplicate => SyncSummary::skipped_one_object(),
             Self::Synced { results, .. } => {
@@ -591,8 +614,8 @@ pub enum SyncManifestResult {
     },
 }
 
-impl SyncManifestResult {
-    pub fn summary(&self) -> SyncSummary {
+impl Summary for SyncManifestResult {
+    fn summary(&self) -> SyncSummary {
         match self {
             Self::Skipped | Self::Duplicate => SyncSummary::skipped_one_object(),
             Self::Synced { results, .. } => {
@@ -610,15 +633,15 @@ pub enum SyncAnnotationResult {
     InternalValue,
     /// The annotation was already synced in this session
     Duplicate,
-    /// The annotation was stored in a blob and was synced
+    /// The annotation was stored in a payload and was synced
     Synced {
         digest: encoding::Digest,
-        result: Box<SyncObjectResult>,
+        result: Box<SyncPayloadResult>,
     },
 }
 
-impl SyncAnnotationResult {
-    pub fn summary(&self) -> SyncSummary {
+impl Summary for SyncAnnotationResult {
+    fn summary(&self) -> SyncSummary {
         match self {
             Self::InternalValue | Self::Duplicate => SyncSummary::default(),
             Self::Synced {
@@ -639,8 +662,8 @@ pub enum SyncEntryResult {
     Synced { result: SyncBlobResult },
 }
 
-impl SyncEntryResult {
-    pub fn summary(&self) -> SyncSummary {
+impl Summary for SyncEntryResult {
+    fn summary(&self) -> SyncSummary {
         match self {
             Self::Skipped | Self::Duplicate => SyncSummary::default(),
             Self::Synced { result, .. } => {
@@ -665,8 +688,8 @@ pub enum SyncBlobResult {
     },
 }
 
-impl SyncBlobResult {
-    pub fn summary(&self) -> SyncSummary {
+impl Summary for SyncBlobResult {
+    fn summary(&self) -> SyncSummary {
         match self {
             Self::Skipped | Self::Duplicate => SyncSummary::skipped_one_object(),
             Self::Synced { result, .. } => {
@@ -688,8 +711,8 @@ pub enum SyncPayloadResult {
     Synced { size: u64 },
 }
 
-impl SyncPayloadResult {
-    pub fn summary(&self) -> SyncSummary {
+impl Summary for SyncPayloadResult {
+    fn summary(&self) -> SyncSummary {
         match self {
             Self::Skipped | Self::Duplicate => SyncSummary {
                 skipped_payloads: 1,

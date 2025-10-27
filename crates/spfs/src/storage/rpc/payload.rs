@@ -5,6 +5,7 @@
 use std::convert::TryInto;
 use std::pin::Pin;
 
+use chrono::{DateTime, Utc};
 use futures::{Stream, TryStreamExt};
 use prost::Message;
 
@@ -27,6 +28,20 @@ impl storage::PayloadStorage for super::RpcRepository {
             .unwrap_or(false)
     }
 
+    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+        let request = proto::PayloadSizeRequest {
+            digest: Some(digest.into()),
+        };
+        let response = self
+            .payload_client
+            .clone()
+            .payload_size(request)
+            .await?
+            .into_inner()
+            .to_result()?;
+        Ok(response)
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         let request = proto::IterDigestsRequest {};
         let mut client = self.payload_client.clone();
@@ -39,10 +54,7 @@ impl storage::PayloadStorage for super::RpcRepository {
         Box::pin(stream)
     }
 
-    async unsafe fn write_data(
-        &self,
-        reader: Pin<Box<dyn BlobRead>>,
-    ) -> Result<(encoding::Digest, u64)> {
+    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
         let request = proto::WritePayloadRequest {};
         let option = self
             .payload_client
@@ -136,6 +148,24 @@ impl storage::PayloadStorage for super::RpcRepository {
             .into_inner()
             .to_result()?;
         Ok(())
+    }
+
+    async fn remove_payload_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> Result<bool> {
+        let request = proto::RemovePayloadIfOlderThanRequest {
+            older_than: Some(proto::convert_from_datetime(&older_than)),
+            digest: Some(digest.into()),
+        };
+        Ok(self
+            .payload_client
+            .clone()
+            .remove_payload_if_older_than(request)
+            .await?
+            .into_inner()
+            .to_result()?)
     }
 }
 

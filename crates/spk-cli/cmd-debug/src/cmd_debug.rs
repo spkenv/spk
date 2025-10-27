@@ -96,7 +96,7 @@ impl Run for Debug {
             {
                 let syncer = spfs::Syncer::new(repo, &local_repo)
                     .with_reporter(spfs::sync::reporter::SyncReporters::console());
-                syncer.sync_digest(layer).await?;
+                syncer.sync_object_digest(layer).await?;
             }
 
             rt.push_digest(layer);

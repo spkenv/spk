@@ -4,6 +4,7 @@
 
 use std::pin::Pin;
 
+use chrono::{DateTime, Utc};
 use futures::Stream;
 
 use crate::tracking::BlobRead;
@@ -22,17 +23,11 @@ pub trait PayloadStorage: Sync + Send {
     /// Return true if the identified payload exists.
     async fn has_payload(&self, digest: encoding::Digest) -> bool;
 
+    /// Return the payload size if the identified payload exists.
+    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64>;
+
     /// Store the contents of the given stream, returning its digest and size
-    ///
-    /// # Safety
-    ///
-    /// It is unsafe to write payload data without also creating a blob
-    /// to track that payload in the database. Usually, its better to
-    /// call [`super::RepositoryExt::commit_blob`] instead.
-    async unsafe fn write_data(
-        &self,
-        reader: Pin<Box<dyn BlobRead>>,
-    ) -> Result<(encoding::Digest, u64)>;
+    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)>;
 
     /// Return a handle and filename to the full content of a payload.
     ///
@@ -48,6 +43,19 @@ pub trait PayloadStorage: Sync + Send {
     /// Errors:
     /// - [`crate::Error::UnknownObject`]: if the payload does not exist in this storage
     async fn remove_payload(&self, digest: encoding::Digest) -> Result<()>;
+
+    /// Remove the payload identified by the given digest.
+    ///
+    /// It is only removed if it is older than the given timestamp. Returns true
+    /// if the payload was removed, false if it was not.
+    ///
+    /// Errors:
+    /// - [`crate::Error::UnknownObject`]: if the payload does not exist in this storage
+    async fn remove_payload_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> Result<bool>;
 }
 
 #[async_trait::async_trait]
@@ -56,17 +64,16 @@ impl<T: PayloadStorage> PayloadStorage for &T {
         PayloadStorage::has_payload(&**self, digest).await
     }
 
+    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+        PayloadStorage::payload_size(&**self, digest).await
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         PayloadStorage::iter_payload_digests(&**self)
     }
 
-    async unsafe fn write_data(
-        &self,
-        reader: Pin<Box<dyn BlobRead>>,
-    ) -> Result<(encoding::Digest, u64)> {
-        // Safety: we are wrapping the same underlying unsafe function and
-        // so the same safety holds for our callers
-        unsafe { PayloadStorage::write_data(&**self, reader).await }
+    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
+        PayloadStorage::write_data(&**self, reader).await
     }
 
     async fn open_payload(
@@ -78,5 +85,13 @@ impl<T: PayloadStorage> PayloadStorage for &T {
 
     async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
         PayloadStorage::remove_payload(&**self, digest).await
+    }
+
+    async fn remove_payload_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> Result<bool> {
+        PayloadStorage::remove_payload_if_older_than(&**self, older_than, digest).await
     }
 }
