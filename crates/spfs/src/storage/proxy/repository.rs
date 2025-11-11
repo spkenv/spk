@@ -200,6 +200,17 @@ impl graph::DatabaseExt for ProxyRepository {
         self.primary.write_object(obj).await?;
         Ok(())
     }
+
+    async unsafe fn write_object_unchecked<T: ObjectProto>(
+        &self,
+        obj: &graph::FlatObject<T>,
+    ) -> Result<()> {
+        // Safety: transitive unsafe call
+        unsafe {
+            self.primary.write_object_unchecked(obj).await?;
+        }
+        Ok(())
+    }
 }
 
 pub(crate) async fn payload_size<R>(repo: R, digest: encoding::Digest) -> Result<u64>

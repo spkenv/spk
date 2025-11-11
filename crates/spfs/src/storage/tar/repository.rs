@@ -282,6 +282,18 @@ impl graph::DatabaseExt for TarRepository {
         self.up_to_date.store(false, Ordering::Release);
         Ok(())
     }
+
+    async unsafe fn write_object_unchecked<T: ObjectProto>(
+        &self,
+        obj: &graph::FlatObject<T>,
+    ) -> Result<()> {
+        // Safety: transitive unsafe call
+        unsafe {
+            self.repo.write_object_unchecked(obj).await?;
+        }
+        self.up_to_date.store(false, Ordering::Release);
+        Ok(())
+    }
 }
 
 #[async_trait::async_trait]

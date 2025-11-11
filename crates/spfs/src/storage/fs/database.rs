@@ -81,6 +81,14 @@ impl graph::DatabaseExt for super::MaybeOpenFsRepository {
     async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
         self.opened().await?.write_object(obj).await
     }
+
+    async unsafe fn write_object_unchecked<T: ObjectProto>(
+        &self,
+        obj: &graph::FlatObject<T>,
+    ) -> Result<()> {
+        // Safety: transitive unsafe call
+        unsafe { self.opened().await?.write_object_unchecked(obj).await }
+    }
 }
 
 #[async_trait::async_trait]
@@ -280,6 +288,14 @@ impl graph::DatabaseExt for super::OpenFsRepository {
             return Ok(());
         };
 
+        // Safety: blob objects were discarded above unless they are enabled
+        unsafe { self.write_object_unchecked(obj).await }
+    }
+
+    async unsafe fn write_object_unchecked<T: ObjectProto>(
+        &self,
+        obj: &graph::FlatObject<T>,
+    ) -> Result<()> {
         let digest = obj.digest()?;
         let filepath = self.objects.build_digest_path(&digest);
         if filepath.exists() {

@@ -404,12 +404,38 @@ impl<T: Database> Database for &T {
 #[async_trait::async_trait]
 pub trait DatabaseExt: Send + Sync {
     /// Write an object to the database, for later retrieval.
+    ///
+    /// Blob objects are only written if
+    /// [`crate::config::Storage::write_legacy_blob_objects`] is enabled,
+    /// otherwise they are silently discarded.
     async fn write_object<T: ObjectProto>(&self, obj: &FlatObject<T>) -> Result<()>;
+
+    /// Write an object to the database, for later retrieval.
+    ///
+    /// # Safety
+    ///
+    /// This function does not check the type of the object being written, so
+    /// it will write a blob object even if
+    /// [`crate::config::Storage::write_legacy_blob_objects`] is disabled. It
+    /// is expected that the caller will not do so except in specific cases,
+    /// such as in test code.
+    async unsafe fn write_object_unchecked<T: ObjectProto>(
+        &self,
+        obj: &FlatObject<T>,
+    ) -> Result<()>;
 }
 
 #[async_trait::async_trait]
 impl<T: DatabaseExt + Send + Sync> DatabaseExt for &T {
     async fn write_object<O: ObjectProto>(&self, obj: &FlatObject<O>) -> Result<()> {
         DatabaseExt::write_object(&**self, obj).await
+    }
+
+    async unsafe fn write_object_unchecked<O: ObjectProto>(
+        &self,
+        obj: &FlatObject<O>,
+    ) -> Result<()> {
+        // Safety: transitive unsafe call
+        unsafe { DatabaseExt::write_object_unchecked(&**self, obj).await }
     }
 }
