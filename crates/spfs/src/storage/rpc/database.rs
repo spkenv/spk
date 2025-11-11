@@ -114,4 +114,20 @@ impl graph::DatabaseExt for super::RpcRepository {
             .to_result()?;
         Ok(())
     }
+
+    async unsafe fn write_object_unchecked<T: ObjectProto>(
+        &self,
+        obj: &graph::FlatObject<T>,
+    ) -> Result<()> {
+        let request = proto::WriteObjectUncheckedRequest {
+            object: Some(obj.into()),
+        };
+        self.db_client
+            .clone()
+            .write_object_unchecked(request)
+            .await?
+            .into_inner()
+            .to_result()?;
+        Ok(())
+    }
 }

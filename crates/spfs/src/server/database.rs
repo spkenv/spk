@@ -104,6 +104,19 @@ impl proto::database_service_server::DatabaseService for DatabaseService {
         Ok(Response::new(result))
     }
 
+    async fn write_object_unchecked(
+        &self,
+        request: Request<proto::WriteObjectUncheckedRequest>,
+    ) -> Result<Response<proto::WriteObjectUncheckedResponse>, Status> {
+        let request = request.into_inner();
+        let object = proto::handle_error!(request.object.try_into());
+        // Safety: in spirit this generated trait method would be unsafe, and
+        // this would be a transitive unsafe call.
+        unsafe { proto::handle_error!(self.repo.write_object_unchecked(&object).await) };
+        let result = proto::WriteObjectUncheckedResponse::ok(proto::Ok {});
+        Ok(Response::new(result))
+    }
+
     async fn remove_object(
         &self,
         request: Request<proto::RemoveObjectRequest>,

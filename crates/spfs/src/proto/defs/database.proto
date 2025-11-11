@@ -84,6 +84,16 @@ message WriteObjectResponse{
     }
 }
 
+message WriteObjectUncheckedRequest{
+    Object object = 1;
+}
+message WriteObjectUncheckedResponse{
+    oneof result {
+        Error error = 1;
+        Ok ok = 2;
+    }
+}
+
 message RemoveObjectRequest{
     Digest digest = 1;
 }
@@ -112,6 +122,7 @@ service DatabaseService {
     rpc IterObjects(IterObjectsRequest) returns (stream IterObjectsResponse);
     rpc WalkObjects(WalkObjectsRequest) returns (stream WalkObjectsResponse);
     rpc WriteObject(WriteObjectRequest) returns (WriteObjectResponse);
+    rpc WriteObjectUnchecked(WriteObjectUncheckedRequest) returns (WriteObjectUncheckedResponse);
     rpc RemoveObject(RemoveObjectRequest) returns (RemoveObjectResponse);
     rpc RemoveObjectIfOlderThan(RemoveObjectIfOlderThanRequest) returns (RemoveObjectIfOlderThanResponse);
 }

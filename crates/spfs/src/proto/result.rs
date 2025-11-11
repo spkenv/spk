@@ -120,6 +120,10 @@ rpc_result!(
     g::walk_objects_response::WalkObjectsItem
 );
 rpc_result!(g::WriteObjectResponse, g::write_object_response::Result);
+rpc_result!(
+    g::WriteObjectUncheckedResponse,
+    g::write_object_unchecked_response::Result
+);
 rpc_result!(g::RemoveObjectResponse, g::remove_object_response::Result);
 rpc_result!(
     g::RemoveObjectIfOlderThanResponse,

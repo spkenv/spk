@@ -339,6 +339,16 @@ impl DatabaseExt for RepositoryHandle {
     async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
         each_variant!(self, repo, { repo.write_object(obj).await })
     }
+
+    async unsafe fn write_object_unchecked<T: ObjectProto>(
+        &self,
+        obj: &graph::FlatObject<T>,
+    ) -> Result<()> {
+        each_variant!(self, repo, {
+            // Safety: transitive unsafe call
+            unsafe { repo.write_object_unchecked(obj).await }
+        })
+    }
 }
 
 impl Address for Arc<RepositoryHandle> {
@@ -522,5 +532,15 @@ impl Database for Arc<RepositoryHandle> {
 impl DatabaseExt for Arc<RepositoryHandle> {
     async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
         each_variant!(&**self, repo, { repo.write_object(obj).await })
+    }
+
+    async unsafe fn write_object_unchecked<T: ObjectProto>(
+        &self,
+        obj: &graph::FlatObject<T>,
+    ) -> Result<()> {
+        each_variant!(&**self, repo, {
+            // Safety: transitive unsafe call
+            unsafe { repo.write_object_unchecked(obj).await }
+        })
     }
 }
