@@ -149,16 +149,20 @@ pub async fn compute_environment_manifest(
         .filter_map(|i| match i {
             tracking::EnvSpecItem::Digest(d) => Some(std::future::ready(Ok(*d)).boxed()),
             tracking::EnvSpecItem::PartialDigest(p) => Some(
-                repo.resolve_full_digest(p)
-                    .and_then(|found_digest| async move {
-                        match found_digest {
-                            graph::FoundDigest::Object(digest) => Ok(digest),
-                            graph::FoundDigest::Payload(_digest) => {
-                                Err("unexpected payload digest in environment spec".into())
-                            }
+                repo.resolve_full_digest(
+                    p,
+                    // by the error below, we only expect to find object digests
+                    graph::PartialDigestType::Object,
+                )
+                .and_then(|found_digest| async move {
+                    match found_digest {
+                        graph::FoundDigest::Object(digest) => Ok(digest),
+                        graph::FoundDigest::Payload(_digest) => {
+                            Err("unexpected payload digest in environment spec".into())
                         }
-                    })
-                    .boxed(),
+                    }
+                })
+                .boxed(),
             ),
             tracking::EnvSpecItem::TagSpec(t) => {
                 Some(repo.resolve_tag(t).map_ok(|t| t.target).boxed())

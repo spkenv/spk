@@ -240,8 +240,14 @@ impl graph::DatabaseView for TarRepository {
         self.repo.walk_objects(root)
     }
 
-    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<FoundDigest> {
-        self.repo.resolve_full_digest(partial).await
+    async fn resolve_full_digest(
+        &self,
+        partial: &encoding::PartialDigest,
+        partial_digest_type: graph::PartialDigestType,
+    ) -> Result<FoundDigest> {
+        self.repo
+            .resolve_full_digest(partial, partial_digest_type)
+            .await
     }
 }
 
