@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::pin::Pin;
 use std::task::Poll;
 
@@ -160,7 +160,7 @@ pub enum DigestSearchCriteria {
 }
 
 /// The types of digests that can exist in a database.
-#[derive(PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FoundDigest {
     Object(encoding::Digest),
     Payload(encoding::Digest),
@@ -263,16 +263,42 @@ pub trait DatabaseView: Sync + Send {
     /// - UnknownReferenceError: if the digest cannot be resolved
     /// - AmbiguousReferenceError: if the digest could point to multiple items
     async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<FoundDigest> {
-        let options: Vec<_> = self
-            .find_digests(&crate::graph::DigestSearchCriteria::StartsWith(
-                partial.clone(),
-            ))
-            .try_collect()
-            .await?;
+        #[derive(Debug)]
+        struct UpgradeToPayload(FoundDigest);
+
+        impl UpgradeToPayload {
+            /// Replace the FoundDigest if fd is a Payload.
+            ///
+            /// If we observe both a legacy blob object and a payload with the
+            /// same digest we will only remember seeing the payload. This
+            /// method assumes it is only called with a FoundDigest that has the
+            /// same digest as the present one.
+            fn upgrade(&mut self, fd: FoundDigest) {
+                if matches!(fd, FoundDigest::Payload(_)) {
+                    self.0 = fd;
+                }
+            }
+        }
+
+        let mut options = HashMap::<_, UpgradeToPayload>::new();
+        let filter = crate::graph::DigestSearchCriteria::StartsWith(partial.clone());
+        let mut stream = self.find_digests(&filter);
+        while let Some(fd) = stream.try_next().await? {
+            // Hash on the raw digest to avoid double-counting legacy blobs and
+            // their payloads.
+            options
+                .entry(*fd.digest())
+                .and_modify(|utp| utp.upgrade(fd))
+                .or_insert_with(|| UpgradeToPayload(fd));
+        }
 
         match options.len() {
             0 => Err(Error::UnknownReference(partial.to_string())),
-            1 => Ok(options.into_iter().next().unwrap()),
+            1 => Ok(options
+                .into_iter()
+                .next()
+                .map(|(_, UpgradeToPayload(fd))| fd)
+                .unwrap()),
             _ => Err(Error::AmbiguousReference(partial.to_string())),
         }
     }
