@@ -14,7 +14,7 @@ use serde::Deserialize;
 
 use super::tag::TagSpec;
 use crate::runtime::{LiveLayer, SpecApiVersion};
-use crate::{Error, Result, encoding};
+use crate::{Error, Result, encoding, graph};
 
 #[cfg(test)]
 #[path = "./env_test.rs"]
@@ -244,7 +244,7 @@ impl EnvSpecItem {
         match self {
             Self::TagSpec(spec) => repo.resolve_tag(spec).await.map(|t| t.target),
             Self::PartialDigest(part) => repo
-                .resolve_full_digest(part)
+                .resolve_full_digest(part, graph::PartialDigestType::Unknown)
                 .await
                 .map(|found_digest| found_digest.into_digest()),
             Self::Digest(digest) => Ok(*digest),

@@ -72,7 +72,7 @@ pub trait Repository:
         // this information? A new type could be added to wrap FoundDigest with
         // a variant that doesn't have the type information. Note how resolving
         // a tag above does not determine the type, or require the item exists.
-        self.resolve_full_digest(&partial)
+        self.resolve_full_digest(&partial, graph::PartialDigestType::Unknown)
             .await
             .map(|found_digest| found_digest.into_digest())
     }

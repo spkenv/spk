@@ -195,6 +195,30 @@ impl FoundDigest {
     }
 }
 
+/// The types of items a partial digest can reference.
+#[derive(Clone, Copy)]
+pub enum PartialDigestType {
+    Object,
+    Payload,
+    Unknown,
+}
+
+impl PartialDigestType {
+    /// Return true if the `FoundDigest` is a different item type.
+    ///
+    /// Unknown always return false.
+    #[inline]
+    pub fn conflicts_with(&self, fd: &FoundDigest) -> bool {
+        match (self, fd) {
+            (PartialDigestType::Unknown, _)
+            | (PartialDigestType::Object, FoundDigest::Object(_))
+            | (PartialDigestType::Payload, FoundDigest::Payload(_)) => false,
+            (PartialDigestType::Object, FoundDigest::Payload(_))
+            | (PartialDigestType::Payload, FoundDigest::Object(_)) => true,
+        }
+    }
+}
+
 /// A read-only object database.
 #[async_trait::async_trait]
 pub trait DatabaseView: Sync + Send {
@@ -256,13 +280,25 @@ pub trait DatabaseView: Sync + Send {
 
     /// Resolve the complete item digest from a shortened one.
     ///
+    /// The type of item expected can be specified with `partial_digest_type`-
+    /// If `PartialDigestType::Unknown` is specified and both an object and
+    /// payload are found with the same digest, this will resolve to the payload
+    /// instead of fail with `AmbiguousReferenceError`, for interoperability
+    /// with repos containing legacy blob object files. Otherwise the type is
+    /// used to disambiguate in the unlikely case a non-blob object and payload
+    /// have the same digest.
+    ///
     /// By default this is an O(n) operation defined by the number of items.
     /// Other implementations may provide better results.
     ///
     /// # Errors
     /// - UnknownReferenceError: if the digest cannot be resolved
     /// - AmbiguousReferenceError: if the digest could point to multiple items
-    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<FoundDigest> {
+    async fn resolve_full_digest(
+        &self,
+        partial: &encoding::PartialDigest,
+        partial_digest_type: PartialDigestType,
+    ) -> Result<FoundDigest> {
         #[derive(Debug)]
         struct UpgradeToPayload(FoundDigest);
 
@@ -284,6 +320,10 @@ pub trait DatabaseView: Sync + Send {
         let filter = crate::graph::DigestSearchCriteria::StartsWith(partial.clone());
         let mut stream = self.find_digests(&filter);
         while let Some(fd) = stream.try_next().await? {
+            if partial_digest_type.conflicts_with(&fd) {
+                continue;
+            }
+
             // Hash on the raw digest to avoid double-counting legacy blobs and
             // their payloads.
             options

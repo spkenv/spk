@@ -78,8 +78,14 @@ where
         self.inner.walk_objects(root)
     }
 
-    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<FoundDigest> {
-        self.inner.resolve_full_digest(partial).await
+    async fn resolve_full_digest(
+        &self,
+        partial: &encoding::PartialDigest,
+        partial_digest_type: graph::PartialDigestType,
+    ) -> Result<FoundDigest> {
+        self.inner
+            .resolve_full_digest(partial, partial_digest_type)
+            .await
     }
 }
 

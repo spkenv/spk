@@ -47,8 +47,15 @@ impl DatabaseView for super::MaybeOpenFsRepository {
         graph::DatabaseWalker::new(self, *root)
     }
 
-    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<FoundDigest> {
-        self.opened().await?.resolve_full_digest(partial).await
+    async fn resolve_full_digest(
+        &self,
+        partial: &encoding::PartialDigest,
+        partial_digest_type: graph::PartialDigestType,
+    ) -> Result<FoundDigest> {
+        self.opened()
+            .await?
+            .resolve_full_digest(partial, partial_digest_type)
+            .await
     }
 }
 
@@ -127,12 +134,24 @@ impl DatabaseView for super::OpenFsRepository {
         graph::DatabaseWalker::new(self, *root)
     }
 
-    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<FoundDigest> {
-        match self.objects.resolve_full_digest(partial).await {
-            Ok(digest) => Ok(FoundDigest::Object(digest)),
-            Err(_) => {
-                let digest = self.payloads.resolve_full_digest(partial).await?;
-                Ok(FoundDigest::Payload(digest))
+    async fn resolve_full_digest(
+        &self,
+        partial: &encoding::PartialDigest,
+        partial_digest_type: graph::PartialDigestType,
+    ) -> Result<FoundDigest> {
+        match (
+            partial_digest_type,
+            self.objects
+                .resolve_full_digest(partial)
+                .map_ok(FoundDigest::Object),
+            self.payloads
+                .resolve_full_digest(partial)
+                .map_ok(FoundDigest::Payload),
+        ) {
+            (graph::PartialDigestType::Object, f, _) => f.await,
+            (graph::PartialDigestType::Payload, _, f) => f.await,
+            (graph::PartialDigestType::Unknown, object_f, payload_f) => {
+                object_f.or_else(|_| payload_f).await
             }
         }
     }

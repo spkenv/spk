@@ -230,7 +230,11 @@ where
         &self,
         partial: encoding::PartialDigest,
     ) -> Result<CheckItemResult> {
-        match self.repo.resolve_full_digest(&partial).await? {
+        match self
+            .repo
+            .resolve_full_digest(&partial, graph::PartialDigestType::Unknown)
+            .await?
+        {
             FoundDigest::Object(digest) => self
                 .check_object_digest(digest)
                 .await

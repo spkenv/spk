@@ -34,6 +34,7 @@ pub use database::{
     DatabaseWalker,
     DigestSearchCriteria,
     FoundDigest,
+    PartialDigestType,
 };
 pub use entry::Entry;
 pub use kind::{HasKind, Kind, ObjectKind};
