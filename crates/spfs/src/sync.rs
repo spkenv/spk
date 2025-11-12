@@ -251,7 +251,10 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         &self,
         partial: encoding::PartialDigest,
     ) -> Result<SyncItemResult> {
-        let res = self.src.resolve_full_digest(&partial).await;
+        let res = self
+            .src
+            .resolve_full_digest(&partial, graph::PartialDigestType::Unknown)
+            .await;
         let found_digest = match res {
             Err(err) if self.policy.check_existing_objects() => {
                 // there is a chance that this digest points to an existing object in
@@ -263,7 +266,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
                 // on environments without checking what is or is not in the destination
                 // first
                 self.dest
-                    .resolve_full_digest(&partial)
+                    .resolve_full_digest(&partial, graph::PartialDigestType::Unknown)
                     .await
                     .map_err(|_| err)
             }

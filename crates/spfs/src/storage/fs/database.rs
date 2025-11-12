@@ -47,8 +47,15 @@ impl DatabaseView for super::MaybeOpenFsRepository {
         graph::DatabaseWalker::new(self, *root)
     }
 
-    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<FoundDigest> {
-        self.opened().await?.resolve_full_digest(partial).await
+    async fn resolve_full_digest(
+        &self,
+        partial: &encoding::PartialDigest,
+        partial_digest_type: graph::PartialDigestType,
+    ) -> Result<FoundDigest> {
+        self.opened()
+            .await?
+            .resolve_full_digest(partial, partial_digest_type)
+            .await
     }
 }
 
@@ -74,6 +81,14 @@ impl graph::Database for super::MaybeOpenFsRepository {
 impl graph::DatabaseExt for super::MaybeOpenFsRepository {
     async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
         self.opened().await?.write_object(obj).await
+    }
+
+    async unsafe fn write_object_unchecked<T: ObjectProto>(
+        &self,
+        obj: &graph::FlatObject<T>,
+    ) -> Result<()> {
+        // Safety: transitive unsafe call
+        unsafe { self.opened().await?.write_object_unchecked(obj).await }
     }
 }
 
@@ -127,12 +142,24 @@ impl DatabaseView for super::OpenFsRepository {
         graph::DatabaseWalker::new(self, *root)
     }
 
-    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<FoundDigest> {
-        match self.objects.resolve_full_digest(partial).await {
-            Ok(digest) => Ok(FoundDigest::Object(digest)),
-            Err(_) => {
-                let digest = self.payloads.resolve_full_digest(partial).await?;
-                Ok(FoundDigest::Payload(digest))
+    async fn resolve_full_digest(
+        &self,
+        partial: &encoding::PartialDigest,
+        partial_digest_type: graph::PartialDigestType,
+    ) -> Result<FoundDigest> {
+        match (
+            partial_digest_type,
+            self.objects
+                .resolve_full_digest(partial)
+                .map_ok(FoundDigest::Object),
+            self.payloads
+                .resolve_full_digest(partial)
+                .map_ok(FoundDigest::Payload),
+        ) {
+            (graph::PartialDigestType::Object, f, _) => f.await,
+            (graph::PartialDigestType::Payload, _, f) => f.await,
+            (graph::PartialDigestType::Unknown, object_f, payload_f) => {
+                object_f.or_else(|_| payload_f).await
             }
         }
     }
@@ -220,6 +247,14 @@ impl graph::DatabaseExt for super::OpenFsRepository {
             return Err("writing blob objects is not permitted".into());
         };
 
+        // Safety: we checked that the object is not a blob above
+        unsafe { self.write_object_unchecked(obj).await }
+    }
+
+    async unsafe fn write_object_unchecked<T: ObjectProto>(
+        &self,
+        obj: &graph::FlatObject<T>,
+    ) -> Result<()> {
         let digest = obj.digest()?;
         let filepath = self.objects.build_digest_path(&digest);
         if filepath.exists() {

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::pin::Pin;
 use std::task::Poll;
 
@@ -160,7 +160,7 @@ pub enum DigestSearchCriteria {
 }
 
 /// The types of digests that can exist in a database.
-#[derive(PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FoundDigest {
     Object(encoding::Digest),
     Payload(encoding::Digest),
@@ -191,6 +191,30 @@ impl FoundDigest {
         match self {
             FoundDigest::Object(d) => d.as_bytes(),
             FoundDigest::Payload(d) => d.as_bytes(),
+        }
+    }
+}
+
+/// The types of items a partial digest can reference.
+#[derive(Clone, Copy)]
+pub enum PartialDigestType {
+    Object,
+    Payload,
+    Unknown,
+}
+
+impl PartialDigestType {
+    /// Return true if the `FoundDigest` is a different item type.
+    ///
+    /// Unknown always return false.
+    #[inline]
+    pub fn conflicts_with(&self, fd: &FoundDigest) -> bool {
+        match (self, fd) {
+            (PartialDigestType::Unknown, _)
+            | (PartialDigestType::Object, FoundDigest::Object(_))
+            | (PartialDigestType::Payload, FoundDigest::Payload(_)) => false,
+            (PartialDigestType::Object, FoundDigest::Payload(_))
+            | (PartialDigestType::Payload, FoundDigest::Object(_)) => true,
         }
     }
 }
@@ -256,23 +280,65 @@ pub trait DatabaseView: Sync + Send {
 
     /// Resolve the complete item digest from a shortened one.
     ///
+    /// The type of item expected can be specified with `partial_digest_type`-
+    /// If `PartialDigestType::Unknown` is specified and both an object and
+    /// payload are found with the same digest, this will resolve to the payload
+    /// instead of fail with `AmbiguousReferenceError`, for interoperability
+    /// with repos containing legacy blob object files. Otherwise the type is
+    /// used to disambiguate in the unlikely case a non-blob object and payload
+    /// have the same digest.
+    ///
     /// By default this is an O(n) operation defined by the number of items.
     /// Other implementations may provide better results.
     ///
     /// # Errors
     /// - UnknownReferenceError: if the digest cannot be resolved
     /// - AmbiguousReferenceError: if the digest could point to multiple items
-    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<FoundDigest> {
-        let options: Vec<_> = self
-            .find_digests(&crate::graph::DigestSearchCriteria::StartsWith(
-                partial.clone(),
-            ))
-            .try_collect()
-            .await?;
+    async fn resolve_full_digest(
+        &self,
+        partial: &encoding::PartialDigest,
+        partial_digest_type: PartialDigestType,
+    ) -> Result<FoundDigest> {
+        #[derive(Debug)]
+        struct UpgradeToPayload(FoundDigest);
+
+        impl UpgradeToPayload {
+            /// Replace the FoundDigest if fd is a Payload.
+            ///
+            /// If we observe both a legacy blob object and a payload with the
+            /// same digest we will only remember seeing the payload. This
+            /// method assumes it is only called with a FoundDigest that has the
+            /// same digest as the present one.
+            fn upgrade(&mut self, fd: FoundDigest) {
+                if matches!(fd, FoundDigest::Payload(_)) {
+                    self.0 = fd;
+                }
+            }
+        }
+
+        let mut options = HashMap::<_, UpgradeToPayload>::new();
+        let filter = crate::graph::DigestSearchCriteria::StartsWith(partial.clone());
+        let mut stream = self.find_digests(&filter);
+        while let Some(fd) = stream.try_next().await? {
+            if partial_digest_type.conflicts_with(&fd) {
+                continue;
+            }
+
+            // Hash on the raw digest to avoid double-counting legacy blobs and
+            // their payloads.
+            options
+                .entry(*fd.digest())
+                .and_modify(|utp| utp.upgrade(fd))
+                .or_insert_with(|| UpgradeToPayload(fd));
+        }
 
         match options.len() {
             0 => Err(Error::UnknownReference(partial.to_string())),
-            1 => Ok(options.into_iter().next().unwrap()),
+            1 => Ok(options
+                .into_iter()
+                .next()
+                .map(|(_, UpgradeToPayload(fd))| fd)
+                .unwrap()),
             _ => Err(Error::AmbiguousReference(partial.to_string())),
         }
     }
@@ -338,12 +404,34 @@ impl<T: Database> Database for &T {
 #[async_trait::async_trait]
 pub trait DatabaseExt: Send + Sync {
     /// Write an object to the database, for later retrieval.
+    ///
+    /// It is not permitted to write blob objects.
     async fn write_object<T: ObjectProto>(&self, obj: &FlatObject<T>) -> Result<()>;
+
+    /// Write an object to the database, for later retrieval.
+    ///
+    /// # Safety
+    ///
+    /// This function does not check the type of the object being written. It
+    /// is expected that the caller will not write a blob object except in
+    /// specific cases, such as in test code.
+    async unsafe fn write_object_unchecked<T: ObjectProto>(
+        &self,
+        obj: &FlatObject<T>,
+    ) -> Result<()>;
 }
 
 #[async_trait::async_trait]
 impl<T: DatabaseExt + Send + Sync> DatabaseExt for &T {
     async fn write_object<O: ObjectProto>(&self, obj: &FlatObject<O>) -> Result<()> {
         DatabaseExt::write_object(&**self, obj).await
+    }
+
+    async unsafe fn write_object_unchecked<O: ObjectProto>(
+        &self,
+        obj: &FlatObject<O>,
+    ) -> Result<()> {
+        // Safety: transitive unsafe call
+        unsafe { DatabaseExt::write_object_unchecked(&**self, obj).await }
     }
 }
