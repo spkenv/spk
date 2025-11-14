@@ -273,6 +273,7 @@ impl EnvSpecItem {
     }
 
     /// Returns true if this item is a live layer file
+    #[inline]
     pub fn is_livelayer(&self) -> bool {
         matches!(self, Self::SpecFile(SpecFile::LiveLayer(_)))
     }
@@ -416,7 +417,7 @@ impl EnvSpec {
         let mut new_items: Vec<EnvSpecItem> = Vec::with_capacity(self.items.len());
         for item in &self.items {
             // Filter out the LiveLayers entirely because they do not have digests
-            if let EnvSpecItem::SpecFile(_) = item {
+            if item.is_livelayer() {
                 continue;
             }
             new_items.push(self.resolve_tag_item_to_digest_item(item, repos).await?);
