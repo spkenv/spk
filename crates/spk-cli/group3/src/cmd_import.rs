@@ -7,6 +7,7 @@ use futures::TryStreamExt;
 use miette::{Context, Result};
 use spfs::storage::TagStorage;
 use spfs::sync::reporter::Summary;
+use spfs::tracking::RefSpec;
 use spk_cli_common::{CommandArgs, Run};
 
 #[cfg(test)]
@@ -37,16 +38,17 @@ impl Run for Import {
         for filename in self.files.iter() {
             let tar_repo = spfs::storage::tar::TarRepository::open(&filename).await?;
             let tar_repo: spfs::storage::RepositoryHandle = tar_repo.into();
-            let env_spec = tar_repo
-                .iter_tags()
-                .map_ok(|(spec, _)| spec)
-                .try_collect()
-                .await
-                .wrap_err("Failed to collect tags from archive")?;
+            let ref_spec = RefSpec::try_from_iter(
+                tar_repo
+                    .iter_tags()
+                    .map_ok(|(spec, _)| spec)
+                    .try_collect::<Vec<_>>()
+                    .await?,
+            )?;
             tracing::info!(archive = ?filename, "importing");
             summary += syncer
                 .clone_with_source(&tar_repo)
-                .sync_env(env_spec)
+                .sync_ref_spec(ref_spec)
                 .await
                 .wrap_err("Failed to sync archived data")?
                 .summary();

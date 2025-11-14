@@ -5,6 +5,7 @@
 use std::str::FromStr;
 use std::sync::Arc;
 
+use spfs::tracking::RefSpec;
 use spk_schema::foundation::format::{FormatComponents, FormatIdent};
 use spk_schema::foundation::ident_component::ComponentSet;
 use spk_schema::ident::AsVersionIdent;
@@ -216,7 +217,7 @@ impl Publisher {
             let spec = self.from.read_package(build).await?;
             let components = self.from.read_components(build).await?;
             tracing::info!("publishing package: {}", spec.ident().format_ident());
-            let env_spec = components.values().cloned().collect();
+            let ref_spec = RefSpec::try_from_iter(components.values().cloned())?;
             tracing::debug!(
                 " syncing components: {}",
                 ComponentSet::from(components.keys().cloned()).format_components()
@@ -231,7 +232,7 @@ impl Publisher {
             };
             syncer
                 .with_reporter(spfs::sync::reporter::SyncReporters::console())
-                .sync_env(env_spec)
+                .sync_ref_spec(ref_spec)
                 .await?;
             self.to.publish_package(&spec, &components).await?;
         }

@@ -43,17 +43,17 @@ impl SyncReporters {
 /// followed up by a call to the corresponding synced_*.
 #[enum_dispatch::enum_dispatch]
 pub trait SyncReporter: Send + Sync {
-    /// Called when an environment has been identified to sync
-    fn visit_env(&self, _env: &tracking::EnvSpec) {}
+    /// Called when an ref spec has been identified to sync
+    fn visit_ref_spec(&self, _ref_spec: &tracking::RefSpec) {}
 
-    /// Called when a environment has finished syncing
-    fn synced_env(&self, _result: &SyncEnvResult) {}
+    /// Called when a ref spec has finished syncing
+    fn synced_ref_spec(&self, _result: &SyncRefResult) {}
 
-    /// Called when an environment item has been identified to sync
-    fn visit_env_item(&self, _item: &tracking::EnvSpecItem) {}
+    /// Called when an ref item has been identified to sync
+    fn visit_ref_item(&self, _item: &tracking::RefSpecItem) {}
 
-    /// Called when a environment item has finished syncing
-    fn synced_env_item(&self, _result: &SyncEnvItemResult) {}
+    /// Called when a ref item has finished syncing
+    fn synced_ref_item(&self, _result: &SyncRefItemResult) {}
 
     /// Called when a tag has been identified to sync
     fn visit_tag(&self, _tag: &tracking::TagSpec) {}
@@ -114,17 +114,17 @@ impl<T> SyncReporter for Arc<T>
 where
     T: SyncReporter,
 {
-    fn visit_env(&self, env: &tracking::EnvSpec) {
-        (**self).visit_env(env)
+    fn visit_ref_spec(&self, ref_spec: &tracking::RefSpec) {
+        (**self).visit_ref_spec(ref_spec)
     }
-    fn synced_env(&self, result: &SyncEnvResult) {
-        (**self).synced_env(result)
+    fn synced_ref_spec(&self, result: &SyncRefResult) {
+        (**self).synced_ref_spec(result)
     }
-    fn visit_env_item(&self, item: &tracking::EnvSpecItem) {
-        (**self).visit_env_item(item)
+    fn visit_ref_item(&self, item: &tracking::RefSpecItem) {
+        (**self).visit_ref_item(item)
     }
-    fn synced_env_item(&self, result: &SyncEnvItemResult) {
-        (**self).synced_env_item(result)
+    fn synced_ref_item(&self, result: &SyncRefItemResult) {
+        (**self).synced_ref_item(result)
     }
     fn visit_tag(&self, tag: &tracking::TagSpec) {
         (**self).visit_tag(tag)
@@ -177,17 +177,17 @@ where
 }
 
 impl SyncReporter for Box<dyn SyncReporter> {
-    fn visit_env(&self, env: &tracking::EnvSpec) {
-        (**self).visit_env(env)
+    fn visit_ref_spec(&self, ref_spec: &tracking::RefSpec) {
+        (**self).visit_ref_spec(ref_spec)
     }
-    fn synced_env(&self, result: &SyncEnvResult) {
-        (**self).synced_env(result)
+    fn synced_ref_spec(&self, result: &SyncRefResult) {
+        (**self).synced_ref_spec(result)
     }
-    fn visit_env_item(&self, item: &tracking::EnvSpecItem) {
-        (**self).visit_env_item(item)
+    fn visit_ref_item(&self, item: &tracking::RefSpecItem) {
+        (**self).visit_ref_item(item)
     }
-    fn synced_env_item(&self, result: &SyncEnvItemResult) {
-        (**self).synced_env_item(result)
+    fn synced_ref_item(&self, result: &SyncRefItemResult) {
+        (**self).synced_ref_item(result)
     }
     fn visit_tag(&self, tag: &tracking::TagSpec) {
         (**self).visit_tag(tag)
@@ -243,17 +243,17 @@ impl<T> SyncReporter for Box<Arc<T>>
 where
     T: SyncReporter,
 {
-    fn visit_env(&self, env: &tracking::EnvSpec) {
-        (***self).visit_env(env)
+    fn visit_ref_spec(&self, ref_spec: &tracking::RefSpec) {
+        (***self).visit_ref_spec(ref_spec)
     }
-    fn synced_env(&self, result: &SyncEnvResult) {
-        (***self).synced_env(result)
+    fn synced_ref_spec(&self, result: &SyncRefResult) {
+        (***self).synced_ref_spec(result)
     }
-    fn visit_env_item(&self, item: &tracking::EnvSpecItem) {
-        (***self).visit_env_item(item)
+    fn visit_ref_item(&self, item: &tracking::RefSpecItem) {
+        (***self).visit_ref_item(item)
     }
-    fn synced_env_item(&self, result: &SyncEnvItemResult) {
-        (***self).synced_env_item(result)
+    fn synced_ref_item(&self, result: &SyncRefItemResult) {
+        (***self).synced_ref_item(result)
     }
     fn visit_tag(&self, tag: &tracking::TagSpec) {
         (***self).visit_tag(tag)
@@ -342,7 +342,7 @@ impl SyncReporter for ConsoleSyncReporter {
         bars.bytes.inc(result.summary().synced_payload_bytes);
     }
 
-    fn synced_env(&self, _result: &SyncEnvResult) {
+    fn synced_ref_spec(&self, _result: &SyncRefResult) {
         // Don't cause the bars to be initialized here if they haven't already
         // been, calling abandon will briefly display some zero-progress bars.
         if let Some(bars) = self.bars.get() {
@@ -453,12 +453,12 @@ where
 }
 
 #[derive(Debug)]
-pub struct SyncEnvResult {
-    pub env: tracking::EnvSpec,
-    pub results: Vec<SyncEnvItemResult>,
+pub struct SyncRefResult {
+    pub ref_spec: tracking::RefSpec,
+    pub results: Vec<SyncRefItemResult>,
 }
 
-impl Summary for SyncEnvResult {
+impl Summary for SyncRefResult {
     fn summary(&self) -> SyncSummary {
         self.results.iter().map(|r| r.summary()).sum()
     }
@@ -466,13 +466,13 @@ impl Summary for SyncEnvResult {
 
 #[derive(Debug)]
 #[enum_dispatch::enum_dispatch(Summary)]
-pub enum SyncEnvItemResult {
+pub enum SyncRefItemResult {
     Tag(SyncTagResult),
     Object(SyncObjectResult),
     Payload(SyncPayloadResult),
 }
 
-impl From<SyncItemResult> for SyncEnvItemResult {
+impl From<SyncItemResult> for SyncRefItemResult {
     fn from(value: SyncItemResult) -> Self {
         match value {
             SyncItemResult::Object(obj) => Self::Object(obj),

@@ -14,6 +14,8 @@ use serde::Deserialize;
 
 use super::tag::TagSpec;
 use crate::runtime::{LiveLayer, SpecApiVersion};
+use crate::tracking::ref_spec::RefSpecFile;
+use crate::tracking::{RefSpec, RefSpecItem};
 use crate::{Error, Result, encoding, graph};
 
 #[cfg(test)]
@@ -173,6 +175,14 @@ impl SpecFile {
     }
 }
 
+impl From<RefSpecFile> for SpecFile {
+    fn from(ref_spec_file: RefSpecFile) -> Self {
+        match ref_spec_file {
+            RefSpecFile::EnvLayersFile(x) => SpecFile::EnvLayersFile(x),
+        }
+    }
+}
+
 impl Display for SpecFile {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -222,7 +232,9 @@ impl Display for EnvLayersFile {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum EnvSpecItem {
     TagSpec(TagSpec),
+    /// May refer to an object, but not a payload
     PartialDigest(encoding::PartialDigest),
+    /// May refer to an object, but not a payload
     Digest(encoding::Digest),
     SpecFile(SpecFile),
 }
@@ -232,11 +244,10 @@ impl EnvSpecItem {
     ///
     /// Any necessary lookups are done using the provided repository.
     ///
-    /// It is possible for this to succeed for tags even when no object or
-    /// payload exists with the digest.
+    /// It is possible for this to succeed for tags even when no object exists
+    /// with the digest.
     ///
-    /// The returned digest may refer to an object, a payload, or a non-existent
-    /// item.
+    /// The returned digest may refer to an object, or a non-existent item.
     pub async fn resolve_digest<R>(&self, repo: &R) -> Result<encoding::Digest>
     where
         R: crate::storage::Repository + ?Sized,
@@ -244,7 +255,7 @@ impl EnvSpecItem {
         match self {
             Self::TagSpec(spec) => repo.resolve_tag(spec).await.map(|t| t.target),
             Self::PartialDigest(part) => repo
-                .resolve_full_digest(part, graph::PartialDigestType::Unknown)
+                .resolve_full_digest(part, graph::PartialDigestType::Object)
                 .await
                 .map(|found_digest| found_digest.into_digest()),
             Self::Digest(digest) => Ok(*digest),
@@ -273,6 +284,7 @@ impl EnvSpecItem {
     }
 
     /// Returns true if this item is a live layer file
+    #[inline]
     pub fn is_livelayer(&self) -> bool {
         matches!(self, Self::SpecFile(SpecFile::LiveLayer(_)))
     }
@@ -331,8 +343,8 @@ impl From<encoding::Digest> for EnvSpecItem {
 /// Specifies a complete runtime environment that
 /// can be made up of multiple layers.
 ///
-/// The env spec contains an non-empty, ordered set of references
-/// that make up this environment.
+/// The env spec contains an ordered set of references that make up this
+/// environment.
 ///
 /// It can be easily parsed from a string containing
 /// tags and/or digests:
@@ -358,6 +370,12 @@ pub struct EnvSpec {
 }
 
 impl EnvSpec {
+    /// Consume this EnvSpec and return its items
+    #[inline]
+    pub fn into_items(self) -> Vec<EnvSpecItem> {
+        self.items
+    }
+
     /// Parse the provided string into an environment spec.
     pub fn parse<S: AsRef<str>>(spec: S) -> Result<Self> {
         Self::from_str(spec.as_ref())
@@ -416,7 +434,7 @@ impl EnvSpec {
         let mut new_items: Vec<EnvSpecItem> = Vec::with_capacity(self.items.len());
         for item in &self.items {
             // Filter out the LiveLayers entirely because they do not have digests
-            if let EnvSpecItem::SpecFile(_) = item {
+            if item.is_livelayer() {
                 continue;
             }
             new_items.push(self.resolve_tag_item_to_digest_item(item, repos).await?);
@@ -457,6 +475,23 @@ impl FromStr for EnvSpec {
         Ok(Self {
             items: parse_env_spec_items(s)?,
         })
+    }
+}
+
+impl From<RefSpec> for EnvSpec {
+    fn from(ref_spec: RefSpec) -> Self {
+        EnvSpec {
+            items: ref_spec
+                .into_items()
+                .into_iter()
+                .map(|r| match r {
+                    RefSpecItem::TagSpec(t) => EnvSpecItem::TagSpec(t),
+                    RefSpecItem::PartialDigest(d) => EnvSpecItem::PartialDigest(d),
+                    RefSpecItem::Digest(d) => EnvSpecItem::Digest(d),
+                    RefSpecItem::SpecFile(s) => EnvSpecItem::SpecFile(s.into()),
+                })
+                .collect(),
+        }
     }
 }
 

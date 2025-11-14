@@ -6,6 +6,7 @@ use std::convert::TryFrom;
 use std::path::Path;
 
 use itertools::{Itertools, Position};
+use spfs::tracking::RefSpec;
 use spk_schema::ident::AsVersionIdent;
 use spk_schema::{AnyIdent, BuildIdent, VersionIdent};
 use variantly::Variantly;
@@ -182,8 +183,8 @@ async fn copy_package(
     tracing::info!(%pkg, "exporting");
     let syncer = spfs::Syncer::new(src_repo, dst_repo)
         .with_reporter(spfs::sync::reporter::SyncReporters::console());
-    let desired = components.iter().map(|i| *i.1).collect();
-    syncer.sync_env(desired).await?;
+    let desired = RefSpec::try_from_iter(components.iter().map(|i| *i.1))?;
+    syncer.sync_ref_spec(desired).await?;
     dst_repo.publish_package(&spec, &components).await?;
     Ok(())
 }

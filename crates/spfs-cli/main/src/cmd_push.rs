@@ -5,6 +5,7 @@
 use clap::Args;
 use miette::Result;
 use spfs::sync::reporter::Summary;
+use spfs::tracking::RefSpec;
 use spfs_cli_common as cli;
 
 /// Push one or more objects to a remote repository
@@ -24,7 +25,7 @@ pub struct CmdPush {
     /// These can be individual tags or digests, or they may also
     /// be a collection of items joined by a '+'
     #[clap(value_name = "REF", required = true)]
-    refs: Vec<spfs::tracking::EnvSpec>,
+    refs: Vec<spfs::tracking::RefSpec>,
 }
 
 impl CmdPush {
@@ -40,13 +41,13 @@ impl CmdPush {
             spfs::config::open_repository_from_string(config, self.repos.remote.as_ref()),
         )?;
 
-        let env_spec = self.refs.iter().cloned().collect();
+        let ref_spec = RefSpec::combine(&self.refs)?;
         // the latest tag is always synced when pushing
         self.sync.sync = true;
         let summary = self
             .sync
             .get_syncer(&repo, &remote)
-            .sync_env(env_spec)
+            .sync_ref_spec(ref_spec)
             .await?
             .summary();
         tracing::info!("{}", spfs::io::format_sync_summary(&summary));
