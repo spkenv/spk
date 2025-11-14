@@ -10,6 +10,7 @@ mod entry;
 mod env;
 pub mod manifest;
 mod object;
+mod ref_spec;
 mod tag;
 
 pub use blob_reader::{BlobRead, BlobReadExt};
@@ -38,4 +39,5 @@ pub use manifest::{
 pub use object::Object;
 pub use tag::{Tag, TagSpec, build_tag_spec, split_tag_spec};
 mod time_spec;
+pub use ref_spec::{RefSpec, RefSpecItem};
 pub use time_spec::{TimeSpec, parse_duration, parse_time};

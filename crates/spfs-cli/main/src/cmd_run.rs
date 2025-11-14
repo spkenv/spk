@@ -212,7 +212,7 @@ impl CmdRun {
                 let _synced = self
                     .sync
                     .get_syncer(&origin, &repo)
-                    .sync_env(references_to_sync)
+                    .sync_ref_spec(references_to_sync.try_into()?)
                     .await?;
             }
             tracing::debug!("synced and about to launch process with durable runtime");
@@ -300,9 +300,9 @@ impl CmdRun {
                     let synced = self
                         .sync
                         .get_syncer(&origin, &repo)
-                        .sync_env(references_to_sync)
+                        .sync_ref_spec(references_to_sync.try_into()?)
                         .await?;
-                    for item in synced.env.iter() {
+                    for item in synced.ref_spec.iter() {
                         let digest = item.resolve_digest(&repo).await?;
                         runtime.push_digest(digest);
                     }

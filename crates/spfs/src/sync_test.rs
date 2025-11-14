@@ -283,11 +283,11 @@ async fn test_sync_missing_from_source(
         .await
         .expect("Should not fail when object is already in destination");
     syncer
-        .sync_env(tag.into())
+        .sync_ref_spec(tag.into())
         .await
         .expect("Should not fail when object is already in destination");
     syncer
-        .sync_env(platform_digest.into())
+        .sync_ref_spec(platform_digest.into())
         .await
         .expect("Should not fail when object is already in destination");
 }

@@ -24,7 +24,7 @@ use spfs::prelude::*;
 use spfs::storage::RepositoryHandle;
 use spfs::storage::fallback::FallbackProxy;
 use spfs::storage::fs::OpenFsRepository;
-use spfs::tracking::EnvSpec;
+use spfs::tracking::RefSpec;
 
 const DEV_SHM: &str = "/dev/shm";
 const ORIGIN: &str = "origin";
@@ -126,7 +126,7 @@ impl<'a> Dynamic<'a> {
                 .into_diagnostic()
                 .wrap_err("create temp working directory")?;
 
-            let env_spec = EnvSpec::parse(tag).wrap_err("create env spec")?;
+            let ref_spec = RefSpec::parse(tag).wrap_err("create ref spec")?;
 
             // Ensure tag is sync'd local because `render_into_directory` operates
             // out of the local repo.
@@ -134,8 +134,11 @@ impl<'a> Dynamic<'a> {
             let syncer = spfs::Syncer::new(&remote, &handle)
                 .with_policy(spfs::sync::SyncPolicy::LatestTags)
                 .with_reporter(spfs::sync::reporter::SyncReporters::console());
-            let r = syncer.sync_env(env_spec).await.wrap_err("sync reference")?;
-            let env_spec = r.env;
+            let r = syncer
+                .sync_ref_spec(ref_spec)
+                .await
+                .wrap_err("sync reference")?;
+            let ref_spec = r.ref_spec;
 
             let fallback = FallbackProxy::new(
                 local,
@@ -148,7 +151,7 @@ impl<'a> Dynamic<'a> {
             spfs::storage::fs::Renderer::new(&fallback)
                 .with_reporter(spfs::storage::fs::ConsoleRenderReporter::default())
                 .render_into_directory(
-                    env_spec,
+                    ref_spec,
                     temp_dir.path(),
                     spfs::storage::fs::RenderType::Copy,
                 )

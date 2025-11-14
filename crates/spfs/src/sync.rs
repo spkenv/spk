@@ -11,13 +11,13 @@ use reporter::{
     SyncAnnotationResult,
     SyncBlobResult,
     SyncEntryResult,
-    SyncEnvItemResult,
-    SyncEnvResult,
     SyncLayerResult,
     SyncManifestResult,
     SyncObjectResult,
     SyncPayloadResult,
     SyncPlatformResult,
+    SyncRefItemResult,
+    SyncRefResult,
     SyncReporter,
     SyncReporters,
     SyncTagResult,
@@ -177,52 +177,57 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
     /// Sync the object(s) referenced by the given string.
     ///
     /// Any valid [`crate::tracking::EnvSpec`] is accepted as a reference.
-    pub async fn sync_ref<R: AsRef<str>>(&self, reference: R) -> Result<SyncEnvResult> {
+    pub async fn sync_ref<R: AsRef<str>>(&self, reference: R) -> Result<SyncRefResult> {
         let env_spec = reference.as_ref().parse()?;
-        self.sync_env(env_spec).await
+        self.sync_ref_spec(env_spec).await
     }
 
-    /// Sync all of the objects identified by the given env.
-    pub async fn sync_env(&self, env: tracking::EnvSpec) -> Result<SyncEnvResult> {
-        self.reporter.visit_env(&env);
+    /// Sync all of the objects identified by the given ref spec.
+    pub async fn sync_ref_spec(&self, ref_spec: tracking::RefSpec) -> Result<SyncRefResult> {
+        self.reporter.visit_ref_spec(&ref_spec);
         let mut futures = FuturesUnordered::new();
-        for item in env.iter().cloned() {
-            futures.push(self.sync_env_item(item));
+        for item in ref_spec.iter().cloned() {
+            futures.push(self.sync_ref_item(item));
         }
-        let mut results = Vec::with_capacity(env.len());
+        let mut results = Vec::with_capacity(ref_spec.len());
         while let Some(result) = futures.try_next().await? {
             results.push(result);
         }
-        let res = SyncEnvResult { env, results };
-        self.reporter.synced_env(&res);
+        let res = SyncRefResult { ref_spec, results };
+        self.reporter.synced_ref_spec(&res);
         Ok(res)
     }
 
     /// Sync one environment item and any associated data.
-    pub async fn sync_env_item(&self, item: tracking::EnvSpecItem) -> Result<SyncEnvItemResult> {
+    pub async fn sync_ref_item(&self, item: tracking::RefSpecItem) -> Result<SyncRefItemResult> {
         tracing::debug!(?item, "Syncing item");
-        self.reporter.visit_env_item(&item);
+        self.reporter.visit_ref_item(&item);
         let res = match item {
-            tracking::EnvSpecItem::Digest(digest) => match self.sync_object_digest(digest).await {
-                Ok(r) => SyncEnvItemResult::Object(r),
+            tracking::RefSpecItem::Digest(digest) => match self.sync_object_digest(digest).await {
+                Ok(r) => SyncRefItemResult::Object(r),
                 Err(Error::UnknownObject(digest)) => self
                     .sync_payload(digest)
                     .await
-                    .map(SyncEnvItemResult::Payload)?,
+                    .map(SyncRefItemResult::Payload)?,
                 Err(e) => return Err(e),
             },
-            tracking::EnvSpecItem::PartialDigest(digest) => {
+            tracking::RefSpecItem::PartialDigest(digest) => {
                 self.sync_partial_digest(digest).await.map(Into::into)?
             }
-            tracking::EnvSpecItem::TagSpec(tag_spec) => {
-                self.sync_tag(tag_spec).await.map(SyncEnvItemResult::Tag)?
+            tracking::RefSpecItem::TagSpec(tag_spec) => {
+                self.sync_tag(tag_spec).await.map(SyncRefItemResult::Tag)?
             }
             // These are not objects in spfs, so they are not syncable
-            tracking::EnvSpecItem::SpecFile(_) => {
-                return Ok(SyncEnvItemResult::Object(SyncObjectResult::Ignorable));
+            // XXX but it can be a spec file the contains syncable things? Would
+            // those things become garbage instantly in the destination repo?
+            // XXX shouldn't this be an error to inform the user that it was
+            // not synced? Or should a RefSpecItem even be allowed to contain
+            // SpecFiles?
+            tracking::RefSpecItem::SpecFile(_) => {
+                return Ok(SyncRefItemResult::Object(SyncObjectResult::Ignorable));
             }
         };
-        self.reporter.synced_env_item(&res);
+        self.reporter.synced_ref_item(&res);
         Ok(res)
     }
 

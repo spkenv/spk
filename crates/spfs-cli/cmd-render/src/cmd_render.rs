@@ -64,9 +64,10 @@ impl CmdRender {
             env_spec = self
                 .sync
                 .get_syncer(&origin, &handle)
-                .sync_env(env_spec)
+                .sync_ref_spec(env_spec.try_into()?)
                 .await?
-                .env;
+                .ref_spec
+                .into();
         }
 
         // Use PayloadFallback to repair any missing payloads found in the

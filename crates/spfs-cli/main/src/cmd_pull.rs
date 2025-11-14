@@ -5,6 +5,7 @@
 use clap::Args;
 use miette::Result;
 use spfs::sync::reporter::Summary;
+use spfs::tracking::RefSpec;
 use spfs_cli_common as cli;
 
 /// Pull one or more objects to the local repository
@@ -27,7 +28,7 @@ pub struct CmdPull {
     /// These can be individual tags or digests, or they may also
     /// be a collection of items joined by a '+'
     #[clap(value_name = "REF", required = true)]
-    refs: Vec<spfs::tracking::EnvSpec>,
+    refs: Vec<spfs::tracking::RefSpec>,
 }
 
 impl CmdPull {
@@ -37,11 +38,11 @@ impl CmdPull {
             spfs::config::open_repository_from_string(config, self.repos.remote.as_ref())
         )?;
 
-        let env_spec = self.refs.iter().cloned().collect();
+        let ref_spec = RefSpec::combine(&self.refs)?;
         let summary = self
             .sync
             .get_syncer(&remote, &repo)
-            .sync_env(env_spec)
+            .sync_ref_spec(ref_spec)
             .await?
             .summary();
 
