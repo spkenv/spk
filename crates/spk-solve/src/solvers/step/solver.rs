@@ -19,9 +19,10 @@ use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{
     AsVersionIdent,
-    PinnedRequest,
     PinnedValue,
     PkgRequest,
+    PkgRequestWithOptions,
+    RequestWithOptions,
     RequestedBy,
     Satisfy,
     VarRequest,
@@ -386,7 +387,7 @@ impl Solver {
     /// requests and the reasons they are impossible.
     async fn check_builds_for_impossible_requests(
         &self,
-        unresolved: &HashMap<PkgNameBuf, PkgRequest>,
+        unresolved: &HashMap<PkgNameBuf, PkgRequestWithOptions>,
         builds: Arc<tokio::sync::Mutex<dyn BuildIterator + Send>>,
     ) -> Result<HashMap<BuildIdent, Compatibility>> {
         let mut builds_with_impossible_requests: HashMap<BuildIdent, Compatibility> =
@@ -451,7 +452,7 @@ impl Solver {
     async fn check_requirements_for_impossible_requests(
         &self,
         spec: &Spec,
-        unresolved: &HashMap<PkgNameBuf, PkgRequest>,
+        unresolved: &HashMap<PkgNameBuf, PkgRequestWithOptions>,
     ) -> Result<Compatibility> {
         self.request_validator
             .validate_pkg_requests(spec, unresolved, &self.repos)
@@ -529,7 +530,7 @@ impl Solver {
                     // capture the request for the package that turned
                     // out to be missing.
                     return Err(spk_solve_graph::Error::PackageNotFoundDuringSolve(Box::new(
-                        request.clone(),
+                        request.pkg_request.clone(),
                     ))
                     .into());
                 }
@@ -802,18 +803,31 @@ impl Solver {
                                                     RequestedBy::PackageBuild(spec.ident().clone()),
                                                 );
 
-                                                let existing_requested_components = node
+                                                let existing_request = node
                                                     .state
                                                     .get_merged_request(parent_spec.ident().name())
-                                                    .map(|r| r.pkg.components)
-                                                    .unwrap_or_default();
+                                                    .map_err(|err| {
+                                                        Error::String(
+                                                            format!(
+                                                            "could not find existing request for {} to reconsider with additional components: {err}",
+                                                            parent_spec.ident().name()
+                                                            )
+                                                        )
+                                                    })?;
+
+                                                let existing_requested_components =
+                                                    existing_request.pkg_request.pkg.components;
 
                                                 pkg_request.pkg.components =
                                                     existing_requested_components
                                                         .union(&components_to_request)
                                                         .cloned()
                                                         .collect();
-                                                pkg_request
+
+                                                PkgRequestWithOptions {
+                                                    pkg_request,
+                                                    options: existing_request.options.clone(),
+                                                }
                                             },
                                             spec.ident().name(),
                                             Arc::clone(&self.number_of_steps_back),
@@ -927,7 +941,7 @@ impl Solver {
         }
 
         Err(error::Error::OutOfOptions(Box::new(error::OutOfOptions {
-            request,
+            request: request.pkg_request,
             notes,
         })))
     }
@@ -949,8 +963,8 @@ impl Solver {
         source: &PackageSource,
     ) -> Result<Compatibility>
     where
-        P: Package + Satisfy<PkgRequest> + Satisfy<VarRequest<PinnedValue>>,
-        <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequest>,
+        P: Package + Satisfy<PkgRequestWithOptions> + Satisfy<VarRequest<PinnedValue>>,
+        <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequestWithOptions>,
     {
         for validator in self.validators.as_ref() {
             let compat = validator.validate_package(state, spec, source)?;
@@ -985,7 +999,8 @@ impl Solver {
             let recipe = try_recipe!({"pkg": format!("initialrequest/{}", count + 1),
                                       "install": {
                                           "requirements": [
-                                              req,
+                                              // TODO: include options here
+                                              req.pkg_request,
                                           ]
                                       }
             })
@@ -1131,7 +1146,7 @@ impl SolverTrait for Solver {
         Cow::Owned(self.get_initial_state().get_option_map().clone())
     }
 
-    fn get_pkg_requests(&self) -> Vec<PkgRequest> {
+    fn get_pkg_requests(&self) -> Vec<PkgRequestWithOptions> {
         self.get_initial_state()
             .get_pkg_requests()
             .iter()
@@ -1154,9 +1169,9 @@ impl SolverTrait for Solver {
 
 #[async_trait::async_trait]
 impl SolverMut for Solver {
-    fn add_request(&mut self, request: PinnedRequest) {
+    fn add_request(&mut self, request: RequestWithOptions) {
         let request = match request {
-            PinnedRequest::Pkg(mut request) => {
+            RequestWithOptions::Pkg(mut request) => {
                 if request.pkg.components.is_empty() {
                     if request.pkg.is_source() {
                         request.pkg.components.insert(Component::Source);
@@ -1166,7 +1181,7 @@ impl SolverMut for Solver {
                 }
                 Change::RequestPackage(RequestPackage::new(request))
             }
-            PinnedRequest::Var(request) => Change::RequestVar(RequestVar::new(request)),
+            RequestWithOptions::Var(request) => Change::RequestVar(RequestVar::new(request)),
         };
         self.initial_state_builders.push(request);
     }

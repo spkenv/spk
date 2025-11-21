@@ -14,7 +14,10 @@ use spk_schema_foundation::ident::{
     PinnableRequest,
     PinnedRequest,
     PkgRequest,
+    PkgRequestOptions,
+    PkgRequestWithOptions,
     RangeIdent,
+    RequestWithOptions,
     RequestedBy,
     VarRequest,
     VersionIdent,
@@ -168,6 +171,31 @@ impl Recipe for Platform {
         Ok(Cow::Owned(requirements))
     }
 
+    fn get_build_requirements_with_options<V>(
+        &self,
+        variant: &V,
+    ) -> Result<Cow<'_, RequirementsList<RequestWithOptions>>>
+    where
+        V: Variant,
+    {
+        let mut requirements = RequirementsList::<RequestWithOptions>::default();
+        for base in self.base.iter() {
+            let build_digest = self.build_digest(variant)?;
+
+            requirements.insert_or_replace(RequestWithOptions::Pkg(PkgRequestWithOptions {
+                pkg_request: PkgRequest::from_ident(
+                    base.clone().into_any_ident(None),
+                    RequestedBy::BinaryBuild(
+                        self.ident().to_build_ident(Build::BuildId(build_digest)),
+                    ),
+                ),
+                options: PkgRequestOptions::default(),
+            }));
+        }
+
+        Ok(Cow::Owned(requirements))
+    }
+
     fn get_tests<V>(&self, _stage: TestStage, _variant: &V) -> Result<Vec<Self::Test>>
     where
         V: Variant,
@@ -262,7 +290,7 @@ fn apply_inherit_from_base_component(
     let Some(base_cmpt) = base.components().get(inherit) else {
         return;
     };
-    for requirement in base_cmpt.requirements.iter() {
+    for requirement in base_cmpt.requirements().iter() {
         cmpt.requirements.insert_or_replace(requirement.clone());
     }
 }
@@ -362,7 +390,7 @@ impl PlatformPkgRequirement {
                         requested_by: Default::default(),
                     }));
             }
-        }
+        };
 
         let runtime_component = spec
             .install
@@ -390,7 +418,7 @@ impl PlatformPkgRequirement {
                         requested_by: Default::default(),
                     }));
             }
-        }
+        };
 
         Ok(())
     }
@@ -453,7 +481,7 @@ impl PlatformVarRequirement {
                         description: DESCRIPTION,
                     }));
             }
-        }
+        };
 
         let runtime_component = spec
             .install
@@ -473,7 +501,7 @@ impl PlatformVarRequirement {
                         description: DESCRIPTION,
                     }));
             }
-        }
+        };
 
         Ok(())
     }

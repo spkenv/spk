@@ -97,7 +97,7 @@ fn test_render_all_pins_renders_requirements_in_components() {
         .iter()
         .find(|c| c.name == Component::Run)
         .unwrap()
-        .requirements[0]
+        .requirements()[0]
     else {
         panic!("Expected a Pkg request");
     };

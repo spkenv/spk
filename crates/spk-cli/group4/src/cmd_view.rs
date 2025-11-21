@@ -30,7 +30,7 @@ use spk_cli_common::{
 use spk_schema::foundation::format::{FormatChangeOptions, FormatRequest};
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::spec_ops::Named;
-use spk_schema::ident::RangeIdent;
+use spk_schema::ident::{RangeIdent, RequestWithOptions};
 use spk_schema::ident_component::Component;
 use spk_schema::name::PkgNameBuf;
 use spk_schema::version::Version;
@@ -723,7 +723,7 @@ impl View {
                     Some(LayerPackageAndComponents(solved_request, components)) => {
                         let ident =
                             get_components_specific_ident(&solved_request.request.pkg, components);
-                        let mut request = solved_request.request.clone();
+                        let mut request = solved_request.request.pkg_request.clone();
                         request.pkg = ident;
 
                         println!(
@@ -819,7 +819,7 @@ impl View {
         };
 
         let mut request = match parsed_request {
-            PinnedRequest::Pkg(pkg) => pkg,
+            RequestWithOptions::Pkg(pkg) => pkg.pkg_request,
             _ => bail!("Not a package request: {parsed_request:?}"),
         };
 
@@ -968,7 +968,7 @@ impl View {
 
         solver.add_request(request.clone());
         let request = match request {
-            PinnedRequest::Pkg(pkg) => pkg,
+            RequestWithOptions::Pkg(pkg) => pkg,
 
             _ => bail!("Not a package request: {request:?}"),
         };

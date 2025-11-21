@@ -25,7 +25,7 @@ impl ValidatorT for ComponentsValidator {
     ) -> crate::Result<Compatibility>
     where
         P: Package,
-        <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequest>,
+        <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequestWithOptions>,
     {
         use Compatibility::Compatible;
 
@@ -35,7 +35,7 @@ impl ValidatorT for ComponentsValidator {
 
         let request = state.get_merged_request(spec.name())?;
         if let Ok(Compatibility::Incompatible(reason)) =
-            self.check_for_missing_components(&request, spec, source)
+            self.check_for_missing_components(&request.pkg_request, spec, source)
         {
             return Ok(Compatibility::Incompatible(reason));
         }
@@ -70,7 +70,7 @@ impl ValidatorT for ComponentsValidator {
 
         let request = pkgrequest_data.get_merged_request(package.name())?;
         if let Ok(Compatibility::Incompatible(reason)) =
-            self.check_for_missing_components(&request, package, source)
+            self.check_for_missing_components(&request.pkg_request, package, source)
         {
             return Ok(Compatibility::Incompatible(reason));
         }

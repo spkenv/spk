@@ -50,7 +50,7 @@ pub use install_spec::InstallSpec;
 pub use option::{Inheritance, Opt};
 pub use package::{Components, OptionValues, Package, PackageMut};
 pub use recipe::{BuildEnv, Recipe};
-pub use requirements_list::RequirementsList;
+pub use requirements_list::{RequirementsList, convert_requests_to_requests_with_options};
 pub use serde_json;
 pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
 pub use spec::{ApiVersion, Spec, SpecFileData, SpecRecipe, SpecTemplate, SpecVariant};
