@@ -8,7 +8,13 @@ use std::str::FromStr;
 use indexmap::set::IndexSet;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
-use spk_schema_foundation::ident::{NameAndValue, PinnedRequest, PinnedValue, RangeIdent};
+use spk_schema_foundation::ident::{
+    NameAndValue,
+    PinnedRequest,
+    PinnedValue,
+    RangeIdent,
+    is_false,
+};
 use spk_schema_foundation::ident_component::ComponentBTreeSetBuf;
 use spk_schema_foundation::option_map::Stringified;
 use spk_schema_foundation::version::{Compat, IncompatibleReason, VarOptionProblem};
@@ -184,6 +190,7 @@ impl TryFrom<PinnableRequest> for Opt {
                 inheritance: Default::default(),
                 description,
                 compat: None,
+                required: false,
                 value: None,
             })),
         }
@@ -219,6 +226,7 @@ impl TryFrom<PinnedRequest> for Opt {
                 inheritance: Default::default(),
                 description,
                 compat: None,
+                required: false,
                 value: None,
             })),
         }
@@ -253,6 +261,7 @@ impl<'de> Deserialize<'de> for Opt {
             choices: Option<IndexSet<String>>,
             inheritance: Option<Inheritance>,
             compat: Option<Compat>,
+            required: bool,
 
             // Both
             default: Option<String>,
@@ -324,6 +333,9 @@ impl<'de> Deserialize<'de> for Opt {
                         "compat" => {
                             self.compat = Some(map.next_value::<Compat>()?);
                         }
+                        "required" => {
+                            self.required = map.next_value::<bool>()?;
+                        }
                         _ => {
                             // unrecognized fields are explicitly ignored in case
                             // they were added in a newer version of spk. We assume
@@ -350,6 +362,7 @@ impl<'de> Deserialize<'de> for Opt {
                         default: self.default.unwrap_or_default(),
                         description: self.description,
                         compat: self.compat,
+                        required: self.required,
                         value: self.value,
                     })),
                     (Some(_), Some(_)) => Err(serde::de::Error::custom(
@@ -374,6 +387,7 @@ pub struct VarOpt {
     pub inheritance: Inheritance,
     pub description: Option<String>,
     pub compat: Option<Compat>,
+    pub required: bool,
     value: Option<String>,
 }
 
@@ -391,6 +405,7 @@ impl std::hash::Hash for VarOpt {
         self.inheritance.hash(state);
         self.description.hash(state);
         self.compat.hash(state);
+        self.required.hash(state);
         self.value.hash(state)
     }
 }
@@ -418,6 +433,10 @@ impl Ord for VarOpt {
             std::cmp::Ordering::Equal => {}
             ord => return ord,
         }
+        match self.required.cmp(&other.required) {
+            std::cmp::Ordering::Equal => {}
+            ord => return ord,
+        }
         self.value.cmp(&other.value)
     }
 }
@@ -437,6 +456,7 @@ impl VarOpt {
             inheritance: Inheritance::default(),
             description: None,
             compat: None,
+            required: false,
             value: None,
         })
     }
@@ -468,6 +488,13 @@ impl VarOpt {
     }
 
     pub fn validate(&self, value: Option<&str>) -> Compatibility {
+        if value.is_none() && self.required {
+            return Compatibility::Incompatible(IncompatibleReason::VarOptionMismatch(
+                VarOptionProblem::RequiredButMissing {
+                    opt_name: self.var.clone(),
+                },
+            ));
+        }
         if value.is_none() && self.value.is_some() {
             return self.validate(self.value.as_deref());
         }
@@ -521,6 +548,8 @@ struct VarOptSchema {
     description: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     compat: Option<Compat>,
+    #[serde(skip_serializing_if = "is_false")]
+    required: bool,
     #[serde(rename = "static", skip_serializing_if = "String::is_empty")]
     value: String,
 }
@@ -536,6 +565,7 @@ impl Serialize for VarOpt {
             inheritance: self.inheritance,
             description: self.description.clone().unwrap_or_default(),
             compat: self.compat.clone(),
+            required: self.required,
             value: self.value.clone().unwrap_or_default(),
         };
         if !self.default.is_empty() {

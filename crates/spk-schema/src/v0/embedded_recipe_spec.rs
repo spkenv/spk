@@ -5,7 +5,6 @@
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::{AsVersionIdent, BuildIdent, VersionIdent};
-use spk_schema_foundation::ident_build::{Build, EmbeddedSource};
 use spk_schema_foundation::option_map::OptionMap;
 
 use super::TestSpec;
@@ -51,23 +50,24 @@ pub struct EmbeddedRecipeSpec {
 }
 
 impl EmbeddedRecipeSpec {
+    /// Read-only access to the build spec
+    #[inline]
+    pub fn build(&self) -> &EmbeddedBuildSpec {
+        &self.build
+    }
+
+    /// Read-only access to the install spec
+    #[inline]
+    pub fn install(&self) -> &EmbeddedRecipeInstallSpec {
+        &self.install
+    }
+
     pub fn render_all_pins(
         self,
         options: &OptionMap,
         resolved_by_name: &std::collections::HashMap<&PkgName, &BuildIdent>,
     ) -> Result<EmbeddedPackageSpec> {
-        Ok(EmbeddedPackageSpec {
-            pkg: self
-                .pkg
-                .into_build_ident(Build::Embedded(EmbeddedSource::Unknown)),
-            meta: self.meta,
-            compat: self.compat,
-            deprecated: self.deprecated,
-            sources: self.sources,
-            build: self.build,
-            tests: self.tests,
-            install: self.install.render_all_pins(options, resolved_by_name)?,
-        })
+        EmbeddedPackageSpec::new_binary_package_from_recipe(self, options, resolved_by_name)
     }
 }
 
@@ -124,14 +124,14 @@ impl Versioned for EmbeddedRecipeSpec {
 impl From<EmbeddedPackageSpec> for EmbeddedRecipeSpec {
     fn from(pkg_spec: EmbeddedPackageSpec) -> Self {
         Self {
+            build: pkg_spec.build().clone(),
+            install: pkg_spec.install().clone().into(),
             pkg: pkg_spec.pkg.as_version_ident().clone(),
             meta: pkg_spec.meta,
             compat: pkg_spec.compat,
             deprecated: pkg_spec.deprecated,
             sources: pkg_spec.sources,
-            build: pkg_spec.build,
             tests: pkg_spec.tests,
-            install: pkg_spec.install.into(),
         }
     }
 }

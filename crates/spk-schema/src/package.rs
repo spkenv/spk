@@ -5,7 +5,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 
-use spk_schema_foundation::ident::{BuildIdent, PinnedRequest};
+use spk_schema_foundation::ident::{BuildIdent, PinnedRequest, RequestWithOptions};
 use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::option_map::OptFilter;
 use spk_schema_foundation::spec_ops::{Named, Versioned};
@@ -36,6 +36,18 @@ macro_rules! forward_to_impl {
         }
     };
 }
+
+/// Access to the build options defined by a package.
+pub trait BuildOptions {
+    /// The build options defined by this package
+    fn build_options(&self) -> Cow<'_, [Opt]>;
+}
+
+forward_to_impl!(BuildOptions, {
+    fn build_options(&self) -> Cow<'_, [Opt]> {
+        (**self).build_options()
+    }
+});
 
 /// Access to the components defined by a package.
 pub trait Components {
@@ -154,6 +166,12 @@ pub trait Package:
     /// Requests that must be met to use this package
     fn runtime_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>>;
 
+    /// Requests that must be met to use this package.
+    ///
+    /// Compared to [`Package::runtime_requirements`], the package requirements
+    /// include the package-specific options required too.
+    fn runtime_requirements_with_options(&self) -> Cow<'_, RequirementsList<RequestWithOptions>>;
+
     /// Requests that must be satisfied by the build
     /// environment of any package built against this one
     ///
@@ -226,6 +244,10 @@ forward_to_impl!(Package, {
 
     fn runtime_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>> {
         (**self).runtime_requirements()
+    }
+
+    fn runtime_requirements_with_options(&self) -> Cow<'_, RequirementsList<RequestWithOptions>> {
+        (**self).runtime_requirements_with_options()
     }
 
     fn downstream_build_requirements<'a>(

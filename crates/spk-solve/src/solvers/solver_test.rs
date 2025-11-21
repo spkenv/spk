@@ -127,7 +127,7 @@ macro_rules! assert_not_resolved {
 
 /// Runs the given solver, printing the output with reasonable output settings
 /// for unit test debugging and inspection.
-async fn run_and_print_resolve_for_tests(solver: &mut SolverImpl) -> Result<Solution> {
+pub(crate) async fn run_and_print_resolve_for_tests(solver: &mut SolverImpl) -> Result<Solution> {
     match solver {
         SolverImpl::Step(solver) => {
             let formatter = DecisionFormatterBuilder::default()
@@ -158,11 +158,11 @@ async fn run_and_log_resolve_for_tests(solver: &mut SolverImpl) -> Result<Soluti
     }
 }
 
-fn step_solver() -> SolverImpl {
+pub(crate) fn step_solver() -> SolverImpl {
     SolverImpl::Step(StepSolver::default())
 }
 
-fn resolvo_solver() -> SolverImpl {
+pub(crate) fn resolvo_solver() -> SolverImpl {
     SolverImpl::Resolvo(ResolvoSolver::default())
 }
 
@@ -291,7 +291,7 @@ async fn test_solver_package_with_no_recipe_from_cmd_line(#[case] mut solver: So
         parse_ident_range("my-pkg").unwrap(),
         RequestedBy::CommandLineRequest(InitialRawRequest("my-pkg".to_string())),
     ));
-    solver.add_request(req);
+    solver.add_request(req.into());
 
     // Test
     let res = run_and_print_resolve_for_tests(&mut solver).await;
@@ -325,7 +325,7 @@ async fn test_solver_package_with_no_recipe_from_cmd_line_and_impossible_initial
         parse_ident_range("my-pkg").unwrap(),
         RequestedBy::CommandLineRequest(InitialRawRequest("my-pkg".to_string())),
     ));
-    solver.add_request(req);
+    solver.add_request(req.into());
     if let SolverImpl::Step(ref mut solver) = solver {
         solver.set_initial_request_impossible_checks(true);
     }

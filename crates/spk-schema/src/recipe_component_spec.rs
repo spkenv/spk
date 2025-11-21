@@ -47,16 +47,7 @@ impl RecipeComponentSpec {
         options: &OptionMap,
         resolved_by_name: &std::collections::HashMap<&PkgName, &BuildIdent>,
     ) -> Result<ComponentSpec> {
-        Ok(ComponentSpec {
-            name: self.name,
-            files: self.files,
-            uses: self.uses,
-            requirements: self
-                .requirements
-                .render_all_pins(options, resolved_by_name)?,
-            embedded: self.embedded,
-            file_match_mode: self.file_match_mode,
-        })
+        ComponentSpec::new_from_recipe(self, options, resolved_by_name)
     }
 }
 
@@ -135,10 +126,10 @@ impl ComponentOps for RecipeComponentSpec {
 impl From<ComponentSpec> for RecipeComponentSpec {
     fn from(other: ComponentSpec) -> Self {
         Self {
+            requirements: other.requirements().clone().into(),
             name: other.name,
             files: other.files,
             uses: other.uses,
-            requirements: other.requirements.into(),
             embedded: other.embedded,
             file_match_mode: other.file_match_mode,
         }

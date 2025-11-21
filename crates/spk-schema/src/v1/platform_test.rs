@@ -18,11 +18,11 @@ use crate::{BuildEnv, Recipe};
 macro_rules! assert_requirements {
     ($spec:ident:$cmpt:ident len $count:literal) => {
         let count = $spec
-            .install
+            .install()
             .components
             .get(Component::$cmpt)
             .expect("run component")
-            .requirements
+            .requirements()
             .len();
         assert_eq!(
             count,
@@ -33,14 +33,14 @@ macro_rules! assert_requirements {
     };
     ($spec:ident:$cmpt:ident contains $request:literal) => {{
         let cmpt = $spec
-            .install
+            .install()
             .components
             .get(Component::$cmpt)
             .expect("expected a run component");
         let name_and_val: crate::ident::NameAndValue = $request
             .parse()
             .expect("could not fetch name from provided request");
-        let Some(request) = cmpt.requirements.get(&name_and_val.0) else {
+        let Some(request) = cmpt.requirements().get(&name_and_val.0) else {
             panic!(
                 "expected a {} request for {}",
                 Component::$cmpt,
@@ -56,14 +56,14 @@ macro_rules! assert_requirements {
     }};
     ($spec:ident:$cmpt:ident excludes $request:literal) => {{
         let cmpt = $spec
-            .install
+            .install()
             .components
             .get(Component::$cmpt)
             .expect("expected a run component");
         let name_and_val: crate::ident::NameAndValue = $request
             .parse()
             .expect("could not fetch name from provided request");
-        if let Some(found) = cmpt.requirements.get(&name_and_val.0) {
+        if let Some(found) = cmpt.requirements().get(&name_and_val.0) {
             panic!(
                 "expected no {} request for {}, found {found}",
                 Component::$cmpt,
@@ -117,7 +117,7 @@ fn test_platform_no_runtime_no_build() {
 
     let host_options = HOST_OPTIONS.get().unwrap();
     let build_options = build
-        .build
+        .build()
         .options
         .iter()
         .filter_map(|o| match o {
@@ -177,7 +177,7 @@ fn test_platform_single_inheritance() {
         .generate_binary_build(&option_map! {}, &build_env)
         .unwrap();
 
-    println!("{:#?}", build.install);
+    println!("{:#?}", build.install());
 
     assert_requirements!(build:Run contains "inherit-me/1.0.0");
     assert_requirements!(build:Run contains "test-requirement/1.0.0");

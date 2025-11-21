@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use spk_schema::ident::PinnedValue;
+use spk_schema::ident::{AsVersionIdent, PinnedValue};
 use spk_schema::version::IncompatibleReason;
 
 use super::prelude::*;
@@ -20,7 +20,8 @@ impl ValidatorT for DeprecationValidator {
         _source: &PackageSource,
     ) -> crate::Result<Compatibility>
     where
-        P: Satisfy<PkgRequest> + Satisfy<VarRequest<PinnedValue>> + Package,
+        P: Satisfy<PkgRequestWithOptions> + Satisfy<VarRequest<PinnedValue>> + Package,
+        <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequestWithOptions>,
     {
         self.validate_package_against_request(state, spec, _source)
     }
@@ -47,7 +48,7 @@ impl ValidatorT for DeprecationValidator {
     ) -> crate::Result<Compatibility>
     where
         PR: GetMergedRequest,
-        P: Satisfy<PkgRequest> + Package,
+        P: Satisfy<PkgRequestWithOptions> + Package,
     {
         if !package.is_deprecated() {
             return Ok(Compatibility::Compatible);

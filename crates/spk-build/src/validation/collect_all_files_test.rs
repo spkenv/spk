@@ -15,7 +15,9 @@ async fn test_validate_build_changeset_collected() {
     let mut package = v0::PackageSpec::new("test-pkg/1.0.0/3I42H3S6".parse().unwrap());
     // the default components are added and collect all files,
     // so we remove them to ensure nothing is collected
-    let _ = package.install.components.drain(..);
+    package.install_mut(|install| {
+        install.components.drain(..);
+    });
     let report = BuildReport {
         output: BuildOutputReport {
             collected_changes: vec![spfs::tracking::Diff {
@@ -27,7 +29,7 @@ async fn test_validate_build_changeset_collected() {
                 ),
             }],
             components: package
-                .install
+                .install()
                 .components
                 .iter()
                 .map(|c| {
@@ -46,7 +48,12 @@ async fn test_validate_build_changeset_collected() {
         },
         setup: BuildSetupReport {
             environment: Solution::default(),
-            variant: package.build.variants.first().cloned().unwrap_or_default(),
+            variant: package
+                .build()
+                .variants
+                .first()
+                .cloned()
+                .unwrap_or_default(),
             environment_filesystem: Manifest::new(
                 spfs::tracking::Entry::empty_dir_with_open_perms_with_data(package.ident().clone()),
             ),
