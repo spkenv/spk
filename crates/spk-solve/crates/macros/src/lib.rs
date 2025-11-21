@@ -135,10 +135,20 @@ macro_rules! make_build_and_components {
         $(
         let dep = Arc::new($dep.clone());
         solution.add(
-            spk_schema::ident::PkgRequest::from_ident(
-                $dep.ident().to_any_ident(),
-                spk_schema::ident::RequestedBy::SpkInternalTest,
-            ),
+            spk_schema::ident::PkgRequestWithOptions {
+                options: build_opts
+                    .iter()
+                    .filter_map(|(k, v)| {
+                        k.namespace()
+                            .is_some_and(|ns| ns == $dep.ident().name())
+                            .then_some((k.clone(), spk_schema::ident::PkgRequestOptionValue::Complete(v.clone())))
+                    })
+                    .collect(),
+                pkg_request: spk_schema::ident::PkgRequest::from_ident(
+                    $dep.ident().to_any_ident(),
+                    spk_schema::ident::RequestedBy::SpkInternalTest,
+                ),
+            },
             Arc::clone(&dep),
             $crate::PackageSource::SpkInternalTest,
         );
@@ -223,16 +233,18 @@ macro_rules! pinned_request {
             spk_schema::ident::parse_ident_range($req).unwrap(),
             spk_schema::ident::RequestedBy::SpkInternalTest,
         ))
+        .into()
     };
     ($req:ident) => {
         spk_schema::ident::PinnedRequest::Pkg(spk_schema::ident::PkgRequest::new(
             spk_schema::ident::parse_ident_range($req).unwrap(),
             spk_schema::ident::RequestedBy::SpkInternalTest,
         ))
+        .into()
     };
     ($req:tt) => {{
         let value = serde_json::json!($req);
         let req: spk_schema::ident::PinnedRequest = serde_json::from_value(value).unwrap();
-        req
+        req.into()
     }};
 }

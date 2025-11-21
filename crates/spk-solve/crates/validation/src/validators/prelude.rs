@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-pub use spk_schema::ident::{PkgRequest, VarRequest};
+pub use spk_schema::ident::{PkgRequest, PkgRequestWithOptions, RequestWithOptions, VarRequest};
 pub use spk_schema::ident_build::{Build, EmbeddedSource};
 pub use spk_schema::ident_component::Component;
 pub use spk_schema::prelude::{Named, Satisfy};

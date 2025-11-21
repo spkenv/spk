@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use enum_dispatch::enum_dispatch;
-use spk_schema::ident::{PinnedRequest, PinnedValue, PkgRequest, VarRequest};
+use spk_schema::ident::{PinnedValue, PkgRequestWithOptions, RequestWithOptions, VarRequest};
 use spk_schema::{OptionMap, Recipe};
 use spk_solve_solution::Solution;
 use spk_storage::RepositoryHandle;
@@ -34,7 +34,7 @@ pub trait Solver {
     fn get_options(&self) -> Cow<'_, OptionMap>;
 
     /// Return the PkgRequests added to the solver.
-    fn get_pkg_requests(&self) -> Vec<PkgRequest>;
+    fn get_pkg_requests(&self) -> Vec<PkgRequestWithOptions>;
 
     /// Return the VarRequests added to the solver.
     fn get_var_requests(&self) -> Vec<VarRequest<PinnedValue>>;
@@ -47,7 +47,7 @@ pub trait Solver {
 #[enum_dispatch]
 pub trait SolverMut: Solver {
     /// Add a request to this solver.
-    fn add_request(&mut self, request: PinnedRequest);
+    fn add_request(&mut self, request: RequestWithOptions);
 
     /// Adds requests for all build requirements of the given recipe.
     fn configure_for_build_environment<T: Recipe>(&mut self, recipe: &T) -> Result<()> {
@@ -55,7 +55,7 @@ pub trait SolverMut: Solver {
 
         let build_options = recipe.resolve_options(&*options)?;
         for request in recipe
-            .get_build_requirements(&build_options)?
+            .get_build_requirements_with_options(&build_options)?
             .iter()
             .cloned()
         {
@@ -113,7 +113,7 @@ where
         T::get_options(self)
     }
 
-    fn get_pkg_requests(&self) -> Vec<PkgRequest> {
+    fn get_pkg_requests(&self) -> Vec<PkgRequestWithOptions> {
         T::get_pkg_requests(self)
     }
 
@@ -134,7 +134,7 @@ where
         T::get_options(self)
     }
 
-    fn get_pkg_requests(&self) -> Vec<PkgRequest> {
+    fn get_pkg_requests(&self) -> Vec<PkgRequestWithOptions> {
         T::get_pkg_requests(self)
     }
 
@@ -152,7 +152,7 @@ impl<T> SolverMut for &mut T
 where
     T: SolverMut + Send + Sync,
 {
-    fn add_request(&mut self, request: PinnedRequest) {
+    fn add_request(&mut self, request: RequestWithOptions) {
         T::add_request(self, request)
     }
 

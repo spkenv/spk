@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::ident::PinnableRequest;
 use spk_schema_foundation::name::PkgName;
-use spk_schema_foundation::spec_ops::{HasBuildIdent, Versioned};
+use spk_schema_foundation::spec_ops::HasBuildIdent;
 
 use crate::foundation::option_map::OptionMap;
 use crate::v0::EmbeddedInstallSpec;
@@ -50,7 +50,7 @@ impl EmbeddedRecipeInstallSpec {
     where
         K: Eq + std::hash::Hash,
         K: std::borrow::Borrow<PkgName>,
-        R: HasBuildIdent + Versioned,
+        R: HasBuildIdent,
     {
         Ok(EmbeddedInstallSpec {
             requirements: self

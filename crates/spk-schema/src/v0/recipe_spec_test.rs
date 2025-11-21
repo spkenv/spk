@@ -209,7 +209,7 @@ fn test_strong_inheritance_injection() {
     // Check that the built_package has inherited a build option on "inherit-me"
     // as well as an install requirement.
     assert!(
-        built_package.build.options.iter().any(|opt| match opt {
+        built_package.build().options.iter().any(|opt| match opt {
             Opt::Pkg(_) => false,
             Opt::Var(var) =>
                 var.var == "base.inherit-me" && var.get_value(None) == Some("1.2.3".into()),
@@ -218,7 +218,7 @@ fn test_strong_inheritance_injection() {
     );
     assert!(
         built_package
-            .install
+            .install()
             .requirements
             .iter()
             .any(|request| match request {
@@ -279,7 +279,7 @@ fn test_strong_inheritance_injection_transitivity() {
     // as well as an install requirement, even though "test-pkg" does not depend
     // on "base".
     assert!(
-        built_package.build.options.iter().any(|opt| match opt {
+        built_package.build().options.iter().any(|opt| match opt {
             Opt::Pkg(_) => false,
             Opt::Var(var) =>
                 var.var == "base.inherit-me" && var.get_value(None) == Some("1.2.3".into()),
@@ -288,7 +288,7 @@ fn test_strong_inheritance_injection_transitivity() {
     );
     assert!(
         built_package
-            .install
+            .install()
             .requirements
             .iter()
             .any(|request| match request {
@@ -403,7 +403,7 @@ fn test_variants_can_append_components() {
     let comp2 = Component::Named("comp2".to_owned());
 
     let mut found = false;
-    for option in built_package.build.options.iter() {
+    for option in built_package.build().options.iter() {
         match option {
             Opt::Pkg(PkgOpt {
                 pkg,
@@ -488,7 +488,7 @@ fn test_variants_can_append_components_and_modify_version() {
     let comp2 = Component::Named("comp2".to_owned());
 
     let mut found = false;
-    for option in built_package.build.options.iter() {
+    for option in built_package.build().options.iter() {
         match option {
             Opt::Pkg(PkgOpt {
                 pkg,

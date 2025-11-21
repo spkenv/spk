@@ -986,7 +986,7 @@ impl PkgRequest {
         }
     }
 
-    ///Return true if the given version number is applicable to this request.
+    /// Return true if the given version number is applicable to this request.
     ///
     /// This is used a cheap preliminary way to prune package
     /// versions that are not going to satisfy the request without

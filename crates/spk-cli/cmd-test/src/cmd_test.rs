@@ -13,8 +13,9 @@ use spk_cli_common::{CommandArgs, Run, flags};
 use spk_schema::foundation::format::FormatOptionMap;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::option_map::{HOST_OPTIONS, OptionMap};
+use spk_schema::ident::RequestWithOptions;
 use spk_schema::prelude::*;
-use spk_schema::{PinnedRequest, Recipe, TestStage};
+use spk_schema::{Recipe, TestStage};
 
 use crate::test::{PackageBuildTester, PackageInstallTester, PackageSourceTester, Tester};
 
@@ -81,11 +82,11 @@ impl Run for CmdTest {
 
         // This includes any host options added by command line flag,
         // or not if --nohost was used.
-        let options_reqs: Vec<PinnedRequest> = self
+        let options_reqs: Vec<RequestWithOptions> = self
             .options
             .get_var_requests()?
             .into_iter()
-            .map(PinnedRequest::Var)
+            .map(RequestWithOptions::Var)
             .collect();
 
         for package in &self.packages {
@@ -178,7 +179,11 @@ impl Run for CmdTest {
                                 tester
                                     .with_options(variant.options().into_owned())
                                     .with_repositories(repos.iter().cloned())
-                                    .with_requirements(test.additional_requirements())
+                                    .with_requirements(
+                                        test.additional_requirements_with_options(
+                                            &variant.options(),
+                                        ),
+                                    )
                                     .with_source(source.clone())
                                     .watch_environment_formatter(src_formatter);
 
@@ -199,10 +204,12 @@ impl Run for CmdTest {
                                     .with_repositories(repos.iter().cloned())
                                     .with_requirements(
                                         variant
-                                            .additional_requirements()
+                                            .additional_requirements_with_options()
                                             .iter()
                                             .cloned()
-                                            .chain(test.additional_requirements()),
+                                            .chain(test.additional_requirements_with_options(
+                                                &variant.options(),
+                                            )),
                                     )
                                     .with_source(
                                         source.clone().map(BuildSource::LocalPath).unwrap_or_else(
@@ -235,7 +242,11 @@ impl Run for CmdTest {
                                 tester
                                     .with_options(variant.options().into_owned())
                                     .with_repositories(repos.iter().cloned())
-                                    .with_requirements(test.additional_requirements())
+                                    .with_requirements(
+                                        test.additional_requirements_with_options(
+                                            &variant.options(),
+                                        ),
+                                    )
                                     .with_requirements(options_reqs.clone())
                                     .with_source(source.clone())
                                     .watch_environment_formatter(install_formatter);

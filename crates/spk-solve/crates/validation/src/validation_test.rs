@@ -7,7 +7,7 @@ use std::sync::Arc;
 use rstest::rstest;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::{build_ident, opt_name, version_ident};
-use spk_schema::ident::{PinnedRequest, PkgRequest, RequestedBy};
+use spk_schema::ident::{PinnedRequest, PkgRequestWithOptions, RequestedBy};
 use spk_schema::{FromYaml, spec};
 use spk_solve_graph::State;
 use spk_solve_macros::recipe;
@@ -35,15 +35,15 @@ fn test_src_package_install_requests_are_not_considered() {
 
     let state = State::new(
         vec![
-            PkgRequest::from_ident(
+            PkgRequestWithOptions::from_ident(
                 build_ident!("my-pkg/1.0.0/src").to_any_ident(),
                 RequestedBy::SpkInternalTest,
             ),
-            PkgRequest::from_ident(
+            PkgRequestWithOptions::from_ident(
                 version_ident!("embedded/1.0.0").to_any_ident(None),
                 RequestedBy::SpkInternalTest,
             ),
-            PkgRequest::from_ident(
+            PkgRequestWithOptions::from_ident(
                 version_ident!("dependency/1").to_any_ident(None),
                 RequestedBy::SpkInternalTest,
             ),

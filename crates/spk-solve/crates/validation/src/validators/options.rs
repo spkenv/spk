@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use spk_schema::ident::PinnedValue;
+use spk_schema::ident::{AsVersionIdent, PinnedValue};
 use spk_schema::version::IncompatibleReason;
 
 use super::prelude::*;
@@ -22,7 +22,8 @@ impl ValidatorT for OptionsValidator {
         _source: &PackageSource,
     ) -> crate::Result<Compatibility>
     where
-        P: Package + Satisfy<VarRequest<PinnedValue>>,
+        P: Satisfy<PkgRequestWithOptions> + Satisfy<VarRequest<PinnedValue>> + Package,
+        <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequestWithOptions>,
     {
         let requests = state.get_var_requests();
         let qualified_requests: HashSet<_> = requests
