@@ -5,10 +5,21 @@
 use std::sync::Arc;
 
 use resolvo::utils::VersionSet;
-use spk_schema::Request;
-use spk_schema::ident::{LocatedBuildIdent, PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
+use spk_schema::ident::{
+    LocatedBuildIdent,
+    PkgRequest,
+    PkgRequestOptionValue,
+    PkgRequestOptions,
+    PkgRequestWithOptions,
+    PreReleasePolicy,
+    RangeIdent,
+    RequestWithOptions,
+    RequestedBy,
+};
 use spk_schema::ident_component::Component;
 use spk_schema::name::OptNameBuf;
+use spk_schema::prelude::Named;
+use spk_schema::{Opt, Package, Spec};
 
 /// This allows for storing strings of different types but hash and compare by
 /// the underlying strings.
@@ -74,7 +85,7 @@ impl std::fmt::Display for VarValue {
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) enum RequestVS {
-    SpkRequest(Request),
+    SpkRequest(RequestWithOptions),
     GlobalVar { key: OptNameBuf, value: VarValue },
 }
 
@@ -132,10 +143,19 @@ impl PartialEq for LocatedBuildIdentWithComponent {
 impl LocatedBuildIdentWithComponent {
     /// Create a request that will match this ident but with a different
     /// component name.
+    ///
+    /// The request created will not specify any options.
     pub(crate) fn as_request_with_components(
         &self,
+        pkg: &Spec,
         components: impl IntoIterator<Item = Component>,
-    ) -> Request {
+    ) -> RequestWithOptions {
+        debug_assert_eq!(
+            self.ident.target(),
+            pkg.ident(),
+            "this method is intended to be provided the same package as the ident in self"
+        );
+
         let mut range_ident = RangeIdent::double_equals(&self.ident.to_any_ident(), components);
         range_ident.repository_name = Some(self.ident.repository_name().to_owned());
 
@@ -148,7 +168,27 @@ impl LocatedBuildIdentWithComponent {
         // needs to allow it.
         pkg_request.prerelease_policy = Some(PreReleasePolicy::IncludeAll);
 
-        Request::Pkg(pkg_request)
+        // An intra-package request should satisfy any required options.
+        let mut propagated_required_vars = PkgRequestOptions::default();
+        for build_option in pkg.get_build_options() {
+            let Opt::Var(var_opt) = build_option else {
+                continue;
+            };
+            if !var_opt.required {
+                continue;
+            }
+            let Some(value) = var_opt.get_value(None) else {
+                continue;
+            };
+            propagated_required_vars.insert(
+                var_opt.var.with_namespace(pkg.name()),
+                PkgRequestOptionValue::Complete(value),
+            );
+        }
+        RequestWithOptions::Pkg(PkgRequestWithOptions {
+            pkg_request,
+            options: propagated_required_vars,
+        })
     }
 }
 

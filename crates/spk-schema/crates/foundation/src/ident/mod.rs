@@ -10,8 +10,10 @@ mod ident_located;
 mod ident_optversion;
 mod ident_version;
 pub mod parsing;
+mod pkg_request_with_options;
 mod range_ident;
 mod request;
+mod request_with_options;
 mod satisfy;
 
 pub use error::{Error, Result};
@@ -20,6 +22,11 @@ pub use ident_build::{BuildIdent, parse_build_ident};
 pub use ident_located::{LocatedBuildIdent, LocatedVersionIdent};
 pub use ident_optversion::{OptVersionIdent, parse_optversion_ident};
 pub use ident_version::{VersionIdent, parse_version_ident};
+pub use pkg_request_with_options::{
+    PkgRequestOptionValue,
+    PkgRequestOptions,
+    PkgRequestWithOptions,
+};
 pub use range_ident::{RangeIdent, parse_ident_range, parse_ident_range_list};
 pub use request::{
     InclusionPolicy,
@@ -34,6 +41,7 @@ pub use request::{
     VarRequest,
     is_false,
 };
+pub use request_with_options::RequestWithOptions;
 pub use satisfy::Satisfy;
 
 pub mod prelude {

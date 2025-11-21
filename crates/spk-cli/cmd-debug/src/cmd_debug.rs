@@ -50,8 +50,8 @@ impl Run for Debug {
         let mut source_layers = HashMap::new();
 
         'next_request: for solved in env.items() {
-            if let Some(Build::BuildId(_)) = solved.request.pkg.build.as_ref() {
-                let mut source_pkg = solved.request.pkg.clone();
+            if let Some(Build::BuildId(_)) = solved.request.pkg_request.pkg.build.as_ref() {
+                let mut source_pkg = solved.request.pkg_request.pkg.clone();
                 source_pkg.build = Some(Build::Source);
 
                 if !self.packages.is_empty()
@@ -77,7 +77,10 @@ impl Run for Debug {
                     }
 
                     if self.verbose > 0 {
-                        tracing::info!("No source package found for: {}", solved.request.pkg);
+                        tracing::info!(
+                            "No source package found for: {}",
+                            solved.request.pkg_request.pkg
+                        );
                     }
                 }
             };

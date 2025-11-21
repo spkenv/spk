@@ -70,7 +70,7 @@ impl Run for Install {
         let requested: HashSet<_> = solver
             .get_pkg_requests()
             .iter()
-            .map(|r| r.pkg.name.clone())
+            .map(|r| r.pkg_request.pkg.name.clone())
             .collect();
         let mut primary = Vec::new();
         let mut tertiary = Vec::new();
@@ -79,7 +79,7 @@ impl Run for Install {
                 primary.push(solved);
                 continue;
             }
-            if solution.get(&solved.request.pkg.name).is_none() {
+            if solution.get(&solved.request.pkg_request.pkg.name).is_none() {
                 tertiary.push(solved)
             }
         }

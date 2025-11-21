@@ -3,14 +3,21 @@
 // https://github.com/spkenv/spk
 
 use std::borrow::Cow;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::convert::TryInto;
+use std::path::Path;
 use std::str::FromStr;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
-use spk_schema_foundation::ident::{AsVersionIdent, BuildIdent};
+use spk_schema_foundation::ident::{
+    AsVersionIdent,
+    BuildIdent,
+    PkgRequestOptionValue,
+    PkgRequestOptions,
+};
+use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::option_map::{OptFilter, Stringified};
 use spk_schema_foundation::version::{
     BuildIdProblem,
@@ -31,9 +38,10 @@ use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, CompatRule, Compatibility, Version};
 use crate::foundation::version_range::Ranged;
 use crate::ident::{
-    PkgRequest,
+    PkgRequestWithOptions,
     PreReleasePolicy,
     Request,
+    RequestWithOptions,
     RequestedBy,
     Satisfy,
     VarRequest,
@@ -41,8 +49,9 @@ use crate::ident::{
 };
 use crate::metadata::Meta;
 use crate::option::VarOpt;
-use crate::v0::EmbeddedPackageSpec;
+use crate::v0::{EmbeddedPackageSpec, RecipeSpec};
 use crate::{
+    BuildOptions,
     BuildSpec,
     ComponentSpec,
     ComponentSpecList,
@@ -51,6 +60,7 @@ use crate::{
     DeprecateMut,
     EmbeddedPackagesList,
     EnvOp,
+    EnvOpList,
     Inheritance,
     InstallSpec,
     LocalSource,
@@ -80,12 +90,22 @@ pub struct PackageSpec {
     pub deprecated: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sources: Vec<SourceSpec>,
+    // This field is private to update `install_requirements_with_options`
+    // when it is modified.
     #[serde(default, skip_serializing_if = "BuildSpec::is_default")]
-    pub build: BuildSpec,
+    build: BuildSpec,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tests: Vec<TestSpec>,
+    // This field is private to update `install_requirements_with_options`
+    // when it is modified.
     #[serde(default, skip_serializing_if = "IsDefault::is_default")]
-    pub install: InstallSpec,
+    install: InstallSpec,
+    /// Install requirements with options included.
+    ///
+    /// This value is not serialized; it is populated when loading or when build
+    /// or install are modified.
+    #[serde(skip)]
+    install_requirements_with_options: RequirementsList<RequestWithOptions>,
 }
 
 impl PackageSpec {
@@ -100,11 +120,93 @@ impl PackageSpec {
             build: BuildSpec::default(),
             tests: Vec::new(),
             install: InstallSpec::default(),
+            install_requirements_with_options: RequirementsList::default(),
         }
     }
 
-    pub fn build_options(&self) -> Cow<'_, [Opt]> {
-        Cow::Borrowed(self.build.options.as_slice())
+    fn calculate_install_requirements_with_options(
+        build: &BuildSpec,
+        install: &InstallSpec,
+    ) -> RequirementsList<RequestWithOptions> {
+        (build.options.iter(), &install.requirements).into()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn new_from_parts(
+        pkg: BuildIdent,
+        meta: Meta,
+        compat: Compat,
+        deprecated: bool,
+        sources: Vec<SourceSpec>,
+        build: BuildSpec,
+        tests: Vec<TestSpec>,
+        install: InstallSpec,
+    ) -> Self {
+        let install_requirements_with_options =
+            Self::calculate_install_requirements_with_options(&build, &install);
+
+        Self {
+            pkg,
+            meta,
+            compat,
+            deprecated,
+            sources,
+            build,
+            tests,
+            install,
+            install_requirements_with_options,
+        }
+    }
+
+    /// Create a binary package from the given recipe.
+    pub fn new_binary_package_from_recipe(
+        recipe: RecipeSpec,
+        build_id: BuildId,
+        build_env_vars: HashMap<String, String>,
+    ) -> Self {
+        let mut spec = Self::new_from_parts(
+            recipe.pkg.into_build_ident(Build::BuildId(build_id)),
+            recipe.meta,
+            recipe.compat,
+            recipe.deprecated,
+            recipe.sources,
+            recipe.build,
+            recipe.tests,
+            recipe.install.into(),
+        );
+
+        spec.update_install_environment_with_env(build_env_vars);
+
+        spec
+    }
+
+    /// Create a source package from the given recipe.
+    ///
+    /// The paths to the sources will be rooted at the given `root` path.
+    pub fn new_source_package_from_recipe_with_root(recipe: RecipeSpec, root: &Path) -> Self {
+        let mut spec = Self::new_from_parts(
+            recipe.pkg.into_build_ident(Build::Source),
+            recipe.meta,
+            recipe.compat,
+            recipe.deprecated,
+            recipe.sources,
+            recipe.build,
+            recipe.tests,
+            recipe.install.into(),
+        );
+        spec.prune_for_source_build();
+        for source in spec.sources.iter_mut() {
+            if let SourceSpec::Local(source) = source {
+                source.path = root.join(&source.path);
+            }
+        }
+        spec
+    }
+
+    /// Read-only access to the build spec
+    #[inline]
+    pub fn build(&self) -> &BuildSpec {
+        &self.build
     }
 
     /// Remove requirements and other package data that
@@ -114,14 +216,44 @@ impl PackageSpec {
         self.build = Default::default();
         self.tests.clear();
         self.install.components.clear();
-        self.install.components.push(ComponentSpec {
-            name: Component::Source,
-            files: Default::default(),
-            uses: Default::default(),
-            requirements: Default::default(),
-            embedded: Default::default(),
-            file_match_mode: Default::default(),
-        });
+        self.install.components.push(
+            // This originally used FileMatcher::default() but now via this
+            // call it uses FileMatcher::all(). Is there any difference?
+            ComponentSpec::default_source(),
+        );
+    }
+
+    /// Read-only access to the install spec
+    #[inline]
+    pub fn install(&self) -> &InstallSpec {
+        &self.install
+    }
+
+    /// Read-write access to the install spec
+    pub fn install_mut<F, R>(&mut self, f: F) -> R
+    where
+        F: FnOnce(&mut InstallSpec) -> R,
+    {
+        let r = f(&mut self.install);
+        self.install_requirements_with_options =
+            Self::calculate_install_requirements_with_options(&self.build, &self.install);
+        r
+    }
+
+    /// Update install.environment using the provided build environment
+    /// variables.
+    pub fn update_install_environment_with_env(
+        &mut self,
+        mut build_env_vars: HashMap<String, String>,
+    ) {
+        let mut updated_ops = EnvOpList::default();
+        build_env_vars.extend(self.get_build_env());
+        for op in self.install.environment.iter() {
+            updated_ops.push(op.to_expanded(&build_env_vars));
+        }
+        // This modification of self.install does not require updating
+        // install_requirements_with_options
+        self.install.environment = updated_ops;
     }
 }
 
@@ -129,7 +261,14 @@ impl PackageSpec {
     /// Check if this package spec satisfies the given request.
     pub fn satisfies_request(&self, request: Request) -> Compatibility {
         match request {
-            Request::Pkg(request) => Satisfy::check_satisfies_request(self, &request),
+            Request::Pkg(request) => {
+                let pkg_request_with_options = PkgRequestWithOptions {
+                    pkg_request: request,
+                    // A `Request::Pkg` carries no options.
+                    options: PkgRequestOptions::default(),
+                };
+                Satisfy::check_satisfies_request(self, &pkg_request_with_options)
+            }
             Request::Var(request) => Satisfy::check_satisfies_request(self, &request),
         }
     }
@@ -162,6 +301,12 @@ impl PackageSpec {
         RequirementsList::try_from_iter(requests)
             .map(Cow::Owned)
             .expect("build opts do not contain duplicates")
+    }
+}
+
+impl BuildOptions for PackageSpec {
+    fn build_options(&self) -> Cow<'_, [Opt]> {
+        Cow::Borrowed(&self.build.options)
     }
 }
 
@@ -318,6 +463,12 @@ impl Package for PackageSpec {
         Ok(Cow::Owned(requests))
     }
 
+    fn runtime_requirements_with_options(
+        &self,
+    ) -> Cow<'_, crate::RequirementsList<RequestWithOptions>> {
+        Cow::Borrowed(&self.install_requirements_with_options)
+    }
+
     fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
         Cow::Borrowed(&self.install.requirements)
     }
@@ -351,14 +502,19 @@ impl PackageMut for PackageSpec {
     }
 }
 
-/// Shared implementation for Satisfy<PkgRequest> for package-like types.
+/// Shared implementation for Satisfy<PkgRequestWithOptions> for package-like types.
 pub(crate) fn check_package_spec_satisfies_pkg_request<T>(
     spec: &T,
-    pkg_request: &PkgRequest,
+    pkg_request_with_options: &PkgRequestWithOptions,
 ) -> Compatibility
 where
-    T: Components + Deprecate + HasBuild + Named + Versioned,
+    T: BuildOptions + Components + Deprecate + HasBuild + Named + Versioned,
 {
+    let PkgRequestWithOptions {
+        pkg_request,
+        options,
+    } = pkg_request_with_options;
+
     if pkg_request.pkg.name != *spec.name() {
         return Compatibility::Incompatible(IncompatibleReason::PackageNameMismatch(
             PackageNameProblem::PkgRequest {
@@ -423,20 +579,54 @@ where
         return c;
     }
 
-    if pkg_request.pkg.build.is_none() || pkg_request.pkg.build.as_ref() == Some(spec.build()) {
-        return Compatibility::Compatible;
+    if !(pkg_request.pkg.build.is_none() || pkg_request.pkg.build.as_ref() == Some(spec.build())) {
+        return Compatibility::Incompatible(IncompatibleReason::BuildIdMismatch(
+            BuildIdProblem::PkgRequest {
+                self_build: spec.build().clone(),
+                requested: pkg_request.pkg.build.clone(),
+            },
+        ));
     }
 
-    Compatibility::Incompatible(IncompatibleReason::BuildIdMismatch(
-        BuildIdProblem::PkgRequest {
-            self_build: spec.build().clone(),
-            requested: pkg_request.pkg.build.clone(),
-        },
-    ))
+    // Any required options must be included in the request's options.
+    for opt in spec.build_options().iter() {
+        let Opt::Var(opt) = opt else {
+            continue;
+        };
+        if !opt.required {
+            continue;
+        }
+        // XXX: Have to construct this namespaced string at runtime, should
+        // `options` be restructured instead? It could categorize options
+        // by namespace.
+        let namespaced_var = opt.var.with_namespace(spec.name());
+        // All the merged requests must have requested the option for the
+        // request to satisfy the "required" property.
+        let Some(PkgRequestOptionValue::Complete(value)) = options.get(&namespaced_var) else {
+            return Compatibility::Incompatible(IncompatibleReason::VarOptionMismatch(
+                VarOptionProblem::RequiredButMissing {
+                    opt_name: namespaced_var,
+                },
+            ));
+        };
+        if let Some(expected) = opt.get_value(None)
+            && *value != expected
+        {
+            return Compatibility::Incompatible(IncompatibleReason::VarOptionMismatch(
+                VarOptionProblem::IncompatibleBuildOption {
+                    var_request: opt.var.clone(),
+                    exact: expected,
+                    request_value: value.to_string(),
+                },
+            ));
+        }
+    }
+
+    Compatibility::Compatible
 }
 
-impl Satisfy<PkgRequest> for PackageSpec {
-    fn check_satisfies_request(&self, pkg_request: &PkgRequest) -> Compatibility {
+impl Satisfy<PkgRequestWithOptions> for PackageSpec {
+    fn check_satisfies_request(&self, pkg_request: &PkgRequestWithOptions) -> Compatibility {
         check_package_spec_satisfies_pkg_request(self, pkg_request)
     }
 }
@@ -533,14 +723,15 @@ where
 impl From<EmbeddedPackageSpec> for PackageSpec {
     fn from(embed: EmbeddedPackageSpec) -> Self {
         Self {
+            build: embed.build().clone().into(),
+            install: embed.install().clone().into(),
+            install_requirements_with_options: embed.install_requirements_with_options().clone(),
             pkg: embed.pkg,
             meta: embed.meta,
             compat: embed.compat,
             deprecated: embed.deprecated,
             sources: embed.sources,
-            build: embed.build.into(),
             tests: embed.tests,
-            install: embed.install.into(),
         }
     }
 }
@@ -647,15 +838,15 @@ impl<'de> serde::de::Visitor<'de> for SpecVisitor {
             test.add_requester(pkg.as_version_ident());
         }
 
-        Ok(PackageSpec {
-            meta: self.meta.take().unwrap_or_default(),
-            compat: self.compat.take().unwrap_or_default(),
-            deprecated: self.deprecated.take().unwrap_or_default(),
-            sources: self
-                .sources
+        Ok(PackageSpec::new_from_parts(
+            pkg,
+            self.meta.take().unwrap_or_default(),
+            self.compat.take().unwrap_or_default(),
+            self.deprecated.take().unwrap_or_default(),
+            self.sources
                 .take()
                 .unwrap_or_else(|| vec![SourceSpec::Local(LocalSource::default())]),
-            build: match self.build.take() {
+            match self.build.take() {
                 Some(build_spec) if !self.check_build_spec => {
                     // Safety: see the SpecVisitor::package constructor
                     unsafe { build_spec.into_inner() }
@@ -664,8 +855,7 @@ impl<'de> serde::de::Visitor<'de> for SpecVisitor {
                 None => Default::default(),
             },
             tests,
-            install: self.install.take().unwrap_or_default(),
-            pkg,
-        })
+            self.install.take().unwrap_or_default(),
+        ))
     }
 }

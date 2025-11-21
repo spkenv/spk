@@ -118,6 +118,7 @@ fn test_request_default_component() {
         .unwrap();
     assert!(
         request
+            .pkg_request
             .pkg
             .components
             .contains(&Component::default_for_run()),
@@ -133,6 +134,7 @@ fn test_request_default_component() {
         .unwrap();
     assert!(
         request
+            .pkg_request
             .pkg
             .components
             .contains(&Component::default_for_run()),

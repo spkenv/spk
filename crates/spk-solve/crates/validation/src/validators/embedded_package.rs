@@ -20,7 +20,7 @@ impl ValidatorT for EmbeddedPackageValidator {
     ) -> crate::Result<Compatibility>
     where
         P: Package,
-        <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequest>,
+        <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequestWithOptions>,
     {
         // Only the embedded packages that are active based on the components
         // being requested from this spec are checked. There may be
@@ -30,7 +30,7 @@ impl ValidatorT for EmbeddedPackageValidator {
 
         // XXX: Can `request.pkg.components` be empty? What would that mean?
         debug_assert!(
-            !request.pkg.components.is_empty(),
+            !request.pkg_request.pkg.components.is_empty(),
             "empty request.pkg.components not handled"
         );
 
@@ -54,7 +54,7 @@ impl EmbeddedPackageValidator {
     ) -> crate::Result<Compatibility>
     where
         P: Package,
-        E: Named + Satisfy<PkgRequest>,
+        E: Named + Satisfy<PkgRequestWithOptions>,
     {
         use Compatibility::Compatible;
 
@@ -94,16 +94,16 @@ impl EmbeddedPackageValidator {
     /// current state.
     pub(super) fn validate_embedded_packages_in_required_components<P>(
         spec: &P,
-        request: &PkgRequest,
+        request: &PkgRequestWithOptions,
         state: &State,
     ) -> crate::Result<Compatibility>
     where
         P: Package,
-        <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequest>,
+        <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequestWithOptions>,
     {
         let required_components = spec
             .components()
-            .resolve_uses(request.pkg.components.iter());
+            .resolve_uses(request.pkg_request.pkg.components.iter());
 
         for component in spec.components().iter() {
             // If the component is not active, skip it.

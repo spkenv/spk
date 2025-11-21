@@ -31,7 +31,7 @@ fn test_render_all_pins_renders_requirements_in_components() {
         .iter_mut()
         .find(|c| c.name == Component::Run)
         .unwrap()
-        .requirements = requirements;
+        .requirements_mut(|r| *r = requirements);
 
     // Expected value before pinning.
     let Request::Pkg(req) = &install_spec
@@ -39,7 +39,7 @@ fn test_render_all_pins_renders_requirements_in_components() {
         .iter()
         .find(|c| c.name == Component::Run)
         .unwrap()
-        .requirements[0]
+        .requirements()[0]
     else {
         panic!("Expected a Pkg request");
     };
@@ -59,7 +59,7 @@ fn test_render_all_pins_renders_requirements_in_components() {
         .iter()
         .find(|c| c.name == Component::Run)
         .unwrap()
-        .requirements[0]
+        .requirements()[0]
     else {
         panic!("Expected a Pkg request");
     };

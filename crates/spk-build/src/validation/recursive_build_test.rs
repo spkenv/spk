@@ -8,7 +8,7 @@ use rstest::rstest;
 use spfs::tracking::Manifest;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::option_map;
-use spk_schema::ident::PkgRequest;
+use spk_schema::ident::PkgRequestWithOptions;
 use spk_schema::validation::ValidationMatcher;
 use spk_schema::{Package, ValidationRule, spec};
 use spk_solve::{RequestedBy, Solution};
@@ -36,7 +36,10 @@ async fn test_build_with_circular_dependency() {
 
     let mut environment = Solution::default();
     environment.add(
-        PkgRequest::from_ident(old_build.ident().to_any_ident(), RequestedBy::DoesNotMatter),
+        PkgRequestWithOptions::from_ident(
+            old_build.ident().to_any_ident(),
+            RequestedBy::DoesNotMatter,
+        ),
         old_build.clone(),
         spk_solve::PackageSource::SpkInternalTest,
     );

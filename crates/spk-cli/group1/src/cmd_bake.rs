@@ -247,6 +247,7 @@ impl Bake {
             // Work out where the requests for this item came from
             let requested_by = resolved
                 .request
+                .pkg_request
                 .get_requesters()
                 .iter()
                 .map(ToString::to_string)

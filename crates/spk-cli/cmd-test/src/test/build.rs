@@ -12,7 +12,13 @@ use spk_exec::resolve_runtime_layers;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
-use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
+use spk_schema::ident::{
+    PkgRequest,
+    PreReleasePolicy,
+    RangeIdent,
+    RequestWithOptions,
+    RequestedBy,
+};
 use spk_schema::{AnyIdent, Recipe, SpecRecipe};
 use spk_solve::solution::Solution;
 use spk_solve::{DecisionFormatter, SolverExt, SolverMut};
@@ -30,7 +36,7 @@ where
     repos: Vec<Arc<storage::RepositoryHandle>>,
     solver: Solver,
     options: OptionMap,
-    additional_requirements: Vec<Request>,
+    additional_requirements: Vec<RequestWithOptions>,
     source: BuildSource,
     source_formatter: DecisionFormatter,
     build_formatter: DecisionFormatter,
@@ -77,7 +83,10 @@ where
         self
     }
 
-    pub fn with_requirements(&mut self, requests: impl IntoIterator<Item = Request>) -> &mut Self {
+    pub fn with_requirements(
+        &mut self,
+        requests: impl IntoIterator<Item = RequestWithOptions>,
+    ) -> &mut Self {
         self.additional_requirements.extend(requests);
         self
     }

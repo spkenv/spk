@@ -16,8 +16,9 @@ use spk_schema::ident::{
     AsVersionIdent,
     InclusionPolicy,
     PkgRequest,
+    PkgRequestWithOptions,
     RangeIdent,
-    Request,
+    RequestWithOptions,
     RequestedBy,
 };
 use spk_schema::spec_ops::{Versioned, WithVersion};
@@ -270,10 +271,10 @@ impl ImpossibleRequestsChecker {
     pub async fn validate_pkg_requests(
         &self,
         package: &Spec,
-        unresolved_requests: &HashMap<PkgNameBuf, PkgRequest>,
+        unresolved_requests: &HashMap<PkgNameBuf, PkgRequestWithOptions>,
         repos: &[Arc<RepositoryHandle>],
     ) -> Result<Compatibility> {
-        let mut requirements = package.runtime_requirements().into_owned();
+        let mut requirements = package.runtime_requirements_with_options().into_owned();
 
         tracing::debug!(
             target: IMPOSSIBLE_CHECKS_TARGET,
@@ -302,11 +303,29 @@ impl ImpossibleRequestsChecker {
                     // There is an unresolved request for the same
                     // package so the embedded package needs to be
                     // checked as if it was a requirement
-                    let req = Request::Pkg(PkgRequest::from_ident(
-                        embedded_id.to_any_ident(None),
-                        RequestedBy::Embedded(package.ident().clone()),
-                    ));
-                    tracing::debug!(target: IMPOSSIBLE_CHECKS_TARGET, "Embedded Added: {}", req.clone());
+                    let req = RequestWithOptions::Pkg(PkgRequestWithOptions {
+                        options: package
+                            .runtime_requirements_with_options()
+                            .iter()
+                            // XXX: this is wrong, there could be var requests
+                            // for the target package but no pkg requests (test
+                            // this!).
+                            .find_map(|req_with_options| match req_with_options {
+                                RequestWithOptions::Pkg(pkg_req_with_options)
+                                    if pkg_req_with_options.pkg_request.pkg.name()
+                                        == embedded_id.name() =>
+                                {
+                                    Some(pkg_req_with_options.options.clone())
+                                }
+                                _ => None,
+                            })
+                            .unwrap_or_default(),
+                        pkg_request: PkgRequest::from_ident(
+                            embedded_id.to_any_ident(None),
+                            RequestedBy::Embedded(package.ident().clone()),
+                        ),
+                    });
+                    tracing::debug!(target: IMPOSSIBLE_CHECKS_TARGET, "Embedded Added: {req:?}");
                     requirements.insert_or_replace(req);
                 }
             }
@@ -323,7 +342,7 @@ impl ImpossibleRequestsChecker {
             requirements
                 .iter()
                 .filter_map(|r| match r {
-                    Request::Pkg(pr) => Some(format!("{}", pr.pkg)),
+                    RequestWithOptions::Pkg(pr) => Some(format!("{}", pr.pkg_request.pkg)),
                     _ => None,
                 })
                 .collect::<Vec<String>>()
@@ -332,28 +351,28 @@ impl ImpossibleRequestsChecker {
 
         for req in requirements.iter() {
             let request = match req {
-                Request::Var(_) => {
+                RequestWithOptions::Var(_) => {
                     // Any var requests are not part of these checks
                     continue;
                 }
-                Request::Pkg(r) => r,
+                RequestWithOptions::Pkg(r) => r,
             };
             tracing::debug!(
                 target: IMPOSSIBLE_CHECKS_TARGET,
                 "Build {} checking req: {}",
                 package.ident(),
-                request.pkg
+                request.pkg_request.pkg
             );
 
             // Generate the combined request that would be created if
             // this request was added to the unresolved requests.
-            let combined_request = match unresolved_requests.get(&request.pkg.name) {
+            let combined_request = match unresolved_requests.get(&request.pkg_request.pkg.name) {
                 None => request.clone(),
                 Some(unresolved_request) => {
                     tracing::debug!(
                         target: IMPOSSIBLE_CHECKS_TARGET,
                         "Unresolved request: {}",
-                        unresolved_request.pkg
+                        unresolved_request.pkg_request.pkg
                     );
                     let mut combined_request = request.clone();
                     if let Compatibility::Incompatible(incompatible) =
@@ -370,8 +389,8 @@ impl ImpossibleRequestsChecker {
                         return Ok(Compatibility::Incompatible(
                             IncompatibleReason::ImpossibleRequest(
                                 ImpossibleRequestProblem::Restrict {
-                                    pkg: request.pkg.to_string(),
-                                    unresolved_request: unresolved_request.to_string(),
+                                    pkg: request.pkg_request.pkg.to_string(),
+                                    unresolved_request: unresolved_request.pkg_request.to_string(),
                                     inner_reason: Box::new(incompatible),
                                 },
                             ),
@@ -382,49 +401,58 @@ impl ImpossibleRequestsChecker {
             };
             tracing::debug!(
                 target: IMPOSSIBLE_CHECKS_TARGET,
-                "Combined request: {combined_request} [{}]",
-                combined_request.format_request(
+                "Combined request: {} [{}]",
+                combined_request.pkg_request,
+                combined_request.pkg_request.format_request(
                     None,
-                    &combined_request.pkg.name,
+                    &combined_request.pkg_request.pkg.name,
                     &REQUEST_FORMAT_OPTIONS
                 )
             );
 
-            if combined_request.inclusion_policy == InclusionPolicy::IfAlreadyPresent {
+            if combined_request.pkg_request.inclusion_policy == InclusionPolicy::IfAlreadyPresent {
                 // IfAlreadyPresent requests are optional until a
                 // resolved package makes a real/'Always' dependency
                 // request for the package. Until that happens they
                 // are considered always possible.
                 self.num_ifalreadypresent_requests
                     .fetch_add(1, Ordering::Relaxed);
-                tracing::debug!( target: IMPOSSIBLE_CHECKS_TARGET,
-                                "Combined request: {combined_request} has `IfAlreadyPresent` set, so it's possible"
+                tracing::debug!(
+                    target: IMPOSSIBLE_CHECKS_TARGET,
+                    "Combined request: {} has `IfAlreadyPresent` set, so it's possible",
+                    combined_request.pkg_request,
                 );
                 continue;
             }
 
-            if self.impossible_requests.contains_key(&combined_request.pkg) {
+            if self
+                .impossible_requests
+                .contains_key(&combined_request.pkg_request.pkg)
+            {
                 tracing::debug!(
                     target: IMPOSSIBLE_CHECKS_TARGET,
                     "Matches cached Impossible request: denying {}",
-                    combined_request.pkg
+                    combined_request.pkg_request.pkg
                 );
-                self.cache_and_count_impossible_request(combined_request.pkg.clone());
+                self.cache_and_count_impossible_request(combined_request.pkg_request.pkg.clone());
                 return Ok(Compatibility::Incompatible(
                     IncompatibleReason::ImpossibleRequest(ImpossibleRequestProblem::Cached {
-                        pkg: request.pkg.to_string(),
-                        combined_request: combined_request.pkg.to_string(),
+                        pkg: request.pkg_request.pkg.to_string(),
+                        combined_request: combined_request.pkg_request.pkg.to_string(),
                     }),
                 ));
             }
 
-            if self.possible_requests.contains_key(&combined_request.pkg) {
+            if self
+                .possible_requests
+                .contains_key(&combined_request.pkg_request.pkg)
+            {
                 tracing::debug!(
                     target: IMPOSSIBLE_CHECKS_TARGET,
                     "Matches cached Possible request: allowing {}",
-                    combined_request.pkg
+                    combined_request.pkg_request.pkg
                 );
-                self.cache_and_count_possible_request(combined_request.pkg.clone());
+                self.cache_and_count_possible_request(combined_request.pkg_request.pkg.clone());
                 continue;
             }
 
@@ -444,20 +472,20 @@ impl ImpossibleRequestsChecker {
                 tracing::debug!(
                     target: IMPOSSIBLE_CHECKS_TARGET,
                     "Found Possible request, allowing and caching for next time: {}\n",
-                    combined_request.pkg
+                    combined_request.pkg_request.pkg
                 );
-                self.cache_and_count_possible_request(combined_request.pkg.clone());
+                self.cache_and_count_possible_request(combined_request.pkg_request.pkg.clone());
             } else {
                 tracing::debug!(
                     target: IMPOSSIBLE_CHECKS_TARGET,
                     "Found Impossible request, denying and caching for next time: {}\n",
-                    combined_request.pkg
+                    combined_request.pkg_request.pkg
                 );
-                self.cache_and_count_impossible_request(combined_request.pkg.clone());
+                self.cache_and_count_impossible_request(combined_request.pkg_request.pkg.clone());
                 return Ok(Compatibility::Incompatible(
                     IncompatibleReason::ImpossibleRequest(ImpossibleRequestProblem::Cached {
-                        pkg: request.pkg.to_string(),
-                        combined_request: combined_request.pkg.to_string(),
+                        pkg: request.pkg_request.pkg.to_string(),
+                        combined_request: combined_request.pkg_request.pkg.to_string(),
                     }),
                 ));
             }
@@ -470,10 +498,10 @@ impl ImpossibleRequestsChecker {
     /// for the given request, otherwise return false
     async fn any_build_valid_for_request(
         &self,
-        combined_request: &PkgRequest,
+        combined_request: &PkgRequestWithOptions,
         repos: &[Arc<RepositoryHandle>],
     ) -> Result<bool> {
-        let package = AnyIdent::from(combined_request.pkg.name.clone());
+        let package = AnyIdent::from(combined_request.pkg_request.pkg.name.clone());
 
         // Set up a channel for communication between this and the all
         // the spawned tasks. This will allow the processing to
@@ -551,7 +579,7 @@ impl ImpossibleRequestsChecker {
                         tracing::debug!(
                             target: IMPOSSIBLE_CHECKS_TARGET,
                             "Found a valid build {build} for the combined request: {}",
-                            combined_request.pkg
+                            combined_request.pkg_request.pkg
                         );
                         tracing::debug!(
                             target: IMPOSSIBLE_CHECKS_TARGET,
@@ -632,26 +660,26 @@ async fn get_mock_build_components(
 /// A wrapper for the combined package request, for using the package
 /// request supporting validators.
 struct PotentialPackageRequest<'a> {
-    package_request: &'a PkgRequest,
+    package_request: &'a PkgRequestWithOptions,
 }
 
 impl<'a> PotentialPackageRequest<'a> {
-    pub fn new(package_request: &'a PkgRequest) -> Self {
+    pub fn new(package_request: &'a PkgRequestWithOptions) -> Self {
         PotentialPackageRequest { package_request }
     }
 }
 
 impl GetMergedRequest for PotentialPackageRequest<'_> {
-    fn get_merged_request(&self, name: &PkgName) -> GetMergedRequestResult<PkgRequest> {
+    fn get_merged_request(&self, name: &PkgName) -> GetMergedRequestResult<PkgRequestWithOptions> {
         // This should only be used to validate the package named in
         // the combined package request that it was created with. No
         // other package requests are present.
-        if self.package_request.pkg.name() == name {
+        if self.package_request.pkg_request.pkg.name() == name {
             Ok(self.package_request.clone())
         } else {
             Err(GetMergedRequestError::NoRequestFor(format!(
                 "No requests for '{name}' [INTERNAL ERROR - impossible check validation only looking at a request for: {}]",
-                self.package_request.pkg.name()
+                self.package_request.pkg_request.pkg.name()
             )))
         }
     }
@@ -660,9 +688,9 @@ impl GetMergedRequest for PotentialPackageRequest<'_> {
 /// Return Compatible if the given spec is valid for the pkg request,
 /// otherwise return the Incompatible reason from the first validation
 /// check that failed.
-fn validate_against_pkg_request(
+fn validate_against_pkg_request_with_options(
     validators: &Arc<std::sync::Mutex<Vec<Validators>>>,
-    combined_request: &PkgRequest,
+    combined_request: &PkgRequestWithOptions,
     spec: &Spec,
     source: &PackageSource,
 ) -> Result<Compatibility> {
@@ -682,7 +710,7 @@ fn validate_against_pkg_request(
 async fn make_task_per_version(
     repos: Vec<Arc<RepositoryHandle>>,
     package: AnyIdent,
-    request: PkgRequest,
+    request: PkgRequestWithOptions,
     validators: Arc<std::sync::Mutex<Vec<Validators>>>,
     channel: Sender<Comms>,
 ) -> Result<()> {
@@ -765,7 +793,7 @@ async fn any_valid_build_in_version(
     repo: Arc<RepositoryHandle>,
     pkg_version: AnyIdent,
     validators: Arc<std::sync::Mutex<Vec<Validators>>>,
-    request: PkgRequest,
+    request: PkgRequestWithOptions,
     channel: Sender<Comms>,
 ) -> Result<Compatibility> {
     // Note: because the builds aren't sorted, the order
@@ -805,7 +833,7 @@ async fn any_valid_build_in_version(
             "Read components for: {build} and validation",
         );
 
-        let compat = match validate_against_pkg_request(
+        let compat = match validate_against_pkg_request_with_options(
             &validators,
             &request,
             &spec,
@@ -853,7 +881,7 @@ async fn any_valid_build_in_version(
     // This is only reached if none of the builds were compatible
     let nothing_valid = Compatibility::Incompatible(IncompatibleReason::NoCompatibleBuilds {
         pkg_version: pkg_version.to_string(),
-        request: request.to_string(),
+        request: request.pkg_request.to_string(),
     });
     send_version_task_done_message(
         channel,

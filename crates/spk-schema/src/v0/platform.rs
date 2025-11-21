@@ -10,7 +10,10 @@ use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::{
     InclusionPolicy,
     PkgRequest,
+    PkgRequestOptions,
+    PkgRequestWithOptions,
     Request,
+    RequestWithOptions,
     RequestedBy,
     VersionIdent,
 };
@@ -223,6 +226,34 @@ impl Recipe for Platform {
         Ok(Cow::Owned(requirements))
     }
 
+    fn get_build_requirements_with_options<V>(
+        &self,
+        variant: &V,
+    ) -> Result<Cow<'_, RequirementsList<RequestWithOptions>>>
+    where
+        V: Variant,
+    {
+        let mut requirements = RequirementsList::<RequestWithOptions>::default();
+
+        if let Some(base) = self.base.as_ref() {
+            let build_digest = self.build_digest(variant)?;
+
+            requirements.insert_or_merge_with_options(RequestWithOptions::Pkg(
+                PkgRequestWithOptions {
+                    pkg_request: PkgRequest::from_ident(
+                        base.clone().into_any_ident(None),
+                        RequestedBy::BinaryBuild(
+                            self.ident().to_build_ident(Build::BuildId(build_digest)),
+                        ),
+                    ),
+                    options: PkgRequestOptions::default(),
+                },
+            ))?;
+        }
+
+        Ok(Cow::Owned(requirements))
+    }
+
     fn get_tests<V>(&self, _stage: TestStage, _variant: &V) -> Result<Vec<Self::Test>>
     where
         V: Variant,
@@ -282,6 +313,7 @@ impl Recipe for Platform {
                         base.name()
                     ))
                 })?;
+
             for requirement in base.runtime_requirements().iter() {
                 spec.install
                     .requirements

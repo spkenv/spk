@@ -32,12 +32,22 @@ use spk_schema::ident::{
     PkgRequest,
     RangeIdent,
     Request,
+    RequestWithOptions,
     RequestedBy,
     VarRequest,
     parse_ident,
 };
+use spk_schema::name::OptNameBuf;
 use spk_schema::option_map::HOST_OPTIONS;
-use spk_schema::{Recipe, SpecFileData, SpecRecipe, Template, TestStage, VariantExt};
+use spk_schema::{
+    Recipe,
+    SpecFileData,
+    SpecRecipe,
+    Template,
+    TestStage,
+    VariantExt,
+    convert_requests_to_requests_with_options,
+};
 #[cfg(unix)]
 #[cfg(feature = "statsd")]
 use spk_solve::{SPK_RUN_TIME_METRIC, get_metrics_client};
@@ -457,7 +467,7 @@ impl Requests {
         request: R,
         options: &Options,
         repos: &[Arc<storage::RepositoryHandle>],
-    ) -> Result<(Request, OptionMap)> {
+    ) -> Result<(RequestWithOptions, OptionMap)> {
         let (mut requests, extra_options) = self
             .parse_requests([request.as_ref()], options, repos)
             .await?;
@@ -474,7 +484,7 @@ impl Requests {
         requests: I,
         options: &Options,
         repos: &[Arc<storage::RepositoryHandle>],
-    ) -> Result<(Vec<Request>, OptionMap)>
+    ) -> Result<(Vec<RequestWithOptions>, OptionMap)>
     where
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
@@ -542,7 +552,12 @@ impl Requests {
             )
             .into())
         } else {
-            Ok((out, extra_options))
+            let out_with_options = convert_requests_to_requests_with_options(
+                std::iter::empty::<(OptNameBuf, String)>(),
+                || out.iter(),
+            )
+            .collect();
+            Ok((out_with_options, extra_options))
         }
     }
 

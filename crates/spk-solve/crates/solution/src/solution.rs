@@ -19,7 +19,7 @@ use spk_schema::foundation::format::{
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::VERSION_SEP;
-use spk_schema::ident::{InitialRawRequest, PkgRequest, RequestedBy};
+use spk_schema::ident::{InitialRawRequest, PkgRequest, PkgRequestWithOptions, RequestedBy};
 use spk_schema::name::{PkgNameBuf, RepositoryNameBuf};
 use spk_schema::prelude::*;
 use spk_schema::version::Version;
@@ -124,7 +124,7 @@ impl PartialOrd for PackageSource {
 /// Represents a package request that has been resolved.
 #[derive(Clone)]
 pub struct SolvedRequest {
-    pub request: PkgRequest,
+    pub request: PkgRequestWithOptions,
     pub spec: Arc<Spec>,
     pub source: PackageSource,
 }
@@ -136,7 +136,8 @@ impl SolvedRequest {
 
     /// The expanded list of components selected for this resolved item
     pub fn selected_components(&self) -> BTreeSet<&Component> {
-        let mut installed_components: BTreeSet<_> = self.request.pkg.components.iter().collect();
+        let mut installed_components: BTreeSet<_> =
+            self.request.pkg_request.pkg.components.iter().collect();
         if installed_components.is_empty() || installed_components.remove(&Component::All) {
             if let PackageSource::Repository { components, .. } = &self.source {
                 installed_components.extend(components.keys());
@@ -177,6 +178,7 @@ impl SolvedRequest {
     pub(crate) fn format_package_requesters(&self) -> String {
         let requested_by: Vec<String> = self
             .request
+            .pkg_request
             .get_requesters()
             .iter()
             .map(ToString::to_string)
@@ -208,7 +210,7 @@ impl SolvedRequest {
                 // Packages that need building do not have layers yet.
                 return Err(Error::String(format!(
                     "Cannot bake, solution requires packages that need building - Request for: {}, Resolved to: {}",
-                    self.request.pkg,
+                    self.request.pkg_request.pkg,
                     self.spec.ident()
                 )));
             }
@@ -216,7 +218,7 @@ impl SolvedRequest {
                 repo: _,
                 components,
             } => {
-                let mut requested_components = self.request.pkg.components.clone();
+                let mut requested_components = self.request.pkg_request.pkg.components.clone();
                 if requested_components.remove(&Component::All) {
                     components.clone()
                 } else {
@@ -268,7 +270,7 @@ impl SolvedRequest {
 impl std::fmt::Debug for SolvedRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SolvedRequest")
-            .field("request", &self.request.to_string())
+            .field("request", &self.request.pkg_request.to_string())
             .field("spec", &format!("{}", self.spec.ident()))
             .field(
                 "source",
@@ -340,7 +342,7 @@ impl Solution {
     pub fn get<S: AsRef<str>>(&self, name: S) -> Option<&SolvedRequest> {
         self.resolved
             .iter()
-            .find(|r| r.request.pkg.name.as_str() == name.as_ref())
+            .find(|r| r.request.pkg_request.pkg.name.as_str() == name.as_ref())
     }
 
     pub fn options(&self) -> &OptionMap {
@@ -360,7 +362,7 @@ impl Solution {
     }
 
     /// Add a resolved request to this solution
-    pub fn add(&mut self, request: PkgRequest, spec: Arc<Spec>, source: PackageSource) {
+    pub fn add(&mut self, request: PkgRequestWithOptions, spec: Arc<Spec>, source: PackageSource) {
         let existing = self.resolved.iter_mut().find(|r| r.request == request);
         let new = SolvedRequest {
             request,
@@ -411,7 +413,7 @@ impl Solution {
         let initial_requests: Vec<_> = self
             .items()
             .filter_map(|i| {
-                for r in i.request.get_requesters() {
+                for r in i.request.pkg_request.get_requesters() {
                     if let RequestedBy::CommandLineRequest(InitialRawRequest(req)) = r {
                         // There may have been multiple command line
                         // requests for this solved item. This only
@@ -477,7 +479,11 @@ impl Solution {
     ) -> Result<HashMap<PkgNameBuf, Arc<Version>>> {
         let mut highest_versions: HashMap<PkgNameBuf, Arc<Version>> = HashMap::new();
 
-        for name in self.resolved.iter().map(|r| r.request.pkg.name.clone()) {
+        for name in self
+            .resolved
+            .iter()
+            .map(|r| r.request.pkg_request.pkg.name.clone())
+        {
             let max_version = find_highest_package_version(name.clone(), repos).await?;
             highest_versions.insert(name.clone(), max_version);
         }
@@ -736,7 +742,7 @@ impl Solution {
                 (
                     sr.spec.ident().clone(),
                     PackageSolveData {
-                        requested_by: sr.request.get_requesters(),
+                        requested_by: sr.request.pkg_request.get_requesters(),
                         source_repo_name,
                     },
                 )

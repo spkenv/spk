@@ -13,7 +13,12 @@ use enum_dispatch::enum_dispatch;
 use format_serde_error::SerdeError;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::SerdeYamlError;
-use spk_schema_foundation::ident::{BuildIdent, VersionIdent};
+use spk_schema_foundation::ident::{
+    BuildIdent,
+    PkgRequestWithOptions,
+    RequestWithOptions,
+    VersionIdent,
+};
 use spk_schema_foundation::ident_build::{Build, BuildId};
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::option_map::OptFilter;
@@ -22,7 +27,7 @@ use crate::foundation::name::{PkgName, PkgNameBuf};
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
-use crate::ident::{PkgRequest, Request, Satisfy, VarRequest};
+use crate::ident::{Request, Satisfy, VarRequest};
 use crate::metadata::Meta;
 use crate::{
     BuildEnv,
@@ -357,6 +362,16 @@ impl Recipe for SpecRecipe {
         each_variant!(self, r, r.get_build_requirements(variant))
     }
 
+    fn get_build_requirements_with_options<V>(
+        &self,
+        variant: &V,
+    ) -> Result<Cow<'_, RequirementsList<RequestWithOptions>>>
+    where
+        V: Variant,
+    {
+        each_variant!(self, r, r.get_build_requirements_with_options(variant))
+    }
+
     fn get_tests<V>(&self, stage: TestStage, variant: &V) -> Result<Vec<Self::Test>>
     where
         V: Variant,
@@ -575,6 +590,14 @@ impl super::Variant for SpecVariant {
             Self::V0(v) => v.additional_requirements(),
         }
     }
+
+    fn additional_requirements_with_options(
+        &self,
+    ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
+        match self {
+            Self::V0(v) => v.additional_requirements_with_options(),
+        }
+    }
 }
 
 impl std::fmt::Display for SpecVariant {
@@ -601,6 +624,12 @@ impl Test for SpecTest {
             Self::V0(t) => t.additional_requirements(),
         }
     }
+
+    fn additional_requirements_with_options(&self, options: &OptionMap) -> Vec<RequestWithOptions> {
+        match self {
+            Self::V0(t) => t.additional_requirements_with_options(options),
+        }
+    }
 }
 
 /// Specifies some data object within the spk ecosystem.
@@ -623,8 +652,8 @@ impl Components for Spec {
     }
 }
 
-impl Satisfy<PkgRequest> for Spec {
-    fn check_satisfies_request(&self, request: &PkgRequest) -> Compatibility {
+impl Satisfy<PkgRequestWithOptions> for Spec {
+    fn check_satisfies_request(&self, request: &PkgRequestWithOptions) -> Compatibility {
         match self {
             Spec::V0Package(r) => r.check_satisfies_request(request),
         }
@@ -739,6 +768,14 @@ impl Package for Spec {
     fn runtime_requirements(&self) -> Cow<'_, crate::RequirementsList> {
         match self {
             Spec::V0Package(spec) => spec.runtime_requirements(),
+        }
+    }
+
+    fn runtime_requirements_with_options(
+        &self,
+    ) -> Cow<'_, crate::RequirementsList<RequestWithOptions>> {
+        match self {
+            Spec::V0Package(spec) => spec.runtime_requirements_with_options(),
         }
     }
 

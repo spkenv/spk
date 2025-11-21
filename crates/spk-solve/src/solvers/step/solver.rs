@@ -17,7 +17,15 @@ use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Compatibility;
-use spk_schema::ident::{AsVersionIdent, PkgRequest, Request, RequestedBy, Satisfy, VarRequest};
+use spk_schema::ident::{
+    AsVersionIdent,
+    PkgRequest,
+    PkgRequestWithOptions,
+    RequestWithOptions,
+    RequestedBy,
+    Satisfy,
+    VarRequest,
+};
 use spk_schema::ident_build::EmbeddedSource;
 use spk_schema::prelude::Named;
 use spk_schema::version::{ComponentsMissingProblem, IncompatibleReason, IsSameReasonAs};
@@ -341,10 +349,10 @@ impl Solver {
 
         let mut opts = state.get_option_map().clone();
         for pkg_request in state.get_pkg_requests() {
-            if !opts.contains_key(pkg_request.pkg.name.as_opt_name()) {
+            if !opts.contains_key(pkg_request.pkg_request.pkg.name.as_opt_name()) {
                 opts.insert(
-                    pkg_request.pkg.name.as_opt_name().to_owned(),
-                    pkg_request.pkg.version.to_string(),
+                    pkg_request.pkg_request.pkg.name.as_opt_name().to_owned(),
+                    pkg_request.pkg_request.pkg.version.to_string(),
                 );
             }
         }
@@ -385,7 +393,7 @@ impl Solver {
     /// requests and the reasons they are impossible.
     async fn check_builds_for_impossible_requests(
         &self,
-        unresolved: &HashMap<PkgNameBuf, PkgRequest>,
+        unresolved: &HashMap<PkgNameBuf, PkgRequestWithOptions>,
         builds: Arc<tokio::sync::Mutex<dyn BuildIterator + Send>>,
     ) -> Result<HashMap<BuildIdent, Compatibility>> {
         let mut builds_with_impossible_requests: HashMap<BuildIdent, Compatibility> =
@@ -450,7 +458,7 @@ impl Solver {
     async fn check_requirements_for_impossible_requests(
         &self,
         spec: &Spec,
-        unresolved: &HashMap<PkgNameBuf, PkgRequest>,
+        unresolved: &HashMap<PkgNameBuf, PkgRequestWithOptions>,
     ) -> Result<Compatibility> {
         self.request_validator
             .validate_pkg_requests(spec, unresolved, &self.repos)
@@ -515,7 +523,7 @@ impl Solver {
         // This is a step forward in the solve
         self.number_of_steps += 1;
 
-        let iterator = self.get_iterator(node, &request.pkg.name).await;
+        let iterator = self.get_iterator(node, &request.pkg_request.pkg.name).await;
         let mut iterator_lock = iterator.lock().await;
         loop {
             let (pkg, builds) = match iterator_lock.next().await {
@@ -528,7 +536,7 @@ impl Solver {
                     // capture the request for the package that turned
                     // out to be missing.
                     return Err(spk_solve_graph::Error::PackageNotFoundDuringSolve(Box::new(
-                        request.clone(),
+                        request.pkg_request.clone(),
                     ))
                     .into());
                 }
@@ -605,8 +613,8 @@ impl Solver {
                 // Try all the hash map values to check all repos.
                 for (spec, source) in hm.values() {
                     let spec = Arc::clone(spec);
-                    let build_from_source =
-                        spec.ident().is_source() && request.pkg.build != Some(Build::Source);
+                    let build_from_source = spec.ident().is_source()
+                        && request.pkg_request.pkg.build != Some(Build::Source);
 
                     let mut decision = if !build_from_source {
                         match self.validate_package(&node.state, &spec, source)? {
@@ -640,7 +648,7 @@ impl Solver {
                                 // This build has passed all the checks and
                                 // can be used to resolve the current request
                                 Decision::builder(&node.state)
-                                    .with_components(&request.pkg.components)
+                                    .with_components(&request.pkg_request.pkg.components)
                                     .resolve_package(&spec, source.clone())
                             }
                             Compatibility::Incompatible(
@@ -801,18 +809,31 @@ impl Solver {
                                                     RequestedBy::PackageBuild(spec.ident().clone()),
                                                 );
 
-                                                let existing_requested_components = node
+                                                let existing_request = node
                                                     .state
                                                     .get_merged_request(parent_spec.ident().name())
-                                                    .map(|r| r.pkg.components)
-                                                    .unwrap_or_default();
+                                                    .map_err(|err| {
+                                                        Error::String(
+                                                            format!(
+                                                            "could not find existing request for {} to reconsider with additional components: {err}",
+                                                            parent_spec.ident().name()
+                                                            )
+                                                        )
+                                                    })?;
+
+                                                let existing_requested_components =
+                                                    existing_request.pkg_request.pkg.components;
 
                                                 pkg_request.pkg.components =
                                                     existing_requested_components
                                                         .union(&components_to_request)
                                                         .cloned()
                                                         .collect();
-                                                pkg_request
+
+                                                PkgRequestWithOptions {
+                                                    pkg_request,
+                                                    options: existing_request.options.clone(),
+                                                }
                                             },
                                             spec.ident().name(),
                                             Arc::clone(&self.number_of_steps_back),
@@ -902,7 +923,7 @@ impl Solver {
                         }
 
                         match Decision::builder(&node.state)
-                            .with_components(&request.pkg.components)
+                            .with_components(&request.pkg_request.pkg.components)
                             .build_package(&recipe, &new_spec)
                         {
                             Ok(decision) => decision,
@@ -926,7 +947,7 @@ impl Solver {
         }
 
         Err(error::Error::OutOfOptions(Box::new(error::OutOfOptions {
-            request,
+            request: request.pkg_request,
             notes,
         })))
     }
@@ -948,8 +969,8 @@ impl Solver {
         source: &PackageSource,
     ) -> Result<Compatibility>
     where
-        P: Package + Satisfy<PkgRequest> + Satisfy<VarRequest>,
-        <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequest>,
+        P: Package + Satisfy<PkgRequestWithOptions> + Satisfy<VarRequest>,
+        <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequestWithOptions>,
     {
         for validator in self.validators.as_ref() {
             let compat = validator.validate_package(state, spec, source)?;
@@ -984,7 +1005,8 @@ impl Solver {
             let recipe = try_recipe!({"pkg": format!("initialrequest/{}", count + 1),
                                       "install": {
                                           "requirements": [
-                                              req,
+                                              // TODO: include options here
+                                              req.pkg_request,
                                           ]
                                       }
             })
@@ -1005,7 +1027,7 @@ impl Solver {
             // multiple times in the initial requests.
             let task_checker = self.request_validator.clone();
             let task_repos = self.repos.clone();
-            let task_req = req.pkg.clone();
+            let task_req = req.pkg_request.pkg.clone();
             let task = async move {
                 let result = task_checker
                     .validate_pkg_requests(&dummy_spec, initial_requests, &task_repos)
@@ -1130,7 +1152,7 @@ impl SolverTrait for Solver {
         Cow::Owned(self.get_initial_state().get_option_map().clone())
     }
 
-    fn get_pkg_requests(&self) -> Vec<PkgRequest> {
+    fn get_pkg_requests(&self) -> Vec<PkgRequestWithOptions> {
         self.get_initial_state()
             .get_pkg_requests()
             .iter()
@@ -1153,19 +1175,23 @@ impl SolverTrait for Solver {
 
 #[async_trait::async_trait]
 impl SolverMut for Solver {
-    fn add_request(&mut self, request: Request) {
+    fn add_request(&mut self, request: RequestWithOptions) {
         let request = match request {
-            Request::Pkg(mut request) => {
-                if request.pkg.components.is_empty() {
-                    if request.pkg.is_source() {
-                        request.pkg.components.insert(Component::Source);
+            RequestWithOptions::Pkg(mut request) => {
+                if request.pkg_request.pkg.components.is_empty() {
+                    if request.pkg_request.pkg.is_source() {
+                        request.pkg_request.pkg.components.insert(Component::Source);
                     } else {
-                        request.pkg.components.insert(Component::default_for_run());
+                        request
+                            .pkg_request
+                            .pkg
+                            .components
+                            .insert(Component::default_for_run());
                     }
                 }
                 Change::RequestPackage(RequestPackage::new(request))
             }
-            Request::Var(request) => Change::RequestVar(RequestVar::new(request)),
+            RequestWithOptions::Var(request) => Change::RequestVar(RequestVar::new(request)),
         };
         self.initial_state_builders.push(request);
     }

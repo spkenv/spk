@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+mod required_test;
+
 use std::sync::Arc;
 
 use rstest::{fixture, rstest};
@@ -152,11 +154,11 @@ async fn run_and_log_resolve_for_tests(solver: &mut SolverImpl) -> Result<Soluti
     }
 }
 
-fn step_solver() -> SolverImpl {
+pub(crate) fn step_solver() -> SolverImpl {
     SolverImpl::Step(StepSolver::default())
 }
 
-fn resolvo_solver() -> SolverImpl {
+pub(crate) fn resolvo_solver() -> SolverImpl {
     SolverImpl::Resolvo(ResolvoSolver::default())
 }
 
@@ -285,7 +287,7 @@ async fn test_solver_package_with_no_recipe_from_cmd_line(#[case] mut solver: So
         parse_ident_range("my-pkg").unwrap(),
         RequestedBy::CommandLineRequest(InitialRawRequest("my-pkg".to_string())),
     ));
-    solver.add_request(req);
+    solver.add_request(req.into());
 
     // Test
     let res = run_and_print_resolve_for_tests(&mut solver).await;
@@ -319,7 +321,7 @@ async fn test_solver_package_with_no_recipe_from_cmd_line_and_impossible_initial
         parse_ident_range("my-pkg").unwrap(),
         RequestedBy::CommandLineRequest(InitialRawRequest("my-pkg".to_string())),
     ));
-    solver.add_request(req);
+    solver.add_request(req.into());
     if let SolverImpl::Step(ref mut solver) = solver {
         solver.set_initial_request_impossible_checks(true);
     }
@@ -2186,6 +2188,7 @@ async fn test_solver_components(#[case] mut solver: SolverImpl) {
         .get("python")
         .unwrap()
         .request
+        .pkg_request
         .pkg
         .components
         .clone();
@@ -2273,6 +2276,7 @@ async fn test_solver_components_interaction_with_embeds(#[case] mut solver: Solv
         .get("fake-pkg")
         .unwrap()
         .request
+        .pkg_request
         .pkg
         .components
         .clone();
@@ -2328,6 +2332,7 @@ async fn test_solver_components_when_no_components_requested(#[case] mut solver:
         .get("python")
         .unwrap()
         .request
+        .pkg_request
         .pkg
         .components
         .clone();
@@ -2402,9 +2407,9 @@ async fn test_solver_all_component(#[case] mut solver: SolverImpl) {
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
     let resolved = solution.get("python").unwrap();
-    assert_eq!(resolved.request.pkg.components.len(), 1);
+    assert_eq!(resolved.request.pkg_request.pkg.components.len(), 1);
     assert_eq!(
-        resolved.request.pkg.components.iter().next(),
+        resolved.request.pkg_request.pkg.components.iter().next(),
         Some(&Component::All)
     );
     assert_resolved!(
@@ -2833,7 +2838,7 @@ async fn test_request_default_component() {
         .next()
         .expect("solver should have a request");
     assert_eq!(
-        request.pkg.components,
+        request.pkg_request.pkg.components,
         vec![Component::default_for_run()].into_iter().collect(),
         "solver should inject a default run component if not otherwise given"
     )

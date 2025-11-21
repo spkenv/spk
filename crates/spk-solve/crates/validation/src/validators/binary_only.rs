@@ -39,11 +39,11 @@ impl ValidatorT for BinaryOnlyValidator {
     ) -> crate::Result<Compatibility>
     where
         PR: GetMergedRequest,
-        P: Satisfy<PkgRequest> + Package,
+        P: Satisfy<PkgRequestWithOptions> + Package,
     {
         let request = pkgrequest_data.get_merged_request(package.name())?;
         if package.ident().is_source()
-            && request.pkg.build.as_ref() != Some(package.ident().build())
+            && request.pkg_request.pkg.build.as_ref() != Some(package.ident().build())
         {
             return Ok(Compatibility::Incompatible(
                 IncompatibleReason::BuildFromSourceDisabled,

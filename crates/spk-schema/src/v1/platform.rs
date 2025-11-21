@@ -12,8 +12,11 @@ use spk_schema_foundation::ident::{
     InclusionPolicy,
     NameAndValue,
     PkgRequest,
+    PkgRequestOptions,
+    PkgRequestWithOptions,
     RangeIdent,
     Request,
+    RequestWithOptions,
     RequestedBy,
     VarRequest,
     VersionIdent,
@@ -164,6 +167,31 @@ impl Recipe for Platform {
         Ok(Cow::Owned(requirements))
     }
 
+    fn get_build_requirements_with_options<V>(
+        &self,
+        variant: &V,
+    ) -> Result<Cow<'_, RequirementsList<RequestWithOptions>>>
+    where
+        V: Variant,
+    {
+        let mut requirements = RequirementsList::<RequestWithOptions>::default();
+        for base in self.base.iter() {
+            let build_digest = self.build_digest(variant)?;
+
+            requirements.insert_or_replace(RequestWithOptions::Pkg(PkgRequestWithOptions {
+                pkg_request: PkgRequest::from_ident(
+                    base.clone().into_any_ident(None),
+                    RequestedBy::BinaryBuild(
+                        self.ident().to_build_ident(Build::BuildId(build_digest)),
+                    ),
+                ),
+                options: PkgRequestOptions::default(),
+            }));
+        }
+
+        Ok(Cow::Owned(requirements))
+    }
+
     fn get_tests<V>(&self, _stage: TestStage, _variant: &V) -> Result<Vec<Self::Test>>
     where
         V: Variant,
@@ -252,15 +280,17 @@ fn apply_inherit_from_base_component(
     inherit: Component,
     base: impl Package,
 ) {
-    for requirement in base.runtime_requirements().iter() {
-        cmpt.requirements.insert_or_replace(requirement.clone());
-    }
-    let Some(base_cmpt) = base.components().get(inherit) else {
-        return;
-    };
-    for requirement in base_cmpt.requirements.iter() {
-        cmpt.requirements.insert_or_replace(requirement.clone());
-    }
+    cmpt.requirements_mut(|requirements| {
+        for requirement in base.runtime_requirements().iter() {
+            requirements.insert_or_replace(requirement.clone());
+        }
+        let Some(base_cmpt) = base.components().get(inherit) else {
+            return;
+        };
+        for requirement in base_cmpt.requirements().iter() {
+            requirements.insert_or_replace(requirement.clone());
+        }
+    });
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Deserialize, Serialize)]
@@ -336,57 +366,53 @@ impl PlatformPkgRequirement {
             .install
             .components
             .get_or_insert_with(Component::Build, ComponentSpec::default_build);
-        match &self.at_build {
+        build_component.requirements_mut(|requirements| match &self.at_build {
             None => {}
-            Some(Override::Remove) => build_component.requirements.remove_all(self.name()),
+            Some(Override::Remove) => requirements.remove_all(self.name()),
             Some(Override::Replace(v)) => {
-                build_component
-                    .requirements
-                    .insert_or_replace(Request::Pkg(PkgRequest {
-                        pkg: RangeIdent {
-                            repository_name: None,
-                            name: self.pkg.name().to_owned(),
-                            version: v.clone(),
-                            components: Default::default(),
-                            build: None,
-                        },
-                        prerelease_policy: None,
-                        inclusion_policy: InclusionPolicy::IfAlreadyPresent,
-                        pin: None,
-                        pin_policy: spk_schema_foundation::ident::PinPolicy::Required,
-                        required_compat: None,
-                        requested_by: Default::default(),
-                    }));
+                requirements.insert_or_replace(Request::Pkg(PkgRequest {
+                    pkg: RangeIdent {
+                        repository_name: None,
+                        name: self.pkg.name().to_owned(),
+                        version: v.clone(),
+                        components: Default::default(),
+                        build: None,
+                    },
+                    prerelease_policy: None,
+                    inclusion_policy: InclusionPolicy::IfAlreadyPresent,
+                    pin: None,
+                    pin_policy: spk_schema_foundation::ident::PinPolicy::Required,
+                    required_compat: None,
+                    requested_by: Default::default(),
+                }));
             }
-        }
+        });
 
         let runtime_component = spec
             .install
             .components
             .get_or_insert_with(Component::Run, ComponentSpec::default_run);
-        match &self.at_runtime {
+        runtime_component.requirements_mut(|requirements| match &self.at_runtime {
             None => {}
-            Some(Override::Remove) => runtime_component.requirements.remove_all(self.name()),
+            Some(Override::Remove) => requirements.remove_all(self.name()),
             Some(Override::Replace(v)) => {
-                runtime_component
-                    .requirements
-                    .insert_or_replace(Request::Pkg(PkgRequest {
-                        pkg: RangeIdent {
-                            repository_name: None,
-                            name: self.pkg.name().to_owned(),
-                            version: v.clone(),
-                            components: Default::default(),
-                            build: None,
-                        },
-                        prerelease_policy: None,
-                        inclusion_policy: InclusionPolicy::IfAlreadyPresent,
-                        pin: None,
-                        pin_policy: spk_schema_foundation::ident::PinPolicy::Required,
-                        required_compat: None,
-                        requested_by: Default::default(),
-                    }));
+                requirements.insert_or_replace(Request::Pkg(PkgRequest {
+                    pkg: RangeIdent {
+                        repository_name: None,
+                        name: self.pkg.name().to_owned(),
+                        version: v.clone(),
+                        components: Default::default(),
+                        build: None,
+                    },
+                    prerelease_policy: None,
+                    inclusion_policy: InclusionPolicy::IfAlreadyPresent,
+                    pin: None,
+                    pin_policy: spk_schema_foundation::ident::PinPolicy::Required,
+                    required_compat: None,
+                    requested_by: Default::default(),
+                }));
             }
-        }
+        });
 
         Ok(())
     }
@@ -435,41 +461,37 @@ impl PlatformVarRequirement {
             .install
             .components
             .get_or_insert_with(Component::Build, ComponentSpec::default_build);
-        match &self.at_build {
+        build_component.requirements_mut(|requirements| match &self.at_build {
             None => {}
-            Some(Override::Remove) => build_component.requirements.remove_all(self.name()),
+            Some(Override::Remove) => requirements.remove_all(self.name()),
             Some(Override::Replace(v)) => {
-                build_component
-                    .requirements
-                    .insert_or_replace(Request::Var(VarRequest {
-                        var: self.var.0.clone(),
-                        value: spk_schema_foundation::ident::PinnableValue::Pinned(Arc::from(
-                            v.as_str(),
-                        )),
-                        description: DESCRIPTION,
-                    }));
+                requirements.insert_or_replace(Request::Var(VarRequest {
+                    var: self.var.0.clone(),
+                    value: spk_schema_foundation::ident::PinnableValue::Pinned(Arc::from(
+                        v.as_str(),
+                    )),
+                    description: DESCRIPTION,
+                }));
             }
-        }
+        });
 
         let runtime_component = spec
             .install
             .components
             .get_or_insert_with(Component::Run, ComponentSpec::default_run);
-        match &self.at_runtime {
+        runtime_component.requirements_mut(|requirements| match &self.at_runtime {
             None => {}
-            Some(Override::Remove) => runtime_component.requirements.remove_all(self.name()),
+            Some(Override::Remove) => requirements.remove_all(self.name()),
             Some(Override::Replace(v)) => {
-                runtime_component
-                    .requirements
-                    .insert_or_replace(Request::Var(VarRequest {
-                        var: self.var.0.clone(),
-                        value: spk_schema_foundation::ident::PinnableValue::Pinned(Arc::from(
-                            v.as_str(),
-                        )),
-                        description: DESCRIPTION,
-                    }));
+                requirements.insert_or_replace(Request::Var(VarRequest {
+                    var: self.var.0.clone(),
+                    value: spk_schema_foundation::ident::PinnableValue::Pinned(Arc::from(
+                        v.as_str(),
+                    )),
+                    description: DESCRIPTION,
+                }));
             }
-        }
+        });
 
         Ok(())
     }

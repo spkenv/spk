@@ -20,7 +20,15 @@ use spk_schema::foundation::name::{OptNameBuf, PkgName, PkgNameBuf};
 use spk_schema::foundation::option_map;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::Compatibility;
-use spk_schema::ident::{InclusionPolicy, PkgRequest, Request, RequestedBy, VarRequest};
+use spk_schema::ident::{
+    InclusionPolicy,
+    PkgRequest,
+    PkgRequestOptionValue,
+    PkgRequestWithOptions,
+    RequestWithOptions,
+    RequestedBy,
+    VarRequest,
+};
 use spk_schema::prelude::*;
 use spk_schema::v0::EmbeddedPackageSpec;
 use spk_schema::version::IsSameReasonAs;
@@ -126,9 +134,9 @@ impl FormatChange for Change {
                 format!(
                     "{} {}",
                     Self::get_request_change_label(format_settings.level).blue(),
-                    c.request.format_request(
-                        c.request.pkg.repository_name.as_ref(),
-                        &c.request.pkg.name,
+                    c.request.pkg_request.format_request(
+                        c.request.pkg_request.pkg.repository_name.as_ref(),
+                        &c.request.pkg_request.pkg.name,
                         format_settings
                     )
                 )
@@ -158,7 +166,12 @@ impl FormatChange for Change {
                     // the resolved package and its requester(s)
                     let requested_by: Vec<String> = match state {
                         Some(s) => match s.get_merged_request(c.spec.name()) {
-                            Ok(r) => r.get_requesters().iter().map(ToString::to_string).collect(),
+                            Ok(r) => r
+                                .pkg_request
+                                .get_requesters()
+                                .iter()
+                                .map(ToString::to_string)
+                                .collect(),
                             Err(_) => {
                                 match &c.source {
                                     // This happens with embedded requests because they are
@@ -277,26 +290,29 @@ impl<'state> DecisionBuilder<'state, '_> {
         recipe: &Arc<SpecRecipe>,
         spec: &Arc<Spec>,
     ) -> crate::Result<Decision> {
-        let generate_changes = || -> crate::Result<Vec<_>> {
-            let mut changes = vec![Change::SetPackageBuild(Box::new(SetPackageBuild::new(
-                Arc::clone(spec),
-                Arc::clone(recipe),
-            )))];
+        let generate_changes =
+            || -> crate::Result<Vec<_>> {
+                let mut changes = vec![Change::SetPackageBuild(Box::new(SetPackageBuild::new(
+                    Arc::clone(spec),
+                    Arc::clone(recipe),
+                )))];
 
-            let requester_ident: &BuildIdent = spec.ident();
-            let requested_by = RequestedBy::PackageBuild(requester_ident.clone());
-            changes
-                .extend(self.requirements_to_changes(&spec.runtime_requirements(), &requested_by));
-            changes.extend(self.components_to_changes(spec.components(), requester_ident));
-            changes.extend(self.embedded_to_changes(
-                spec.embedded(),
-                spec.components(),
-                requester_ident,
-            ));
-            changes.push(Self::options_to_change(spec));
+                let requester_ident: &BuildIdent = spec.ident();
+                let requested_by = RequestedBy::PackageBuild(requester_ident.clone());
+                changes.extend(self.requirements_to_changes(
+                    &spec.runtime_requirements_with_options(),
+                    &requested_by,
+                ));
+                changes.extend(self.components_to_changes(spec.components(), requester_ident));
+                changes.extend(self.embedded_to_changes(
+                    spec.embedded(),
+                    spec.components(),
+                    requester_ident,
+                ));
+                changes.push(Self::options_to_change(spec));
 
-            Ok(changes)
-        };
+                Ok(changes)
+            };
 
         Ok(Decision {
             changes: generate_changes()?,
@@ -313,7 +329,9 @@ impl<'state> DecisionBuilder<'state, '_> {
 
         let requester_ident: &BuildIdent = spec.ident();
         let requested_by = RequestedBy::PackageBuild(requester_ident.clone());
-        changes.extend(self.requirements_to_changes(&spec.runtime_requirements(), &requested_by));
+        changes.extend(
+            self.requirements_to_changes(&spec.runtime_requirements_with_options(), &requested_by),
+        );
         changes.extend(self.components_to_changes(spec.components(), requester_ident));
         changes.extend(self.embedded_to_changes(
             spec.embedded(),
@@ -335,7 +353,7 @@ impl<'state> DecisionBuilder<'state, '_> {
     /// Make this package the next request to be considered.
     pub fn reconsider_package(
         self,
-        request: PkgRequest,
+        request: PkgRequestWithOptions,
         conflicting_package_name: &PkgName,
         counter: Arc<AtomicU64>,
     ) -> Decision {
@@ -344,7 +362,7 @@ impl<'state> DecisionBuilder<'state, '_> {
                 Change::StepBack(StepBack::new(
                     format!(
                         "Package {} embeds package already resolved: {conflicting_package_name}",
-                        request.pkg.name
+                        request.pkg_request.pkg.name
                     ),
                     self.base,
                     counter,
@@ -364,7 +382,7 @@ impl<'state> DecisionBuilder<'state, '_> {
     /// Make this package the next request to be considered.
     pub fn reconsider_package_with_additional_components(
         self,
-        request: PkgRequest,
+        request: PkgRequestWithOptions,
         package_with_unsatisfied_components: &PkgName,
         counter: Arc<AtomicU64>,
     ) -> Decision {
@@ -373,7 +391,7 @@ impl<'state> DecisionBuilder<'state, '_> {
                 Change::StepBack(StepBack::new(
                     format!(
                         "Package {package_with_unsatisfied_components} needs additional components from {}",
-                        request.pkg.name
+                        request.pkg_request.pkg.name
                     ),
                     self.base,
                     counter,
@@ -392,18 +410,20 @@ impl<'state> DecisionBuilder<'state, '_> {
 
     fn requirements_to_changes(
         &self,
-        requirements: &RequirementsList,
+        requirements: &RequirementsList<RequestWithOptions>,
         requested_by: &RequestedBy,
     ) -> Vec<Change> {
         requirements
             .iter()
             .flat_map(|req| match req {
-                Request::Pkg(req) => {
+                RequestWithOptions::Pkg(req) => {
                     let mut req = req.clone();
-                    req.add_requester(requested_by.clone());
+                    req.pkg_request.add_requester(requested_by.clone());
                     self.pkg_request_to_changes(&req)
                 }
-                Request::Var(req) => vec![Change::RequestVar(RequestVar::new(req.clone()))],
+                RequestWithOptions::Var(req) => {
+                    vec![Change::RequestVar(RequestVar::new(req.clone()))]
+                }
             })
             .collect()
     }
@@ -424,17 +444,20 @@ impl<'state> DecisionBuilder<'state, '_> {
                 // is buggy now
                 continue;
             }
-            changes.extend(self.requirements_to_changes(&component.requirements, &requested_by));
+            changes.extend(
+                self.requirements_to_changes(component.requirements_with_options(), &requested_by),
+            );
         }
         changes
     }
 
-    fn pkg_request_to_changes(&self, req: &PkgRequest) -> Vec<Change> {
+    fn pkg_request_to_changes(&self, req: &PkgRequestWithOptions) -> Vec<Change> {
         let mut req = std::borrow::Cow::Borrowed(req);
-        if req.pkg.components.is_empty() {
+        if req.pkg_request.pkg.components.is_empty() {
             // if no component was requested specifically,
             // then we must assume the default run component
             req.to_mut()
+                .pkg_request
                 .pkg
                 .components
                 .insert(Component::default_for_run());
@@ -445,20 +468,22 @@ impl<'state> DecisionBuilder<'state, '_> {
         ))];
         // we need to check if this request will change a previously
         // resolved package (eg: by adding a new component with new requirements)
-        let (spec, _source, _) = match self.base.get_current_resolve(&req.pkg.name) {
+        let (spec, _source, _) = match self.base.get_current_resolve(&req.pkg_request.pkg.name) {
             Ok(e) => e,
             Err(_) => return changes,
         };
-        let existing = match self.base.get_merged_request(&req.pkg.name) {
+        let existing = match self.base.get_merged_request(&req.pkg_request.pkg.name) {
             Ok(r) => r,
             // the error case here should not be possible since we have
             // already found a resolved package...
             Err(_) => return changes,
         };
-        let new_components = spec.components().resolve_uses(req.pkg.components.iter());
+        let new_components = spec
+            .components()
+            .resolve_uses(req.pkg_request.pkg.components.iter());
         let existing_components = spec
             .components()
-            .resolve_uses(existing.pkg.components.iter());
+            .resolve_uses(existing.pkg_request.pkg.components.iter());
         let added_components = new_components
             .difference(&existing_components)
             .collect::<HashSet<_>>();
@@ -470,7 +495,9 @@ impl<'state> DecisionBuilder<'state, '_> {
                 continue;
             }
             let requested_by = RequestedBy::PackageBuild(spec.ident().clone());
-            changes.extend(self.requirements_to_changes(&component.requirements, &requested_by));
+            changes.extend(
+                self.requirements_to_changes(component.requirements_with_options(), &requested_by),
+            );
         }
         changes
     }
@@ -504,12 +531,28 @@ impl<'state> DecisionBuilder<'state, '_> {
                 for (spec, components) in merged_changes.into_iter() {
                     let components_as_hashset = components.iter().cloned().collect();
 
+                    let pkg_request = PkgRequest::from_ident(
+                        spec.ident().to_any_ident(),
+                        RequestedBy::Embedded(parent.clone()),
+                    );
+                    let pkg_request_with_options = PkgRequestWithOptions {
+                        options: spec
+                            .option_values()
+                            .into_iter()
+                            .filter_map(|(opt, val)| {
+                                if opt.namespace() == Some(pkg_request.pkg.name()) {
+                                    Some((opt, PkgRequestOptionValue::Complete(val)))
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect(),
+                        pkg_request,
+                    };
+
                     changes.push({
-                        let mut req_pkg = RequestPackage::new(PkgRequest::from_ident(
-                            spec.ident().to_any_ident(),
-                            RequestedBy::Embedded(parent.clone()),
-                        ));
-                        req_pkg.request.pkg.components = components;
+                        let mut req_pkg = RequestPackage::new(pkg_request_with_options);
+                        req_pkg.request.pkg_request.pkg.components = components;
                         Change::RequestPackage(req_pkg)
                     });
 
@@ -531,11 +574,26 @@ impl<'state> DecisionBuilder<'state, '_> {
         embedded
             .iter()
             .flat_map(|embedded| {
+                let pkg_request = PkgRequest::from_ident(
+                    embedded.ident().to_any_ident(),
+                    RequestedBy::Embedded(parent.clone()),
+                );
+                let pkg_request_with_options = PkgRequestWithOptions {
+                    options: embedded
+                        .option_values()
+                        .into_iter()
+                        .filter_map(|(opt, val)| {
+                            if opt.namespace() == Some(pkg_request.pkg.name()) {
+                                Some((opt, PkgRequestOptionValue::Complete(val)))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect(),
+                    pkg_request,
+                };
                 let mut changes = vec![Change::RequestPackage(RequestPackage::new(
-                    PkgRequest::from_ident(
-                        embedded.ident().to_any_ident(),
-                        RequestedBy::Embedded(parent.clone()),
-                    ),
+                    pkg_request_with_options,
                 ))];
                 changes.extend(self.set_package(
                     Arc::new(embedded.clone().into()),
@@ -852,7 +910,7 @@ pub enum Note {
 
 #[derive(Clone, Debug)]
 pub struct RequestPackage {
-    pub request: PkgRequest,
+    pub request: PkgRequestWithOptions,
     pub prioritize: bool,
 }
 
@@ -864,14 +922,14 @@ pub static REQUESTS_FOR_SAME_PACKAGE_COUNT: AtomicU64 = AtomicU64::new(0);
 pub static DUPLICATE_REQUESTS_COUNT: AtomicU64 = AtomicU64::new(0);
 
 impl RequestPackage {
-    pub fn new(request: PkgRequest) -> Self {
+    pub fn new(request: PkgRequestWithOptions) -> Self {
         RequestPackage {
             request,
             prioritize: false,
         }
     }
 
-    pub fn prioritize(request: PkgRequest) -> Self {
+    pub fn prioritize(request: PkgRequestWithOptions) -> Self {
         RequestPackage {
             request,
             prioritize: true,
@@ -888,7 +946,9 @@ impl RequestPackage {
             .cloned()
             .map(|existing_request| {
                 // `restrict` doesn't check the package name!
-                if cloned_request.is_none() || existing_request.pkg.name != self.request.pkg.name {
+                if cloned_request.is_none()
+                    || existing_request.pkg_request.pkg.name != self.request.pkg_request.pkg.name
+                {
                     existing_request
                 } else {
                     // Safety: `cloned_request` is not `None` by previous test.
@@ -936,14 +996,17 @@ impl RequestPackage {
             // will remain in the same relative order as they were, as
             // will requests for other packages.
             new_requests.sort_by_cached_key(|req| -> i32 {
-                if req.pkg.name() == self.request.pkg.name() {
+                if req.pkg_request.pkg.name() == self.request.pkg_request.pkg.name() {
                     // There is already a request in the list for the same
                     // package as the new request's package.
                     existing_request_for_package = true;
 
                     // Check if the new request is a completely identical
                     // duplicate request.
-                    if req.pkg == self.request.pkg {
+                    // XXX this says "completely identical" but only checks
+                    // one element of the request. Should this compare options
+                    // too?
+                    if req.pkg_request.pkg == self.request.pkg_request.pkg {
                         duplicate_request = true;
                     }
 
@@ -972,15 +1035,18 @@ impl RequestPackage {
 
             // Apply the configured request priority ordering to the request
             // list.
-            REQUESTS_PRIORITY_ORDER
-                .promote_names(new_requests.as_mut_slice(), |req| req.pkg.name().as_str());
+            REQUESTS_PRIORITY_ORDER.promote_names(new_requests.as_mut_slice(), |req| {
+                req.pkg_request.pkg.name().as_str()
+            });
         }
 
         if self.prioritize {
             // Move the request to the front of new_requests.
             //
             // This requires a stable sort.
-            new_requests.sort_by_key(|req| i32::from(req.pkg.name != self.request.pkg.name))
+            new_requests.sort_by_key(|req| {
+                i32::from(req.pkg_request.pkg.name != self.request.pkg_request.pkg.name)
+            })
         }
 
         Arc::new(base.with_pkg_requests(parent, new_requests))
@@ -1149,7 +1215,7 @@ impl StateId {
         hasher.finish()
     }
 
-    fn pkg_requests_hash(pkg_requests: &Vec<Arc<CachedHash<PkgRequest>>>) -> u64 {
+    fn pkg_requests_hash(pkg_requests: &Vec<Arc<CachedHash<PkgRequestWithOptions>>>) -> u64 {
         let mut hasher = DefaultHasher::new();
         pkg_requests.hash(&mut hasher);
         hasher.finish()
@@ -1189,7 +1255,10 @@ impl StateId {
         )
     }
 
-    fn with_pkg_requests(&self, pkg_requests: &Vec<Arc<CachedHash<PkgRequest>>>) -> Self {
+    fn with_pkg_requests(
+        &self,
+        pkg_requests: &Vec<Arc<CachedHash<PkgRequestWithOptions>>>,
+    ) -> Self {
         Self::new(
             StateId::pkg_requests_hash(pkg_requests),
             self.var_requests_hash,
@@ -1274,7 +1343,7 @@ type StatePackages = Arc<
 // `State` is immutable. It should not derive Clone.
 #[derive(Debug)]
 pub struct State {
-    pkg_requests: Arc<Vec<Arc<CachedHash<PkgRequest>>>>,
+    pkg_requests: Arc<Vec<Arc<CachedHash<PkgRequestWithOptions>>>>,
     var_requests: Arc<BTreeSet<VarRequest>>,
     packages: StatePackages,
     // A list of the packages in the order they were resolved and
@@ -1288,12 +1357,12 @@ pub struct State {
     cached_option_map: Arc<OnceCell<OptionMap>>,
     // How deep is this state?
     pub state_depth: u64,
-    cached_unresolved_pkg_requests: Arc<OnceCell<HashMap<PkgNameBuf, PkgRequest>>>,
+    cached_unresolved_pkg_requests: Arc<OnceCell<HashMap<PkgNameBuf, PkgRequestWithOptions>>>,
 }
 
 impl State {
     pub fn new(
-        pkg_requests: Vec<PkgRequest>,
+        pkg_requests: Vec<PkgRequestWithOptions>,
         var_requests: Vec<VarRequest>,
         packages: Vec<(Arc<Spec>, PackageSource)>,
         options: Vec<(OptNameBuf, String)>,
@@ -1392,19 +1461,19 @@ impl State {
     pub fn get_merged_request(
         &self,
         name: &PkgName,
-    ) -> super::error::GetMergedRequestResult<PkgRequest> {
+    ) -> super::error::GetMergedRequestResult<PkgRequestWithOptions> {
         // tests reveal this method is not safe to cache.
-        let mut merged: Option<PkgRequest> = None;
+        let mut merged: Option<PkgRequestWithOptions> = None;
         for request in self.pkg_requests.iter() {
             match merged.as_mut() {
                 None => {
-                    if &*request.pkg.name != name {
+                    if &*request.pkg_request.pkg.name != name {
                         continue;
                     }
                     merged = Some((***request).clone());
                 }
                 Some(merged) => {
-                    if request.pkg.name != merged.pkg.name {
+                    if request.pkg_request.pkg.name != merged.pkg_request.pkg.name {
                         continue;
                     }
                     if let incompatible @ Compatibility::Incompatible(_) = merged.restrict(request)
@@ -1425,7 +1494,7 @@ impl State {
         }
     }
 
-    pub fn get_next_request(&self) -> Result<Option<PkgRequest>> {
+    pub fn get_next_request(&self) -> Result<Option<PkgRequestWithOptions>> {
         // Note: The next request this returns may not be as expected
         // due to the interaction of multiple requests and
         // 'IfAlreadyPresent' requests.
@@ -1434,10 +1503,10 @@ impl State {
         // requests that have not been satisfied, or only merged
         // requests, or both.
         for request in self.pkg_requests.iter() {
-            if self.packages.contains_key(&*request.pkg.name) {
+            if self.packages.contains_key(&*request.pkg_request.pkg.name) {
                 continue;
             }
-            if request.inclusion_policy == InclusionPolicy::IfAlreadyPresent {
+            if request.pkg_request.inclusion_policy == InclusionPolicy::IfAlreadyPresent {
                 // This request doesn't need to be looked at yet. It
                 // will be picked up eventually, by the
                 // get_merged_request() call below, if there is a
@@ -1448,13 +1517,15 @@ impl State {
                 // expansion of dependencies.
                 continue;
             }
-            return Ok(Some(self.get_merged_request(&request.pkg.name)?));
+            return Ok(Some(
+                self.get_merged_request(&request.pkg_request.pkg.name)?,
+            ));
         }
 
         Ok(None)
     }
 
-    pub fn get_pkg_requests(&self) -> &Vec<Arc<CachedHash<PkgRequest>>> {
+    pub fn get_pkg_requests(&self) -> &Vec<Arc<CachedHash<PkgRequestWithOptions>>> {
         &self.pkg_requests
     }
 
@@ -1464,17 +1535,17 @@ impl State {
 
     /// Get a mapping of pkg name -> merged request for the unresolved
     /// PkgRequests in this state
-    pub fn get_unresolved_requests(&self) -> Result<&HashMap<PkgNameBuf, PkgRequest>> {
+    pub fn get_unresolved_requests(&self) -> Result<&HashMap<PkgNameBuf, PkgRequestWithOptions>> {
         self.cached_unresolved_pkg_requests.get_or_try_init(|| {
-            let mut unresolved: HashMap<PkgNameBuf, PkgRequest> = HashMap::new();
+            let mut unresolved: HashMap<PkgNameBuf, PkgRequestWithOptions> = HashMap::new();
 
             for req in self.pkg_requests.iter() {
-                if unresolved.contains_key(&req.pkg.name) {
+                if unresolved.contains_key(&req.pkg_request.pkg.name) {
                     continue;
                 }
-                if self.get_current_resolve(&req.pkg.name).is_err() {
-                    let merged = self.get_merged_request(&req.pkg.name)?;
-                    unresolved.insert(req.pkg.name.clone(), merged);
+                if self.get_current_resolve(&req.pkg_request.pkg.name).is_err() {
+                    let merged = self.get_merged_request(&req.pkg_request.pkg.name)?;
+                    unresolved.insert(req.pkg_request.pkg.name.clone(), merged);
                 }
             }
             Ok(unresolved)
@@ -1545,7 +1616,7 @@ impl State {
     fn with_pkg_requests(
         &self,
         parent: &Self,
-        pkg_requests: Vec<Arc<CachedHash<PkgRequest>>>,
+        pkg_requests: Vec<Arc<CachedHash<PkgRequestWithOptions>>>,
     ) -> Self {
         let state_id = self.state_id.with_pkg_requests(&pkg_requests);
         Self {
