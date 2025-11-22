@@ -764,12 +764,6 @@ impl Package for Spec {
             Spec::V0Package(spec) => spec.downstream_runtime_requirements(components),
         }
     }
-
-    fn validate_options(&self, given_options: &OptionMap) -> Compatibility {
-        match self {
-            Spec::V0Package(spec) => spec.validate_options(given_options),
-        }
-    }
 }
 
 impl PackageMut for Spec {

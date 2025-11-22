@@ -364,32 +364,6 @@ impl Package for Spec<BuildIdent> {
     fn build_script(&self) -> String {
         self.build.script.join("\n")
     }
-
-    fn validate_options(&self, given_options: &OptionMap) -> Compatibility {
-        let mut must_exist = given_options.package_options_without_global(self.name());
-        let given_options = given_options.package_options(self.name());
-        for option in self.build.options.iter() {
-            let value = given_options
-                .get(option.full_name().without_namespace())
-                .map(String::as_str);
-            let compat = option.validate(value);
-            if let Compatibility::Incompatible(incompatible) = compat {
-                return Compatibility::Incompatible(IncompatibleReason::BuildOptionMismatch {
-                    name: option.full_name().to_owned(),
-                    inner_reason: Box::new(incompatible),
-                });
-            }
-
-            must_exist.remove(option.full_name().without_namespace());
-        }
-
-        if !must_exist.is_empty() {
-            let missing = must_exist;
-            return Compatibility::Incompatible(IncompatibleReason::BuildOptionsMissing(missing));
-        }
-
-        Compatibility::Compatible
-    }
 }
 
 impl PackageMut for Spec<BuildIdent> {
