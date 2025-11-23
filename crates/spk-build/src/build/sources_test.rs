@@ -119,7 +119,7 @@ async fn test_sources_subdir(tmpdir: tempfile::TempDir) {
     let file_source = LocalSource::new(source_file).set_subdir("local");
 
     let dest_dir = rt.tmpdir.path().join("dest");
-    let mut spec = v0::Spec::new("test-pkg/1.0.0/src".parse().unwrap());
+    let mut spec = v0::PackageSpec::new("test-pkg/1.0.0/src".parse().unwrap());
     spec.sources = vec![
         SourceSpec::Git(git_source),
         SourceSpec::Tar(tar_source),
@@ -145,7 +145,7 @@ async fn test_sources_subdir(tmpdir: tempfile::TempDir) {
 #[tokio::test]
 async fn test_sources_environment(_tmpdir: tempfile::TempDir) {
     let rt = spfs_runtime().await;
-    let mut spec = v0::Spec::new(build_ident!("sources-test/0.1.0/src"));
+    let mut spec = v0::PackageSpec::new(build_ident!("sources-test/0.1.0/src"));
     let expected = [
         "SPK_PKG=sources-test/0.1.0/src",
         "SPK_PKG_NAME=sources-test",

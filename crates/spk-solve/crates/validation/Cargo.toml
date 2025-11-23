@@ -40,5 +40,6 @@ tracing = "0.1.35"
 
 [dev-dependencies]
 rstest = { workspace = true }
+serde = { workspace = true }
 serde_yaml = { workspace = true }
 spk-solve-macros = { workspace = true }

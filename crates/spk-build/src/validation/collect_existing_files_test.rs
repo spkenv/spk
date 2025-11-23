@@ -12,8 +12,8 @@ use crate::validation::Validator;
 
 #[tokio::test]
 async fn test_validate_build_changeset_collect_existing() {
-    let dependency_package = v0::Spec::new("dep-pkg/1.0.0/3I42H3S6".parse().unwrap());
-    let package = v0::Spec::new("test-pkg/1.0.0/3I42H3S6".parse().unwrap());
+    let dependency_package = v0::PackageSpec::new("dep-pkg/1.0.0/3I42H3S6".parse().unwrap());
+    let package = v0::PackageSpec::new("test-pkg/1.0.0/3I42H3S6".parse().unwrap());
 
     let mut environment_filesystem = Manifest::new(
         spfs::tracking::Entry::empty_dir_with_open_perms_with_data(package.ident().clone()),

@@ -17,7 +17,7 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_schema::foundation::version::{Version, parse_version};
 use spk_schema::ident_build::{Build, EmbeddedSource};
-use spk_schema::{BuildIdent, FromYaml, Package, Spec, SpecRecipe, VersionIdent};
+use spk_schema::{BuildIdent, Components, FromYaml, Spec, SpecRecipe, VersionIdent};
 
 use super::Repository;
 use super::repository::{PublishPolicy, Storage};
