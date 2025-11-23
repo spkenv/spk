@@ -38,4 +38,5 @@ miette = { workspace = true }
 [dev-dependencies]
 itertools = { workspace = true }
 rstest = { workspace = true }
+serde = { workspace = true }
 spk-solve-macros = { workspace = true }

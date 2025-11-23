@@ -12,7 +12,7 @@ use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName};
 use spk_schema::foundation::version::Version;
 use spk_schema::ident_build::{Build, EmbeddedSource, InvalidBuildError};
 use spk_schema::option_map::get_host_options_filters;
-use spk_schema::{BuildIdent, Deprecate, Package, PackageMut, VersionIdent};
+use spk_schema::{BuildIdent, Components, Deprecate, Package, PackageMut, VersionIdent};
 
 use self::internal::RepositoryExt;
 use crate::{Error, Result};
