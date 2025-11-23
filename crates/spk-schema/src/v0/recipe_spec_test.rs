@@ -7,27 +7,27 @@ use std::io::Write;
 use std::str::FromStr;
 
 use rstest::rstest;
-use spk_schema_foundation::ident::{AnyIdent, BuildIdent, Request, VersionIdent};
+use spk_schema_foundation::ident::Request;
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::option_map;
 use spk_schema_foundation::version_range::VersionFilter;
 
-use super::Spec;
+use super::{PackageSpec, RecipeSpec};
 use crate::foundation::FromYaml;
 use crate::foundation::fixtures::*;
 use crate::foundation::option_map::OptionMap;
 use crate::option::PkgOpt;
 use crate::spec::SpecTemplate;
-use crate::{BuildEnv, Opt, Recipe, Template, TemplateExt, Variant, VariantExt};
+use crate::{BuildEnv, Opt, Recipe, SourceSpec, Template, TemplateExt, Variant, VariantExt};
 
 #[rstest]
 fn test_spec_is_valid_with_only_name() {
-    let _spec: Spec<VersionIdent> = serde_yaml::from_str("{pkg: test-pkg}").unwrap();
+    let _spec: RecipeSpec = serde_yaml::from_str("{pkg: test-pkg}").unwrap();
 }
 
 #[rstest]
 fn test_explicit_no_sources() {
-    let spec: Spec<VersionIdent> = serde_yaml::from_str("{pkg: test-pkg, sources: []}").unwrap();
+    let spec: RecipeSpec = serde_yaml::from_str("{pkg: test-pkg, sources: []}").unwrap();
     assert!(spec.sources.is_empty());
 }
 
@@ -49,7 +49,7 @@ fn test_sources_relative_to_spec_file(tmpdir: tempfile::TempDir) {
         .unwrap()
         .generate_source_build(&spec_dir)
         .unwrap();
-    if let Some(super::SourceSpec::Local(local)) = recipe.sources.first() {
+    if let Some(SourceSpec::Local(local)) = recipe.sources.first() {
         assert_eq!(local.path, spec_dir);
     } else {
         panic!("expected spec to have one local source spec");
@@ -120,7 +120,7 @@ fn test_yaml_error_context(#[case] yaml: &str, #[case] expected: &str) {
     // still show errors that are well placed and reasonably worded
 
     format_serde_error::never_color();
-    let err = Spec::<VersionIdent>::from_yaml(yaml).expect_err("expected yaml parsing to fail");
+    let err = RecipeSpec::from_yaml(yaml).expect_err("expected yaml parsing to fail");
     let message = err.to_string();
     assert_eq!(
         message, expected,
@@ -132,7 +132,7 @@ fn test_yaml_error_context(#[case] yaml: &str, #[case] expected: &str) {
 
 #[rstest]
 fn test_build_options_respect_components() {
-    let spec: Spec<AnyIdent> = serde_yaml::from_str(
+    let spec: RecipeSpec = serde_yaml::from_str(
         r#"
         pkg: test-pkg
         build:
@@ -165,7 +165,7 @@ fn test_strong_inheritance_injection() {
     struct TestBuildEnv();
 
     impl BuildEnv for TestBuildEnv {
-        type Package = Spec<BuildIdent>;
+        type Package = PackageSpec;
 
         fn build_env(&self) -> Vec<Self::Package> {
             vec![
@@ -191,7 +191,7 @@ fn test_strong_inheritance_injection() {
 
     let build_env = TestBuildEnv();
 
-    let spec: Spec<VersionIdent> = serde_yaml::from_str(
+    let spec: RecipeSpec = serde_yaml::from_str(
         r#"
         api: recipe/v0
         pkg: test-pkg/1.0.0
@@ -235,7 +235,7 @@ fn test_strong_inheritance_injection_transitivity() {
     struct TestBuildEnv();
 
     impl BuildEnv for TestBuildEnv {
-        type Package = Spec<BuildIdent>;
+        type Package = PackageSpec;
 
         fn build_env(&self) -> Vec<Self::Package> {
             vec![
@@ -263,7 +263,7 @@ fn test_strong_inheritance_injection_transitivity() {
 
     // Unlike `test_strong_inheritance_injection`, this spec does not have a
     // build dependency on "base".
-    let spec: Spec<VersionIdent> = serde_yaml::from_str(
+    let spec: RecipeSpec = serde_yaml::from_str(
         r#"
         api: v0/package
         pkg: test-pkg/1.0.0
@@ -302,7 +302,7 @@ fn test_strong_inheritance_injection_transitivity() {
 
 #[rstest]
 fn test_variants_can_introduce_components() {
-    let spec: Spec<AnyIdent> = serde_yaml::from_str(
+    let spec: RecipeSpec = serde_yaml::from_str(
         r#"
         pkg: test-pkg
         build:
@@ -357,7 +357,7 @@ fn test_variants_can_append_components() {
     struct TestBuildEnv();
 
     impl BuildEnv for TestBuildEnv {
-        type Package = Spec<BuildIdent>;
+        type Package = PackageSpec;
 
         fn build_env(&self) -> Vec<Self::Package> {
             vec![
@@ -378,7 +378,7 @@ fn test_variants_can_append_components() {
 
     let build_env = TestBuildEnv();
 
-    let spec: Spec<VersionIdent> = serde_yaml::from_str(
+    let spec: RecipeSpec = serde_yaml::from_str(
         r#"
         pkg: test-pkg
         build:
@@ -433,7 +433,7 @@ fn test_variants_can_append_components_and_modify_version() {
     struct TestBuildEnv();
 
     impl BuildEnv for TestBuildEnv {
-        type Package = Spec<BuildIdent>;
+        type Package = PackageSpec;
 
         fn build_env(&self) -> Vec<Self::Package> {
             vec![
@@ -461,7 +461,7 @@ fn test_variants_can_append_components_and_modify_version() {
 
     let build_env = TestBuildEnv();
 
-    let spec: Spec<VersionIdent> = serde_yaml::from_str(
+    let spec: RecipeSpec = serde_yaml::from_str(
         r#"
         pkg: test-pkg
         build:

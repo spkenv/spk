@@ -9,13 +9,15 @@ use rstest::rstest;
 use spk_schema_foundation::ident::{PkgRequest, Request, RequestedBy, parse_ident_range};
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::option_map::OptionMap;
+use spk_schema_foundation::spec_ops::{HasVersion, Named};
 use spk_schema_foundation::version::{BINARY_STR, Version};
 
-use crate::{Components, InstallSpec, RequirementsList};
+use super::RecipeInstallSpec;
+use crate::{Components, RequirementsList};
 
 #[rstest]
 fn test_render_all_pins_renders_requirements_in_components() {
-    let mut install_spec = InstallSpec::default();
+    let mut install_spec = RecipeInstallSpec::default();
     let mut requirements = RequirementsList::default();
     requirements.insert_or_replace({
         Request::Pkg(
@@ -70,10 +72,10 @@ fn test_render_all_pins_renders_requirements_in_components() {
 fn test_embedded_components_defaults() {
     // By default, embedded components will embed matching components from the
     // defined embedded packages.
-    let install = serde_yaml::from_str::<InstallSpec>(
+    let install = serde_yaml::from_str::<RecipeInstallSpec>(
         r#"
 embedded:
-  - pkg: "embedded/1.0.0/embedded"
+  - pkg: "embedded/1.0.0"
         "#,
     )
     .unwrap();
@@ -123,12 +125,12 @@ embedded:
 fn test_embedded_components_extra_components() {
     // If the embedded package has components that the host package doesn't
     // have, they don't get mapped anywhere automatically.
-    let install = serde_yaml::from_str::<InstallSpec>(
+    let install = serde_yaml::from_str::<RecipeInstallSpec>(
         r#"
 components:
   - name: comp1
 embedded:
-  - pkg: "embedded/1.0.0/embedded"
+  - pkg: "embedded/1.0.0"
     install:
       components:
         - name: comp1
@@ -197,25 +199,26 @@ fn test_embedding_multiple_versions_of_the_same_package(
     // Allow multiple versions of the same package to be embedded. Test that
     // it is possible to assign the different versions to different
     // components in the host package.
-    let install = serde_yaml::from_str::<InstallSpec>(
+
+    let install = serde_yaml::from_str::<RecipeInstallSpec>(
         r#"
 components:
   - name: comp1
     embedded:
-      - embedded:all/1.0.0/embedded
+      - embedded:all/1.0.0
   - name: comp2
     embedded:
-      - embedded:all/2.0.0/embedded
+      - embedded:all/2.0.0
   - name: v3-with-all
     embedded:
-      - embedded:all/3.0.0/embedded
+      - embedded:all/3.0.0
   - name: v3-with-subset-of-components
     embedded:
       - embedded:{aa,bb}/3.0.0
 embedded:
-  - pkg: "embedded/1.0.0/embedded"
-  - pkg: "embedded/2.0.0/embedded"
-  - pkg: "embedded/3.0.0/embedded"
+  - pkg: "embedded/1.0.0"
+  - pkg: "embedded/2.0.0"
+  - pkg: "embedded/3.0.0"
     install:
       components:
         - name: aa
@@ -236,7 +239,7 @@ embedded:
         install
             .embedded
             .iter()
-            .map(|p| p.ident().name())
+            .map(|p| p.name())
             .collect::<HashSet<_>>()
             .len(),
         "expecting all embedded packages to be the same package"
@@ -247,7 +250,7 @@ embedded:
         install
             .embedded
             .iter()
-            .map(|p| p.ident().version())
+            .map(|p| p.version())
             .collect::<HashSet<_>>()
             .len(),
         "expecting the embedded packages to be different versions"

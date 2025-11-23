@@ -17,11 +17,13 @@ use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Compatibility;
-use spk_schema::ident::{PkgRequest, Request, RequestedBy, Satisfy, VarRequest};
+use spk_schema::ident::{AsVersionIdent, PkgRequest, Request, RequestedBy, Satisfy, VarRequest};
 use spk_schema::ident_build::EmbeddedSource;
+use spk_schema::prelude::Named;
 use spk_schema::version::{ComponentsMissingProblem, IncompatibleReason, IsSameReasonAs};
 use spk_schema::{
     BuildIdent,
+    Components,
     Deprecate,
     Package,
     Recipe,
@@ -947,6 +949,7 @@ impl Solver {
     ) -> Result<Compatibility>
     where
         P: Package + Satisfy<PkgRequest> + Satisfy<VarRequest>,
+        <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequest>,
     {
         for validator in self.validators.as_ref() {
             let compat = validator.validate_package(state, spec, source)?;

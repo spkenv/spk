@@ -12,7 +12,16 @@ use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::{opt_name, option_map};
 use spk_schema::ident::{PkgRequest, RangeIdent, Request};
-use spk_schema::{ComponentSpecList, FromYaml, OptionMap, Package, Recipe, SpecRecipe, recipe};
+use spk_schema::{
+    ComponentSpecList,
+    Components,
+    FromYaml,
+    OptionMap,
+    Package,
+    Recipe,
+    SpecRecipe,
+    recipe,
+};
 use spk_solve::{Solution, SolverImpl};
 use spk_storage::fixtures::*;
 use spk_storage::{self as storage, Repository};

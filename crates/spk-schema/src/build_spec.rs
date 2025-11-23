@@ -134,7 +134,7 @@ impl IsDefault for AutoHostVars {
 }
 
 /// A set of structured inputs used to build a package.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct BuildSpec {
     pub script: Script,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -150,19 +150,6 @@ pub struct BuildSpec {
     pub validation: ValidationSpec,
     #[serde(default, skip_serializing_if = "AutoHostVars::is_default")]
     pub auto_host_vars: AutoHostVars,
-}
-
-impl Default for BuildSpec {
-    fn default() -> Self {
-        Self {
-            script: Script(vec!["sh ./build.sh".into()]),
-            options: Vec::new(),
-            raw_variants: Vec::new(),
-            variants: Vec::new(),
-            validation: ValidationSpec::default(),
-            auto_host_vars: AutoHostVars::default(),
-        }
-    }
 }
 
 impl BuildSpec {
@@ -339,6 +326,20 @@ impl BuildSpec {
 impl IsDefault for BuildSpec {
     fn is_default(&self) -> bool {
         self == &Self::default()
+    }
+}
+
+impl From<v0::EmbeddedBuildSpec> for BuildSpec {
+    fn from(value: v0::EmbeddedBuildSpec) -> Self {
+        BuildSpec {
+            options: value.options,
+            // Other fields are not part of the embedded build spec
+            auto_host_vars: Default::default(),
+            raw_variants: Default::default(),
+            script: Script::default(),
+            validation: Default::default(),
+            variants: Default::default(),
+        }
     }
 }
 
@@ -524,6 +525,12 @@ impl Script {
         S: Into<String>,
     {
         Self(script.into_iter().map(Into::into).collect())
+    }
+}
+
+impl Default for Script {
+    fn default() -> Self {
+        Self(vec!["sh ./build.sh".into()])
     }
 }
 

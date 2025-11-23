@@ -29,6 +29,7 @@ use spk_schema::{
     BuildIdent,
     ComponentFileMatchMode,
     ComponentSpecList,
+    Components,
     InputVariant,
     Package,
     PackageMut,

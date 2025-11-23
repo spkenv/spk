@@ -5,14 +5,13 @@
 use std::collections::HashMap;
 
 use rstest::rstest;
-use spk_schema_foundation::ident::BuildIdent;
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::option_map;
 use spk_schema_foundation::option_map::HOST_OPTIONS;
 
 use super::Platform;
 use crate::Opt::Var;
-use crate::v0::Spec;
+use crate::v0::PackageSpec;
 use crate::{BuildEnv, Recipe};
 
 /// Simplifies the validation of component requirements in our tests
@@ -90,7 +89,7 @@ fn test_platform_no_runtime_no_build() {
     struct TestBuildEnv();
 
     impl BuildEnv for TestBuildEnv {
-        type Package = Spec<BuildIdent>;
+        type Package = PackageSpec;
 
         fn build_env(&self) -> Vec<Self::Package> {
             Vec::new()
@@ -140,7 +139,7 @@ fn test_platform_single_inheritance() {
     struct TestBuildEnv();
 
     impl BuildEnv for TestBuildEnv {
-        type Package = Spec<BuildIdent>;
+        type Package = PackageSpec;
 
         fn build_env(&self) -> Vec<Self::Package> {
             let base: Platform = serde_yaml::from_str(
@@ -190,7 +189,7 @@ fn test_platform_stack_inheritance() {
     struct TestBuildEnv();
 
     impl BuildEnv for TestBuildEnv {
-        type Package = Spec<BuildIdent>;
+        type Package = PackageSpec;
 
         fn build_env(&self) -> Vec<Self::Package> {
             let base1: Platform = serde_yaml::from_str(
@@ -254,7 +253,7 @@ fn test_platform_inheritance_with_override_and_removal() {
     struct TestBuildEnv();
 
     impl BuildEnv for TestBuildEnv {
-        type Package = Spec<BuildIdent>;
+        type Package = PackageSpec;
 
         fn build_env(&self) -> Vec<Self::Package> {
             let base: Platform = serde_yaml::from_str(

@@ -4,13 +4,12 @@
 
 use rstest::rstest;
 use spk_config::{Metadata, MetadataCommand};
-use spk_schema_foundation::ident::{AnyIdent, VersionIdent};
 
 use crate::v0;
 
 #[rstest]
 fn test_package_meta_missing() {
-    let spec: serde_yaml::Result<v0::Spec<VersionIdent>> = serde_yaml::from_str(
+    let spec: serde_yaml::Result<v0::RecipeSpec> = serde_yaml::from_str(
         r#"{
         pkg: meta/1.0.0
     }"#,
@@ -37,7 +36,8 @@ fn test_package_meta_basic() {
 
 #[rstest]
 fn test_custom_metadata() {
-    let mut spec: v0::Spec<AnyIdent> = v0::Spec::new("test-pkg/1.0.0/3I42H3S6".parse().unwrap());
+    let mut spec: v0::PackageSpec =
+        v0::PackageSpec::new("test-pkg/1.0.0/3I42H3S6".parse().unwrap());
     let command = MetadataCommand {
         command: [String::from("src/metadata/test_capture_metadata.sh")].to_vec(),
     };

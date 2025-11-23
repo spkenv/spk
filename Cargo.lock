@@ -4801,6 +4801,7 @@ dependencies = [
  "resolvo",
  "rstest",
  "sentry",
+ "serde",
  "serde_json",
  "signal-hook",
  "spfs",
@@ -4855,6 +4856,7 @@ dependencies = [
 name = "spk-solve-macros"
 version = "0.44.0"
 dependencies = [
+ "serde",
  "serde_json",
  "spfs",
  "spk-schema",
@@ -4872,6 +4874,7 @@ dependencies = [
  "miette",
  "once_cell",
  "rstest",
+ "serde",
  "spk-config",
  "spk-schema",
  "spk-solve-macros",
@@ -4911,6 +4914,7 @@ dependencies = [
  "miette",
  "once_cell",
  "rstest",
+ "serde",
  "serde_yaml 0.9.34+deprecated",
  "spfs",
  "spk-schema",

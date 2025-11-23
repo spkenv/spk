@@ -10,26 +10,27 @@ use spk_schema_foundation::spec_ops::Named;
 
 use crate::component_embedded_packages::ComponentEmbeddedPackage;
 use crate::foundation::option_map::OptionMap;
-use crate::v0::{self, EmbeddedInstallSpec, EmbeddedPackageSpec};
+use crate::v0::EmbeddedRecipeSpec;
 use crate::{
     ComponentSpecList,
     Components,
     EmbeddedPackagesList,
     EnvOp,
     EnvOpList,
+    InstallSpec,
     OpKind,
     RequirementsList,
     Result,
 };
 
 #[cfg(test)]
-#[path = "./install_spec_test.rs"]
-mod install_spec_test;
+#[path = "./recipe_install_spec_test.rs"]
+mod recipe_install_spec_test;
 
 /// A set of structured installation parameters for a package.
 ///
-/// This represents the `install` section of a built package. See
-/// [`v0::RecipeInstallSpec`] for the type used by recipes.
+/// This represents the `install` section of a package recipe. Once built,
+/// [`crate::InstallSpec`] is used.
 #[derive(
     Clone,
     Debug,
@@ -43,19 +44,19 @@ mod install_spec_test;
     PartialOrd,
     Serialize,
 )]
-#[serde(from = "RawInstallSpec")]
-pub struct InstallSpec {
+#[serde(from = "RawRecipeInstallSpec")]
+pub struct RecipeInstallSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub requirements: RequirementsList,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub embedded: EmbeddedPackagesList<EmbeddedPackageSpec>,
+    pub embedded: EmbeddedPackagesList<EmbeddedRecipeSpec>,
     #[serde(default)]
     pub components: ComponentSpecList,
     #[serde(default, skip_serializing_if = "IsDefault::is_default")]
     pub environment: EnvOpList,
 }
 
-impl InstallSpec {
+impl RecipeInstallSpec {
     /// Render all requests with a package pin using the given resolved packages.
     pub fn render_all_pins<'a>(
         &mut self,
@@ -74,19 +75,19 @@ impl InstallSpec {
     }
 }
 
-impl From<EmbeddedInstallSpec> for InstallSpec {
-    fn from(embedded: EmbeddedInstallSpec) -> Self {
+impl From<InstallSpec> for RecipeInstallSpec {
+    fn from(install: InstallSpec) -> Self {
         Self {
-            requirements: embedded.requirements,
-            embedded: EmbeddedPackagesList::default(),
-            components: embedded.components,
-            environment: embedded.environment,
+            requirements: install.requirements,
+            embedded: install.embedded.into(),
+            components: install.components,
+            environment: install.environment,
         }
     }
 }
 
-impl From<RawInstallSpec> for InstallSpec {
-    fn from(raw: RawInstallSpec) -> Self {
+impl From<RawRecipeInstallSpec> for RecipeInstallSpec {
+    fn from(raw: RawRecipeInstallSpec) -> Self {
         let mut install = Self {
             requirements: raw.requirements,
             embedded: raw.embedded,
@@ -177,24 +178,13 @@ impl From<RawInstallSpec> for InstallSpec {
     }
 }
 
-impl From<v0::RecipeInstallSpec> for InstallSpec {
-    fn from(recipe_install_spec: v0::RecipeInstallSpec) -> Self {
-        Self {
-            requirements: recipe_install_spec.requirements,
-            embedded: recipe_install_spec.embedded.into(),
-            components: recipe_install_spec.components,
-            environment: recipe_install_spec.environment,
-        }
-    }
-}
-
 /// A raw, unvalidated install spec.
 #[derive(Deserialize)]
-struct RawInstallSpec {
+struct RawRecipeInstallSpec {
     #[serde(default)]
     requirements: RequirementsList,
     #[serde(default)]
-    embedded: EmbeddedPackagesList<EmbeddedPackageSpec>,
+    embedded: EmbeddedPackagesList<EmbeddedRecipeSpec>,
     #[serde(default)]
     components: ComponentSpecList,
     #[serde(default, deserialize_with = "deserialize_env_conf")]
