@@ -179,7 +179,7 @@ async fn test_solver_package_with_no_recipe(
     let repo = RepositoryHandle::new_mem();
 
     let options = option_map! {};
-    let spec = v0::Spec::new(build_ident!(format!("my-pkg/1.0.0/{random_build_id}")));
+    let spec = v0::PackageSpec::new(build_ident!(format!("my-pkg/1.0.0/{random_build_id}")));
 
     // publish package without publishing spec
     let components = vec![
