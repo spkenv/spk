@@ -14,7 +14,6 @@ use spk_schema_foundation::version::VERSION_SEP;
 use super::RequirementsList;
 use crate::foundation::ident_component::Component;
 use crate::foundation::option_map::OptionMap;
-use crate::foundation::version::Compatibility;
 use crate::{DeprecateMut, Opt, RuntimeEnvironment};
 
 #[cfg(test)]
@@ -138,9 +137,6 @@ pub trait Package:
 
     /// Return the build script for building package
     fn build_script(&self) -> String;
-
-    /// Validate the given options against the options in this spec.
-    fn validate_options(&self, given_options: &OptionMap) -> Compatibility;
 }
 
 pub trait PackageMut: Package + DeprecateMut {
@@ -218,10 +214,6 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
     fn build_script(&self) -> String {
         (**self).build_script()
     }
-
-    fn validate_options(&self, given_options: &OptionMap) -> Compatibility {
-        (**self).validate_options(given_options)
-    }
 }
 
 impl<T: Package + Send + Sync> Package for Box<T> {
@@ -294,10 +286,6 @@ impl<T: Package + Send + Sync> Package for Box<T> {
     fn build_script(&self) -> String {
         (**self).build_script()
     }
-
-    fn validate_options(&self, given_options: &OptionMap) -> Compatibility {
-        (**self).validate_options(given_options)
-    }
 }
 
 impl<T: Package + Send + Sync> Package for &T {
@@ -369,9 +357,5 @@ impl<T: Package + Send + Sync> Package for &T {
 
     fn build_script(&self) -> String {
         (**self).build_script()
-    }
-
-    fn validate_options(&self, given_options: &OptionMap) -> Compatibility {
-        (**self).validate_options(given_options)
     }
 }
