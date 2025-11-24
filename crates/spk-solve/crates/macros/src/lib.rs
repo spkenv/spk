@@ -50,11 +50,14 @@ macro_rules! make_package {
         let json = $crate::serde_json::json!($spec);
         let spec: spk_schema::v0::Spec<spk_schema::ident::AnyIdent> =
             $crate::serde_json::from_value(json).expect("Invalid spec json");
-        match spec.pkg.build().map(|b| b.clone()) {
+        match spec.pkg.build() {
             None => {
-                let recipe = spec.clone().map_ident(|i| i.into_base()).into();
-                $repo.force_publish_recipe(&recipe).await.unwrap();
-                make_build_and_components!(recipe, [], $opts, [])
+                let recipe = spec.map_ident(|i| i.into_base());
+                $repo
+                    .force_publish_recipe(&recipe.clone().into())
+                    .await
+                    .unwrap();
+                make_build_and_components!(recipe = recipe, [], $opts, [])
             }
             Some(spk_schema::foundation::ident_build::Build::Source) => {
                 let recipe = spec.clone().map_ident(|i| i.into_base());
@@ -63,11 +66,12 @@ macro_rules! make_package {
                     i.into_base()
                         .into_build_ident(spk_schema::foundation::ident_build::Build::Source)
                 });
-                make_build_and_components!(build, [], $opts, [])
+                make_build_and_components!(package = build, [], $opts, [])
             }
             Some(b) => {
+                let b = b.clone();
                 let build = spec.map_ident(|i| i.into_base().into_build_ident(b));
-                make_build_and_components!(build, [], $opts, [])
+                make_build_and_components!(package = build, [], $opts, [])
             }
         }
     }};
@@ -115,61 +119,70 @@ macro_rules! make_build_and_components {
         let opts = spk_schema::foundation::option_map!{$($k => $v),*};
         make_build_and_components!($spec, [$($dep),*], opts, [$($component),*])
     }};
-    ($spec:tt, [$($dep:expr),*], $opts:expr, [$($component:expr),*]) => {{
-        #[allow(unused_imports)]
+    (recipe = $recipe:ident, [$($dep:expr),*], $opts:expr, [$($component:expr),*]) => {{
         use spk_schema::{Package, Recipe};
+        let mut components = std::collections::HashMap::<spk_schema::foundation::ident_component::Component, $crate::spfs::encoding::Digest>::new();
+        let mut build_opts = $opts.clone();
+        #[allow(unused_mut)]
+        let mut solution = spk_solve_solution::Solution::new(build_opts.clone());
+        $(
+        let dep = Arc::new($dep.clone());
+        solution.add(
+            spk_schema::ident::PkgRequest::from_ident(
+                $dep.ident().to_any_ident(),
+                spk_schema::ident::RequestedBy::SpkInternalTest,
+            ),
+            Arc::clone(&dep),
+            spk_solve_solution::PackageSource::SpkInternalTest,
+        );
+        )*
+        let mut resolved_opts = $recipe.resolve_options(&build_opts).unwrap().into_iter();
+        build_opts.extend(&mut resolved_opts);
+        tracing::trace!(%build_opts, "generating build");
+        let build = $recipe.generate_binary_build(&build_opts, &solution).expect("Failed to generate build spec");
+        let mut names = std::vec![$($component.to_string()),*];
+        if names.is_empty() {
+            names = build.components().iter().map(|c| c.name.to_string()).collect();
+        }
+        for name in names {
+            let name = spk_schema::foundation::ident_component::Component::parse(name).expect("invalid component name");
+            components.insert(name, $crate::spfs::encoding::EMPTY_DIGEST.into());
+        }
+        (spk_schema::Spec::V0Package(build), components)
+    }};
+    (package = $package:ident, [$($dep:expr),*], $opts:expr, [$($component:expr),*]) => {{
+        let mut components = std::collections::HashMap::<spk_schema::foundation::ident_component::Component, $crate::spfs::encoding::Digest>::new();
+        match $package.pkg.build() {
+            spk_schema::foundation::ident_build::Build::Source => {
+                components.insert(spk_schema::foundation::ident_component::Component::Source, $crate::spfs::encoding::EMPTY_DIGEST.into());
+            }
+            _ => {
+                use spk_schema::{Package, Recipe};
+                let mut names = std::vec![$($component.to_string()),*];
+                if names.is_empty() {
+                    names = $package.components().iter().map(|c| c.name.to_string()).collect();
+                }
+                for name in names {
+                    let name = spk_schema::foundation::ident_component::Component::parse(name).expect("invalid component name");
+                    components.insert(name, $crate::spfs::encoding::EMPTY_DIGEST.into());
+                }
+            }
+        }
+        (spk_schema::Spec::V0Package($package), components)
+    }};
+    ($spec:tt, [$($dep:expr),*], $opts:expr, [$($component:expr),*]) => {{
         let json = $crate::serde_json::json!($spec);
         let spec: spk_schema::v0::Spec<spk_schema::ident::AnyIdent> =
             $crate::serde_json::from_value(json).expect("Invalid spec json");
-        let mut components = std::collections::HashMap::<spk_schema::foundation::ident_component::Component, $crate::spfs::encoding::Digest>::new();
-        match spec.pkg.build().map(|b| b.clone()) {
+        match spec.pkg.build() {
             None => {
-                let recipe = spec.clone().map_ident(|i| i.into_base());
-                let mut build_opts = $opts.clone();
-                #[allow(unused_mut)]
-                let mut solution = spk_solve_solution::Solution::new(build_opts.clone());
-                $(
-                let dep = Arc::new($dep.clone());
-                solution.add(
-                    spk_schema::ident::PkgRequest::from_ident(
-                        $dep.ident().to_any_ident(),
-                        spk_schema::ident::RequestedBy::SpkInternalTest,
-                    ),
-                    Arc::clone(&dep),
-                    spk_solve_solution::PackageSource::SpkInternalTest,
-                );
-                )*
-                let mut resolved_opts = recipe.resolve_options(&build_opts).unwrap().into_iter();
-                build_opts.extend(&mut resolved_opts);
-                tracing::trace!(%build_opts, "generating build");
-                let build = recipe.generate_binary_build(&build_opts, &solution)
-                    .expect("Failed to generate build spec");
-                let mut names = std::vec![$($component.to_string()),*];
-                if names.is_empty() {
-                    names = build.components().iter().map(|c| c.name.to_string()).collect();
-                }
-                for name in names {
-                    let name = spk_schema::foundation::ident_component::Component::parse(name).expect("invalid component name");
-                    components.insert(name, $crate::spfs::encoding::EMPTY_DIGEST.into());
-                }
-                (spk_schema::Spec::V0Package(build), components)
-            }
-            Some(b @ spk_schema::foundation::ident_build::Build::Source) => {
-                let build = spec.map_ident(|i| i.into_base().into_build_ident(b));
-                components.insert(spk_schema::foundation::ident_component::Component::Source, $crate::spfs::encoding::EMPTY_DIGEST.into());
-                (spk_schema::Spec::V0Package(build), components)
+                let recipe = spec.map_ident(|i| i.into_base());
+                make_build_and_components!(recipe = recipe, [$($dep),*], $opts, [$($component),*])
             }
             Some(b) => {
-                let build = spec.map_ident(|i| i.into_base().into_build_ident(b));
-                let mut names = std::vec![$($component.to_string()),*];
-                if names.is_empty() {
-                    names = build.components().iter().map(|c| c.name.to_string()).collect();
-                }
-                for name in names {
-                    let name = spk_schema::foundation::ident_component::Component::parse(name).expect("invalid component name");
-                    components.insert(name, $crate::spfs::encoding::EMPTY_DIGEST.into());
-                }
-                (spk_schema::Spec::V0Package(build), components)
+                let b = b.clone();
+                let package = spec.map_ident(|i| i.to_build_ident(b));
+                make_build_and_components!(package = package, [$($dep),*], $opts, [$($component),*])
             }
         }
     }}
