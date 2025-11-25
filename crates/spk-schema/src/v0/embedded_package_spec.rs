@@ -3,20 +3,18 @@
 // https://github.com/spkenv/spk
 
 use std::borrow::Cow;
-use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::{AsVersionIdent, BuildIdent, VersionIdent};
 use spk_schema_foundation::ident_build::EmbeddedSource;
-use spk_schema_foundation::version::{IncompatibleReason, VarOptionProblem};
 
 use super::TestSpec;
 use crate::foundation::ident_build::Build;
 use crate::foundation::name::PkgName;
 use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
-use crate::ident::{PkgRequest, Satisfy, VarRequest, is_false};
+use crate::ident::{PkgRequest, Satisfy, is_false};
 use crate::metadata::Meta;
 use crate::v0::{
     EmbeddedBuildSpec,
@@ -152,95 +150,6 @@ impl Versioned for EmbeddedPackageSpec {
 impl Satisfy<PkgRequest> for EmbeddedPackageSpec {
     fn check_satisfies_request(&self, pkg_request: &PkgRequest) -> Compatibility {
         check_package_spec_satisfies_pkg_request(self, pkg_request)
-    }
-}
-
-impl Satisfy<VarRequest> for EmbeddedPackageSpec
-where
-    Self: Named,
-{
-    fn check_satisfies_request(&self, var_request: &VarRequest) -> Compatibility {
-        let opt_required = var_request.var.namespace() == Some(self.name());
-        let mut opt: Option<&Opt> = None;
-        let request_name = &var_request.var;
-        for o in self.build.options.iter() {
-            if request_name == o.full_name() {
-                opt = Some(o);
-                break;
-            }
-            if request_name == &o.full_name().with_namespace(self.name()) {
-                opt = Some(o);
-                break;
-            }
-        }
-
-        match opt {
-            None => {
-                if opt_required {
-                    return Compatibility::Incompatible(IncompatibleReason::VarOptionMissing(
-                        var_request.var.clone(),
-                    ));
-                }
-                Compatibility::Compatible
-            }
-            Some(Opt::Pkg(opt)) => opt.validate(var_request.value.as_pinned()),
-            Some(Opt::Var(opt)) => {
-                let request_value = var_request.value.as_pinned();
-                let exact = opt.get_value(request_value);
-                if exact.as_deref() == request_value {
-                    return Compatibility::Compatible;
-                }
-
-                // For values that aren't exact matches, if the option specifies
-                // a compat rule, try treating the values as version numbers
-                // and see if they satisfy the rule.
-                if let Some(compat) = &opt.compat {
-                    let base_version = exact.clone();
-                    let Ok(base_version) = Version::from_str(&base_version.unwrap_or_default())
-                    else {
-                        return Compatibility::Incompatible(IncompatibleReason::VarOptionMismatch(
-                            VarOptionProblem::IncompatibleBuildOptionInvalidVersion {
-                                var_request: var_request.var.clone(),
-                                base: exact.unwrap_or_default(),
-                                request_value: request_value.unwrap_or_default().to_string(),
-                            },
-                        ));
-                    };
-
-                    let Ok(request_version) = Version::from_str(request_value.unwrap_or_default())
-                    else {
-                        return Compatibility::Incompatible(IncompatibleReason::VarOptionMismatch(
-                            VarOptionProblem::IncompatibleBuildOptionInvalidVersion {
-                                var_request: var_request.var.clone(),
-                                base: exact.unwrap_or_default(),
-                                request_value: request_value.unwrap_or_default().to_string(),
-                            },
-                        ));
-                    };
-
-                    let result = compat.is_binary_compatible(&base_version, &request_version);
-                    if let Compatibility::Incompatible(incompatible) = result {
-                        return Compatibility::Incompatible(IncompatibleReason::VarOptionMismatch(
-                            VarOptionProblem::IncompatibleBuildOptionWithContext {
-                                var_request: var_request.var.clone(),
-                                exact: exact.unwrap_or_else(|| "None".to_string()),
-                                request_value: request_value.unwrap_or_default().to_string(),
-                                context: Box::new(incompatible),
-                            },
-                        ));
-                    }
-                    return result;
-                }
-
-                Compatibility::Incompatible(IncompatibleReason::VarOptionMismatch(
-                    VarOptionProblem::IncompatibleBuildOption {
-                        var_request: var_request.var.clone(),
-                        exact: exact.unwrap_or_else(|| "None".to_string()),
-                        request_value: request_value.unwrap_or_default().to_string(),
-                    },
-                ))
-            }
-        }
     }
 }
 
