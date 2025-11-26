@@ -54,6 +54,18 @@ forward_to_impl!(Components, {
     }
 });
 
+/// Access to the option values defined by a package.
+pub trait OptionValues {
+    /// The values for this package's options used for this build.
+    fn option_values(&self) -> OptionMap;
+}
+
+forward_to_impl!(OptionValues, {
+    fn option_values(&self) -> OptionMap {
+        (**self).option_values()
+    }
+});
+
 /// Can be resolved into an environment.
 #[enum_dispatch::enum_dispatch]
 pub trait Package:
@@ -63,6 +75,7 @@ pub trait Package:
     + super::Deprecate
     + RuntimeEnvironment
     + Components<Request = PinnedRequest>
+    + OptionValues
     + Clone
     + Eq
     + std::hash::Hash
@@ -79,9 +92,6 @@ pub trait Package:
 
     /// The additional metadata attached to this package
     fn metadata(&self) -> &crate::metadata::Meta;
-
-    /// The values for this packages options used for this build.
-    fn option_values(&self) -> OptionMap;
 
     /// Returns true if the spec's options match all the given option
     /// filters, otherwise false
@@ -191,10 +201,6 @@ forward_to_impl!(Package, {
 
     fn metadata(&self) -> &crate::metadata::Meta {
         (**self).metadata()
-    }
-
-    fn option_values(&self) -> OptionMap {
-        (**self).option_values()
     }
 
     fn matches_all_filters(&self, filter_by: &Option<Vec<OptFilter>>) -> bool {

@@ -57,6 +57,7 @@ use crate::{
     InstallSpec,
     LocalSource,
     Opt,
+    OptionValues,
     Package,
     PackageMut,
     RequirementsList,
@@ -225,6 +226,18 @@ impl Versioned for PackageSpec {
     }
 }
 
+impl OptionValues for PackageSpec {
+    fn option_values(&self) -> OptionMap {
+        let mut opts = OptionMap::default();
+        for opt in self.build.options.iter() {
+            // since this is a PackageSpec we can assume that this spec has
+            // had all of the options pinned/resolved.
+            opts.insert(opt.full_name().to_owned(), opt.get_value(None));
+        }
+        opts
+    }
+}
+
 impl Package for PackageSpec {
     type Package = Self;
     type EmbeddedPackage = EmbeddedPackageSpec;
@@ -235,16 +248,6 @@ impl Package for PackageSpec {
 
     fn metadata(&self) -> &crate::metadata::Meta {
         &self.meta
-    }
-
-    fn option_values(&self) -> OptionMap {
-        let mut opts = OptionMap::default();
-        for opt in self.build.options.iter() {
-            // we are assuming that this spec has been updated to represent
-            // a build and had all of the options pinned/resolved.
-            opts.insert(opt.full_name().to_owned(), opt.get_value(None));
-        }
-        opts
     }
 
     fn matches_all_filters(&self, filter_by: &Option<Vec<OptFilter>>) -> bool {
