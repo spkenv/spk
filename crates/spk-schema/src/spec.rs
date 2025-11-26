@@ -24,6 +24,7 @@ use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{PinnedRequest, PkgRequest, Satisfy, VarRequest};
 use crate::metadata::Meta;
+use crate::package::OptionValues;
 use crate::{
     BuildEnv,
     Components,
@@ -627,6 +628,14 @@ impl Components for Spec {
     }
 }
 
+impl OptionValues for Spec {
+    fn option_values(&self) -> OptionMap {
+        match self {
+            Spec::V0Package(r) => r.option_values(),
+        }
+    }
+}
+
 impl Satisfy<PkgRequest> for Spec {
     fn check_satisfies_request(&self, request: &PkgRequest) -> Compatibility {
         match self {
@@ -689,12 +698,6 @@ impl Package for Spec {
     fn metadata(&self) -> &crate::metadata::Meta {
         match self {
             Spec::V0Package(spec) => spec.metadata(),
-        }
-    }
-
-    fn option_values(&self) -> OptionMap {
-        match self {
-            Spec::V0Package(spec) => spec.option_values(),
         }
     }
 

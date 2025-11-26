@@ -14,7 +14,7 @@ use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::Version;
 use spk_schema::ident::{AsVersionIdent, VersionIdent};
 use spk_schema::version::Compatibility;
-use spk_schema::{AnyIdent, BuildIdent, Package, Spec};
+use spk_schema::{AnyIdent, BuildIdent, OptionValues, Package, Spec};
 use spk_solve_solution::PackageSource;
 use spk_storage::RepositoryHandle;
 
