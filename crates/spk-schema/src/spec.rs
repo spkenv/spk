@@ -33,6 +33,7 @@ use crate::{
     FromYaml,
     InputVariant,
     Opt,
+    OptionValues,
     Package,
     PackageMut,
     Recipe,
@@ -670,6 +671,14 @@ impl Versioned for Spec {
     }
 }
 
+impl OptionValues for Spec {
+    fn option_values(&self) -> OptionMap {
+        match self {
+            Spec::V0Package(spec) => spec.option_values(),
+        }
+    }
+}
+
 // enum_dispatch does not support associated types.
 impl Package for Spec {
     type Package = Self;
@@ -684,12 +693,6 @@ impl Package for Spec {
     fn metadata(&self) -> &crate::metadata::Meta {
         match self {
             Spec::V0Package(spec) => spec.metadata(),
-        }
-    }
-
-    fn option_values(&self) -> OptionMap {
-        match self {
-            Spec::V0Package(spec) => spec.option_values(),
         }
     }
 

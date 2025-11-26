@@ -30,6 +30,7 @@ use spk_schema::{
     ComponentSpecList,
     Components,
     EmbeddedPackagesList,
+    OptionValues,
     RequirementsList,
     Spec,
     SpecRecipe,

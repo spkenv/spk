@@ -44,6 +44,7 @@ use spk_schema::{
     Components,
     Deprecate,
     Opt,
+    OptionValues,
     Package,
     Recipe,
     Request,
