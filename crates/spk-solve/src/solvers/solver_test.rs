@@ -21,7 +21,7 @@ use spk_schema::ident::{
 use spk_schema::ident_build::{Build, BuildId};
 use spk_schema::name::OptName;
 use spk_schema::prelude::*;
-use spk_schema::{recipe, v0};
+use spk_schema::{OptionValues, recipe, v0};
 use spk_solve_macros::{
     make_build,
     make_build_and_components,

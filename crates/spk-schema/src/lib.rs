@@ -48,7 +48,7 @@ pub use error::{Error, Result};
 pub use input_variant::InputVariant;
 pub use install_spec::InstallSpec;
 pub use option::{Inheritance, Opt};
-pub use package::{Components, Package, PackageMut};
+pub use package::{Components, OptionValues, Package, PackageMut};
 pub use recipe::{BuildEnv, Recipe};
 pub use requirements_list::RequirementsList;
 pub use serde_json;
