@@ -29,9 +29,11 @@ use spk_schema::ident::{
     AnyIdent,
     AsVersionIdent,
     InitialRawRequest,
+    PinnableRequest,
+    PinnedRequest,
+    PinnedValue,
     PkgRequest,
     RangeIdent,
-    Request,
     RequestedBy,
     VarRequest,
     parse_ident,
@@ -363,7 +365,7 @@ impl Options {
         Ok(opts)
     }
 
-    pub fn get_var_requests(&self) -> Result<Vec<VarRequest>> {
+    pub fn get_var_requests(&self) -> Result<Vec<VarRequest<PinnedValue>>> {
         Ok(self
             .get_options()?
             .into_iter()
@@ -457,7 +459,7 @@ impl Requests {
         request: R,
         options: &Options,
         repos: &[Arc<storage::RepositoryHandle>],
-    ) -> Result<(Request, OptionMap)> {
+    ) -> Result<(PinnedRequest, OptionMap)> {
         let (mut requests, extra_options) = self
             .parse_requests([request.as_ref()], options, repos)
             .await?;
@@ -474,12 +476,12 @@ impl Requests {
         requests: I,
         options: &Options,
         repos: &[Arc<storage::RepositoryHandle>],
-    ) -> Result<(Vec<Request>, OptionMap)>
+    ) -> Result<(Vec<PinnedRequest>, OptionMap)>
     where
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
-        let mut out = Vec::<Request>::new();
+        let mut out = Vec::<PinnedRequest>::new();
         let override_options = options.get_options()?;
         let mut templating_options = override_options.clone();
         let mut extra_options = OptionMap::default();
@@ -552,10 +554,10 @@ impl Requests {
         options: &OptionMap,
         workspace: &mut Option<spk_workspace::Workspace>,
         repos: &[Arc<storage::RepositoryHandle>],
-    ) -> Result<Vec<Request>> {
+    ) -> Result<Vec<PinnedRequest>> {
         // Parses a command line request into one or more requests.
         // 'file@stage' strings can expand into more than one request.
-        let mut out = Vec::<Request>::new();
+        let mut out = Vec::<PinnedRequest>::new();
 
         if request.contains('@') {
             if workspace.is_none() {
@@ -651,7 +653,7 @@ impl Requests {
             request_data.insert(prerelease_policy_key, "IncludeAll".into());
         }
 
-        let mut req = serde_yaml::from_value::<Request>(request_data.into())
+        let mut req = serde_yaml::from_value::<PinnableRequest>(request_data.into())
             .into_diagnostic()
             .wrap_err_with(|| format!("Failed to parse request {request}"))?
             .pkg()
