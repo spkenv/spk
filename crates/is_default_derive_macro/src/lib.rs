@@ -15,6 +15,8 @@ pub fn derive_is_default(input: TokenStream) -> TokenStream {
 
     // Get the name of the struct
     let name = input.ident;
+    let generics = input.generics;
+    let generic_idents: Vec<_> = generics.type_params().map(|tp| tp.ident.clone()).collect();
 
     // Generate the trait implementation based on the struct's data (fields)
     let expanded = match input.data {
@@ -30,7 +32,7 @@ pub fn derive_is_default(input: TokenStream) -> TokenStream {
                     });
 
                     quote! {
-                        impl spk_schema_foundation::IsDefault for #name {
+                        impl #generics spk_schema_foundation::IsDefault for #name <#(#generic_idents),*> {
                             fn is_default(&self) -> bool {
                                 true #(&& #field_checks)*
                             }
