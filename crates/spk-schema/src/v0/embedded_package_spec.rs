@@ -3,33 +3,27 @@
 // https://github.com/spkenv/spk
 
 use std::borrow::Cow;
-use std::collections::BTreeSet;
 use std::str::FromStr;
 
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::{AsVersionIdent, BuildIdent, VersionIdent};
 use spk_schema_foundation::ident_build::EmbeddedSource;
-use spk_schema_foundation::version::{
-    BuildIdProblem,
-    CommaSeparated,
-    ComponentsMissingProblem,
-    IncompatibleReason,
-    PackageNameProblem,
-    VarOptionProblem,
-};
+use spk_schema_foundation::version::{IncompatibleReason, VarOptionProblem};
 
 use super::TestSpec;
 use crate::foundation::ident_build::Build;
-use crate::foundation::ident_component::Component;
 use crate::foundation::name::PkgName;
 use crate::foundation::spec_ops::prelude::*;
-use crate::foundation::version::{Compat, CompatRule, Compatibility, Version};
-use crate::foundation::version_range::Ranged;
-use crate::ident::{PkgRequest, PreReleasePolicy, Satisfy, VarRequest, is_false};
+use crate::foundation::version::{Compat, Compatibility, Version};
+use crate::ident::{PkgRequest, Satisfy, VarRequest, is_false};
 use crate::metadata::Meta;
-use crate::v0::{EmbeddedBuildSpec, EmbeddedInstallSpec, EmbeddedRecipeSpec};
+use crate::v0::{
+    EmbeddedBuildSpec,
+    EmbeddedInstallSpec,
+    EmbeddedRecipeSpec,
+    check_package_spec_satisfies_pkg_request,
+};
 use crate::{
     ComponentSpecList,
     Components,
@@ -125,6 +119,12 @@ impl DeprecateMut for EmbeddedPackageSpec {
     }
 }
 
+impl HasBuild for EmbeddedPackageSpec {
+    fn build(&self) -> &Build {
+        self.pkg.build()
+    }
+}
+
 impl HasVersion for EmbeddedPackageSpec {
     fn version(&self) -> &Version {
         self.pkg.version()
@@ -151,84 +151,7 @@ impl Versioned for EmbeddedPackageSpec {
 
 impl Satisfy<PkgRequest> for EmbeddedPackageSpec {
     fn check_satisfies_request(&self, pkg_request: &PkgRequest) -> Compatibility {
-        if pkg_request.pkg.name != *self.pkg.name() {
-            return Compatibility::Incompatible(IncompatibleReason::PackageNameMismatch(
-                PackageNameProblem::PkgRequest {
-                    self_name: self.pkg.name().to_owned(),
-                    other_name: pkg_request.pkg.name.clone(),
-                },
-            ));
-        }
-
-        if self.is_deprecated() {
-            // deprecated builds are only okay if their build
-            // was specifically requested
-            if pkg_request.pkg.build.as_ref() != Some(self.pkg.build()) {
-                return Compatibility::Incompatible(IncompatibleReason::BuildDeprecated);
-            }
-        }
-
-        if (pkg_request.prerelease_policy.is_none()
-            || pkg_request.prerelease_policy == Some(PreReleasePolicy::ExcludeAll))
-            && !self.version().pre.is_empty()
-        {
-            return Compatibility::Incompatible(IncompatibleReason::PrereleasesNotAllowed);
-        }
-
-        if !pkg_request.pkg.components.is_empty() {
-            let required_components = self
-                .components()
-                .resolve_uses(pkg_request.pkg.components.iter());
-            let available_components: BTreeSet<_> = self
-                .install
-                .components
-                .iter()
-                .map(|c| c.name.clone())
-                .collect();
-            let missing_components = required_components
-                .difference(&available_components)
-                .sorted()
-                .collect_vec();
-            if !missing_components.is_empty() {
-                return Compatibility::Incompatible(IncompatibleReason::ComponentsMissing(
-                    ComponentsMissingProblem::ComponentsNotDefined {
-                        missing: CommaSeparated(
-                            missing_components
-                                .into_iter()
-                                .map(Component::to_string)
-                                .collect(),
-                        ),
-                        available: CommaSeparated(
-                            available_components
-                                .into_iter()
-                                .map(|c| c.to_string())
-                                .collect(),
-                        ),
-                    },
-                ));
-            }
-        }
-
-        let c = pkg_request
-            .pkg
-            .version
-            .is_satisfied_by(self, CompatRule::Binary);
-        if !c.is_ok() {
-            return c;
-        }
-
-        if pkg_request.pkg.build.is_none()
-            || pkg_request.pkg.build.as_ref() == Some(self.pkg.build())
-        {
-            return Compatibility::Compatible;
-        }
-
-        Compatibility::Incompatible(IncompatibleReason::BuildIdMismatch(
-            BuildIdProblem::PkgRequest {
-                self_build: self.pkg.build().clone(),
-                requested: pkg_request.pkg.build.clone(),
-            },
-        ))
+        check_package_spec_satisfies_pkg_request(self, pkg_request)
     }
 }
 

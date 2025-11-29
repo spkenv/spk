@@ -193,6 +193,12 @@ impl DeprecateMut for PackageSpec {
     }
 }
 
+impl HasBuild for PackageSpec {
+    fn build(&self) -> &Build {
+        self.pkg.build()
+    }
+}
+
 impl HasVersion for PackageSpec {
     fn version(&self) -> &Version {
         self.pkg.version()
@@ -347,88 +353,93 @@ impl PackageMut for PackageSpec {
     }
 }
 
-impl Satisfy<PkgRequest> for PackageSpec {
-    fn check_satisfies_request(&self, pkg_request: &PkgRequest) -> Compatibility {
-        if pkg_request.pkg.name != *self.pkg.name() {
-            return Compatibility::Incompatible(IncompatibleReason::PackageNameMismatch(
-                PackageNameProblem::PkgRequest {
-                    self_name: self.pkg.name().to_owned(),
-                    other_name: pkg_request.pkg.name.clone(),
+/// Shared implementation for Satisfy<PkgRequest> for package-like types.
+pub(crate) fn check_package_spec_satisfies_pkg_request<T>(
+    spec: &T,
+    pkg_request: &PkgRequest,
+) -> Compatibility
+where
+    T: Components + Deprecate + HasBuild + Named + Versioned,
+{
+    if pkg_request.pkg.name != *spec.name() {
+        return Compatibility::Incompatible(IncompatibleReason::PackageNameMismatch(
+            PackageNameProblem::PkgRequest {
+                self_name: spec.name().to_owned(),
+                other_name: pkg_request.pkg.name.clone(),
+            },
+        ));
+    }
+
+    if spec.is_deprecated() {
+        // deprecated builds are only okay if their build
+        // was specifically requested
+        if pkg_request.pkg.build.as_ref() != Some(spec.build()) {
+            return Compatibility::Incompatible(IncompatibleReason::BuildDeprecated);
+        }
+    }
+
+    if (pkg_request.prerelease_policy.is_none()
+        || pkg_request.prerelease_policy == Some(PreReleasePolicy::ExcludeAll))
+        && !spec.version().pre.is_empty()
+    {
+        return Compatibility::Incompatible(IncompatibleReason::PrereleasesNotAllowed);
+    }
+
+    let source_package_requested = pkg_request.pkg.build == Some(Build::Source);
+    let is_source_build = spec.build().is_source() && !source_package_requested;
+    if !pkg_request.pkg.components.is_empty() && !is_source_build {
+        let required_components = spec
+            .components()
+            .resolve_uses(pkg_request.pkg.components.iter());
+        let available_components: BTreeSet<_> =
+            spec.components().iter().map(|c| c.name.clone()).collect();
+        let missing_components = required_components
+            .difference(&available_components)
+            .sorted()
+            .collect_vec();
+        if !missing_components.is_empty() {
+            return Compatibility::Incompatible(IncompatibleReason::ComponentsMissing(
+                ComponentsMissingProblem::ComponentsNotDefined {
+                    missing: CommaSeparated(
+                        missing_components
+                            .into_iter()
+                            .map(Component::to_string)
+                            .collect(),
+                    ),
+                    available: CommaSeparated(
+                        available_components
+                            .into_iter()
+                            .map(|c| c.to_string())
+                            .collect(),
+                    ),
                 },
             ));
         }
+    }
 
-        if self.is_deprecated() {
-            // deprecated builds are only okay if their build
-            // was specifically requested
-            if pkg_request.pkg.build.as_ref() != Some(self.pkg.build()) {
-                return Compatibility::Incompatible(IncompatibleReason::BuildDeprecated);
-            }
-        }
+    let c = pkg_request
+        .pkg
+        .version
+        .is_satisfied_by(spec, CompatRule::Binary);
+    if !c.is_ok() {
+        return c;
+    }
 
-        if (pkg_request.prerelease_policy.is_none()
-            || pkg_request.prerelease_policy == Some(PreReleasePolicy::ExcludeAll))
-            && !self.version().pre.is_empty()
-        {
-            return Compatibility::Incompatible(IncompatibleReason::PrereleasesNotAllowed);
-        }
+    if pkg_request.pkg.build.is_none() || pkg_request.pkg.build.as_ref() == Some(spec.build()) {
+        return Compatibility::Compatible;
+    }
 
-        let source_package_requested = pkg_request.pkg.build == Some(Build::Source);
-        let is_source_build = Package::ident(self).is_source() && !source_package_requested;
-        if !pkg_request.pkg.components.is_empty() && !is_source_build {
-            let required_components = self
-                .components()
-                .resolve_uses(pkg_request.pkg.components.iter());
-            let available_components: BTreeSet<_> = self
-                .install
-                .components
-                .iter()
-                .map(|c| c.name.clone())
-                .collect();
-            let missing_components = required_components
-                .difference(&available_components)
-                .sorted()
-                .collect_vec();
-            if !missing_components.is_empty() {
-                return Compatibility::Incompatible(IncompatibleReason::ComponentsMissing(
-                    ComponentsMissingProblem::ComponentsNotDefined {
-                        missing: CommaSeparated(
-                            missing_components
-                                .into_iter()
-                                .map(Component::to_string)
-                                .collect(),
-                        ),
-                        available: CommaSeparated(
-                            available_components
-                                .into_iter()
-                                .map(|c| c.to_string())
-                                .collect(),
-                        ),
-                    },
-                ));
-            }
-        }
+    Compatibility::Incompatible(IncompatibleReason::BuildIdMismatch(
+        BuildIdProblem::PkgRequest {
+            self_build: spec.build().clone(),
+            requested: pkg_request.pkg.build.clone(),
+        },
+    ))
+}
 
-        let c = pkg_request
-            .pkg
-            .version
-            .is_satisfied_by(self, CompatRule::Binary);
-        if !c.is_ok() {
-            return c;
-        }
-
-        if pkg_request.pkg.build.is_none()
-            || pkg_request.pkg.build.as_ref() == Some(self.pkg.build())
-        {
-            return Compatibility::Compatible;
-        }
-
-        Compatibility::Incompatible(IncompatibleReason::BuildIdMismatch(
-            BuildIdProblem::PkgRequest {
-                self_build: self.pkg.build().clone(),
-                requested: pkg_request.pkg.build.clone(),
-            },
-        ))
+impl Satisfy<PkgRequest> for PackageSpec {
+    fn check_satisfies_request(&self, pkg_request: &PkgRequest) -> Compatibility {
+        check_package_spec_satisfies_pkg_request(self, pkg_request)
     }
 }
 
