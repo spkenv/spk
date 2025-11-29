@@ -15,9 +15,9 @@ use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{
     AsVersionIdent,
     InclusionPolicy,
+    PinnedRequest,
     PkgRequest,
     RangeIdent,
-    Request,
     RequestedBy,
 };
 use spk_schema::spec_ops::{Versioned, WithVersion};
@@ -302,7 +302,7 @@ impl ImpossibleRequestsChecker {
                     // There is an unresolved request for the same
                     // package so the embedded package needs to be
                     // checked as if it was a requirement
-                    let req = Request::Pkg(PkgRequest::from_ident(
+                    let req = PinnedRequest::Pkg(PkgRequest::from_ident(
                         embedded_id.to_any_ident(None),
                         RequestedBy::Embedded(package.ident().clone()),
                     ));
@@ -323,7 +323,7 @@ impl ImpossibleRequestsChecker {
             requirements
                 .iter()
                 .filter_map(|r| match r {
-                    Request::Pkg(pr) => Some(format!("{}", pr.pkg)),
+                    PinnedRequest::Pkg(pr) => Some(format!("{}", pr.pkg)),
                     _ => None,
                 })
                 .collect::<Vec<String>>()
@@ -332,11 +332,11 @@ impl ImpossibleRequestsChecker {
 
         for req in requirements.iter() {
             let request = match req {
-                Request::Var(_) => {
+                PinnedRequest::Var(_) => {
                     // Any var requests are not part of these checks
                     continue;
                 }
-                Request::Pkg(r) => r,
+                PinnedRequest::Pkg(r) => r,
             };
             tracing::debug!(
                 target: IMPOSSIBLE_CHECKS_TARGET,

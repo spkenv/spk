@@ -8,13 +8,13 @@ use std::marker::PhantomData;
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
-use spk_schema_foundation::ident::{BuildIdent, PinPolicy};
+use spk_schema_foundation::ident::{PinPolicy, PinnableValue, PinnedRequest, VarRequest};
 use spk_schema_foundation::name::{OptName, PkgName};
-use spk_schema_foundation::spec_ops::Named;
+use spk_schema_foundation::spec_ops::{HasBuildIdent, Named};
 use spk_schema_foundation::version::{Compatibility, IncompatibleReason};
 
 use crate::foundation::option_map::OptionMap;
-use crate::ident::Request;
+use crate::ident::PinnableRequest;
 use crate::{Error, Result};
 
 #[cfg(test)]
@@ -28,7 +28,7 @@ mod requirements_list_test;
 /// request as needed.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
-pub struct RequirementsList<R = Request>(Vec<R>);
+pub struct RequirementsList<R = PinnableRequest>(Vec<R>);
 
 impl<R> Default for RequirementsList<R> {
     fn default() -> Self {
@@ -70,14 +70,17 @@ where
     /// If a request exists for the same name, it is replaced with the
     /// given one. Otherwise the new request is appended to the list.
     /// Returns the replaced request, if any.
-    pub fn insert_or_replace(&mut self, request: R) -> Option<R> {
+    pub fn insert_or_replace<R2>(&mut self, request: R2) -> Option<R>
+    where
+        R2: Into<R> + Named<OptName>,
+    {
         let name = request.name();
         for existing in self.0.iter_mut() {
             if existing.name() == name {
-                return Some(std::mem::replace(existing, request));
+                return Some(std::mem::replace(existing, request.into()));
             }
         }
-        self.0.push(request);
+        self.0.push(request.into());
         None
     }
 
@@ -94,20 +97,20 @@ where
     }
 }
 
-impl RequirementsList<Request> {
+impl RequirementsList<PinnableRequest> {
     /// Add a requirement in this list, or merge it in.
     ///
     /// If a request exists for the same name, it is updated with the
     /// restrictions of this one. Otherwise the new request is
     /// appended to the list. Returns the newly inserted or updated request.
-    pub fn insert_or_merge(&mut self, request: Request) -> Result<()> {
+    pub fn insert_or_merge_pinnable(&mut self, request: PinnableRequest) -> Result<()> {
         let name = request.name();
         for existing in self.0.iter_mut() {
             if existing.name() != name {
                 continue;
             }
             match (existing, &request) {
-                (Request::Pkg(existing), Request::Pkg(request)) => {
+                (PinnableRequest::Pkg(existing), PinnableRequest::Pkg(request)) => {
                     if let incompatible @ Compatibility::Incompatible(_) =
                         existing.restrict(request)
                     {
@@ -132,11 +135,13 @@ impl RequirementsList<Request> {
     /// this list of requests. The provided request does not need to
     /// exist in this list exactly, so long as there is a request in this
     /// list that is at least as restrictive
-    pub fn contains_request(&self, theirs: &Request) -> Compatibility {
+    pub fn contains_request(&self, theirs: &PinnableRequest) -> Compatibility {
         let mut global_opt_request = None;
         for ours in self.iter() {
             match (ours, theirs) {
-                (Request::Pkg(ours), Request::Pkg(theirs)) if ours.pkg.name == theirs.pkg.name => {
+                (PinnableRequest::Pkg(ours), PinnableRequest::Pkg(theirs))
+                    if ours.pkg.name == theirs.pkg.name =>
+                {
                     return ours.contains(theirs);
                 }
                 // a var request satisfy another if they have the same opt name or
@@ -147,10 +152,12 @@ impl RequirementsList<Request> {
                 //
                 // We only exit early when we find a complete match. The last case
                 // above is saved and only evaluated if no more specific request is found
-                (Request::Var(ours), Request::Var(theirs)) if ours.var == theirs.var => {
+                (PinnableRequest::Var(ours), PinnableRequest::Var(theirs))
+                    if ours.var == theirs.var =>
+                {
                     return ours.contains(theirs);
                 }
-                (Request::Var(ours), Request::Var(theirs))
+                (PinnableRequest::Var(ours), PinnableRequest::Var(theirs))
                     if theirs.var.namespace().is_some()
                         && ours.var.as_str() == theirs.var.base_name() =>
                 {
@@ -171,20 +178,25 @@ impl RequirementsList<Request> {
     }
 
     /// Render all requests with a package pin using the given resolved packages.
-    pub fn render_all_pins(
-        &mut self,
+    pub fn render_all_pins<K, R>(
+        self,
         options: &OptionMap,
-        resolved_by_name: &std::collections::HashMap<&PkgName, &BuildIdent>,
-    ) -> Result<()> {
-        self.0 = std::mem::take(&mut self.0).into_iter().filter_map(|request| {
-            match &request {
-                Request::Pkg(pkg_request) => {
-                    match resolved_by_name.get(pkg_request.pkg.name()) {
+        resolved_by_name: &std::collections::HashMap<K, R>,
+    ) -> Result<RequirementsList<PinnedRequest>>
+    where
+        K: Eq + std::hash::Hash,
+        K: std::borrow::Borrow<PkgName>,
+        R: HasBuildIdent,
+    {
+        Ok(RequirementsList::<PinnedRequest>(self.0.into_iter().filter_map(|request| {
+            match request {
+                PinnableRequest::Pkg(pkg_request) => {
+                    match resolved_by_name.get::<PkgName>(pkg_request.pkg.name()) {
                         None if pkg_request.pin.is_none() && pkg_request.pin_policy == PinPolicy::IfPresentInBuildEnv => {
                             None
                         }
                         _ if pkg_request.pin.is_none() => {
-                            Some(Ok(request))
+                            Some(Ok(PinnedRequest::Pkg(pkg_request)))
                         }
                         None if pkg_request.pin_policy == PinPolicy::IfPresentInBuildEnv => {
                             // This package was not in the build environment,
@@ -197,14 +209,18 @@ impl RequirementsList<Request> {
                             )))
                         }
                         Some(resolved) => {
-                            Some(pkg_request.render_pin(resolved).map_err(Into::into).map(Request::Pkg))
+                            Some(pkg_request.render_pin(resolved.build_ident()).map_err(Into::into).map(PinnedRequest::Pkg))
                         }
                     }
                 }
-                Request::Var(var_request) => {
-                    if !var_request.value.is_from_build_env() {
-                        return Some(Ok(request));
-                    }
+                PinnableRequest::Var(VarRequest { var, value: PinnableValue::Pinned(value), description }) => {
+                    Some(Ok(PinnedRequest::Var(VarRequest {
+                        var,
+                        value,
+                        description,
+                    })))
+                }
+                PinnableRequest::Var(var_request) => {
                     let opts = match var_request.var.namespace() {
                         Some(ns) => options.package_options(ns),
                         None => options.clone(),
@@ -221,13 +237,12 @@ impl RequirementsList<Request> {
                             )))
                         }
                         Some(opt) => {
-                            Some(var_request.render_pin(opt.as_str()).map_err(Into::into).map(Request::Var))
+                            Some(var_request.render_pin(opt.as_str()).map_err(Into::into).map(PinnedRequest::Var))
                         }
                     }
                 }
             }
-        }).collect::<Result<Vec<_>>>()?;
-        Ok(())
+        }).collect::<Result<Vec<_>>>()?))
     }
 
     /// Attempt to build a requirements list from a set of requests.
@@ -236,13 +251,94 @@ impl RequirementsList<Request> {
     /// will cause this process to fail.
     pub fn try_from_iter<I>(value: I) -> Result<Self>
     where
-        I: IntoIterator<Item = Request>,
+        I: IntoIterator<Item = PinnableRequest>,
     {
         let mut out = Self::default();
         for item in value.into_iter() {
-            out.insert_or_merge(item)?;
+            out.insert_or_merge_pinnable(item)?;
         }
         Ok(out)
+    }
+}
+
+impl RequirementsList<PinnedRequest> {
+    /// Reports whether the provided requests would be satisfied by
+    /// this list of requests. The provided request does not need to
+    /// exist in this list exactly, so long as there is a request in this
+    /// list that is at least as restrictive
+    pub fn contains_request(&self, theirs: &PinnableRequest) -> Compatibility {
+        let mut global_opt_request = None;
+        for ours in self.iter() {
+            match (ours, theirs) {
+                (PinnedRequest::Pkg(ours), PinnableRequest::Pkg(theirs))
+                    if ours.pkg.name == theirs.pkg.name =>
+                {
+                    return ours.contains(theirs);
+                }
+                // a var request satisfy another if they have the same opt name or
+                // if our request is package-less and has the same base name, eg:
+                // name/value     [contains] name/value
+                // pkg.name/value [contains] pkg.name/value
+                // name/value     [contains] pkg.name/value
+                //
+                // We only exit early when we find a complete match. The last case
+                // above is saved and only evaluated if no more specific request is found
+                (PinnedRequest::Var(ours), PinnableRequest::Var(theirs))
+                    if ours.var == theirs.var =>
+                {
+                    return ours.contains(theirs);
+                }
+                (PinnedRequest::Var(ours), PinnableRequest::Var(theirs))
+                    if theirs.var.namespace().is_some()
+                        && ours.var.as_str() == theirs.var.base_name() =>
+                {
+                    global_opt_request = Some((ours, theirs));
+                }
+                _ => {
+                    tracing::trace!("skip {ours}, not {theirs}");
+                    continue;
+                }
+            }
+        }
+        if let Some((ours, theirs)) = global_opt_request {
+            return ours.contains(theirs);
+        }
+        Compatibility::Incompatible(IncompatibleReason::RequirementsNotSuperset {
+            name: theirs.name().to_owned(),
+        })
+    }
+
+    /// Add a requirement in this list, or merge it in.
+    ///
+    /// If a request exists for the same name, it is updated with the
+    /// restrictions of this one. Otherwise the new request is
+    /// appended to the list. Returns the newly inserted or updated request.
+    pub fn insert_or_merge_pinned(&mut self, request: PinnedRequest) -> Result<()> {
+        let name = request.name();
+        for existing in self.0.iter_mut() {
+            if existing.name() != name {
+                continue;
+            }
+            match (existing, &request) {
+                (PinnedRequest::Pkg(existing), PinnedRequest::Pkg(request)) => {
+                    if let incompatible @ Compatibility::Incompatible(_) =
+                        existing.restrict(request)
+                    {
+                        return Err(Error::String(format!(
+                            "Cannot insert requirement: {incompatible}"
+                        )));
+                    }
+                }
+                (existing, _) => {
+                    return Err(Error::String(format!(
+                        "Cannot insert requirement: one already exists and only pkg requests can be merged: {existing} + {request}"
+                    )));
+                }
+            }
+            return Ok(());
+        }
+        self.0.push(request);
+        Ok(())
     }
 }
 
@@ -313,5 +409,11 @@ where
         }
 
         deserializer.deserialize_seq(RequirementsListVisitor(PhantomData))
+    }
+}
+
+impl From<RequirementsList<PinnedRequest>> for RequirementsList<PinnableRequest> {
+    fn from(value: RequirementsList<PinnedRequest>) -> Self {
+        RequirementsList(value.0.into_iter().map(Into::into).collect())
     }
 }

@@ -6,8 +6,7 @@ use std::borrow::Cow;
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
-use spk_schema_foundation::ident::{AsVersionIdent, BuildIdent, VersionIdent};
-use spk_schema_foundation::ident_build::EmbeddedSource;
+use spk_schema_foundation::ident::{AsVersionIdent, BuildIdent, PinnedRequest, VersionIdent};
 
 use super::TestSpec;
 use crate::foundation::ident_build::Build;
@@ -16,12 +15,7 @@ use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{PkgRequest, Satisfy, is_false};
 use crate::metadata::Meta;
-use crate::v0::{
-    EmbeddedBuildSpec,
-    EmbeddedInstallSpec,
-    EmbeddedRecipeSpec,
-    check_package_spec_satisfies_pkg_request,
-};
+use crate::v0::{EmbeddedBuildSpec, EmbeddedInstallSpec, check_package_spec_satisfies_pkg_request};
 use crate::{
     ComponentSpecList,
     Components,
@@ -58,7 +52,7 @@ pub struct EmbeddedPackageSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tests: Vec<TestSpec>,
     #[serde(default, skip_serializing_if = "IsDefault::is_default")]
-    pub install: EmbeddedInstallSpec,
+    pub install: EmbeddedInstallSpec<PinnedRequest>,
 }
 
 impl EmbeddedPackageSpec {
@@ -94,7 +88,9 @@ impl AsVersionIdent for EmbeddedPackageSpec {
 }
 
 impl Components for EmbeddedPackageSpec {
-    fn components(&self) -> &ComponentSpecList {
+    type Request = PinnedRequest;
+
+    fn components(&self) -> &ComponentSpecList<Self::Request> {
         &self.install.components
     }
 }
@@ -150,22 +146,5 @@ impl Versioned for EmbeddedPackageSpec {
 impl Satisfy<PkgRequest> for EmbeddedPackageSpec {
     fn check_satisfies_request(&self, pkg_request: &PkgRequest) -> Compatibility {
         check_package_spec_satisfies_pkg_request(self, pkg_request)
-    }
-}
-
-impl From<EmbeddedRecipeSpec> for EmbeddedPackageSpec {
-    fn from(recipe: EmbeddedRecipeSpec) -> Self {
-        Self {
-            pkg: recipe
-                .pkg
-                .into_build_ident(Build::Embedded(EmbeddedSource::Unknown)),
-            meta: recipe.meta,
-            compat: recipe.compat,
-            deprecated: recipe.deprecated,
-            sources: recipe.sources,
-            build: recipe.build,
-            tests: recipe.tests,
-            install: recipe.install,
-        }
     }
 }
