@@ -32,7 +32,7 @@ impl super::Validator for StrongInheritanceVarDescriptionValidator {
         for opt in setup.package.get_build_options().iter() {
             match opt {
                 Opt::Pkg(_) => continue,
-                Opt::Var(v) => match v.inheritance {
+                Opt::Var(v) => match v.inheritance() {
                     Inheritance::Weak => continue,
                     _ => {
                         let mut outcome = Outcome {
