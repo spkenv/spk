@@ -20,6 +20,7 @@ pub use embedded_install_spec::EmbeddedInstallSpec;
 pub use embedded_package_spec::EmbeddedPackageSpec;
 pub use embedded_recipe_spec::EmbeddedRecipeSpec;
 pub use package_spec::PackageSpec;
+pub(crate) use package_spec::check_package_spec_satisfies_pkg_request;
 pub use platform::Platform;
 pub use recipe_install_spec::RecipeInstallSpec;
 pub use recipe_spec::RecipeSpec;
