@@ -16,7 +16,12 @@ async fn test_validate_build_changeset_nothing() {
     let report = BuildReport {
         setup: BuildSetupReport {
             environment: Solution::default(),
-            variant: package.build.variants.first().cloned().unwrap_or_default(),
+            variant: package
+                .build()
+                .variants
+                .first()
+                .cloned()
+                .unwrap_or_default(),
             environment_filesystem: Manifest::new(
                 spfs::tracking::Entry::empty_dir_with_open_perms_with_data(package.ident().clone()),
             ),

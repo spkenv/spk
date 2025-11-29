@@ -64,9 +64,10 @@ impl RecipeInstallSpec {
         self.requirements
             .render_all_pins(options, &resolved_by_name)?;
         for component in self.components.iter_mut() {
-            component
-                .requirements
-                .render_all_pins(options, &resolved_by_name)?;
+            component.requirements_mut(|requirements| {
+                requirements.render_all_pins(options, &resolved_by_name)?;
+                Ok::<_, crate::Error>(())
+            })?;
         }
         Ok(())
     }

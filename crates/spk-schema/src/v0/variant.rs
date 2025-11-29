@@ -8,7 +8,7 @@ use std::fmt::Write;
 use std::str::FromStr;
 
 use serde::Serialize;
-use spk_schema_foundation::ident::{PkgRequest, RangeIdent, VarRequest};
+use spk_schema_foundation::ident::{PkgRequest, RangeIdent, RequestWithOptions, VarRequest};
 use spk_schema_foundation::name::PkgName;
 use spk_schema_foundation::option_map::OptionMap;
 use spk_schema_foundation::version_range::{VersionFilter, VersionRange};
@@ -154,6 +154,12 @@ impl crate::Variant for Variant {
 
     fn additional_requirements(&self) -> Cow<'_, RequirementsList> {
         Cow::Borrowed(&self.requirements)
+    }
+
+    fn additional_requirements_with_options(
+        &self,
+    ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
+        Cow::Owned((self.options.iter(), &self.requirements).into())
     }
 }
 

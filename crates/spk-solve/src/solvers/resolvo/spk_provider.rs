@@ -28,8 +28,10 @@ use spk_schema::ident::{
     LocatedBuildIdent,
     PinnableValue,
     PkgRequest,
+    PkgRequestWithOptions,
     PreReleasePolicy,
     RangeIdent,
+    RequestWithOptions,
     RequestedBy,
     Satisfy,
     VarRequest,
@@ -44,9 +46,9 @@ use spk_schema::{
     Components,
     Deprecate,
     Opt,
+    OptionValues,
     Package,
     Recipe,
-    Request,
     Spec,
     VersionIdent,
 };
@@ -150,7 +152,12 @@ impl ResolvoPackageName {
                         // errors already don't mention versions that aren't
                         // applicable to root requests.
                         if let Some(pkg_request) = root_pkg_request
-                            && !pkg_request.pkg.version.is_applicable(version).is_ok()
+                            && !pkg_request
+                                .pkg_request
+                                .pkg
+                                .version
+                                .is_applicable(version)
+                                .is_ok()
                         {
                             continue;
                         }
@@ -436,7 +443,7 @@ pub(crate) struct SpkProvider {
     repos: Vec<Arc<RepositoryHandle>>,
     /// Global package requests. These can be used to constrain the candidates
     /// returned for these packages.
-    global_pkg_requests: HashMap<PkgNameBuf, PkgRequest>,
+    global_pkg_requests: HashMap<PkgNameBuf, PkgRequestWithOptions>,
     /// Global options, like what might be specified with `--opt` to `spk env`.
     /// Indexed by name. If multiple requests happen to exist with the same
     /// name, the last one is kept.
@@ -515,7 +522,7 @@ impl SpkProvider {
                     .chain([ident.clone()]),
             ));
 
-            let build_requirements = match recipe.get_build_requirements(&variant) {
+            let build_requirements = match recipe.get_build_requirements_with_options(&variant) {
                 Ok(build_requirements) => build_requirements,
                 Err(err) => {
                     return CanBuildFromSource::No(
@@ -531,7 +538,7 @@ impl SpkProvider {
 
             // These are last to take priority over the requests in the recipe.
             for request in self.global_var_requests.values() {
-                solver.add_request(Request::Var(request.clone()));
+                solver.add_request(RequestWithOptions::Var(request.clone()));
             }
 
             match solver
@@ -573,8 +580,11 @@ impl SpkProvider {
         }
     }
 
-    fn pkg_request_to_known_dependencies(&self, pkg_request: &PkgRequest) -> KnownDependencies {
-        let mut components = pkg_request.pkg.components.iter().peekable();
+    fn pkg_request_to_known_dependencies(
+        &self,
+        pkg_request: &PkgRequestWithOptions,
+    ) -> KnownDependencies {
+        let mut components = pkg_request.pkg_request.pkg.components.iter().peekable();
         let iter = if components.peek().is_some() {
             itertools::Either::Right(components.cloned())
         } else {
@@ -582,6 +592,7 @@ impl SpkProvider {
                 // A request with no components is assumed to be a request for
                 // the default_for_run (or source) component.
                 if pkg_request
+                    .pkg_request
                     .pkg
                     .build
                     .as_ref()
@@ -603,7 +614,7 @@ impl SpkProvider {
                 self.pool
                     .intern_package_name(ResolvoPackageName::PkgNameBufWithComponent(
                         PkgNameBufWithComponent {
-                            name: pkg_request.pkg.name().to_owned(),
+                            name: pkg_request.pkg_request.pkg.name().to_owned(),
                             component: SyntheticComponent::Actual(component.clone()),
                         },
                     ));
@@ -612,21 +623,26 @@ impl SpkProvider {
             // top-level request, then when it appears as a dependency of other
             // packages it needs to allow prereleases as well (unless it already
             // has an explicit prerelease policy).
-            if pkg_request_with_component.prerelease_policy.is_none()
+            if pkg_request_with_component
+                .pkg_request
+                .prerelease_policy
+                .is_none()
                 && self
                     .global_pkg_requests
-                    .get(pkg_request.pkg.name())
-                    .and_then(|r| r.prerelease_policy)
+                    .get(pkg_request.pkg_request.pkg.name())
+                    .and_then(|r| r.pkg_request.prerelease_policy)
                     .is_some_and(|p| p.is_include_all())
             {
-                pkg_request_with_component.prerelease_policy = Some(PreReleasePolicy::IncludeAll);
+                pkg_request_with_component.pkg_request.prerelease_policy =
+                    Some(PreReleasePolicy::IncludeAll);
             }
-            pkg_request_with_component.pkg.components = BTreeSet::from_iter([component]);
+            pkg_request_with_component.pkg_request.pkg.components =
+                BTreeSet::from_iter([component]);
             let dep_vs = self.pool.intern_version_set(
                 dep_name,
-                RequestVS::SpkRequest(Request::Pkg(pkg_request_with_component)),
+                RequestVS::SpkRequest(RequestWithOptions::Pkg(pkg_request_with_component)),
             );
-            match pkg_request.inclusion_policy {
+            match pkg_request.pkg_request.inclusion_policy {
                 spk_schema::ident::InclusionPolicy::Always => {
                     known_deps.requirements.push(dep_vs.into());
                 }
@@ -640,17 +656,20 @@ impl SpkProvider {
 
     /// Add any package requests found in the given requests to the global
     /// package requests, returning a list of Requirement.
-    pub(crate) fn root_pkg_requirements(&mut self, requests: &[Request]) -> Vec<Requirement> {
+    pub(crate) fn root_pkg_requirements(
+        &mut self,
+        requests: &[RequestWithOptions],
+    ) -> Vec<Requirement> {
         self.global_pkg_requests.reserve(requests.len());
         requests
             .iter()
             .filter_map(|req| match req {
-                Request::Pkg(pkg) => Some(pkg),
+                RequestWithOptions::Pkg(pkg) => Some(pkg),
                 _ => None,
             })
             .flat_map(|req| {
                 self.global_pkg_requests
-                    .insert(req.pkg.name().to_owned(), req.clone());
+                    .insert(req.pkg_request.pkg.name().to_owned(), req.clone());
                 self.pkg_request_to_known_dependencies(req).requirements
             })
             .collect()
@@ -658,11 +677,11 @@ impl SpkProvider {
 
     /// Return a list of requirements for all the package requests found in the
     /// given requests.
-    fn dep_pkg_requirements(&self, requests: &[Request]) -> Vec<Requirement> {
+    fn dep_pkg_requirements(&self, requests: &[RequestWithOptions]) -> Vec<Requirement> {
         requests
             .iter()
             .filter_map(|req| match req {
-                Request::Pkg(pkg) => Some(pkg),
+                RequestWithOptions::Pkg(pkg) => Some(pkg),
                 _ => None,
             })
             .flat_map(|req| self.pkg_request_to_known_dependencies(req).requirements)
@@ -688,15 +707,15 @@ impl SpkProvider {
         })
     }
 
-    fn request_to_known_dependencies(&self, requirement: &Request) -> KnownDependencies {
+    fn request_to_known_dependencies(&self, requirement: &RequestWithOptions) -> KnownDependencies {
         let mut known_deps = KnownDependencies::default();
         match requirement {
-            Request::Pkg(pkg_request) => {
+            RequestWithOptions::Pkg(pkg_request) => {
                 let kd = self.pkg_request_to_known_dependencies(pkg_request);
                 known_deps.requirements.extend(kd.requirements);
                 known_deps.constrains.extend(kd.constrains);
             }
-            Request::Var(var_request) => {
+            RequestWithOptions::Var(var_request) => {
                 match &var_request.value {
                     spk_schema::ident::PinnableValue::FromBuildEnv => todo!(),
                     spk_schema::ident::PinnableValue::FromBuildEnvIfPresent => todo!(),
@@ -819,12 +838,12 @@ impl SpkProvider {
         a.1.ident.cmp(&b.1.ident)
     }
 
-    pub fn var_requirements(&mut self, requests: &[Request]) -> Vec<VersionSetId> {
+    pub fn var_requirements(&mut self, requests: &[RequestWithOptions]) -> Vec<VersionSetId> {
         self.global_var_requests.reserve(requests.len());
         requests
             .iter()
             .filter_map(|req| match req {
-                Request::Var(var) => Some(var),
+                RequestWithOptions::Var(var) => Some(var),
                 _ => None,
             })
             .filter_map(|req| match req.var.namespace() {
@@ -840,7 +859,7 @@ impl SpkProvider {
                             ));
                     Some(self.pool.intern_version_set(
                         dep_name,
-                        RequestVS::SpkRequest(Request::Var(req.clone())),
+                        RequestVS::SpkRequest(RequestWithOptions::Var(req.clone())),
                     ))
                 }
                 None => {
@@ -877,7 +896,9 @@ impl DependencyProvider for SpkProvider {
         for candidate in candidates {
             let solvable = self.pool.resolve_solvable(*candidate);
             match &request_vs {
-                RequestVS::SpkRequest(Request::Pkg(pkg_request)) => {
+                RequestVS::SpkRequest(RequestWithOptions::Pkg(pkg_request_with_options)) => {
+                    let PkgRequestWithOptions { pkg_request, .. } = pkg_request_with_options;
+
                     let SpkSolvable::LocatedBuildIdentWithComponent(
                         located_build_ident_with_component,
                     ) = &solvable.record
@@ -1005,8 +1026,14 @@ impl DependencyProvider for SpkProvider {
                             .read_package(located_build_ident_with_component.ident.target())
                             .await
                         {
-                            if pkg_request.is_satisfied_by(&package).is_ok() ^ inverse {
-                                tracing::trace!(pkg_request = %pkg_request.pkg, package = %package.ident(), %inverse, "satisfied by");
+                            let compatibility = pkg_request_with_options.is_satisfied_by(&package);
+                            let is_ok = compatibility.is_ok();
+                            if is_ok {
+                                tracing::trace!(pkg_request = %pkg_request.pkg, package = %package.ident(), %inverse, %compatibility, "satisfied by");
+                            } else {
+                                tracing::trace!(pkg_request = %pkg_request.pkg, package = %package.ident(), %inverse, %compatibility, "not satisfied by");
+                            }
+                            if is_ok ^ inverse {
                                 selected.push(*candidate);
                             }
                         } else if inverse {
@@ -1018,7 +1045,7 @@ impl DependencyProvider for SpkProvider {
                         selected.push(*candidate);
                     }
                 }
-                RequestVS::SpkRequest(Request::Var(var_request)) => {
+                RequestVS::SpkRequest(RequestWithOptions::Var(var_request)) => {
                     match var_request.var.namespace() {
                         Some(pkg_name) => {
                             let SpkSolvable::LocatedBuildIdentWithComponent(
@@ -1308,9 +1335,10 @@ impl DependencyProvider for SpkProvider {
                                     dep_name,
                                     RequestVS::SpkRequest(
                                         located_build_ident_with_component
-                                            .as_request_with_components([component_spec
-                                                .name
-                                                .clone()]),
+                                            .as_request_with_components(
+                                                &package,
+                                                [component_spec.name.clone()],
+                                            ),
                                     ),
                                 )
                                 .into(),
@@ -1338,7 +1366,7 @@ impl DependencyProvider for SpkProvider {
                                 dep_name,
                                 RequestVS::SpkRequest(
                                     located_build_ident_with_component
-                                        .as_request_with_components([]),
+                                        .as_request_with_components(&package, []),
                                 ),
                             )
                             .into(),
@@ -1368,15 +1396,18 @@ impl DependencyProvider for SpkProvider {
                                         dep_name,
                                         RequestVS::SpkRequest(
                                             located_build_ident_with_component
-                                                .as_request_with_components([uses.clone()]),
+                                                .as_request_with_components(
+                                                    &package,
+                                                    [uses.clone()],
+                                                ),
                                         ),
                                     )
                                     .into(),
                             );
                         });
-                        known_deps
-                            .requirements
-                            .extend(self.dep_pkg_requirements(&component_spec.requirements));
+                        known_deps.requirements.extend(
+                            self.dep_pkg_requirements(component_spec.requirements_with_options()),
+                        );
                     }
                 }
                 // Also add dependencies on any packages embedded in this
@@ -1424,41 +1455,68 @@ impl DependencyProvider for SpkProvider {
                             self.pool
                                 .intern_version_set(
                                     dep_name,
-                                    RequestVS::SpkRequest(Request::Pkg(PkgRequest::new(
-                                        RangeIdent {
-                                            repository_name: Some(
-                                                located_build_ident_with_component
-                                                    .ident
-                                                    .repository_name()
-                                                    .to_owned(),
-                                            ),
-                                            name: embedded.name().to_owned(),
-                                            components: Default::default(),
-                                            version: VersionFilter::single(
-                                                DoubleEqualsVersion::version_range(
-                                                    embedded.version().clone(),
+                                    RequestVS::SpkRequest(RequestWithOptions::Pkg(
+                                        PkgRequestWithOptions {
+                                            options: package
+                                                .runtime_requirements_with_options()
+                                                .iter()
+                                                // XXX: this is wrong, there could be var requests
+                                                // for the target package but no pkg requests (test
+                                                // this!).
+                                                .find_map(|req_with_options| match req_with_options
+                                                {
+                                                    RequestWithOptions::Pkg(
+                                                        pkg_req_with_options,
+                                                    ) if pkg_req_with_options
+                                                        .pkg_request
+                                                        .pkg
+                                                        .name()
+                                                        == embedded.name() =>
+                                                    {
+                                                        Some(pkg_req_with_options.options.clone())
+                                                    }
+                                                    _ => None,
+                                                })
+                                                .unwrap_or_default(),
+                                            pkg_request: PkgRequest::new(
+                                                RangeIdent {
+                                                    repository_name: Some(
+                                                        located_build_ident_with_component
+                                                            .ident
+                                                            .repository_name()
+                                                            .to_owned(),
+                                                    ),
+                                                    name: embedded.name().to_owned(),
+                                                    components: Default::default(),
+                                                    version: VersionFilter::single(
+                                                        DoubleEqualsVersion::version_range(
+                                                            embedded.version().clone(),
+                                                        ),
+                                                    ),
+                                                    // This needs to match the build of
+                                                    // the stub for get_candidates to like
+                                                    // it. Stub parents are always the Run
+                                                    // component.
+                                                    build: Some(Build::Embedded(
+                                                        EmbeddedSource::Package(Box::new(
+                                                            EmbeddedSourcePackage {
+                                                                ident: package.ident().into(),
+                                                                components: BTreeSet::from_iter([
+                                                                    Component::Run,
+                                                                ]),
+                                                            },
+                                                        )),
+                                                    )),
+                                                },
+                                                RequestedBy::Embedded(
+                                                    located_build_ident_with_component
+                                                        .ident
+                                                        .target()
+                                                        .clone(),
                                                 ),
                                             ),
-                                            // This needs to match the build of
-                                            // the stub for get_candidates to like
-                                            // it. Stub parents are always the Run
-                                            // component.
-                                            build: Some(Build::Embedded(EmbeddedSource::Package(
-                                                Box::new(EmbeddedSourcePackage {
-                                                    ident: package.ident().into(),
-                                                    components: BTreeSet::from_iter([
-                                                        Component::Run,
-                                                    ]),
-                                                }),
-                                            ))),
                                         },
-                                        RequestedBy::Embedded(
-                                            located_build_ident_with_component
-                                                .ident
-                                                .target()
-                                                .clone(),
-                                        ),
-                                    ))),
+                                    )),
                                 )
                                 .into(),
                         );
@@ -1471,7 +1529,9 @@ impl DependencyProvider for SpkProvider {
                             .filter(|embedded_component| {
                                 embedded_component.name == *actual_component
                             })
-                            .flat_map(|embedded_component| embedded_component.requirements.iter())
+                            .flat_map(|embedded_component| {
+                                embedded_component.requirements_with_options().iter()
+                            })
                         {
                             let kd =
                                 self.request_to_known_dependencies(embedded_component_requirement);
@@ -1546,32 +1606,64 @@ impl DependencyProvider for SpkProvider {
                                     self.pool
                                         .intern_version_set(
                                             dep_name,
-                                            RequestVS::SpkRequest(Request::Pkg(PkgRequest::new(
-                                                RangeIdent {
-                                                    repository_name: Some(
-                                                        located_build_ident_with_component
-                                                            .ident
-                                                            .repository_name()
-                                                            .to_owned(),
-                                                    ),
-                                                    name: parent_ident.name().to_owned(),
-                                                    components: BTreeSet::from_iter([
-                                                        parent_component.name.clone(),
-                                                    ]),
-                                                    version: VersionFilter::single(
-                                                        DoubleEqualsVersion::version_range(
-                                                            parent_ident.version().clone(),
+                                            RequestVS::SpkRequest(RequestWithOptions::Pkg(
+                                                PkgRequestWithOptions {
+                                                    options: package
+                                                        .runtime_requirements_with_options()
+                                                        .iter()
+                                                        // XXX: this is wrong, there could be var requests
+                                                        // for the target package but no pkg requests (test
+                                                        // this!).
+                                                        .find_map(|req_with_options| {
+                                                            match req_with_options {
+                                                                RequestWithOptions::Pkg(
+                                                                    pkg_req_with_options,
+                                                                ) if pkg_req_with_options
+                                                                    .pkg_request
+                                                                    .pkg
+                                                                    .name()
+                                                                    == parent_ident.name() =>
+                                                                {
+                                                                    Some(
+                                                                        pkg_req_with_options
+                                                                            .options
+                                                                            .clone(),
+                                                                    )
+                                                                }
+                                                                _ => None,
+                                                            }
+                                                        })
+                                                        .unwrap_or_default(),
+                                                    pkg_request: PkgRequest::new(
+                                                        RangeIdent {
+                                                            repository_name: Some(
+                                                                located_build_ident_with_component
+                                                                    .ident
+                                                                    .repository_name()
+                                                                    .to_owned(),
+                                                            ),
+                                                            name: parent_ident.name().to_owned(),
+                                                            components: BTreeSet::from_iter([
+                                                                parent_component.name.clone(),
+                                                            ]),
+                                                            version: VersionFilter::single(
+                                                                DoubleEqualsVersion::version_range(
+                                                                    parent_ident.version().clone(),
+                                                                ),
+                                                            ),
+                                                            build: Some(
+                                                                parent_ident.build().clone(),
+                                                            ),
+                                                        },
+                                                        RequestedBy::Embedded(
+                                                            located_build_ident_with_component
+                                                                .ident
+                                                                .target()
+                                                                .clone(),
                                                         ),
                                                     ),
-                                                    build: Some(parent_ident.build().clone()),
                                                 },
-                                                RequestedBy::Embedded(
-                                                    located_build_ident_with_component
-                                                        .ident
-                                                        .target()
-                                                        .clone(),
-                                                ),
-                                            ))),
+                                            )),
                                         )
                                         .into(),
                                 );
@@ -1606,7 +1698,8 @@ impl DependencyProvider for SpkProvider {
                                 .intern_version_set(
                                     dep_name,
                                     RequestVS::SpkRequest(
-                                        located_parent.as_request_with_components([Component::Run]),
+                                        located_parent
+                                            .as_request_with_components(&package, [Component::Run]),
                                     ),
                                 )
                                 .into(),
@@ -1655,7 +1748,7 @@ impl DependencyProvider for SpkProvider {
                         },
                     ));
                 }
-                for requirement in package.runtime_requirements().iter() {
+                for requirement in package.runtime_requirements_with_options().iter() {
                     let kd = self.request_to_known_dependencies(requirement);
                     known_deps.requirements.extend(kd.requirements);
                     known_deps.constrains.extend(kd.constrains);

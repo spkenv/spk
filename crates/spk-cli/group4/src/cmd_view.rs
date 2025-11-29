@@ -30,13 +30,14 @@ use spk_cli_common::{
 use spk_schema::foundation::format::{FormatChangeOptions, FormatRequest};
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::spec_ops::Named;
-use spk_schema::ident::{RangeIdent, Request};
+use spk_schema::ident::{RangeIdent, RequestWithOptions};
 use spk_schema::ident_component::Component;
 use spk_schema::name::PkgNameBuf;
 use spk_schema::version::Version;
 use spk_schema::{
     AnyIdent,
     BuildIdent,
+    OptionValues,
     Package,
     RequirementsList,
     Spec,
@@ -417,6 +418,7 @@ impl View {
                 };
                 let requesters: Vec<ResolvedRequestedBy> = req
                     .request
+                    .pkg_request
                     .get_requesters()
                     .iter()
                     .map(|r| match r {
@@ -645,8 +647,10 @@ impl View {
 
                 let package = match layers_to_packages.get(layer_digest) {
                     Some(LayerPackageAndComponents(solved_request, components)) => {
-                        let ident =
-                            get_components_specific_ident(&solved_request.request.pkg, components);
+                        let ident = get_components_specific_ident(
+                            &solved_request.request.pkg_request.pkg,
+                            components,
+                        );
 
                         let manifest = get_manifest_from_pathlist(pathlist)?;
                         let entry = get_entry_from_pathlist(filepath, pathlist)?;
@@ -719,9 +723,11 @@ impl View {
 
                 match layers_to_packages.get(layer_digest) {
                     Some(LayerPackageAndComponents(solved_request, components)) => {
-                        let ident =
-                            get_components_specific_ident(&solved_request.request.pkg, components);
-                        let mut request = solved_request.request.clone();
+                        let ident = get_components_specific_ident(
+                            &solved_request.request.pkg_request.pkg,
+                            components,
+                        );
+                        let mut request = solved_request.request.pkg_request.clone();
                         request.pkg = ident;
 
                         println!(
@@ -817,7 +823,7 @@ impl View {
         };
 
         let mut request = match parsed_request {
-            Request::Pkg(pkg) => pkg,
+            RequestWithOptions::Pkg(pkg) => pkg.pkg_request,
             _ => bail!("Not a package request: {parsed_request:?}"),
         };
 
@@ -966,7 +972,7 @@ impl View {
 
         solver.add_request(request.clone());
         let request = match request {
-            Request::Pkg(pkg) => pkg,
+            RequestWithOptions::Pkg(pkg) => pkg,
 
             _ => bail!("Not a package request: {request:?}"),
         };
@@ -1012,7 +1018,7 @@ impl View {
         };
 
         for item in solution.items() {
-            if item.spec.name() == request.pkg.name {
+            if item.spec.name() == request.pkg_request.pkg.name {
                 return self.print_build_spec(Arc::clone(&item.spec));
             }
         }

@@ -244,7 +244,7 @@ where
             .get_unresolved_requests()?
             .iter()
             .map(|(n, r)| {
-                r.format_request(
+                r.pkg_request.format_request(
                     None.as_ref(),
                     n,
                     &FormatChangeOptions {
@@ -447,9 +447,9 @@ where
                             node.state
                                 .get_pkg_requests()
                                 .iter()
-                                .map(|r| r.format_request(
-                                    r.pkg.repository_name.as_ref(),
-                                    &r.pkg.name,
+                                .map(|r| r.pkg_request.format_request(
+                                    r.pkg_request.pkg.repository_name.as_ref(),
+                                    &r.pkg_request.pkg.name,
                                     &FormatChangeOptions {
                                         verbosity: self.verbosity,
                                         level: self.level
@@ -1661,7 +1661,7 @@ impl DecisionFormatter {
                 .get_initial_state()
                 .get_pkg_requests()
                 .iter()
-                .map(|r| r.pkg.to_string())
+                .map(|r| r.pkg_request.pkg.to_string())
                 .collect::<Vec<String>>();
 
             show_search_space_stats(
@@ -1750,7 +1750,7 @@ impl DecisionFormatter {
 
         let requests = pkgs
             .iter()
-            .map(|r| r.pkg.to_string())
+            .map(|r| r.pkg_request.pkg.to_string())
             .collect::<Vec<String>>();
 
         let mut data = std::collections::BTreeMap::new();

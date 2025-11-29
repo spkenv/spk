@@ -19,7 +19,7 @@ impl ValidatorT for DeprecationValidator {
         _source: &PackageSource,
     ) -> crate::Result<Compatibility>
     where
-        P: Satisfy<PkgRequest> + Satisfy<VarRequest> + Package,
+        P: Satisfy<PkgRequestWithOptions> + Satisfy<VarRequest> + Package,
     {
         self.validate_package_against_request(state, spec, _source)
     }
@@ -46,13 +46,13 @@ impl ValidatorT for DeprecationValidator {
     ) -> crate::Result<Compatibility>
     where
         PR: GetMergedRequest,
-        P: Satisfy<PkgRequest> + Package,
+        P: Satisfy<PkgRequestWithOptions> + Package,
     {
         if !package.is_deprecated() {
             return Ok(Compatibility::Compatible);
         }
         let request = pkgrequest_data.get_merged_request(package.name())?;
-        if request.pkg.build.as_ref() == Some(package.ident().build()) {
+        if request.pkg_request.pkg.build.as_ref() == Some(package.ident().build()) {
             return Ok(Compatibility::Compatible);
         }
         Ok(Compatibility::Incompatible(

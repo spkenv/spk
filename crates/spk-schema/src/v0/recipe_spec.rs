@@ -10,7 +10,7 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
-use spk_schema_foundation::ident::{AsVersionIdent, RangeIdent, VersionIdent};
+use spk_schema_foundation::ident::{AsVersionIdent, PkgRequestOptions, RangeIdent, VersionIdent};
 use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::ident_component::ComponentBTreeSet;
 use spk_schema_foundation::option_map::Stringified;
@@ -25,7 +25,16 @@ use crate::foundation::name::{OptNameBuf, PkgName};
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
-use crate::ident::{PkgRequest, Request, RequestedBy, Satisfy, VarRequest, is_false};
+use crate::ident::{
+    PkgRequest,
+    PkgRequestWithOptions,
+    Request,
+    RequestWithOptions,
+    RequestedBy,
+    Satisfy,
+    VarRequest,
+    is_false,
+};
 use crate::metadata::Meta;
 use crate::option::VarOpt;
 use crate::v0::{PackageSpec, RecipeInstallSpec};
@@ -35,7 +44,6 @@ use crate::{
     Deprecate,
     DeprecateMut,
     EnvOp,
-    EnvOpList,
     Error,
     InputVariant,
     LocalSource,
@@ -71,6 +79,8 @@ pub struct RecipeSpec {
     pub tests: Vec<TestSpec>,
     #[serde(default, skip_serializing_if = "IsDefault::is_default")]
     pub install: RecipeInstallSpec,
+    // A RecipeSpec does not contain install_requirements_with_options because
+    // it is variant-specific and a RecipeSpec can contain multiple variants.
 }
 
 impl RecipeSpec {
@@ -209,6 +219,53 @@ impl Recipe for RecipeSpec {
         Ok(Cow::Owned(requests))
     }
 
+    fn get_build_requirements_with_options<V>(
+        &self,
+        variant: &V,
+    ) -> Result<Cow<'_, RequirementsList<RequestWithOptions>>>
+    where
+        V: Variant,
+    {
+        let opts = self.build.opts_for_variant(variant)?;
+        let options = self.resolve_options(variant)?;
+        let build_digest = Build::BuildId(self.build_digest(variant)?);
+        let mut requests = RequirementsList::<RequestWithOptions>::default();
+        for opt in opts {
+            match opt {
+                Opt::Pkg(opt) => {
+                    let given_value = options.get(opt.pkg.as_opt_name()).map(String::to_owned);
+                    let mut req = opt.to_request(
+                        given_value,
+                        RequestedBy::BinaryBuild(self.ident().to_build_ident(build_digest.clone())),
+                    )?;
+                    if req.pkg.components.is_empty() {
+                        // inject the default component for this context if needed
+                        req.pkg.components.insert(Component::default_for_build());
+                    }
+                    requests.insert_or_merge_with_options(RequestWithOptions::Pkg(
+                        PkgRequestWithOptions {
+                            pkg_request: req,
+                            options: PkgRequestOptions::default(),
+                        },
+                    ))?;
+                }
+                Opt::Var(opt) => {
+                    // If no value was specified in the spec, there's
+                    // no need to turn that into a requirement to
+                    // find a var with an empty value.
+                    if let Some(value) = options.get(&opt.var)
+                        && !value.is_empty()
+                    {
+                        requests.insert_or_merge_with_options(RequestWithOptions::Var(
+                            opt.to_request(Some(value)),
+                        ))?;
+                    }
+                }
+            }
+        }
+        Ok(Cow::Owned(requests))
+    }
+
     fn get_tests<V>(&self, stage: TestStage, variant: &V) -> Result<Vec<TestSpec>>
     where
         V: Variant,
@@ -287,23 +344,10 @@ impl Recipe for RecipeSpec {
     }
 
     fn generate_source_build(&self, root: &Path) -> Result<PackageSpec> {
-        let mut source = PackageSpec {
-            pkg: self.pkg.clone().into_build_ident(Build::Source),
-            meta: self.meta.clone(),
-            compat: self.compat.clone(),
-            deprecated: self.deprecated,
-            build: self.build.clone(),
-            install: self.install.clone().into(),
-            sources: self.sources.clone(),
-            tests: self.tests.clone(),
-        };
-        source.prune_for_source_build();
-        for source in source.sources.iter_mut() {
-            if let SourceSpec::Local(source) = source {
-                source.path = root.join(&source.path);
-            }
-        }
-        Ok(source)
+        Ok(PackageSpec::new_source_package_from_recipe_with_root(
+            self.clone(),
+            root,
+        ))
     }
 
     fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
@@ -449,27 +493,11 @@ impl Recipe for RecipeSpec {
         // by `build_env`. The digest is expected to be based solely on the
         // input options and recipe.
         let digest = self.build_digest(variant.input_variant())?;
-        let mut build = PackageSpec {
-            pkg: updated.pkg.into_build_ident(Build::BuildId(digest)),
-            meta: updated.meta,
-            compat: updated.compat,
-            deprecated: updated.deprecated,
-            build: updated.build,
-            install: updated.install.into(),
-            sources: updated.sources,
-            tests: updated.tests,
-        };
-
-        // Expand env variables from EnvOp.
-        let mut updated_ops = EnvOpList::default();
-        let mut build_env_vars = build_env.env_vars();
-        build_env_vars.extend(build.get_build_env());
-        for op in build.install.environment.iter() {
-            updated_ops.push(op.to_expanded(&build_env_vars));
-        }
-        build.install.environment = updated_ops;
-
-        Ok(build)
+        Ok(PackageSpec::new_binary_package_from_recipe(
+            updated,
+            digest,
+            build_env.env_vars(),
+        ))
     }
 
     fn metadata(&self) -> &Meta {
@@ -689,14 +717,14 @@ impl<'de> serde::de::Visitor<'de> for SpecVisitor {
 impl From<PackageSpec> for RecipeSpec {
     fn from(pkg: PackageSpec) -> Self {
         Self {
+            build: pkg.build().clone(),
+            install: pkg.install().clone().into(),
             pkg: pkg.pkg.as_version_ident().clone(),
             meta: pkg.meta,
             compat: pkg.compat,
             deprecated: pkg.deprecated,
             sources: pkg.sources,
-            build: pkg.build,
             tests: pkg.tests,
-            install: pkg.install.into(),
         }
     }
 }

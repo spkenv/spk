@@ -29,7 +29,10 @@ use spk_schema::ident::{
     PinPolicy,
     PinnableValue,
     PkgRequest,
+    PkgRequestOptionValue,
+    PkgRequestWithOptions,
     RangeIdent,
+    RequestWithOptions,
     RequestedBy,
     VarRequest,
 };
@@ -53,7 +56,7 @@ mod resolvo_tests;
 #[derive(Clone, Default)]
 pub struct Solver {
     repos: Vec<Arc<RepositoryHandle>>,
-    requests: Vec<Request>,
+    requests: Vec<RequestWithOptions>,
     options: OptionMap,
     binary_only: bool,
     _validators: Cow<'static, [Validators]>,
@@ -123,10 +126,10 @@ impl Solver {
                     // Try to find the original command line request
                     // based on the solved request's package name.
                     for r in &self.requests {
-                        if let Request::Pkg(pkg_req) = r
-                            && *pkg_req.pkg.name == *name
+                        if let RequestWithOptions::Pkg(pkg_req) = r
+                            && *pkg_req.pkg_request.pkg.name == *name
                         {
-                            for (_, requesters) in pkg_req.requested_by.iter() {
+                            for (_, requesters) in pkg_req.pkg_request.requested_by.iter() {
                                 for requested_by in requesters {
                                     pkg_request.add_requester(requested_by.clone());
                                 }
@@ -355,9 +358,23 @@ impl Solver {
 
         let solution_adds = self.populate_requested_by(solution_adds);
 
-        let mut solution = Solution::new(solution_options);
+        let mut solution = Solution::new(solution_options.clone());
         for (pkg_request, package, source) in solution_adds {
-            solution.add(pkg_request, package, source);
+            solution.add(
+                PkgRequestWithOptions {
+                    options: solution_options
+                        .iter()
+                        .filter_map(|(k, v)| {
+                            k.namespace()
+                                .is_some_and(|ns| ns == pkg_request.pkg.name())
+                                .then_some((k.clone(), PkgRequestOptionValue::Complete(v.clone())))
+                        })
+                        .collect(),
+                    pkg_request,
+                },
+                package,
+                source,
+            );
         }
         Ok(solution)
     }
@@ -368,7 +385,7 @@ impl SolverTrait for Solver {
         Cow::Borrowed(&self.options)
     }
 
-    fn get_pkg_requests(&self) -> Vec<PkgRequest> {
+    fn get_pkg_requests(&self) -> Vec<PkgRequestWithOptions> {
         self.requests
             .iter()
             .filter_map(|r| r.pkg_ref())
@@ -391,14 +408,18 @@ impl SolverTrait for Solver {
 
 #[async_trait::async_trait]
 impl SolverMut for Solver {
-    fn add_request(&mut self, mut request: Request) {
-        if let Request::Pkg(request) = &mut request
-            && request.pkg.components.is_empty()
+    fn add_request(&mut self, mut request: RequestWithOptions) {
+        if let RequestWithOptions::Pkg(request) = &mut request
+            && request.pkg_request.pkg.components.is_empty()
         {
-            if request.pkg.is_source() {
-                request.pkg.components.insert(Component::Source);
+            if request.pkg_request.pkg.is_source() {
+                request.pkg_request.pkg.components.insert(Component::Source);
             } else {
-                request.pkg.components.insert(Component::default_for_run());
+                request
+                    .pkg_request
+                    .pkg
+                    .components
+                    .insert(Component::default_for_run());
             }
         }
         self.requests.push(request);
@@ -437,7 +458,7 @@ impl SolverMut for Solver {
             let initial_requests = self
                 .get_pkg_requests()
                 .iter()
-                .map(|r| r.pkg.to_string())
+                .map(|r| r.pkg_request.pkg.to_string())
                 .collect::<Vec<String>>();
 
             show_search_space_stats(

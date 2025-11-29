@@ -5,7 +5,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 
-use spk_schema_foundation::ident::BuildIdent;
+use spk_schema_foundation::ident::{BuildIdent, RequestWithOptions};
 use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::option_map::OptFilter;
 use spk_schema_foundation::spec_ops::{Named, Versioned};
@@ -20,29 +20,58 @@ use crate::{DeprecateMut, Opt, RuntimeEnvironment};
 #[path = "./package_test.rs"]
 mod package_test;
 
+/// Macro to forward trait implementations to references, boxes, and Arcs
+macro_rules! forward_to_impl {
+    ($trait_name:ident, { $($item:item)* }) => {
+        impl<T: $trait_name + Send + Sync> $trait_name for std::sync::Arc<T> {
+            $($item)*
+        }
+
+        impl<T: $trait_name + Send + Sync> $trait_name for Box<T> {
+            $($item)*
+        }
+
+        impl<T: $trait_name + Send + Sync> $trait_name for &T {
+            $($item)*
+        }
+    };
+}
+
+/// Access to the build options defined by a package.
+pub trait BuildOptions {
+    /// The build options defined by this package
+    fn build_options(&self) -> Cow<'_, [Opt]>;
+}
+
+forward_to_impl!(BuildOptions, {
+    fn build_options(&self) -> Cow<'_, [Opt]> {
+        (**self).build_options()
+    }
+});
+
 /// Access to the components defined by a package.
 pub trait Components {
     /// The components defined by this package
     fn components(&self) -> &super::ComponentSpecList;
 }
 
-impl<T: Components + Send + Sync> Components for std::sync::Arc<T> {
+forward_to_impl!(Components, {
     fn components(&self) -> &super::ComponentSpecList {
         (**self).components()
     }
+});
+
+/// Access to the option values defined by a package.
+pub trait OptionValues {
+    /// The values for this package's options used for this build.
+    fn option_values(&self) -> OptionMap;
 }
 
-impl<T: Components + Send + Sync> Components for Box<T> {
-    fn components(&self) -> &super::ComponentSpecList {
-        (**self).components()
+forward_to_impl!(OptionValues, {
+    fn option_values(&self) -> OptionMap {
+        (**self).option_values()
     }
-}
-
-impl<T: Components + Send + Sync> Components for &T {
-    fn components(&self) -> &super::ComponentSpecList {
-        (**self).components()
-    }
-}
+});
 
 /// Can be resolved into an environment.
 #[enum_dispatch::enum_dispatch]
@@ -52,6 +81,7 @@ pub trait Package:
     + super::Deprecate
     + RuntimeEnvironment
     + Components
+    + OptionValues
     + Clone
     + Eq
     + std::hash::Hash
@@ -68,9 +98,6 @@ pub trait Package:
 
     /// The additional metadata attached to this package
     fn metadata(&self) -> &crate::metadata::Meta;
-
-    /// The values for this packages options used for this build.
-    fn option_values(&self) -> OptionMap;
 
     /// Returns true if the spec's options match all the given option
     /// filters, otherwise false
@@ -135,6 +162,12 @@ pub trait Package:
     /// Requests that must be met to use this package
     fn runtime_requirements(&self) -> Cow<'_, RequirementsList>;
 
+    /// Requests that must be met to use this package.
+    ///
+    /// Compared to [`Package::runtime_requirements`], the package requirements
+    /// include the package-specific options required too.
+    fn runtime_requirements_with_options(&self) -> Cow<'_, RequirementsList<RequestWithOptions>>;
+
     /// Requests that must be satisfied by the build
     /// environment of any package built against this one
     ///
@@ -167,7 +200,7 @@ pub trait PackageMut: Package + DeprecateMut {
     fn set_build(&mut self, build: Build);
 }
 
-impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
+forward_to_impl!(Package, {
     type Package = T::Package;
     type EmbeddedPackage = T::EmbeddedPackage;
 
@@ -177,10 +210,6 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
 
     fn metadata(&self) -> &crate::metadata::Meta {
         (**self).metadata()
-    }
-
-    fn option_values(&self) -> OptionMap {
-        (**self).option_values()
     }
 
     fn matches_all_filters(&self, filter_by: &Option<Vec<OptFilter>>) -> bool {
@@ -213,73 +242,8 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
         (**self).runtime_requirements()
     }
 
-    fn downstream_build_requirements<'a>(
-        &self,
-        components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, RequirementsList> {
-        (**self).downstream_build_requirements(components)
-    }
-
-    fn downstream_runtime_requirements<'a>(
-        &self,
-        components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, RequirementsList> {
-        (**self).downstream_runtime_requirements(components)
-    }
-
-    fn validation(&self) -> &super::ValidationSpec {
-        (**self).validation()
-    }
-
-    fn build_script(&self) -> String {
-        (**self).build_script()
-    }
-}
-
-impl<T: Package + Send + Sync> Package for Box<T> {
-    type Package = T::Package;
-    type EmbeddedPackage = T::EmbeddedPackage;
-
-    fn ident(&self) -> &BuildIdent {
-        (**self).ident()
-    }
-
-    fn metadata(&self) -> &crate::metadata::Meta {
-        (**self).metadata()
-    }
-
-    fn option_values(&self) -> OptionMap {
-        (**self).option_values()
-    }
-
-    fn matches_all_filters(&self, filter_by: &Option<Vec<OptFilter>>) -> bool {
-        (**self).matches_all_filters(filter_by)
-    }
-
-    fn sources(&self) -> &Vec<super::SourceSpec> {
-        (**self).sources()
-    }
-
-    fn embedded(&self) -> &super::EmbeddedPackagesList<Self::EmbeddedPackage> {
-        (**self).embedded()
-    }
-
-    fn embedded_as_packages(
-        &self,
-    ) -> std::result::Result<Vec<(Self::Package, Option<Component>)>, &str> {
-        (**self).embedded_as_packages()
-    }
-
-    fn get_build_options(&self) -> &Vec<Opt> {
-        (**self).get_build_options()
-    }
-
-    fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList>> {
-        (**self).get_build_requirements()
-    }
-
-    fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
-        (**self).runtime_requirements()
+    fn runtime_requirements_with_options(&self) -> Cow<'_, RequirementsList<RequestWithOptions>> {
+        (**self).runtime_requirements_with_options()
     }
 
     fn downstream_build_requirements<'a>(
@@ -303,73 +267,4 @@ impl<T: Package + Send + Sync> Package for Box<T> {
     fn build_script(&self) -> String {
         (**self).build_script()
     }
-}
-
-impl<T: Package + Send + Sync> Package for &T {
-    type Package = T::Package;
-    type EmbeddedPackage = T::EmbeddedPackage;
-
-    fn ident(&self) -> &BuildIdent {
-        (**self).ident()
-    }
-
-    fn metadata(&self) -> &crate::metadata::Meta {
-        (**self).metadata()
-    }
-
-    fn option_values(&self) -> OptionMap {
-        (**self).option_values()
-    }
-
-    fn matches_all_filters(&self, filter_by: &Option<Vec<OptFilter>>) -> bool {
-        (**self).matches_all_filters(filter_by)
-    }
-
-    fn sources(&self) -> &Vec<super::SourceSpec> {
-        (**self).sources()
-    }
-
-    fn embedded(&self) -> &super::EmbeddedPackagesList<Self::EmbeddedPackage> {
-        (**self).embedded()
-    }
-
-    fn embedded_as_packages(
-        &self,
-    ) -> std::result::Result<Vec<(Self::Package, Option<Component>)>, &str> {
-        (**self).embedded_as_packages()
-    }
-
-    fn get_build_options(&self) -> &Vec<Opt> {
-        (**self).get_build_options()
-    }
-
-    fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList>> {
-        (**self).get_build_requirements()
-    }
-
-    fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
-        (**self).runtime_requirements()
-    }
-
-    fn downstream_build_requirements<'a>(
-        &self,
-        components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, RequirementsList> {
-        (**self).downstream_build_requirements(components)
-    }
-
-    fn downstream_runtime_requirements<'a>(
-        &self,
-        components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, RequirementsList> {
-        (**self).downstream_runtime_requirements(components)
-    }
-
-    fn validation(&self) -> &super::ValidationSpec {
-        (**self).validation()
-    }
-
-    fn build_script(&self) -> String {
-        (**self).build_script()
-    }
-}
+});

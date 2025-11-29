@@ -25,7 +25,8 @@ impl ValidatorT for PkgRequirementsValidator {
         spec: &P,
         _source: &PackageSource,
     ) -> crate::Result<Compatibility> {
-        for request in spec.runtime_requirements().iter() {
+        for request in spec.runtime_requirements_with_options().iter() {
+            dbg!(spec.name(), request);
             let compat = self.validate_request_against_existing_state(state, request)?;
             if !&compat {
                 return Ok(compat);
@@ -50,16 +51,16 @@ impl PkgRequirementsValidator {
     fn validate_request_against_existing_state(
         &self,
         state: &State,
-        request: &Request,
+        request: &RequestWithOptions,
     ) -> crate::Result<Compatibility> {
         use Compatibility::Compatible;
         let request = match request {
-            Request::Pkg(request) => request,
+            RequestWithOptions::Pkg(request) => request,
             _ => return Ok(Compatible),
         };
 
-        let existing = match state.get_merged_request(&request.pkg.name) {
-            Ok(request) => request,
+        let existing = match state.get_merged_request(&request.pkg_request.pkg.name) {
+            Ok(request) => dbg!(request),
             Err(spk_solve_graph::GetMergedRequestError::NoRequestFor(_)) => return Ok(Compatible),
             // XXX: KeyError or ValueError still possible here?
             Err(err) => return Err(err.into()),
@@ -67,7 +68,7 @@ impl PkgRequirementsValidator {
 
         let mut restricted = existing.clone();
         let request = match restricted.restrict(request) {
-            Compatible => restricted,
+            Compatible => dbg!(restricted),
             Compatibility::Incompatible(incompatible) => {
                 return Ok(Compatibility::Incompatible(
                     IncompatibleReason::ConflictingRequirement(
@@ -79,7 +80,9 @@ impl PkgRequirementsValidator {
 
         let mut was_embedded = None;
 
-        let (resolved, provided_components) = match state.get_current_resolve(&request.pkg.name) {
+        let (resolved, provided_components) = match state
+            .get_current_resolve(&request.pkg_request.pkg.name)
+        {
             Ok((spec, source, _)) => match source {
                 PackageSource::Repository { components, .. } => (spec, components.keys().collect()),
                 PackageSource::Embedded { parent, components } => {
@@ -128,10 +131,10 @@ impl PkgRequirementsValidator {
 
         let existing_components = resolved
             .components()
-            .resolve_uses(existing.pkg.components.iter());
+            .resolve_uses(existing.pkg_request.pkg.components.iter());
         let required_components = resolved
             .components()
-            .resolve_uses(request.pkg.components.iter());
+            .resolve_uses(request.pkg_request.pkg.components.iter());
         for component in resolved.components().iter() {
             if existing_components.contains(&component.name) {
                 continue;
@@ -167,7 +170,7 @@ impl PkgRequirementsValidator {
     }
 
     fn validate_request_against_existing_resolve(
-        request: &PkgRequest,
+        request: &PkgRequestWithOptions,
         resolved: &CachedHash<std::sync::Arc<Spec>>,
         provided_components: std::collections::HashSet<&Component>,
     ) -> crate::Result<Compatibility> {
@@ -177,7 +180,7 @@ impl PkgRequirementsValidator {
             return Ok(Compatibility::Incompatible(
                 IncompatibleReason::ConflictingRequirement(
                     ConflictingRequirementProblem::ExistingPackage {
-                        pkg: request.pkg.name.clone(),
+                        pkg: request.pkg_request.pkg.name.clone(),
                         inner_reason: Box::new(compat),
                     },
                 ),
@@ -185,7 +188,7 @@ impl PkgRequirementsValidator {
         }
         let required_components = resolved
             .components()
-            .resolve_uses(request.pkg.components.iter());
+            .resolve_uses(request.pkg_request.pkg.components.iter());
         let missing_components: Vec<_> = required_components
             .iter()
             .filter(|c| !provided_components.contains(c))
@@ -194,7 +197,7 @@ impl PkgRequirementsValidator {
             return Ok(Compatibility::Incompatible(
                 IncompatibleReason::ComponentsMissing(
                     ComponentsMissingProblem::ComponentsNotProvided {
-                        package: request.pkg.name.to_owned(),
+                        package: request.pkg_request.pkg.name.to_owned(),
                         needed: CommaSeparated(
                             missing_components
                                 .into_iter()

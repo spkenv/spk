@@ -16,7 +16,7 @@ use spfs::tracking::{Entry, EntryKind};
 use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::prelude::*;
-use spk_schema::{Components, Spec};
+use spk_schema::{Components, OptionValues, Spec};
 use spk_solve::solution::{PackageSource, SPK_SOLVE_EXTRA_DATA_KEY, Solution};
 use spk_solve::{BuildIdent, RepositoryHandle};
 use spk_storage as storage;
@@ -202,14 +202,14 @@ pub fn solution_to_resolved_runtime_layers(solution: &Solution) -> Result<Resolv
             PackageSource::SpkInternalTest => continue,
         };
 
-        if resolved.request.pkg.components.is_empty() {
+        if resolved.request.pkg_request.pkg.components.is_empty() {
             tracing::warn!(
                 "Package request for '{}' identified no components, nothing will be included",
-                resolved.request.pkg.name
+                resolved.request.pkg_request.pkg.name
             );
             continue;
         }
-        let mut desired_components = resolved.request.pkg.components.clone();
+        let mut desired_components = resolved.request.pkg_request.pkg.components.clone();
         if desired_components.is_empty() || desired_components.remove(&Component::All) {
             desired_components.extend(components.keys().cloned());
         }

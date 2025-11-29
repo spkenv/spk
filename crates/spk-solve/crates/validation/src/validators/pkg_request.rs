@@ -20,7 +20,7 @@ impl ValidatorT for PkgRequestValidator {
         source: &PackageSource,
     ) -> crate::Result<Compatibility>
     where
-        P: Satisfy<PkgRequest> + Package,
+        P: Satisfy<PkgRequestWithOptions> + Package,
     {
         self.validate_package_against_request(state, spec, source)
     }
@@ -59,7 +59,7 @@ impl ValidatorT for PkgRequestValidator {
         source: &PackageSource,
     ) -> crate::Result<Compatibility>
     where
-        P: Satisfy<PkgRequest> + Package,
+        P: Satisfy<PkgRequestWithOptions> + Package,
         PR: GetMergedRequest,
     {
         let request = match pkgrequest_data.get_merged_request(package.name()) {
@@ -81,7 +81,7 @@ impl ValidatorT for PkgRequestValidator {
             }
         };
 
-        if let Some(rn) = &request.pkg.repository_name {
+        if let Some(rn) = &request.pkg_request.pkg.repository_name {
             // If the request names a repository, then the source has to match.
             match source {
                 PackageSource::Repository { repo, .. } if repo.name() != rn => {
