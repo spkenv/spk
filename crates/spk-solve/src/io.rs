@@ -267,7 +267,7 @@ where
         let vars = state
             .get_var_requests()
             .iter()
-            .map(|v| format!("{}: {}", v.var, v.value.as_pinned().unwrap_or_default()))
+            .map(|v| format!("{}: {}", v.var, v.value))
             .collect::<Vec<String>>();
         tracing::info!(
             "{}\n  {}\nNumber of Var Requests: {:?}",
@@ -478,7 +478,7 @@ where
                             node.state
                                 .get_var_requests()
                                 .iter()
-                                .map(|v| format!("{}: {}", v.var, v.value.as_pinned().unwrap_or_default()))
+                                .map(|v| format!("{}: {}", v.var, v.value))
                                 .collect::<Vec<String>>()
                                 .join(", ")
                         ));
@@ -1759,7 +1759,7 @@ impl DecisionFormatter {
             String::from("vars"),
             serde_json::json!(
                 vars.iter()
-                    .map(|v| format!("{}: {}", v.var, v.value.as_pinned().unwrap_or_default()))
+                    .map(|v| format!("{}: {}", v.var, v.value))
                     .collect::<Vec<String>>()
             ),
         );
@@ -1771,10 +1771,7 @@ impl DecisionFormatter {
             "spk explain {} {}",
             requests.join(" "),
             vars.iter()
-                .filter_map(|v| v
-                    .value
-                    .as_pinned()
-                    .map(|value| format!("-o {}={}", v.var, value)))
+                .map(|v| format!("-o {}={}", v.var, v.value))
                 .collect::<Vec<String>>()
                 .join(" ")
         );

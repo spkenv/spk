@@ -14,7 +14,7 @@ use spk_schema::foundation::format::FormatOptionMap;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::option_map::{HOST_OPTIONS, OptionMap};
 use spk_schema::prelude::*;
-use spk_schema::{Recipe, Request, TestStage};
+use spk_schema::{PinnedRequest, Recipe, TestStage};
 
 use crate::test::{PackageBuildTester, PackageInstallTester, PackageSourceTester, Tester};
 
@@ -81,11 +81,11 @@ impl Run for CmdTest {
 
         // This includes any host options added by command line flag,
         // or not if --nohost was used.
-        let options_reqs: Vec<Request> = self
+        let options_reqs: Vec<PinnedRequest> = self
             .options
             .get_var_requests()?
             .into_iter()
-            .map(Request::Var)
+            .map(PinnedRequest::Var)
             .collect();
 
         for package in &self.packages {

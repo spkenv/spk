@@ -7,7 +7,7 @@ pub use spk_schema::ident_build::{Build, EmbeddedSource};
 pub use spk_schema::ident_component::Component;
 pub use spk_schema::prelude::{Named, Satisfy};
 pub use spk_schema::version::Compatibility;
-pub use spk_schema::{Package, Recipe, Request, Spec};
+pub use spk_schema::{Package, Recipe, Spec};
 pub use spk_solve_graph::{CachedHash, GetMergedRequestError, State};
 pub use spk_solve_solution::PackageSource;
 

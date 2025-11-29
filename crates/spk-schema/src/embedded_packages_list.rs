@@ -5,10 +5,13 @@
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::AsVersionIdent;
-use spk_schema_foundation::spec_ops::Named;
+use spk_schema_foundation::name::PkgName;
+use spk_schema_foundation::option_map::OptionMap;
+use spk_schema_foundation::spec_ops::{HasBuildIdent, Named, Versioned};
 
+use crate::Result;
 use crate::component_embedded_packages::ComponentEmbeddedPackage;
-use crate::v0;
+use crate::v0::{self, EmbeddedPackageSpec, EmbeddedRecipeSpec};
 
 #[cfg(test)]
 #[path = "./embedded_packages_list_test.rs"]
@@ -18,6 +21,26 @@ mod embedded_packages_list_test;
 #[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
 pub struct EmbeddedPackagesList<EmbeddedSpec>(Vec<EmbeddedSpec>);
+
+impl EmbeddedPackagesList<EmbeddedRecipeSpec> {
+    pub fn render_all_pins<K, R>(
+        self,
+        options: &OptionMap,
+        resolved_by_name: &std::collections::HashMap<K, R>,
+    ) -> Result<EmbeddedPackagesList<EmbeddedPackageSpec>>
+    where
+        K: Eq + std::hash::Hash,
+        K: std::borrow::Borrow<PkgName>,
+        R: HasBuildIdent + Versioned,
+    {
+        Ok(EmbeddedPackagesList(
+            self.0
+                .into_iter()
+                .map(|embedded| embedded.render_all_pins(options, resolved_by_name))
+                .collect::<Result<Vec<_>>>()?,
+        ))
+    }
+}
 
 impl<EmbeddedSpec> EmbeddedPackagesList<EmbeddedSpec>
 where
@@ -60,14 +83,6 @@ impl<EmbeddedSpec> std::ops::Deref for EmbeddedPackagesList<EmbeddedSpec> {
 impl<EmbeddedSpec> std::ops::DerefMut for EmbeddedPackagesList<EmbeddedSpec> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
-    }
-}
-
-impl From<EmbeddedPackagesList<v0::EmbeddedRecipeSpec>>
-    for EmbeddedPackagesList<v0::EmbeddedPackageSpec>
-{
-    fn from(value: EmbeddedPackagesList<v0::EmbeddedRecipeSpec>) -> Self {
-        EmbeddedPackagesList(value.0.into_iter().map(Into::into).collect())
     }
 }
 

@@ -9,8 +9,9 @@ use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::{
     InclusionPolicy,
+    PinnableRequest,
+    PinnedRequest,
     PkgRequest,
-    Request,
     RequestedBy,
     VersionIdent,
 };
@@ -70,7 +71,7 @@ impl PlatformRequirements {
     fn process_add(dest: &mut RequirementsList, add: &RequirementsList) {
         for request in add.iter() {
             let mut request = request.clone();
-            if let Request::Pkg(pkg) = &mut request {
+            if let PinnableRequest::Pkg(pkg) = &mut request {
                 pkg.inclusion_policy = InclusionPolicy::IfAlreadyPresent;
             };
             dest.insert_or_replace(request);
@@ -205,7 +206,10 @@ impl Recipe for Platform {
         Ok(OptionMap::default())
     }
 
-    fn get_build_requirements<V>(&self, variant: &V) -> Result<Cow<'_, RequirementsList>>
+    fn get_build_requirements<V>(
+        &self,
+        variant: &V,
+    ) -> Result<Cow<'_, RequirementsList<PinnedRequest>>>
     where
         V: Variant,
     {
@@ -214,7 +218,7 @@ impl Recipe for Platform {
         if let Some(base) = self.base.as_ref() {
             let build_digest = self.build_digest(variant)?;
 
-            requirements.insert_or_merge(Request::Pkg(PkgRequest::from_ident(
+            requirements.insert_or_merge_pinned(PinnedRequest::Pkg(PkgRequest::from_ident(
                 base.clone().into_any_ident(None),
                 RequestedBy::BinaryBuild(self.ident().to_build_ident(Build::BuildId(build_digest))),
             )))?;

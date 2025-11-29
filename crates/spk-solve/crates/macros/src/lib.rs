@@ -217,22 +217,22 @@ macro_rules! make_spec {
 
 /// Creates a request from a literal range identifier, or json structure
 #[macro_export(local_inner_macros)]
-macro_rules! request {
+macro_rules! pinned_request {
     ($req:literal) => {
-        spk_schema::ident::Request::Pkg(spk_schema::ident::PkgRequest::new(
+        spk_schema::ident::PinnedRequest::Pkg(spk_schema::ident::PkgRequest::new(
             spk_schema::ident::parse_ident_range($req).unwrap(),
             spk_schema::ident::RequestedBy::SpkInternalTest,
         ))
     };
     ($req:ident) => {
-        spk_schema::ident::Request::Pkg(spk_schema::ident::PkgRequest::new(
+        spk_schema::ident::PinnedRequest::Pkg(spk_schema::ident::PkgRequest::new(
             spk_schema::ident::parse_ident_range($req).unwrap(),
             spk_schema::ident::RequestedBy::SpkInternalTest,
         ))
     };
     ($req:tt) => {{
         let value = serde_json::json!($req);
-        let req: spk_schema::ident::Request = serde_json::from_value(value).unwrap();
+        let req: spk_schema::ident::PinnedRequest = serde_json::from_value(value).unwrap();
         req
     }};
 }

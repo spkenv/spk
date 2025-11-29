@@ -7,6 +7,9 @@ use std::hash::Hash;
 use serde::{Deserialize, Serialize};
 use serde_yaml::Value;
 use spk_schema_foundation::IsDefault;
+use spk_schema_foundation::name::PkgName;
+use spk_schema_foundation::option_map::OptionMap;
+use spk_schema_foundation::spec_ops::Versioned;
 
 use crate::{Error, Opt, Result};
 
@@ -53,6 +56,43 @@ impl TryFrom<RawEmbeddedBuildSpec> for EmbeddedBuildSpec {
 pub struct EmbeddedBuildSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub options: Vec<Opt>,
+}
+
+impl EmbeddedBuildSpec {
+    /// Render all requests with a package pin using the given resolved packages.
+    pub fn render_all_pins<K, R>(
+        self,
+        options: &OptionMap,
+        resolved_by_name: &std::collections::HashMap<K, R>,
+    ) -> Result<Self>
+    where
+        K: Eq + std::hash::Hash,
+        K: std::borrow::Borrow<PkgName>,
+        R: Versioned,
+    {
+        Ok(Self {
+            options: self
+                .options
+                .into_iter()
+                .map(|opt| {
+                    opt.render_all_pins(
+                        options,
+                        resolved_by_name,
+                        // An embedded package that says it depends on a package
+                        // "foo" that the parent package doesn't have in its build
+                        // requirements means that "foo" will not necessarily be in
+                        // the build env. That shouldn't prevent the parent package
+                        // from building, but also the embedded stub will not get
+                        // its build requirement for "foo" pinned. It is impossible
+                        // to "build" an embedded package anyway; build pkg
+                        // requirements in an embedded package are basically
+                        // meaningless.
+                        false,
+                    )
+                })
+                .collect::<Result<Vec<_>>>()?,
+        })
+    }
 }
 
 impl IsDefault for EmbeddedBuildSpec {

@@ -17,7 +17,8 @@ use variantly::Variantly;
 use super::AnyIdent;
 use crate::IsDefault;
 use crate::format::{FormatBuild, FormatChangeOptions, FormatComponents, FormatRequest};
-use crate::ident::{BuildIdent, Error, RangeIdent, Result, Satisfy, VersionIdent};
+use crate::ident::pinned_request::PinnedValue;
+use crate::ident::{BuildIdent, Error, PinnedRequest, RangeIdent, Result, Satisfy, VersionIdent};
 use crate::ident_component::ComponentSet;
 use crate::name::{OptName, OptNameBuf, PkgName};
 use crate::option_map::Stringified;
@@ -40,8 +41,8 @@ use crate::version_range::{
 };
 
 #[cfg(test)]
-#[path = "./request_test.rs"]
-mod request_test;
+#[path = "./pinnable_request_test.rs"]
+mod pinnable_request_test;
 
 #[derive(
     Clone,
@@ -185,21 +186,21 @@ impl<'de> Deserialize<'de> for PinPolicy {
 /// Represents a constraint added to a resolved environment.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Variantly)]
 #[cfg_attr(feature = "parsedbuf-serde", derive(Serialize), serde(untagged))]
-pub enum Request {
+pub enum PinnableRequest {
     Pkg(PkgRequest),
     Var(VarRequest<PinnableValue>),
 }
 
-impl crate::spec_ops::Named<OptName> for Request {
+impl crate::spec_ops::Named<OptName> for PinnableRequest {
     fn name(&self) -> &OptName {
         match self {
-            Request::Var(r) => &r.var,
-            Request::Pkg(r) => r.pkg.name.as_opt_name(),
+            PinnableRequest::Var(r) => &r.var,
+            PinnableRequest::Pkg(r) => r.pkg.name.as_opt_name(),
         }
     }
 }
 
-impl std::fmt::Display for Request {
+impl std::fmt::Display for PinnableRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Pkg(p) => p.fmt(f),
@@ -208,19 +209,32 @@ impl std::fmt::Display for Request {
     }
 }
 
-impl From<VarRequest> for Request {
+impl From<PinnedRequest> for PinnableRequest {
+    fn from(req: PinnedRequest) -> Self {
+        match req {
+            PinnedRequest::Pkg(p) => Self::Pkg(p),
+            PinnedRequest::Var(v) => Self::Var(VarRequest {
+                var: v.var,
+                value: PinnableValue::Pinned(v.value),
+                description: v.description,
+            }),
+        }
+    }
+}
+
+impl From<VarRequest> for PinnableRequest {
     fn from(req: VarRequest) -> Self {
         Self::Var(req)
     }
 }
 
-impl From<PkgRequest> for Request {
+impl From<PkgRequest> for PinnableRequest {
     fn from(req: PkgRequest) -> Self {
         Self::Pkg(req)
     }
 }
 
-impl<'de> Deserialize<'de> for Request {
+impl<'de> Deserialize<'de> for PinnableRequest {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -255,7 +269,7 @@ impl<'de> Deserialize<'de> for Request {
         }
 
         impl<'de> serde::de::Visitor<'de> for RequestVisitor {
-            type Value = Request;
+            type Value = PinnableRequest;
 
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 f.write_str("a pkg or var request")
@@ -306,7 +320,7 @@ impl<'de> Deserialize<'de> for Request {
                             pkg.name, pkg.version
                         )))
                     }
-                    (Some(pkg), None) => Ok(Request::Pkg(PkgRequest {
+                    (Some(pkg), None) => Ok(PinnableRequest::Pkg(PkgRequest {
                         pkg,
                         prerelease_policy: self.prerelease_policy,
                         inclusion_policy: self.inclusion_policy.unwrap_or_default(),
@@ -325,7 +339,7 @@ impl<'de> Deserialize<'de> for Request {
                         {
                             value = PinnableValue::FromBuildEnvIfPresent;
                         }
-                        Ok(Request::Var(VarRequest {
+                        Ok(PinnableRequest::Var(VarRequest {
                             var,
                             value,
                             description: self.description.clone(),
@@ -390,26 +404,19 @@ impl<T> VarRequest<T> {
             description: desc.cloned(),
         }
     }
+
+    /// Check if this package spec satisfies the given var request.
+    pub fn is_satisfied_by<P>(&self, spec: &P) -> Compatibility
+    where
+        P: Satisfy<Self>,
+    {
+        spec.check_satisfies_request(self)
+    }
 }
 
 impl VarRequest<PinnableValue> {
-    /// Create a copy of this request with its pin rendered out using 'var'.
-    pub fn render_pin<S: Into<Arc<str>>>(&self, value: S) -> Result<VarRequest> {
-        if !self.value.is_from_build_env() {
-            return Err(Error::String(
-                "Request has no pin to be rendered".to_string(),
-            ));
-        }
-
-        Ok(VarRequest {
-            var: self.var.clone(),
-            value: PinnableValue::Pinned(value.into()),
-            description: self.description.clone(),
-        })
-    }
-
-    /// Create a copy of this request with its pin rendered out using 'var'.
-    pub fn into_pinned<S: Into<String>>(self, value: S) -> Result<VarRequest<String>> {
+    /// Transform this request with its pin rendered out using 'value'.
+    pub fn render_pin<S: Into<Arc<str>>>(self, value: S) -> Result<VarRequest<PinnedValue>> {
         if !self.value.is_from_build_env() {
             return Err(Error::String(
                 "Request has no pin to be rendered".to_string(),
@@ -423,12 +430,19 @@ impl VarRequest<PinnableValue> {
         })
     }
 
-    /// Check if this package spec satisfies the given var request.
-    pub fn is_satisfied_by<T>(&self, spec: &T) -> Compatibility
-    where
-        T: Satisfy<VarRequest>,
-    {
-        spec.check_satisfies_request(self)
+    /// Create a copy of this request with its pin rendered out using 'value'.
+    pub fn into_pinned<S: Into<String>>(self, value: S) -> Result<VarRequest<String>> {
+        if !self.value.is_from_build_env() {
+            return Err(Error::String(
+                "Request has no pin to be rendered".to_string(),
+            ));
+        }
+
+        Ok(VarRequest {
+            var: self.var,
+            value: value.into(),
+            description: self.description,
+        })
     }
 
     /// True if this request is as least as restrictive as the other. In other words,
@@ -462,6 +476,47 @@ impl VarRequest<PinnableValue> {
             ));
         };
         if !other_value.is_empty() && self_value != other_value {
+            return Compatibility::Incompatible(IncompatibleReason::VarRequestNotSuperset(
+                VarRequestProblem::DifferentValue {
+                    self_value: self_value.to_string(),
+                    other_value: other_value.to_string(),
+                },
+            ));
+        }
+        Compatibility::Compatible
+    }
+}
+
+impl VarRequest<PinnedValue> {
+    /// True if this request is as least as restrictive as the other. In other words,
+    /// if satisfying this request would undoubtedly satisfy the other.
+    pub fn contains(&self, other: &VarRequest<PinnableValue>) -> Compatibility {
+        if self.var.base_name() != other.var.base_name() {
+            return Compatibility::Incompatible(IncompatibleReason::VarRequestNotSuperset(
+                VarRequestProblem::DifferentVar {
+                    self_var: self.var.to_string(),
+                    other_var: other.var.to_string(),
+                },
+            ));
+        }
+        let ns = self.var.namespace();
+        if ns.is_some() && ns != other.var.namespace() {
+            return Compatibility::Incompatible(IncompatibleReason::VarRequestNotSuperset(
+                VarRequestProblem::DifferentNamespace {
+                    self_var: self.var.to_string(),
+                    other_var: other.var.to_string(),
+                },
+            ));
+        }
+        let (self_value, Some(other_value)) = (&self.value, &other.value.as_pinned()) else {
+            // we cannot consider a request that still needs to be pinned as
+            // containing any other because the ultimate value of this request
+            // is unknown
+            return Compatibility::Incompatible(IncompatibleReason::VarRequestNotSuperset(
+                VarRequestProblem::Incomparable,
+            ));
+        };
+        if !other_value.is_empty() && **self_value != **other_value {
             return Compatibility::Incompatible(IncompatibleReason::VarRequestNotSuperset(
                 VarRequestProblem::DifferentValue {
                     self_value: self_value.to_string(),
@@ -1208,21 +1263,17 @@ where
 /// An ambiguous pin value that could be for either a var or
 /// pkg request. It represents all the possible values of both,
 /// and so may not be valid depending on the final context
-enum PinValue {
+#[derive(Default)]
+pub(crate) enum PinValue {
+    #[default]
     None,
     True,
     String(String),
 }
 
-impl Default for PinValue {
-    fn default() -> Self {
-        Self::None
-    }
-}
-
 impl PinValue {
     /// Transform this pin into the appropriate value for a pkg request
-    fn into_pkg_pin(self) -> Option<String> {
+    pub(crate) fn into_pkg_pin(self) -> Option<String> {
         match self {
             Self::None => None,
             Self::True => Some(BINARY_STR.into()),
@@ -1231,7 +1282,7 @@ impl PinValue {
     }
 
     /// Transform this pin into the appropriate value for a var request, if possible
-    fn into_var_pin<E>(
+    pub(crate) fn into_var_pin<E>(
         self,
         var: &OptName,
         value: Option<String>,
@@ -1255,7 +1306,7 @@ impl PinValue {
     }
 
     /// True if this pin has a value
-    fn is_some(&self) -> bool {
+    pub(crate) fn is_some(&self) -> bool {
         !matches!(self, Self::None)
     }
 }

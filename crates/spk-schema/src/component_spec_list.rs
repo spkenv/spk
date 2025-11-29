@@ -4,12 +4,17 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
+use spk_schema_foundation::ident::{PinnableRequest, PinnedRequest};
+use spk_schema_foundation::name::{OptName, PkgName};
+use spk_schema_foundation::option_map::OptionMap;
+use spk_schema_foundation::spec_ops::{HasBuildIdent, Named};
 
 use super::ComponentSpec;
-use crate::ComponentFileMatchMode;
 use crate::foundation::ident_component::Component;
+use crate::{ComponentFileMatchMode, Result};
 
 #[cfg(test)]
 #[path = "./component_spec_list_test.rs"]
@@ -17,16 +22,43 @@ mod component_spec_list_test;
 
 /// A set of packages that are embedded/provided by another.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-#[serde(transparent)]
-pub struct ComponentSpecList(Vec<ComponentSpec>);
+#[serde(
+    transparent,
+    bound = "Request: DeserializeOwned + Named<OptName> + Serialize"
+)]
+pub struct ComponentSpecList<Request>(Vec<ComponentSpec<Request>>);
 
-impl IsDefault for ComponentSpecList {
+impl ComponentSpecList<PinnableRequest> {
+    /// Render all requests with a package pin using the given resolved packages.
+    pub fn render_all_pins<K, R>(
+        self,
+        options: &OptionMap,
+        resolved_by_name: &HashMap<K, R>,
+    ) -> Result<ComponentSpecList<PinnedRequest>>
+    where
+        K: Eq + std::hash::Hash,
+        K: std::borrow::Borrow<PkgName>,
+        R: HasBuildIdent,
+    {
+        Ok(ComponentSpecList(
+            self.0
+                .into_iter()
+                .map(|component| component.render_all_pins(options, resolved_by_name))
+                .collect::<crate::Result<Vec<_>>>()?,
+        ))
+    }
+}
+
+impl<Request> IsDefault for ComponentSpecList<Request>
+where
+    Request: PartialEq,
+{
     fn is_default(&self) -> bool {
         self == &Self::default()
     }
 }
 
-impl ComponentSpecList {
+impl<Request> ComponentSpecList<Request> {
     /// Collect the names of all components in this list
     pub fn names(&self) -> HashSet<&Component> {
         self.iter().map(|i| &i.name).collect()
@@ -63,7 +95,7 @@ impl ComponentSpecList {
     }
 
     /// Retrieve the component with the provided name
-    pub fn get<C>(&self, name: C) -> Option<&ComponentSpec>
+    pub fn get<C>(&self, name: C) -> Option<&ComponentSpec<Request>>
     where
         C: std::cmp::PartialEq<Component>,
     {
@@ -74,8 +106,8 @@ impl ComponentSpecList {
     pub fn get_or_insert_with(
         &mut self,
         name: Component,
-        default: impl FnOnce() -> ComponentSpec,
-    ) -> &mut ComponentSpec {
+        default: impl FnOnce() -> ComponentSpec<Request>,
+    ) -> &mut ComponentSpec<Request> {
         let position = match self.iter().position(|c| c.name == name) {
             Some(p) => p,
             None => {
@@ -87,7 +119,7 @@ impl ComponentSpecList {
     }
 }
 
-impl Default for ComponentSpecList {
+impl<Request> Default for ComponentSpecList<Request> {
     fn default() -> Self {
         Self(vec![
             ComponentSpec::default_build(),
@@ -96,34 +128,42 @@ impl Default for ComponentSpecList {
     }
 }
 
-impl std::ops::Deref for ComponentSpecList {
-    type Target = Vec<ComponentSpec>;
+impl<Request> std::ops::Deref for ComponentSpecList<Request> {
+    type Target = Vec<ComponentSpec<Request>>;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl std::ops::DerefMut for ComponentSpecList {
+impl<Request> std::ops::DerefMut for ComponentSpecList<Request> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl<'de> Deserialize<'de> for ComponentSpecList {
+impl<'de, Request> Deserialize<'de> for ComponentSpecList<Request>
+where
+    Request: DeserializeOwned + Named<OptName> + Serialize,
+{
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        struct ComponentSpecListVisitor;
+        struct ComponentSpecListVisitor<Request> {
+            _marker: std::marker::PhantomData<Request>,
+        }
 
-        impl<'de> serde::de::Visitor<'de> for ComponentSpecListVisitor {
-            type Value = ComponentSpecList;
+        impl<'de, Request> serde::de::Visitor<'de> for ComponentSpecListVisitor<Request>
+        where
+            Request: DeserializeOwned + Named<OptName> + Serialize,
+        {
+            type Value = ComponentSpecList<Request>;
 
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 f.write_str("a list of component definitions")
             }
 
-            fn visit_unit<E>(self) -> Result<Self::Value, E>
+            fn visit_unit<E>(self) -> std::result::Result<Self::Value, E>
             where
                 E: serde::de::Error,
             {
@@ -137,7 +177,7 @@ impl<'de> Deserialize<'de> for ComponentSpecList {
                 let size_hint = seq.size_hint().unwrap_or(0);
                 let mut seen = std::collections::HashSet::with_capacity(size_hint);
                 let mut components = Vec::with_capacity(size_hint);
-                while let Some(component) = seq.next_element::<ComponentSpec>()? {
+                while let Some(component) = seq.next_element::<ComponentSpec<Request>>()? {
                     if !seen.insert(component.name.clone()) {
                         return Err(serde::de::Error::custom(format!(
                             "found multiple components with the name '{}'",
@@ -194,6 +234,14 @@ impl<'de> Deserialize<'de> for ComponentSpecList {
             }
         }
 
-        deserializer.deserialize_seq(ComponentSpecListVisitor)
+        deserializer.deserialize_seq(ComponentSpecListVisitor {
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+impl From<ComponentSpecList<PinnedRequest>> for ComponentSpecList<PinnableRequest> {
+    fn from(value: ComponentSpecList<PinnedRequest>) -> Self {
+        ComponentSpecList(value.0.into_iter().map(Into::into).collect())
     }
 }

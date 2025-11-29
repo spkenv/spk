@@ -8,7 +8,7 @@ use std::fmt::Write;
 use std::str::FromStr;
 
 use serde::Serialize;
-use spk_schema_foundation::ident::{PkgRequest, RangeIdent, VarRequest};
+use spk_schema_foundation::ident::{PinnedRequest, PkgRequest, RangeIdent, VarRequest};
 use spk_schema_foundation::name::PkgName;
 use spk_schema_foundation::option_map::OptionMap;
 use spk_schema_foundation::version_range::{VersionFilter, VersionRange};
@@ -27,7 +27,7 @@ pub struct Variant {
     #[serde(flatten)]
     options: OptionMap,
     #[serde(skip)]
-    requirements: RequirementsList,
+    requirements: RequirementsList<PinnedRequest>,
 }
 
 impl Variant {
@@ -85,19 +85,16 @@ impl Variant {
                         name, value
                     )));
                 };
-                requirements.insert_or_replace(
-                    PkgRequest::new(
-                        RangeIdent {
-                            name: pkg.0.name,
-                            version: VersionFilter::single(version_range),
-                            repository_name: None,
-                            components: pkg.0.components.into_inner(),
-                            build: None,
-                        },
-                        spk_schema_foundation::ident::RequestedBy::Variant,
-                    )
-                    .into(),
-                );
+                requirements.insert_or_replace(PinnedRequest::Pkg(PkgRequest::new(
+                    RangeIdent {
+                        name: pkg.0.name,
+                        version: VersionFilter::single(version_range),
+                        repository_name: None,
+                        components: pkg.0.components.into_inner(),
+                        build: None,
+                    },
+                    spk_schema_foundation::ident::RequestedBy::Variant,
+                )));
                 continue;
             }
 
@@ -112,33 +109,34 @@ impl Variant {
             //
             // If it is not a valid package name, assume it is a var.
             let Ok(pkg_name) = PkgName::new(name.as_str()) else {
-                requirements
-                    .insert_or_replace(VarRequest::new_with_value(name.clone(), value).into());
+                requirements.insert_or_replace(PinnedRequest::Var(VarRequest::new_with_value(
+                    name.clone(),
+                    value,
+                )));
                 continue;
             };
             // If the value is not a legal version range, assume it is
             // a var.
             let Ok(version_range) = VersionRange::from_str(value) else {
-                requirements
-                    .insert_or_replace(VarRequest::new_with_value(name.clone(), value).into());
+                requirements.insert_or_replace(PinnedRequest::Var(VarRequest::new_with_value(
+                    name.clone(),
+                    value,
+                )));
                 continue;
             };
             // It is a valid package name and the value is a legal
             // version range expression, and it doesn't match any
             // declared options. Treat as a new package request
-            requirements.insert_or_replace(
-                PkgRequest::new(
-                    RangeIdent {
-                        name: pkg_name.to_owned(),
-                        version: VersionFilter::single(version_range),
-                        repository_name: None,
-                        components: BTreeSet::new(),
-                        build: None,
-                    },
-                    spk_schema_foundation::ident::RequestedBy::Variant,
-                )
-                .into(),
-            );
+            requirements.insert_or_replace(PinnedRequest::Pkg(PkgRequest::new(
+                RangeIdent {
+                    name: pkg_name.to_owned(),
+                    version: VersionFilter::single(version_range),
+                    repository_name: None,
+                    components: BTreeSet::new(),
+                    build: None,
+                },
+                spk_schema_foundation::ident::RequestedBy::Variant,
+            )));
         }
         Ok(Self {
             options,
@@ -152,7 +150,7 @@ impl crate::Variant for Variant {
         Cow::Borrowed(&self.options)
     }
 
-    fn additional_requirements(&self) -> Cow<'_, RequirementsList> {
+    fn additional_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>> {
         Cow::Borrowed(&self.requirements)
     }
 }

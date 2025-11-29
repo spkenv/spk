@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use spk_schema::ident::PinnedRequest;
 use spk_schema::version::IncompatibleReason;
 
 use super::prelude::*;
@@ -20,7 +21,7 @@ impl ValidatorT for VarRequirementsValidator {
     ) -> crate::Result<Compatibility> {
         let options = state.get_option_map();
         for request in spec.runtime_requirements().iter() {
-            if let Request::Var(request) = request {
+            if let PinnedRequest::Var(request) = request {
                 for (name, value) in options.iter() {
                     let is_not_requested = *name != request.var;
                     let is_not_same_base = request.var.base_name() != name.base_name();
@@ -31,12 +32,11 @@ impl ValidatorT for VarRequirementsValidator {
                         // empty option values do not provide a valuable opinion on the resolve
                         continue;
                     }
-                    let requested = request.value.as_pinned().unwrap_or_default();
-                    if requested != value.as_str() {
+                    if &*request.value != value.as_str() {
                         return Ok(Compatibility::Incompatible(
                             IncompatibleReason::VarRequirementMismatch {
                                 var: request.var.clone(),
-                                requested: requested.to_string(),
+                                requested: request.value.to_string(),
                                 name: name.clone(),
                                 value: value.clone(),
                             },

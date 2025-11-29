@@ -27,7 +27,8 @@ use spk_schema::ident::{
     InclusionPolicy,
     LocatedBuildIdent,
     PinPolicy,
-    PinnableValue,
+    PinnedRequest,
+    PinnedValue,
     PkgRequest,
     RangeIdent,
     RequestedBy,
@@ -37,7 +38,7 @@ use spk_schema::ident_component::Component;
 use spk_schema::name::PkgNameBuf;
 use spk_schema::prelude::{HasVersion, Named, Versioned};
 use spk_schema::version_range::VersionFilter;
-use spk_schema::{OptionMap, Package, Request, Spec};
+use spk_schema::{OptionMap, Package, Spec};
 use spk_solve_solution::{PackageSource, Solution};
 use spk_solve_validation::{Validators, default_validators};
 use spk_storage::RepositoryHandle;
@@ -53,7 +54,7 @@ mod resolvo_tests;
 #[derive(Clone, Default)]
 pub struct Solver {
     repos: Vec<Arc<RepositoryHandle>>,
-    requests: Vec<Request>,
+    requests: Vec<PinnedRequest>,
     options: OptionMap,
     binary_only: bool,
     _validators: Cow<'static, [Validators]>,
@@ -90,7 +91,7 @@ impl Solver {
         let mut names_to_requesters: HashMap<PkgNameBuf, BTreeSet<RequestedBy>> = HashMap::new();
         for (_pkg_request, package, _source) in solution_adds.iter() {
             for request in package.runtime_requirements().iter() {
-                if let Request::Pkg(pkg_req) = request {
+                if let PinnedRequest::Pkg(pkg_req) = request {
                     let name = pkg_req.pkg.name();
                     let entry = names_to_requesters.entry(name.into()).or_default();
                     entry.insert(RequestedBy::PackageBuild(package.ident().clone()));
@@ -123,7 +124,7 @@ impl Solver {
                     // Try to find the original command line request
                     // based on the solved request's package name.
                     for r in &self.requests {
-                        if let Request::Pkg(pkg_req) = r
+                        if let PinnedRequest::Pkg(pkg_req) = r
                             && *pkg_req.pkg.name == *name
                         {
                             for (_, requesters) in pkg_req.requested_by.iter() {
@@ -299,10 +300,8 @@ impl Solver {
                 }
             }
             for option in package.runtime_requirements().iter() {
-                if let Request::Var(var_req) = option
-                    && let PinnableValue::Pinned(value) = &var_req.value
-                {
-                    solution_options.insert(var_req.var.clone(), value.to_string());
+                if let PinnedRequest::Var(var_req) = option {
+                    solution_options.insert(var_req.var.clone(), var_req.value.to_string());
                 }
             }
             let next_index = solution_adds.len();
@@ -376,7 +375,7 @@ impl SolverTrait for Solver {
             .collect()
     }
 
-    fn get_var_requests(&self) -> Vec<VarRequest> {
+    fn get_var_requests(&self) -> Vec<VarRequest<PinnedValue>> {
         self.requests
             .iter()
             .filter_map(|r| r.var_ref())
@@ -391,8 +390,8 @@ impl SolverTrait for Solver {
 
 #[async_trait::async_trait]
 impl SolverMut for Solver {
-    fn add_request(&mut self, mut request: Request) {
-        if let Request::Pkg(request) = &mut request
+    fn add_request(&mut self, mut request: PinnedRequest) {
+        if let PinnedRequest::Pkg(request) = &mut request
             && request.pkg.components.is_empty()
         {
             if request.pkg.is_source() {

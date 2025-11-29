@@ -6,71 +6,16 @@ use std::collections::HashSet;
 use std::str::FromStr;
 
 use rstest::rstest;
-use spk_schema_foundation::ident::{PkgRequest, Request, RequestedBy, parse_ident_range};
-use spk_schema_foundation::ident_component::Component;
-use spk_schema_foundation::option_map::OptionMap;
-use spk_schema_foundation::version::{BINARY_STR, Version};
+use spk_schema_foundation::ident::PinnableRequest;
+use spk_schema_foundation::version::Version;
 
-use crate::{Components, InstallSpec, RequirementsList};
-
-#[rstest]
-fn test_render_all_pins_renders_requirements_in_components() {
-    let mut install_spec = InstallSpec::default();
-    let mut requirements = RequirementsList::default();
-    requirements.insert_or_replace({
-        Request::Pkg(
-            PkgRequest::new(
-                parse_ident_range("test").unwrap(),
-                RequestedBy::SpkInternalTest,
-            )
-            .with_pin(Some(BINARY_STR.to_string())),
-        )
-    });
-    install_spec
-        .components
-        .iter_mut()
-        .find(|c| c.name == Component::Run)
-        .unwrap()
-        .requirements = requirements;
-
-    // Expected value before pinning.
-    let Request::Pkg(req) = &install_spec
-        .components
-        .iter()
-        .find(|c| c.name == Component::Run)
-        .unwrap()
-        .requirements[0]
-    else {
-        panic!("Expected a Pkg request");
-    };
-    assert_eq!(req.to_string(), "test");
-
-    install_spec
-        .render_all_pins(
-            &OptionMap::default(),
-            ["test/1.2.3/GMTG3CXY".parse().unwrap()].iter(),
-        )
-        .unwrap();
-
-    // Now the install requirement inside the run component should be pinned to
-    // version 1.2.3.
-    let Request::Pkg(req) = &install_spec
-        .components
-        .iter()
-        .find(|c| c.name == Component::Run)
-        .unwrap()
-        .requirements[0]
-    else {
-        panic!("Expected a Pkg request");
-    };
-    assert_eq!(req.to_string(), "test/Binary:1.2.3");
-}
+use crate::{Components, InstallSpec};
 
 #[rstest]
 fn test_embedded_components_defaults() {
     // By default, embedded components will embed matching components from the
     // defined embedded packages.
-    let install = serde_yaml::from_str::<InstallSpec>(
+    let install = serde_yaml::from_str::<InstallSpec<PinnableRequest>>(
         r#"
 embedded:
   - pkg: "embedded/1.0.0/embedded"
@@ -123,7 +68,7 @@ embedded:
 fn test_embedded_components_extra_components() {
     // If the embedded package has components that the host package doesn't
     // have, they don't get mapped anywhere automatically.
-    let install = serde_yaml::from_str::<InstallSpec>(
+    let install = serde_yaml::from_str::<InstallSpec<PinnableRequest>>(
         r#"
 components:
   - name: comp1
@@ -197,7 +142,7 @@ fn test_embedding_multiple_versions_of_the_same_package(
     // Allow multiple versions of the same package to be embedded. Test that
     // it is possible to assign the different versions to different
     // components in the host package.
-    let install = serde_yaml::from_str::<InstallSpec>(
+    let install = serde_yaml::from_str::<InstallSpec<PinnableRequest>>(
         r#"
 components:
   - name: comp1

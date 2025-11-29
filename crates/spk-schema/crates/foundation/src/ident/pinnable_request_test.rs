@@ -4,7 +4,7 @@
 
 use rstest::rstest;
 
-use super::{InclusionPolicy, PreReleasePolicy, Request};
+use super::{InclusionPolicy, PinnableRequest, PreReleasePolicy};
 use crate::FromYaml;
 use crate::ident::parse_build_ident;
 use crate::version::{
@@ -71,11 +71,11 @@ fn test_prerelease_policy_restricts(
     #[case] request_b: &str,
     #[case] expected_policy: Option<PreReleasePolicy>,
 ) {
-    let mut a = serde_yaml::from_str::<Request>(request_a)
+    let mut a = serde_yaml::from_str::<PinnableRequest>(request_a)
         .unwrap()
         .pkg()
         .expect("expected pkg request");
-    let b = serde_yaml::from_str::<Request>(request_b)
+    let b = serde_yaml::from_str::<PinnableRequest>(request_b)
         .unwrap()
         .pkg()
         .expect("expected pkg request");
@@ -147,11 +147,11 @@ fn test_prerelease_policy_contains(
     #[case] request_b: &str,
     #[case] expected_compat: Compatibility,
 ) {
-    let a = serde_yaml::from_str::<Request>(request_a)
+    let a = serde_yaml::from_str::<PinnableRequest>(request_a)
         .unwrap()
         .pkg()
         .expect("expected pkg request");
-    let b = serde_yaml::from_str::<Request>(request_b)
+    let b = serde_yaml::from_str::<PinnableRequest>(request_b)
         .unwrap()
         .pkg()
         .expect("expected pkg request");
@@ -162,11 +162,12 @@ fn test_prerelease_policy_contains(
 
 #[rstest]
 fn test_inclusion_policy() {
-    let mut a = serde_yaml::from_str::<Request>("{pkg: something, include: IfAlreadyPresent}")
-        .unwrap()
-        .pkg()
-        .expect("expected pkg request");
-    let b = serde_yaml::from_str::<Request>("{pkg: something, include: Always}")
+    let mut a =
+        serde_yaml::from_str::<PinnableRequest>("{pkg: something, include: IfAlreadyPresent}")
+            .unwrap()
+            .pkg()
+            .expect("expected pkg request");
+    let b = serde_yaml::from_str::<PinnableRequest>("{pkg: something, include: Always}")
         .unwrap()
         .pkg()
         .expect("expected pkg request");
@@ -180,11 +181,11 @@ fn test_inclusion_policy() {
 
 #[rstest]
 fn test_compat_and_equals_restrict() {
-    let mut a = serde_yaml::from_str::<Request>("{pkg: something/Binary:1.2.3}")
+    let mut a = serde_yaml::from_str::<PinnableRequest>("{pkg: something/Binary:1.2.3}")
         .unwrap()
         .pkg()
         .expect("expected pkg request");
-    let b = serde_yaml::from_str::<Request>("{pkg: something/=1.2.3}")
+    let b = serde_yaml::from_str::<PinnableRequest>("{pkg: something/=1.2.3}")
         .unwrap()
         .pkg()
         .expect("expected pkg request");
@@ -247,8 +248,14 @@ fn test_inclusion_policy_and_merge(
     #[case] expected_policy: InclusionPolicy,
     #[case] expected_merged_range: Option<&str>,
 ) {
-    let mut a = serde_yaml::from_str::<Request>(a).unwrap().pkg().unwrap();
-    let b = serde_yaml::from_str::<Request>(b).unwrap().pkg().unwrap();
+    let mut a = serde_yaml::from_str::<PinnableRequest>(a)
+        .unwrap()
+        .pkg()
+        .unwrap();
+    let b = serde_yaml::from_str::<PinnableRequest>(b)
+        .unwrap()
+        .pkg()
+        .unwrap();
 
     let r = a.restrict(&b);
     match expected_merged_range {
@@ -266,24 +273,25 @@ fn test_inclusion_policy_and_merge(
 
 #[rstest]
 fn test_deserialize_value_or_pin() {
-    let res = serde_yaml::from_str::<Request>("{var: python.abi/cp27m}");
+    let res = serde_yaml::from_str::<PinnableRequest>("{var: python.abi/cp27m}");
     assert!(res.is_ok(), "should allow regular name/value");
 
-    let res = serde_yaml::from_str::<Request>("{var: python.abi, fromBuildEnv: true}");
+    let res = serde_yaml::from_str::<PinnableRequest>("{var: python.abi, fromBuildEnv: true}");
     assert!(res.is_ok(), "should allow no value when pinning build env");
 
-    let res = serde_yaml::from_str::<Request>("{var: python.abi/cp27m, fromBuildEnv: true}");
+    let res =
+        serde_yaml::from_str::<PinnableRequest>("{var: python.abi/cp27m, fromBuildEnv: true}");
     assert!(res.is_err(), "should not allow value and pin");
 
-    let res = serde_yaml::from_str::<Request>("{var: python.abi}");
+    let res = serde_yaml::from_str::<PinnableRequest>("{var: python.abi}");
     assert!(res.is_err(), "should not allow omitting value without pin");
 }
 
 #[rstest]
 fn test_var_request_empty_value_roundtrip() {
-    let req = serde_yaml::from_str::<Request>("{var: python.abi/}").unwrap();
+    let req = serde_yaml::from_str::<PinnableRequest>("{var: python.abi/}").unwrap();
     let yaml = serde_yaml::to_string(&req).unwrap();
-    let res = serde_yaml::from_str::<Request>(&yaml);
+    let res = serde_yaml::from_str::<PinnableRequest>(&yaml);
     assert!(
         res.is_ok(),
         "should be able to round-trip serialize a var request with empty string value"
@@ -292,9 +300,10 @@ fn test_var_request_empty_value_roundtrip() {
 
 #[rstest]
 fn test_var_request_pinned_roundtrip() {
-    let req = serde_yaml::from_str::<Request>("{var: python.abi, fromBuildEnv: true}").unwrap();
+    let req =
+        serde_yaml::from_str::<PinnableRequest>("{var: python.abi, fromBuildEnv: true}").unwrap();
     let yaml = serde_yaml::to_string(&req).unwrap();
-    let res = serde_yaml::from_str::<Request>(&yaml);
+    let res = serde_yaml::from_str::<PinnableRequest>(&yaml);
     assert!(
         res.is_ok(),
         "should be able to round-trip serialize a var request with pin"
@@ -339,10 +348,11 @@ fn test_pkg_request_pin_rendering(
     #[case] pin: &str,
     #[case] expected: &str,
 ) {
-    let req = serde_yaml::from_str::<Request>(&format!("{{pkg: test, fromBuildEnv: {pin}}}"))
-        .unwrap()
-        .pkg()
-        .expect("expected package request");
+    let req =
+        serde_yaml::from_str::<PinnableRequest>(&format!("{{pkg: test, fromBuildEnv: {pin}}}"))
+            .unwrap()
+            .pkg()
+            .expect("expected package request");
     let version = parse_build_ident(format!("test/{version}/src")).unwrap();
     let res = req
         .render_pin(&version)
@@ -360,7 +370,7 @@ fn test_yaml_error_ambiguous() {
 - var: hello
   pkg: hello
 "#;
-    let err = Vec::<Request>::from_yaml(YAML).expect_err("expected yaml parsing to fail");
+    let err = Vec::<PinnableRequest>::from_yaml(YAML).expect_err("expected yaml parsing to fail");
     let expected = r#"
    | - var: os/linux
  2 | - var: hello
@@ -381,7 +391,7 @@ fn test_yaml_error_undetermined() {
 - pin: true
   value: default
 "#;
-    let err = Vec::<Request>::from_yaml(YAML).expect_err("expected yaml parsing to fail");
+    let err = Vec::<PinnableRequest>::from_yaml(YAML).expect_err("expected yaml parsing to fail");
     let expected = r#"
    | - var: os/linux
  2 | - pin: true
@@ -400,7 +410,7 @@ fn test_yaml_error_var_value_and_pin() {
     static YAML: &str = r#"var: option/my-value
 fromBuildEnv: true
 "#;
-    let err = Request::from_yaml(YAML).expect_err("expected yaml parsing to fail");
+    let err = PinnableRequest::from_yaml(YAML).expect_err("expected yaml parsing to fail");
     let expected = r#"
  1 | var: option/my-value
    | ^ request for `option` cannot specify a value `/my-value` when `fromBuildEnv` is true
@@ -418,7 +428,7 @@ fn test_yaml_error_pkg_version_and_pin() {
     static YAML: &str = r#"pkg: python/3
 fromBuildEnv: true
 "#;
-    let err = Request::from_yaml(YAML).expect_err("expected yaml parsing to fail");
+    let err = PinnableRequest::from_yaml(YAML).expect_err("expected yaml parsing to fail");
     let expected = r#"
  1 | pkg: python/3
    | ^ request for `python` cannot specify a value `/3` when `fromBuildEnv` is specified
@@ -437,7 +447,7 @@ fn test_yaml_error_invalid_name_position() {
     fromBuildEnv: true,
     pkg: pytHon
 }"#;
-    let err = Request::from_yaml(YAML).expect_err("expected yaml parsing to fail");
+    let err = PinnableRequest::from_yaml(YAML).expect_err("expected yaml parsing to fail");
     let expected = r#"
    | {
    |     fromBuildEnv: true,
@@ -464,7 +474,7 @@ fn test_deserialize_pkg_pin_string_or_bool() {
 - pkg: python
   fromBuildEnv: API
 "#;
-    let reqs = Vec::<Request>::from_yaml(YAML).expect("expected yaml parsing to succeed");
+    let reqs = Vec::<PinnableRequest>::from_yaml(YAML).expect("expected yaml parsing to succeed");
     let pins: Vec<_> = reqs
         .into_iter()
         .map(|r| r.pkg().expect("expected a pkg request").pin)

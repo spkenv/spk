@@ -10,7 +10,7 @@ use spk_cmd_build::build_package;
 use spk_schema::foundation::build_ident;
 use spk_schema::foundation::fixtures::*;
 use spk_solve::{DecisionFormatterBuilder, SolverExt, SolverMut, StepSolver};
-use spk_solve_macros::request;
+use spk_solve_macros::pinned_request;
 use spk_storage::fixtures::*;
 
 use crate::solution_to_resolved_runtime_layers;
@@ -70,8 +70,8 @@ build:
         .build();
 
     solver.add_repository(Arc::clone(&rt.tmprepo));
-    solver.add_request(request!("one"));
-    solver.add_request(request!("two"));
+    solver.add_request(pinned_request!("one"));
+    solver.add_request(pinned_request!("two"));
 
     let solution = solver.run_and_log_resolve(&formatter).await.unwrap();
 
