@@ -6,8 +6,8 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use enum_dispatch::enum_dispatch;
-use spk_schema::ident::{PkgRequest, VarRequest};
-use spk_schema::{OptionMap, Recipe, Request};
+use spk_schema::ident::{PinnedRequest, PinnedValue, PkgRequest, VarRequest};
+use spk_schema::{OptionMap, Recipe};
 use spk_solve_solution::Solution;
 use spk_storage::RepositoryHandle;
 use variantly::Variantly;
@@ -37,7 +37,7 @@ pub trait Solver {
     fn get_pkg_requests(&self) -> Vec<PkgRequest>;
 
     /// Return the VarRequests added to the solver.
-    fn get_var_requests(&self) -> Vec<VarRequest>;
+    fn get_var_requests(&self) -> Vec<VarRequest<PinnedValue>>;
 
     /// Return a reference to the solver's list of repositories.
     fn repositories(&self) -> &[Arc<RepositoryHandle>];
@@ -47,19 +47,19 @@ pub trait Solver {
 #[enum_dispatch]
 pub trait SolverMut: Solver {
     /// Add a request to this solver.
-    fn add_request(&mut self, request: Request);
+    fn add_request(&mut self, request: PinnedRequest);
 
     /// Adds requests for all build requirements of the given recipe.
     fn configure_for_build_environment<T: Recipe>(&mut self, recipe: &T) -> Result<()> {
         let options = self.get_options();
 
         let build_options = recipe.resolve_options(&*options)?;
-        for req in recipe
+        for request in recipe
             .get_build_requirements(&build_options)?
             .iter()
             .cloned()
         {
-            self.add_request(req)
+            self.add_request(request)
         }
 
         Ok(())
@@ -117,7 +117,7 @@ where
         T::get_pkg_requests(self)
     }
 
-    fn get_var_requests(&self) -> Vec<VarRequest> {
+    fn get_var_requests(&self) -> Vec<VarRequest<PinnedValue>> {
         T::get_var_requests(self)
     }
 
@@ -138,7 +138,7 @@ where
         T::get_pkg_requests(self)
     }
 
-    fn get_var_requests(&self) -> Vec<VarRequest> {
+    fn get_var_requests(&self) -> Vec<VarRequest<PinnedValue>> {
         T::get_var_requests(self)
     }
 
@@ -152,7 +152,7 @@ impl<T> SolverMut for &mut T
 where
     T: SolverMut + Send + Sync,
 {
-    fn add_request(&mut self, request: Request) {
+    fn add_request(&mut self, request: PinnedRequest) {
         T::add_request(self, request)
     }
 

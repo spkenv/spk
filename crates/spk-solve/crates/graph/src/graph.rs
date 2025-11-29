@@ -20,7 +20,14 @@ use spk_schema::foundation::name::{OptNameBuf, PkgName, PkgNameBuf};
 use spk_schema::foundation::option_map;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::Compatibility;
-use spk_schema::ident::{InclusionPolicy, PkgRequest, Request, RequestedBy, VarRequest};
+use spk_schema::ident::{
+    InclusionPolicy,
+    PinnedRequest,
+    PinnedValue,
+    PkgRequest,
+    RequestedBy,
+    VarRequest,
+};
 use spk_schema::prelude::*;
 use spk_schema::v0::EmbeddedPackageSpec;
 use spk_schema::version::IsSameReasonAs;
@@ -136,13 +143,10 @@ impl FormatChange for Change {
                 format!(
                     "{} {}{}",
                     Self::get_request_change_label(format_settings.level).blue(),
-                    option_map! {c.request.var.clone() => c.request.value.as_pinned().unwrap_or_default()}
+                    option_map! {c.request.var.clone() => c.request.value.to_string()}
                         .format_option_map(),
                     if format_settings.verbosity > PkgRequest::SHOW_REQUEST_DETAILS {
-                        format!(
-                            " fromBuildEnv: {}",
-                            c.request.value.is_from_build_env().to_string().cyan()
-                        )
+                        " fromBuildEnv: false".to_string()
                     } else {
                         "".to_string()
                     }
@@ -391,25 +395,25 @@ impl<'state> DecisionBuilder<'state, '_> {
 
     fn requirements_to_changes(
         &self,
-        requirements: &RequirementsList,
+        requirements: &RequirementsList<PinnedRequest>,
         requested_by: &RequestedBy,
     ) -> Vec<Change> {
         requirements
             .iter()
             .flat_map(|req| match req {
-                Request::Pkg(req) => {
+                PinnedRequest::Pkg(req) => {
                     let mut req = req.clone();
                     req.add_requester(requested_by.clone());
                     self.pkg_request_to_changes(&req)
                 }
-                Request::Var(req) => vec![Change::RequestVar(RequestVar::new(req.clone()))],
+                PinnedRequest::Var(req) => vec![Change::RequestVar(RequestVar::new(req.clone()))],
             })
             .collect()
     }
 
     fn components_to_changes(
         &self,
-        components: &ComponentSpecList,
+        components: &ComponentSpecList<PinnedRequest>,
         requester: &BuildIdent,
     ) -> Vec<Change> {
         let mut changes = vec![];
@@ -477,7 +481,7 @@ impl<'state> DecisionBuilder<'state, '_> {
     fn embedded_to_changes(
         &self,
         embedded: &EmbeddedPackagesList<EmbeddedPackageSpec>,
-        components: &ComponentSpecList,
+        components: &ComponentSpecList<PinnedRequest>,
         parent: &BuildIdent,
     ) -> Vec<Change> {
         let required = components.resolve_uses(self.components.iter().cloned());
@@ -988,11 +992,11 @@ impl RequestPackage {
 
 #[derive(Clone, Debug)]
 pub struct RequestVar {
-    pub request: VarRequest,
+    pub request: VarRequest<PinnedValue>,
 }
 
 impl RequestVar {
-    pub fn new(request: VarRequest) -> Self {
+    pub fn new(request: VarRequest<PinnedValue>) -> Self {
         RequestVar { request }
     }
 
@@ -1006,16 +1010,7 @@ impl RequestVar {
         }
         let options = SetOptions::compute_new_options(
             base,
-            vec![(
-                &self.request.var,
-                &self
-                    .request
-                    .value
-                    .as_pinned()
-                    .map(str::to_string)
-                    .unwrap_or_default(),
-            )]
-            .into_iter(),
+            vec![(&self.request.var, &self.request.value.to_string())].into_iter(),
             true,
         );
         Arc::new(base.with_var_requests_and_options(parent, new_requests, options))
@@ -1162,7 +1157,7 @@ impl StateId {
         hasher.finish()
     }
 
-    fn var_requests_hash(var_requests: &BTreeSet<VarRequest>) -> (u64, HashSet<u64>) {
+    fn var_requests_hash(var_requests: &BTreeSet<VarRequest<PinnedValue>>) -> (u64, HashSet<u64>) {
         let mut var_requests_membership = HashSet::new();
         let mut global_hasher = DefaultHasher::new();
         for var_request in var_requests {
@@ -1210,7 +1205,7 @@ impl StateId {
 
     fn with_var_requests_and_options(
         &self,
-        var_requests: &BTreeSet<VarRequest>,
+        var_requests: &BTreeSet<VarRequest<PinnedValue>>,
         options: &BTreeMap<OptNameBuf, String>,
     ) -> Self {
         let (var_requests_hash, var_requests_membership) = StateId::var_requests_hash(var_requests);
@@ -1274,7 +1269,7 @@ type StatePackages = Arc<
 #[derive(Debug)]
 pub struct State {
     pkg_requests: Arc<Vec<Arc<CachedHash<PkgRequest>>>>,
-    var_requests: Arc<BTreeSet<VarRequest>>,
+    var_requests: Arc<BTreeSet<VarRequest<PinnedValue>>>,
     packages: StatePackages,
     // A list of the packages in the order they were resolved and
     // added to the state. It differs from the "packages" field in
@@ -1293,7 +1288,7 @@ pub struct State {
 impl State {
     pub fn new(
         pkg_requests: Vec<PkgRequest>,
-        var_requests: Vec<VarRequest>,
+        var_requests: Vec<VarRequest<PinnedValue>>,
         packages: Vec<(Arc<Spec>, PackageSource)>,
         options: Vec<(OptNameBuf, String)>,
     ) -> Arc<Self> {
@@ -1353,7 +1348,7 @@ impl State {
     }
 
     /// Return true if this state already contains this request.
-    pub fn contains_var_request(&self, var_request: &VarRequest) -> bool {
+    pub fn contains_var_request(&self, var_request: &VarRequest<PinnedValue>) -> bool {
         let mut hasher = DefaultHasher::new();
         var_request.hash(&mut hasher);
         let single_var_request_hash = hasher.finish();
@@ -1457,7 +1452,7 @@ impl State {
         &self.pkg_requests
     }
 
-    pub fn get_var_requests(&self) -> &BTreeSet<VarRequest> {
+    pub fn get_var_requests(&self) -> &BTreeSet<VarRequest<PinnedValue>> {
         &self.var_requests
     }
 
@@ -1565,7 +1560,7 @@ impl State {
     fn with_var_requests_and_options(
         &self,
         parent: &Self,
-        var_requests: Arc<BTreeSet<VarRequest>>,
+        var_requests: Arc<BTreeSet<VarRequest<PinnedValue>>>,
         options: BTreeMap<OptNameBuf, String>,
     ) -> Self {
         let state_id = self

@@ -10,8 +10,9 @@ mod ident_located;
 mod ident_optversion;
 mod ident_version;
 pub mod parsing;
+mod pinnable_request;
+mod pinned_request;
 mod range_ident;
-mod request;
 mod satisfy;
 
 pub use error::{Error, Result};
@@ -20,20 +21,22 @@ pub use ident_build::{BuildIdent, parse_build_ident};
 pub use ident_located::{LocatedBuildIdent, LocatedVersionIdent};
 pub use ident_optversion::{OptVersionIdent, parse_optversion_ident};
 pub use ident_version::{VersionIdent, parse_version_ident};
-pub use range_ident::{RangeIdent, parse_ident_range, parse_ident_range_list};
-pub use request::{
+pub(crate) use pinnable_request::PinValue;
+pub use pinnable_request::{
     InclusionPolicy,
     InitialRawRequest,
     NameAndValue,
     PinPolicy,
+    PinnableRequest,
     PinnableValue,
     PkgRequest,
     PreReleasePolicy,
-    Request,
     RequestedBy,
     VarRequest,
     is_false,
 };
+pub use pinned_request::{PinnedRequest, PinnedValue};
+pub use range_ident::{RangeIdent, parse_ident_range, parse_ident_range_list};
 pub use satisfy::Satisfy;
 
 pub mod prelude {

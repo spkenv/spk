@@ -13,7 +13,7 @@ use enum_dispatch::enum_dispatch;
 use format_serde_error::SerdeError;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::SerdeYamlError;
-use spk_schema_foundation::ident::{BuildIdent, VersionIdent};
+use spk_schema_foundation::ident::{BuildIdent, PinnedValue, VersionIdent};
 use spk_schema_foundation::ident_build::{Build, BuildId};
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::option_map::OptFilter;
@@ -22,7 +22,7 @@ use crate::foundation::name::{PkgName, PkgNameBuf};
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
-use crate::ident::{PkgRequest, Request, Satisfy, VarRequest};
+use crate::ident::{PinnedRequest, PkgRequest, Satisfy, VarRequest};
 use crate::metadata::Meta;
 use crate::{
     BuildEnv,
@@ -349,7 +349,10 @@ impl Recipe for SpecRecipe {
         each_variant!(self, r, r.resolve_options(variant))
     }
 
-    fn get_build_requirements<V>(&self, variant: &V) -> Result<Cow<'_, RequirementsList>>
+    fn get_build_requirements<V>(
+        &self,
+        variant: &V,
+    ) -> Result<Cow<'_, RequirementsList<PinnedRequest>>>
     where
         V: Variant,
     {
@@ -569,7 +572,7 @@ impl super::Variant for SpecVariant {
         }
     }
 
-    fn additional_requirements(&self) -> Cow<'_, RequirementsList> {
+    fn additional_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>> {
         match self {
             Self::V0(v) => v.additional_requirements(),
         }
@@ -595,7 +598,7 @@ impl Test for SpecTest {
         }
     }
 
-    fn additional_requirements(&self) -> Vec<Request> {
+    fn additional_requirements(&self) -> Vec<PinnedRequest> {
         match self {
             Self::V0(t) => t.additional_requirements(),
         }
@@ -615,7 +618,9 @@ pub enum Spec {
 }
 
 impl Components for Spec {
-    fn components(&self) -> &super::ComponentSpecList {
+    type Request = PinnedRequest;
+
+    fn components(&self) -> &super::ComponentSpecList<Self::Request> {
         match self {
             Spec::V0Package(spec) => spec.components(),
         }
@@ -630,8 +635,8 @@ impl Satisfy<PkgRequest> for Spec {
     }
 }
 
-impl Satisfy<VarRequest> for Spec {
-    fn check_satisfies_request(&self, request: &VarRequest) -> Compatibility {
+impl Satisfy<VarRequest<PinnedValue>> for Spec {
+    fn check_satisfies_request(&self, request: &VarRequest<PinnedValue>) -> Compatibility {
         match self {
             Spec::V0Package(r) => r.check_satisfies_request(request),
         }
@@ -727,13 +732,13 @@ impl Package for Spec {
         }
     }
 
-    fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList>> {
+    fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList<PinnedRequest>>> {
         match self {
             Spec::V0Package(spec) => spec.get_build_requirements(),
         }
     }
 
-    fn runtime_requirements(&self) -> Cow<'_, crate::RequirementsList> {
+    fn runtime_requirements(&self) -> Cow<'_, crate::RequirementsList<PinnedRequest>> {
         match self {
             Spec::V0Package(spec) => spec.runtime_requirements(),
         }

@@ -5,7 +5,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 
-use spk_schema_foundation::ident::BuildIdent;
+use spk_schema_foundation::ident::{BuildIdent, PinnedRequest};
 use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::option_map::OptFilter;
 use spk_schema_foundation::spec_ops::{Named, Versioned};
@@ -22,24 +22,32 @@ mod package_test;
 
 /// Access to the components defined by a package.
 pub trait Components {
+    type Request;
+
     /// The components defined by this package
-    fn components(&self) -> &super::ComponentSpecList;
+    fn components(&self) -> &super::ComponentSpecList<Self::Request>;
 }
 
 impl<T: Components + Send + Sync> Components for std::sync::Arc<T> {
-    fn components(&self) -> &super::ComponentSpecList {
+    type Request = T::Request;
+
+    fn components(&self) -> &super::ComponentSpecList<Self::Request> {
         (**self).components()
     }
 }
 
 impl<T: Components + Send + Sync> Components for Box<T> {
-    fn components(&self) -> &super::ComponentSpecList {
+    type Request = T::Request;
+
+    fn components(&self) -> &super::ComponentSpecList<Self::Request> {
         (**self).components()
     }
 }
 
 impl<T: Components + Send + Sync> Components for &T {
-    fn components(&self) -> &super::ComponentSpecList {
+    type Request = T::Request;
+
+    fn components(&self) -> &super::ComponentSpecList<Self::Request> {
         (**self).components()
     }
 }
@@ -51,7 +59,7 @@ pub trait Package:
     + Versioned
     + super::Deprecate
     + RuntimeEnvironment
-    + Components
+    + Components<Request = PinnedRequest>
     + Clone
     + Eq
     + std::hash::Hash
@@ -96,7 +104,7 @@ pub trait Package:
     fn get_build_options(&self) -> &Vec<Opt>;
 
     /// Identify the requirements for a build of this package.
-    fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList>>;
+    fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList<PinnedRequest>>>;
 
     /// Return the environment variables to be set for a build of the given package spec.
     fn get_build_env(&self) -> HashMap<String, String> {
@@ -133,7 +141,7 @@ pub trait Package:
     }
 
     /// Requests that must be met to use this package
-    fn runtime_requirements(&self) -> Cow<'_, RequirementsList>;
+    fn runtime_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>>;
 
     /// Requests that must be satisfied by the build
     /// environment of any package built against this one
@@ -205,11 +213,11 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
         (**self).get_build_options()
     }
 
-    fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList>> {
+    fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList<PinnedRequest>>> {
         (**self).get_build_requirements()
     }
 
-    fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
+    fn runtime_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>> {
         (**self).runtime_requirements()
     }
 
@@ -274,11 +282,11 @@ impl<T: Package + Send + Sync> Package for Box<T> {
         (**self).get_build_options()
     }
 
-    fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList>> {
+    fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList<PinnedRequest>>> {
         (**self).get_build_requirements()
     }
 
-    fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
+    fn runtime_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>> {
         (**self).runtime_requirements()
     }
 
@@ -343,11 +351,11 @@ impl<T: Package + Send + Sync> Package for &T {
         (**self).get_build_options()
     }
 
-    fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList>> {
+    fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList<PinnedRequest>>> {
         (**self).get_build_requirements()
     }
 
-    fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
+    fn runtime_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>> {
         (**self).runtime_requirements()
     }
 

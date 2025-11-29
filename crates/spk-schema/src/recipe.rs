@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
-use spk_schema_foundation::ident::VersionIdent;
+use spk_schema_foundation::ident::{PinnedRequest, VersionIdent};
 
 use crate::foundation::ident_build::BuildId;
 use crate::foundation::option_map::OptionMap;
@@ -84,7 +84,12 @@ pub trait Recipe:
     ///
     /// This should also validate and include the items specified
     /// by [`Variant::additional_requirements`].
-    fn get_build_requirements<V>(&self, variant: &V) -> Result<Cow<'_, RequirementsList>>
+    ///
+    /// Any var requirements without a value are skipped.
+    fn get_build_requirements<V>(
+        &self,
+        variant: &V,
+    ) -> Result<Cow<'_, RequirementsList<PinnedRequest>>>
     where
         V: Variant;
 
@@ -137,7 +142,10 @@ where
         (**self).resolve_options(variant)
     }
 
-    fn get_build_requirements<V>(&self, variant: &V) -> Result<Cow<'_, RequirementsList>>
+    fn get_build_requirements<V>(
+        &self,
+        variant: &V,
+    ) -> Result<Cow<'_, RequirementsList<PinnedRequest>>>
     where
         V: Variant,
     {
@@ -199,7 +207,10 @@ where
         (**self).resolve_options(variant)
     }
 
-    fn get_build_requirements<V>(&self, variant: &V) -> Result<Cow<'_, RequirementsList>>
+    fn get_build_requirements<V>(
+        &self,
+        variant: &V,
+    ) -> Result<Cow<'_, RequirementsList<PinnedRequest>>>
     where
         V: Variant,
     {

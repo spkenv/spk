@@ -5,7 +5,7 @@
 use miette::Diagnostic;
 use relative_path::RelativePathBuf;
 use spfs::env::SPFS_DIR;
-use spk_schema::{BuildIdent, Request};
+use spk_schema::{BuildIdent, PinnableRequest};
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -38,7 +38,7 @@ pub enum Error {
         /// The package that was in the build environment and created the need for this request
         required_by: BuildIdent,
         /// The minimum request that is required downstream
-        request: Request,
+        request: PinnableRequest,
         /// Additional reasoning why an existing request was not sufficient
         problem: String,
     },
@@ -52,7 +52,7 @@ pub enum Error {
     )]
     DownstreamBuildRequestDenied {
         /// The inherited request that should have been excluded
-        request: Request,
+        request: PinnableRequest,
     },
 
     #[error(
@@ -67,7 +67,7 @@ pub enum Error {
         /// The package that was in the build environment and created the need for this request
         required_by: BuildIdent,
         /// The minimum request that is required downstream
-        request: Request,
+        request: PinnableRequest,
         /// Additional reasoning why an existing request was not sufficient
         problem: String,
     },
@@ -81,7 +81,7 @@ pub enum Error {
     )]
     DownstreamRuntimeRequestDenied {
         /// The inherited request that should have been excluded
-        request: Request,
+        request: PinnableRequest,
     },
 
     #[error(
