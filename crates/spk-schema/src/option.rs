@@ -434,11 +434,27 @@ pub struct VarOpt {
     pub default: String,
     // This field does not implement `Ord` so this struct can't derive it.
     pub choices: IndexSet<String>,
-    pub inheritance: Inheritance,
+    // This field is private to override what value readers see depending on the
+    // `required` field.
+    inheritance: Inheritance,
     pub description: Option<String>,
     pub compat: Option<Compat>,
     pub required: bool,
     value: Option<String>,
+}
+
+impl VarOpt {
+    pub fn inheritance(&self) -> Inheritance {
+        if self.required {
+            // Any package that has in its build environment a package with a
+            // required var needs to remember the value of that var to ensure it
+            // requests the required var explicitly and doesn't prevent that
+            // build from being picked at runtime.
+            Inheritance::Strong
+        } else {
+            self.inheritance
+        }
+    }
 }
 
 // This manual hash implementation aligns with the derived `Eq` implementation;

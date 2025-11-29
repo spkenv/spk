@@ -471,14 +471,14 @@ impl Package for PackageSpec {
         &self,
         _components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList> {
-        self.downstream_requirements(|o| o.inheritance != Inheritance::Weak)
+        self.downstream_requirements(|o| o.inheritance() != Inheritance::Weak)
     }
 
     fn downstream_runtime_requirements<'a>(
         &self,
         _components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList> {
-        self.downstream_requirements(|o| o.inheritance == Inheritance::Strong)
+        self.downstream_requirements(|o| o.inheritance() == Inheritance::Strong)
     }
 
     fn validation(&self) -> &ValidationSpec {

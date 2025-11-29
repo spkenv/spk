@@ -7,6 +7,7 @@
 use std::sync::Arc;
 
 use rstest::rstest;
+use spk_schema::foundation::version_ident;
 use spk_schema::ident::{
     PkgRequest,
     PkgRequestOptionValue,
@@ -17,8 +18,8 @@ use spk_schema::ident::{
     VarRequest,
     parse_ident_range,
 };
-use spk_schema::opt_name;
-use spk_solve_macros::{make_repo, pinned_request};
+use spk_schema::{Package, PinnedRequest, opt_name};
+use spk_solve_macros::{make_build, make_repo, pinned_request};
 
 use super::solver_test::{resolvo_solver, run_and_print_resolve_for_tests, step_solver};
 use crate::solver::{SolverExt, SolverImpl, SolverMut};
@@ -240,4 +241,67 @@ async fn top_level_var_request_not_enough(#[case] mut solver: SolverImpl) {
     let _solution = run_and_print_resolve_for_tests(&mut solver)
         .await
         .expect_err("mypkg expected to not solve");
+}
+
+/// "Required" vars need to have strong inheritance behavior to work properly.
+#[rstest]
+#[tokio::test]
+async fn requested_required_var_is_strongly_inherited() {
+    let mylib = make_build!(
+        {
+            "pkg": "mylib/1.0.0",
+            "build": {
+                "options": [
+                    {
+                        "var": "namespace_style/major_minor",
+                        "required": true,
+                    },
+                ]
+            }
+        }
+    );
+
+    let mypkg = make_build!(
+            {
+                "pkg": "mypkg/1.0.0",
+                "build": {
+                    "options": [
+                        {
+                            "pkg": "mylib",
+                        },
+                        {
+                            "var": "mylib.namespace_style/major_minor",
+                        },
+                    ]
+                },
+                "install": {
+                    "requirements":
+                        [
+                            // this test should *not* explicitly request the
+                            // required var from mylib; verify that it is
+                            // inherited as expected.
+                            {"pkg": "mylib"}
+                        ],
+                }
+            },
+            [mylib]
+    );
+
+    let repo = make_repo!([mylib, mypkg]);
+    let repo = Arc::new(repo);
+    let builds = repo
+        .list_package_builds(&version_ident!("mypkg/1.0.0"))
+        .await
+        .unwrap();
+    let mypkg = repo.read_package(&builds[0]).await.unwrap();
+    mypkg
+        .runtime_requirements()
+        .iter()
+        .find(|req| {
+            let PinnedRequest::Var(var_req) = req else {
+                return false;
+            };
+            var_req.var.as_str() == "mylib.namespace_style" && &*var_req.value == "major_minor"
+        })
+        .expect("expected mypkg to have inherited required var from mylib");
 }
