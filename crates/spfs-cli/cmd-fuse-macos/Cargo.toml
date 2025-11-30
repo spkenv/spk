@@ -1,0 +1,20 @@
+[package]
+name = "spfs-cli-fuse-macos"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license-file.workspace = true
+
+[[bin]]
+name = "spfs-fuse-macos"
+path = "src/main.rs"
+
+[dependencies]
+clap = { workspace = true }
+miette = { workspace = true, features = ["fancy"] }
+spfs = { workspace = true }
+spfs-cli-common = { workspace = true }
+spfs-vfs = { workspace = true, features = ["macfuse-backend"] }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "signal"] }
+tonic = { workspace = true }
+tracing = { workspace = true }
