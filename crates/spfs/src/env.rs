@@ -726,7 +726,9 @@ where
     pub async fn change_runtime_to_durable(&self, runtime: &mut runtime::Runtime) -> Result<i32> {
         // Not all runtime backends support durable runtimes
         match runtime.config.mount_backend {
-            runtime::MountBackend::FuseOnly | runtime::MountBackend::WinFsp => {
+            runtime::MountBackend::FuseOnly
+            | runtime::MountBackend::FuseWithScratch
+            | runtime::MountBackend::WinFsp => {
                 // a vfs-only runtime cannot be change to durable
                 return Err(Error::RuntimeChangeToDurableError(format!(
                     "{} backend does not support durable runtimes",
@@ -820,7 +822,9 @@ where
     /// Unmount the overlayfs portion of the provided runtime, if applicable
     pub async fn unmount_env_overlayfs(&self, rt: &runtime::Runtime, lazy: bool) -> Result<()> {
         match rt.config.mount_backend {
-            runtime::MountBackend::FuseOnly | runtime::MountBackend::WinFsp => {
+            runtime::MountBackend::FuseOnly
+            | runtime::MountBackend::FuseWithScratch
+            | runtime::MountBackend::WinFsp => {
                 // a vfs-only runtime cannot be unmounted this way
                 // and should already be handled by a previous call to
                 // unmount_env_fuse
@@ -850,7 +854,7 @@ where
     async fn unmount_env_fuse(&self, rt: &runtime::Runtime, lazy: bool) -> Result<()> {
         let mount_path = match rt.config.mount_backend {
             runtime::MountBackend::OverlayFsWithFuse => rt.config.lower_dir.as_path(),
-            runtime::MountBackend::FuseOnly => {
+            runtime::MountBackend::FuseOnly | runtime::MountBackend::FuseWithScratch => {
                 // Unmount any extra paths mounted in the depths of
                 // the fuse-only backend before fuse itself is
                 // unmounted to avoid issue with lazy unmounting.

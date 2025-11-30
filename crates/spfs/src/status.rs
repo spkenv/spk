@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-#[cfg_attr(unix, path = "./status_unix.rs")]
+#[cfg_attr(target_os = "linux", path = "./status_unix.rs")]
+#[cfg_attr(target_os = "macos", path = "./status_macos.rs")]
 #[cfg_attr(windows, path = "./status_win.rs")]
 mod os;
 

@@ -116,6 +116,7 @@ pub async unsafe fn change_to_durable_runtime(
         }
         runtime::MountBackend::OverlayFsWithFuse
         | runtime::MountBackend::FuseOnly
+        | runtime::MountBackend::FuseWithScratch
         | runtime::MountBackend::WinFsp => {
             // fuse uses the lowerdir that's defined in the runtime
             // config, which is implicitly added to all overlay mounts
@@ -150,6 +151,7 @@ pub async unsafe fn reinitialize_runtime(
         }
         runtime::MountBackend::OverlayFsWithFuse
         | runtime::MountBackend::FuseOnly
+        | runtime::MountBackend::FuseWithScratch
         | runtime::MountBackend::WinFsp => {
             // fuse uses the lowerdir that's defined in the runtime
             // config, which is implicitly added to all overlay mounts
@@ -229,6 +231,7 @@ pub async fn initialize_runtime(
         }
         runtime::MountBackend::OverlayFsWithFuse
         | runtime::MountBackend::FuseOnly
+        | runtime::MountBackend::FuseWithScratch
         | runtime::MountBackend::WinFsp => {
             // fuse uses the lowerdir that's defined in the runtime
             // config, which is implicitly added to all overlay mounts

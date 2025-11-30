@@ -257,13 +257,19 @@ pub enum MountBackend {
     /// Renders each layer to a folder on disk, before mounting
     /// the whole stack as lower directories in overlayfs. Edits
     /// are stored in the overlayfs upper directory.
-    #[cfg_attr(unix, default)]
+    #[cfg_attr(target_os = "linux", default)]
     OverlayFsWithRenders,
     /// Mounts a fuse filesystem as the lower directory to
     /// overlayfs, using the overlayfs upper directory for edits
     OverlayFsWithFuse,
-    /// Mounts a fuse filesystem directly
+    /// Mounts a fuse filesystem directly (read-only)
     FuseOnly,
+    /// Mounts a fuse filesystem with a userspace scratch directory
+    /// for copy-on-write semantics. Edits are stored in the scratch
+    /// directory and merged with the FUSE layer at read time.
+    /// This is the default on macOS when editable mode is requested.
+    #[cfg_attr(target_os = "macos", default)]
+    FuseWithScratch,
     /// Leverages the win file system protocol system to present
     /// dynamic file system entries to runtime processes
     #[cfg_attr(windows, default)]
@@ -283,6 +289,10 @@ impl MountBackend {
         matches!(self, Self::FuseOnly)
     }
 
+    pub fn is_fuse_with_scratch(&self) -> bool {
+        matches!(self, Self::FuseWithScratch)
+    }
+
     pub fn is_winfsp(&self) -> bool {
         matches!(self, Self::WinFsp)
     }
@@ -292,7 +302,19 @@ impl MountBackend {
             MountBackend::OverlayFsWithRenders => false,
             MountBackend::OverlayFsWithFuse => true,
             MountBackend::FuseOnly => true,
+            MountBackend::FuseWithScratch => true,
             MountBackend::WinFsp => false,
+        }
+    }
+
+    /// Returns true if this backend supports editable runtimes
+    pub fn supports_editable(&self) -> bool {
+        match self {
+            Self::OverlayFsWithRenders => true,
+            Self::OverlayFsWithFuse => true,
+            Self::FuseOnly => false,
+            Self::FuseWithScratch => true,
+            Self::WinFsp => false,
         }
     }
 
@@ -303,6 +325,7 @@ impl MountBackend {
             Self::OverlayFsWithRenders => true,
             Self::OverlayFsWithFuse => false,
             Self::FuseOnly => false,
+            Self::FuseWithScratch => false,
             Self::WinFsp => false,
         }
     }
@@ -774,6 +797,16 @@ impl Runtime {
                 }
             }
             MountBackend::FuseOnly => false,
+            // FuseWithScratch uses the upper_dir as the scratch directory
+            MountBackend::FuseWithScratch => {
+                match std::fs::metadata(&self.config.upper_dir) {
+                    #[cfg(unix)]
+                    Ok(meta) => meta.size() != 0,
+                    #[cfg(windows)]
+                    Ok(meta) => meta.file_size() != 0,
+                    Err(err) => !matches!(err.kind(), std::io::ErrorKind::NotFound),
+                }
+            }
             MountBackend::WinFsp => false,
         }
     }
