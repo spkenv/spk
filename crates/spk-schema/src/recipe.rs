@@ -5,6 +5,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Arc;
 
 use spk_schema_foundation::ident::VersionIdent;
 
@@ -96,7 +97,7 @@ pub trait Recipe:
     fn generate_source_build(&self, root: &Path) -> Result<Self::Output>;
 
     /// Create a new binary package from this recipe and the given parameters.
-    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
+    fn generate_binary_build<V, E, P>(self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
         V: InputVariant,
         E: BuildEnv<Package = P>,
@@ -154,13 +155,13 @@ where
         (**self).generate_source_build(root)
     }
 
-    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
+    fn generate_binary_build<V, E, P>(self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
         V: InputVariant,
         E: BuildEnv<Package = P>,
         P: Package,
     {
-        (**self).generate_binary_build(variant, build_env)
+        Arc::unwrap_or_clone(self).generate_binary_build(variant, build_env)
     }
 
     fn metadata(&self) -> &Meta {
@@ -216,13 +217,13 @@ where
         (**self).generate_source_build(root)
     }
 
-    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
+    fn generate_binary_build<V, E, P>(self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
         V: InputVariant,
         E: BuildEnv<Package = P>,
         P: Package,
     {
-        (**self).generate_binary_build(variant, build_env)
+        self.clone().generate_binary_build(variant, build_env)
     }
 
     fn metadata(&self) -> &Meta {

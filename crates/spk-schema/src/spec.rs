@@ -374,7 +374,7 @@ impl Recipe for SpecRecipe {
         each_variant!(self, r, r.generate_source_build(root).map(Spec::V0Package))
     }
 
-    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
+    fn generate_binary_build<V, E, P>(self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
         V: InputVariant,
         E: BuildEnv<Package = P>,
