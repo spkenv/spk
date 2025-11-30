@@ -17,12 +17,16 @@ pub use error::Error;
 
 #[cfg(all(unix, feature = "fuse-backend"))]
 mod fuse;
-#[cfg(all(windows, feature = "winfsp-backend"))]
+#[cfg(all(any(target_os = "macos", windows), any(feature = "macfuse-backend", feature = "winfsp-backend")))]
 pub mod proto;
 #[cfg(all(windows, feature = "winfsp-backend"))]
 pub mod winfsp;
+#[cfg(all(target_os = "macos", feature = "macfuse-backend"))]
+pub mod macos;
 
 #[cfg(all(unix, feature = "fuse-backend"))]
 pub use fuse::{Config, Session};
 #[cfg(all(windows, feature = "winfsp-backend"))]
 pub use winfsp::{Config, Service};
+#[cfg(all(target_os = "macos", feature = "macfuse-backend"))]
+pub use macos::{Config, Service};

@@ -10,4 +10,8 @@ pub enum Error {
     /// An operation was attempted on a mask entry.
     #[error("Entry is a mask")]
     EntryIsMask,
+
+    /// A generic string error.
+    #[error("{0}")]
+    String(String),
 }
