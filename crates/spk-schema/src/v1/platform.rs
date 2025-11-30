@@ -35,13 +35,13 @@ use crate::v0::{PackageSpec, TestSpec};
 use crate::{
     BuildEnv,
     BuildSpec,
-    ComponentSpec,
     Deprecate,
     DeprecateMut,
     InputVariant,
     Opt,
     Package,
     Recipe,
+    RecipeComponentSpec,
     RequirementsList,
     Result,
     RuntimeEnvironment,
@@ -230,12 +230,12 @@ impl Recipe for Platform {
             let build_cmpt = spec
                 .install
                 .components
-                .get_or_insert_with(Component::Build, ComponentSpec::default_build);
+                .get_or_insert_with(Component::Build, RecipeComponentSpec::default_build);
             apply_inherit_from_base_component(build_cmpt, Component::Build, base);
             let run_cmpt = spec
                 .install
                 .components
-                .get_or_insert_with(Component::Run, ComponentSpec::default_run);
+                .get_or_insert_with(Component::Run, RecipeComponentSpec::default_run);
             apply_inherit_from_base_component(run_cmpt, Component::Run, base);
         }
 
@@ -252,7 +252,7 @@ impl Recipe for Platform {
 }
 
 fn apply_inherit_from_base_component(
-    cmpt: &mut ComponentSpec<PinnableRequest>,
+    cmpt: &mut RecipeComponentSpec,
     inherit: Component,
     base: impl Package,
 ) {
@@ -339,7 +339,7 @@ impl PlatformPkgRequirement {
         let build_component = spec
             .install
             .components
-            .get_or_insert_with(Component::Build, ComponentSpec::default_build);
+            .get_or_insert_with(Component::Build, RecipeComponentSpec::default_build);
         match &self.at_build {
             None => {}
             Some(Override::Remove) => build_component.requirements.remove_all(self.name()),
@@ -367,7 +367,7 @@ impl PlatformPkgRequirement {
         let runtime_component = spec
             .install
             .components
-            .get_or_insert_with(Component::Run, ComponentSpec::default_run);
+            .get_or_insert_with(Component::Run, RecipeComponentSpec::default_run);
         match &self.at_runtime {
             None => {}
             Some(Override::Remove) => runtime_component.requirements.remove_all(self.name()),
@@ -438,7 +438,7 @@ impl PlatformVarRequirement {
         let build_component = spec
             .install
             .components
-            .get_or_insert_with(Component::Build, ComponentSpec::default_build);
+            .get_or_insert_with(Component::Build, RecipeComponentSpec::default_build);
         match &self.at_build {
             None => {}
             Some(Override::Remove) => build_component.requirements.remove_all(self.name()),
@@ -458,7 +458,7 @@ impl PlatformVarRequirement {
         let runtime_component = spec
             .install
             .components
-            .get_or_insert_with(Component::Run, ComponentSpec::default_run);
+            .get_or_insert_with(Component::Run, RecipeComponentSpec::default_run);
         match &self.at_runtime {
             None => {}
             Some(Override::Remove) => runtime_component.requirements.remove_all(self.name()),

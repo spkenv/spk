@@ -5,29 +5,31 @@
 use std::convert::TryInto;
 
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::ident::PinnedRequest;
+use spk_schema_foundation::ident::{BuildIdent, PinnableRequest};
+use spk_schema_foundation::name::PkgName;
+use spk_schema_foundation::option_map::OptionMap;
 use spk_schema_foundation::spec_ops::ComponentFileMatchMode;
 
 use super::RequirementsList;
-use crate::Result;
 use crate::component_spec_list::ComponentSpecDefaults;
 use crate::foundation::ident_component::Component;
 use crate::foundation::spec_ops::{ComponentOps, FileMatcher};
+use crate::{ComponentSpec, Result};
 
 #[cfg(test)]
-#[path = "./component_spec_test.rs"]
-mod component_spec_test;
+#[path = "./recipe_component_spec_test.rs"]
+mod recipe_component_spec_test;
 
-/// Defines a named package component in a package.
+/// Defines a named package component in a recipe.
 #[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-pub struct ComponentSpec {
+pub struct RecipeComponentSpec {
     pub name: Component,
     #[serde(default)]
     pub files: FileMatcher,
     #[serde(default)]
     pub uses: Vec<Component>,
     #[serde(default)]
-    pub requirements: RequirementsList<PinnedRequest>,
+    pub requirements: RequirementsList<PinnableRequest>,
     #[serde(
         default,
         skip_serializing_if = "super::ComponentEmbeddedPackagesList::is_fabricated"
@@ -38,7 +40,27 @@ pub struct ComponentSpec {
     pub file_match_mode: ComponentFileMatchMode,
 }
 
-impl ComponentSpec {
+impl RecipeComponentSpec {
+    /// Render all requests with a package pin using the given resolved packages.
+    pub fn render_all_pins(
+        self,
+        options: &OptionMap,
+        resolved_by_name: &std::collections::HashMap<&PkgName, &BuildIdent>,
+    ) -> Result<ComponentSpec> {
+        Ok(ComponentSpec {
+            name: self.name,
+            files: self.files,
+            uses: self.uses,
+            requirements: self
+                .requirements
+                .render_all_pins(options, resolved_by_name)?,
+            embedded: self.embedded,
+            file_match_mode: self.file_match_mode,
+        })
+    }
+}
+
+impl RecipeComponentSpec {
     /// Create a new, empty component with the given name
     pub fn new<S: TryInto<Component, Error = crate::foundation::ident_component::Error>>(
         name: S,
@@ -81,7 +103,7 @@ impl ComponentSpec {
     }
 }
 
-impl ComponentSpecDefaults for ComponentSpec {
+impl ComponentSpecDefaults for RecipeComponentSpec {
     fn default_build() -> Self {
         Self::default_build()
     }
@@ -91,7 +113,7 @@ impl ComponentSpecDefaults for ComponentSpec {
     }
 }
 
-impl ComponentOps for ComponentSpec {
+impl ComponentOps for RecipeComponentSpec {
     #[inline]
     fn file_match_mode(&self) -> &ComponentFileMatchMode {
         &self.file_match_mode
@@ -107,5 +129,18 @@ impl ComponentOps for ComponentSpec {
     #[inline]
     fn uses(&self) -> &[Component] {
         &self.uses
+    }
+}
+
+impl From<ComponentSpec> for RecipeComponentSpec {
+    fn from(other: ComponentSpec) -> Self {
+        Self {
+            name: other.name,
+            files: other.files,
+            uses: other.uses,
+            requirements: other.requirements.into(),
+            embedded: other.embedded,
+            file_match_mode: other.file_match_mode,
+        }
     }
 }

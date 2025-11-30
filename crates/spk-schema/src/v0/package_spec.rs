@@ -158,9 +158,9 @@ impl PackageSpec {
 }
 
 impl Components for PackageSpec {
-    type Request = PinnedRequest;
+    type ComponentSpecT = ComponentSpec;
 
-    fn components(&self) -> &ComponentSpecList<Self::Request> {
+    fn components(&self) -> &ComponentSpecList<Self::ComponentSpecT> {
         &self.install.components
     }
 }
@@ -354,6 +354,7 @@ pub(crate) fn check_package_spec_satisfies_pkg_request<T>(
 ) -> Compatibility
 where
     T: Components + Deprecate + HasBuild + Named + Versioned,
+    <T as Components>::ComponentSpecT: ComponentOps,
 {
     if pkg_request.pkg.name != *spec.name() {
         return Compatibility::Incompatible(IncompatibleReason::PackageNameMismatch(
@@ -386,7 +387,7 @@ where
             .components()
             .resolve_uses(pkg_request.pkg.components.iter());
         let available_components: BTreeSet<_> =
-            spec.components().iter().map(|c| c.name.clone()).collect();
+            spec.components().iter().map(|c| c.name().clone()).collect();
         let missing_components = required_components
             .difference(&available_components)
             .sorted()
