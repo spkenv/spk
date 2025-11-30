@@ -185,7 +185,8 @@ where
 
     /// Commit the working file changes of a runtime to a new layer.
     pub async fn commit_layer(&self, runtime: &mut runtime::Runtime) -> Result<graph::Layer> {
-        let manifest = self.commit_dir(&runtime.config.upper_dir).await?;
+        let changes_dir = get_runtime_changes_dir(runtime)?;
+        let manifest = self.commit_dir(&changes_dir).await?;
         self.commit_manifest(manifest, runtime).await
     }
 
@@ -371,6 +372,38 @@ pub trait CommitReporter: tracking::ComputeManifestReporter + Send + Sync {
 pub struct SilentCommitReporter;
 impl tracking::ComputeManifestReporter for SilentCommitReporter {}
 impl CommitReporter for SilentCommitReporter {}
+
+/// Get the directory containing uncommitted changes for a runtime.
+///
+/// This is the upper_dir for overlayfs-based backends, or the scratch
+/// directory for FuseWithScratch on macOS.
+fn get_runtime_changes_dir(runtime: &runtime::Runtime) -> Result<PathBuf> {
+    match runtime.config.mount_backend {
+        runtime::MountBackend::OverlayFsWithRenders
+        | runtime::MountBackend::OverlayFsWithFuse => {
+            // Linux: read from overlayfs upper directory
+            Ok(runtime.config.upper_dir.clone())
+        }
+        runtime::MountBackend::FuseWithScratch => {
+            // macOS: read from scratch directory
+            let scratch_dir =
+                std::env::temp_dir().join(format!("spfs-scratch-{}", runtime.name()));
+            if !scratch_dir.exists() {
+                return Err(Error::String(format!(
+                    "Scratch directory does not exist: {}",
+                    scratch_dir.display()
+                )));
+            }
+            Ok(scratch_dir)
+        }
+        runtime::MountBackend::FuseOnly | runtime::MountBackend::WinFsp => Err(Error::String(
+            format!(
+                "Backend {} does not support commit (read-only)",
+                runtime.config.mount_backend
+            ),
+        )),
+    }
+}
 
 /// Reports commit progress to an interactive console via progress bars
 #[derive(Default)]
