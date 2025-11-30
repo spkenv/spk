@@ -859,6 +859,7 @@ async fn test_build_add_startup_files(tmpdir: tempfile::TempDir, #[case] solver:
     rt.tmprepo.publish_recipe(&recipe).await.unwrap();
 
     let spec = recipe
+        .clone()
         .generate_binary_build(&option_map! {}, &Solution::default())
         .unwrap();
     BinaryPackageBuilder::from_recipe_with_solver(recipe, solver)
@@ -930,6 +931,7 @@ async fn test_build_priority_startup_files(tmpdir: tempfile::TempDir, #[case] so
     rt.tmprepo.publish_recipe(&recipe).await.unwrap();
 
     let spec = recipe
+        .clone()
         .generate_binary_build(&option_map! {}, &Solution::default())
         .unwrap();
     BinaryPackageBuilder::from_recipe_with_solver(recipe, solver)
@@ -1077,6 +1079,7 @@ async fn test_dependant_variable_substitution_in_startup_files(
     rt.tmprepo.publish_recipe(&recipe).await.unwrap();
 
     let spec = recipe
+        .clone()
         .generate_binary_build(&option_map! {}, &Solution::default())
         .unwrap();
     BinaryPackageBuilder::from_recipe_with_solver(recipe, solver)
