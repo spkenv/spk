@@ -177,7 +177,7 @@ impl Recipe for Platform {
         ))
     }
 
-    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
+    fn generate_binary_build<V, E, P>(self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
         V: InputVariant,
         E: BuildEnv<Package = P>,
@@ -194,9 +194,9 @@ impl Recipe for Platform {
 
         // Translate the platform spec into a "normal" recipe and delegate to
         // that recipe's generate_binary_build method.
-        let mut spec = crate::v0::RecipeSpec::new(platform.clone());
-        spec.compat = compat.clone();
-        spec.meta = meta.clone();
+        let mut spec = crate::v0::RecipeSpec::new(platform);
+        spec.compat = compat;
+        spec.meta = meta;
 
         // Platforms have no sources
         spec.sources = Vec::new();
