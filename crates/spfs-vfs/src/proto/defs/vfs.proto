@@ -11,6 +11,10 @@ message ShutdownResponse{}
 message MountRequest{
     uint32 root_pid = 1;
     string env_spec = 2;
+    // Whether to create an editable mount with scratch directory for writes
+    bool editable = 3;
+    // Runtime name for scratch directory naming (required if editable)
+    string runtime_name = 4;
 }
 message MountResponse{}
 
