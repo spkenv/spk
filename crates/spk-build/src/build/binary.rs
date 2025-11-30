@@ -366,7 +366,7 @@ where
         runtime.save_state_to_storage().await?;
         spfs::remount_runtime(&runtime).await?;
 
-        let package = self.recipe.generate_binary_build(
+        let package = self.recipe.clone().generate_binary_build(
             &VariantPair {
                 input_variant: &variant,
                 resolved_variant: &full_variant,

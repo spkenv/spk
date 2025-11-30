@@ -135,6 +135,7 @@ where
         self.options.extend(solution.options().clone());
         let _spec = self
             .recipe
+            .clone()
             .generate_binary_build(&self.options, &solution)?;
 
         let env = solution.to_environment(Some(std::env::vars()));
