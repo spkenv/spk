@@ -16,6 +16,7 @@ pub mod commit;
 pub mod config;
 mod diff;
 #[cfg_attr(windows, path = "./env_win.rs")]
+#[cfg_attr(target_os = "macos", path = "./env_macos.rs")]
 pub mod env;
 mod error;
 pub mod find_path;
