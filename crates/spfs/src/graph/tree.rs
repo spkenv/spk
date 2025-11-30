@@ -126,7 +126,7 @@ impl TreeBuf {
                             kind: entry.kind().into(),
                             object: Some(entry.object()),
                             mode: entry.mode(),
-                            size_: entry.size_for_legacy_encode(),
+                            size: entry.size_for_legacy_encode(),
                             name: Some(name),
                         },
                     )

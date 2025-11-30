@@ -22,6 +22,15 @@ use crate::storage::fs::RenderReporter;
 use crate::storage::fs::render_reporter::RenderBlobResult;
 use crate::{Error, OsError, Result, get_config, graph, tracking};
 
+/// Convert a u32 mode value to the platform-specific Mode type.
+///
+/// On Linux, mode_t is u32, but on macOS it's u16.
+/// This function truncates appropriately for each platform.
+#[inline]
+fn mode_from_u32(mode: u32) -> Mode {
+    Mode::from_bits_truncate(mode as libc::mode_t)
+}
+
 impl<Repo, Reporter> Renderer<'_, Repo, Reporter>
 where
     Repo: Repository + LocalRepository,
@@ -49,7 +58,13 @@ where
         })?;
         let path = target_dir.to_owned();
         let root_dir = tokio::task::spawn_blocking(move || -> Result<tokio::fs::File> {
-            let fd = nix::fcntl::open(&path, OFlag::O_DIRECTORY | OFlag::O_PATH, Mode::empty())
+            // O_PATH is Linux-specific; on macOS we use O_DIRECTORY alone
+            #[cfg(target_os = "linux")]
+            let flags = OFlag::O_DIRECTORY | OFlag::O_PATH;
+            #[cfg(not(target_os = "linux"))]
+            let flags = OFlag::O_DIRECTORY | OFlag::O_RDONLY;
+
+            let fd = nix::fcntl::open(&path, flags, Mode::empty())
                 .map_err(|err| {
                     Error::StorageWriteError("open render target dir", path, err.into())
                 })?;
@@ -130,7 +145,7 @@ where
                                 )
                                 .await;
                             if res.is_ok() {
-                                let mode = Mode::from_bits_truncate(entry.mode());
+                                let mode = mode_from_u32(entry.mode());
                                 res = tokio::task::spawn_blocking(move || {
                                     nix::sys::stat::fchmod(
                                         child_dir.as_raw_fd(),
@@ -379,7 +394,7 @@ where
                             })?;
                         nix::sys::stat::fchmod(
                             proxy_file_fd,
-                            Mode::from_bits_truncate(entry.mode()),
+                            mode_from_u32(entry.mode()),
                         )
                         .map_err(|err| {
                             Error::StorageWriteError(
@@ -534,7 +549,7 @@ where
             })?;
         let mode = entry.mode();
         tokio::task::spawn_blocking(move || {
-            nix::sys::stat::fchmod(rendered_file.as_raw_fd(), Mode::from_bits_truncate(mode))
+            nix::sys::stat::fchmod(rendered_file.as_raw_fd(), mode_from_u32(mode))
         })
         .await
         .expect("syscall should not panic")

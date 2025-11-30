@@ -54,7 +54,7 @@ impl<'buf> Entry<'buf> {
                 name: Some(name),
                 kind: kind.into(),
                 mode,
-                size_: size,
+                size: size,
                 object: Some(object),
             },
         )
@@ -82,7 +82,7 @@ impl<'buf> Entry<'buf> {
 
     pub fn kind(&self) -> tracking::EntryKind {
         match self.0.kind() {
-            spfs_proto::EntryKind::Blob => tracking::EntryKind::Blob(self.0.size_()),
+            spfs_proto::EntryKind::Blob => tracking::EntryKind::Blob(self.0.size()),
             spfs_proto::EntryKind::Tree => tracking::EntryKind::Tree,
             spfs_proto::EntryKind::Mask => tracking::EntryKind::Mask,
             _ => unreachable!("internally valid entry buffer"),
@@ -97,7 +97,7 @@ impl<'buf> Entry<'buf> {
     #[inline]
     pub fn size(&self) -> u64 {
         match self.0.kind() {
-            spfs_proto::EntryKind::Blob => self.0.size_(),
+            spfs_proto::EntryKind::Blob => self.0.size(),
             _ => 0,
         }
     }
@@ -128,7 +128,7 @@ impl<'buf> Entry<'buf> {
     /// are calculated for non-blob entries.
     #[inline]
     pub fn size_for_legacy_encode(&self) -> u64 {
-        self.0.size_()
+        self.0.size()
     }
 }
 
@@ -239,7 +239,7 @@ impl EntryBuf {
                     kind: kind.into(),
                     object: Some(object),
                     mode,
-                    size_: {
+                    size: {
                         match kind {
                             tracking::EntryKind::Blob(size) => size,
                             _ => 0,
@@ -270,7 +270,7 @@ impl EntryBuf {
                     kind: kind.into(),
                     object: Some(object),
                     mode,
-                    size_: {
+                    size: {
                         match kind {
                             tracking::EntryKind::Blob(size) => size,
                             _ => size,

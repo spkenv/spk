@@ -62,7 +62,7 @@ pub fn spawn_monitor_for_runtime(rt: &runtime::Runtime) -> Result<tokio::process
         cmd.stderr(std::process::Stdio::null());
     }
 
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     unsafe {
         // Avoid creating zombie processes by moving the monitor into a
         // separate process group. Use `daemon` to reparent it to pid 1 in
@@ -72,6 +72,18 @@ pub fn spawn_monitor_for_runtime(rt: &runtime::Runtime) -> Result<tokio::process
         cmd.pre_exec(|| match nix::unistd::daemon(false, true) {
             Ok(_pid) => Ok(()),
             Err(err) => Err(std::io::Error::from_raw_os_error(err as i32)),
+        });
+    }
+
+    #[cfg(target_os = "macos")]
+    unsafe {
+        // On macOS, use setsid to create a new session and detach from
+        // the controlling terminal. This achieves similar process isolation
+        // as daemon() on Linux.
+        cmd.pre_exec(|| {
+            nix::unistd::setsid()
+                .map(|_| ())
+                .map_err(|err| std::io::Error::from_raw_os_error(err as i32))
         });
     }
 

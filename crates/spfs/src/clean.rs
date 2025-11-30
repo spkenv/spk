@@ -6,8 +6,10 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 use std::future::ready;
 use std::num::NonZero;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use std::os::linux::fs::MetadataExt;
+#[cfg(target_os = "macos")]
+use std::os::unix::fs::MetadataExt;
 
 use chrono::{DateTime, Duration, Local, Utc};
 use colored::Colorize;
@@ -787,10 +789,14 @@ where
                     let mtime = meta.modified().map_err(|err| {
                         Error::StorageReadError("modified time on proxy file", path.clone(), err)
                     })?;
-                    #[cfg(unix)]
+                    #[cfg(target_os = "linux")]
                     // Allow: remove when todo!() is removed.
                     #[allow(unused_variables)]
                     let has_hardlinks = meta.st_nlink() > 1;
+                    #[cfg(target_os = "macos")]
+                    // Allow: remove when todo!() is removed.
+                    #[allow(unused_variables)]
+                    let has_hardlinks = meta.nlink() > 1;
                     #[cfg(windows)]
                     // Allow: remove when todo!() is removed.
                     #[allow(unused_variables)]

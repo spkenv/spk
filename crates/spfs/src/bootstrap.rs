@@ -320,7 +320,7 @@ pub(crate) fn build_spfs_exit_command(rt: &runtime::Runtime) -> Result<Command> 
     })
 }
 
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 pub(crate) fn build_spfs_change_to_durable_command(rt: &runtime::Runtime) -> Result<Command> {
     let exe = match which_spfs("enter") {
         None => return Err(Error::MissingBinary("spfs-enter")),

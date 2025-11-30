@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+#[cfg(target_os = "linux")]
 use rstest::rstest;
 
+#[cfg(target_os = "linux")]
 use super::parse_modinfo_params;
 
 #[rstest]

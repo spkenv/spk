@@ -2,25 +2,25 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use futures::{FutureExt, TryFutureExt, TryStreamExt};
 use itertools::Itertools;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use nonempty::NonEmpty;
 use serde::{Deserialize, Serialize};
 
 use super::config::get_config;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use crate::config::OverlayFsOptions;
 use crate::prelude::*;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use crate::runtime;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use crate::storage::fallback::FallbackProxy;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use crate::storage::fs::{CliRenderType, ManifestRenderPath, RenderSummary};
 use crate::{Error, Result, graph, storage, tracking};
 
@@ -41,7 +41,7 @@ pub struct RenderResult {
 ///
 /// The return value is defined only if the spfs-render output could be parsed
 /// successfully into a [`RenderResult`].
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 async fn render_via_subcommand(
     spec: tracking::EnvSpec,
     kept_runtime: bool,
@@ -211,7 +211,7 @@ pub async fn compute_object_manifest(
 /// If `skip_runtime_save` is true, the runtime will not be saved, even if
 /// the `flattened_layers` property is modified. Only pass true here if the
 /// runtime is unconditionally saved shortly after calling this function.
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 pub(crate) async fn resolve_overlay_dirs<R>(
     global_overlayfs_options: &OverlayFsOptions,
     runtime: &mut runtime::Runtime,
@@ -232,7 +232,7 @@ where
     impl ResolvedManifest {
         /// Iterate over all the "existing" manifests contained within this
         /// manifest.
-        #[cfg(unix)]
+        #[cfg(target_os = "linux")]
         fn existing(self) -> impl Iterator<Item = graph::Manifest> {
             // Find all the `Existing` manifests in this recursive structure,
             // returning them in an order based on their original order, to
@@ -252,7 +252,7 @@ where
             result.into_iter().map(|(_, m)| m)
         }
 
-        #[cfg(unix)]
+        #[cfg(target_os = "linux")]
         fn manifest(&self) -> &graph::Manifest {
             match self {
                 ResolvedManifest::Existing { manifest, .. } => manifest,
@@ -277,7 +277,7 @@ where
 
     // Determine if layers need to be combined to stay within the length limits
     // of mount args.
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     loop {
         let mut overlay_dirs = Vec::with_capacity(manifests.len());
         for manifest in &manifests {
@@ -364,7 +364,7 @@ where
 /// If `skip_runtime_save` is true, the runtime will not be saved, even if
 /// the `flattened_layers` property is modified. Only pass true here if the
 /// runtime is unconditionally saved shortly after calling this function.
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 pub(crate) async fn resolve_and_render_overlay_dirs(
     runtime: &mut runtime::Runtime,
     skip_runtime_save: bool,

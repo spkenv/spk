@@ -3,10 +3,13 @@
 // https://github.com/spkenv/spk
 
 use std::collections::HashSet;
+#[cfg(target_os = "linux")]
 use std::io::{BufRead, BufReader};
 use std::os::unix::fs::MetadataExt;
 
+#[cfg(target_os = "linux")]
 use crate::env::OVERLAY_ARGS_LOWERDIR_APPEND;
+#[cfg(target_os = "linux")]
 use crate::{Error, Result};
 
 #[cfg(test)]
@@ -17,7 +20,8 @@ pub fn is_removed_entry(meta: &std::fs::Metadata) -> bool {
     // overlayfs uses character device files to denote
     // a file that was removed, using this special file
     // as a whiteout file of the same name.
-    if meta.mode() & libc::S_IFCHR == 0 {
+    // Cast to u32 to handle platform differences (mode_t is u16 on macOS, u32 on Linux)
+    if meta.mode() as u32 & libc::S_IFCHR as u32 == 0 {
         return false;
     }
     // - the device is always 0/0 for a whiteout file
@@ -40,7 +44,17 @@ pub fn overlayfs_available_options() -> HashSet<String> {
     })
 }
 
+/// Get the set of supported overlayfs arguments on this machine.
+///
+/// On macOS, overlayfs is not supported, so this returns an empty set.
+#[cfg(target_os = "macos")]
+pub fn overlayfs_available_options() -> HashSet<String> {
+    // overlayfs is not available on macOS
+    HashSet::new()
+}
+
 /// Read available overlayfs settings from the kernel
+#[cfg(target_os = "linux")]
 fn query_overlayfs_available_options() -> Result<HashSet<String>> {
     let output = std::process::Command::new("/sbin/modinfo")
         .arg("overlay")

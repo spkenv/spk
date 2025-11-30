@@ -55,7 +55,7 @@ pub enum Error {
     InvalidTimeSpec { given: String, reason: String },
     #[error("Invalid path {0}")]
     InvalidPath(std::path::PathBuf, #[source] io::Error),
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     #[error(transparent)]
     Caps(#[from] caps::errors::CapsError),
     #[error(transparent)]
