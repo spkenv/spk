@@ -344,6 +344,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "bindgen"
+version = "0.70.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f49d8fed880d473ea71efb9bf597651e77201bdd4893efe54c9e5d65ae04ce6f"
+dependencies = [
+ "bitflags 2.9.4",
+ "cexpr",
+ "clang-sys",
+ "itertools 0.10.5",
+ "proc-macro2",
+ "quote",
+ "regex",
+ "rustc-hash",
+ "shlex",
+ "syn 2.0.106",
+]
+
+[[package]]
 name = "bit-set"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1396,6 +1414,7 @@ dependencies = [
  "memchr",
  "nix 0.29.0",
  "page_size",
+ "pkg-config",
  "smallvec",
  "zerocopy",
 ]
@@ -2158,6 +2177,17 @@ name = "libm"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9fbbcab51052fe104eb5e5d351cf728d30a5be1fe14d9be8a3b097481fb97de"
+
+[[package]]
+name = "libproc"
+version = "0.14.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e78a09b56be5adbcad5aa1197371688dc6bb249a26da3bca2011ee2fb987ebfb"
+dependencies = [
+ "bindgen 0.70.1",
+ "errno",
+ "libc",
+]
 
 [[package]]
 name = "libredox"
@@ -4042,6 +4072,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "spfs-cli-fuse-macos"
+version = "0.44.0"
+dependencies = [
+ "clap 4.5.47",
+ "miette",
+ "spfs",
+ "spfs-cli-common",
+ "spfs-vfs",
+ "tokio",
+ "tonic",
+ "tracing",
+]
+
+[[package]]
 name = "spfs-cli-join"
 version = "0.44.0"
 dependencies = [
@@ -4182,11 +4226,13 @@ dependencies = [
  "fuser",
  "futures-core",
  "libc",
+ "libproc",
  "miette",
  "nix 0.29.0",
  "prost",
  "protobuf-src",
  "spfs",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tonic",
@@ -6501,7 +6547,7 @@ version = "0.2.2+winfsp-2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dbabd94628121ac484d3ab764430e1ded8d5fdf5f940e1f0d08971c394dbd59f"
 dependencies = [
- "bindgen",
+ "bindgen 0.68.1",
  "registry",
 ]
 
