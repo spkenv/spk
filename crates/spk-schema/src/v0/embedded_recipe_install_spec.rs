@@ -4,19 +4,30 @@
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
-use spk_schema_foundation::ident::PinnedRequest;
+use spk_schema_foundation::ident::PinnableRequest;
+use spk_schema_foundation::name::PkgName;
+use spk_schema_foundation::spec_ops::{HasBuildIdent, Versioned};
 
-use crate::{ComponentSpec, ComponentSpecList, EnvOp, EnvOpList, OpKind, RequirementsList};
+use crate::foundation::option_map::OptionMap;
+use crate::v0::EmbeddedInstallSpec;
+use crate::{
+    ComponentSpecList,
+    EnvOp,
+    EnvOpList,
+    OpKind,
+    RecipeComponentSpec,
+    RequirementsList,
+    Result,
+};
 
 #[cfg(test)]
-#[path = "./embedded_install_spec_test.rs"]
-mod embedded_install_spec_test;
+#[path = "./embedded_recipe_install_spec_test.rs"]
+mod embedded_recipe_install_spec_test;
 
 /// A set of structured installation parameters for a package.
 ///
-/// This represents the `install` section of an embedded package within a built
-/// package. See [`super::EmbeddedRecipeInstallSpec`] for the type used by
-/// recipes.
+/// This represents the `install` section of an embedded package within a
+/// recipe. Once built, [`super::EmbeddedInstallSpec`] is used.
 #[derive(
     Clone,
     Debug,
@@ -30,18 +41,50 @@ mod embedded_install_spec_test;
     PartialOrd,
     Serialize,
 )]
-#[serde(from = "RawEmbeddedInstallSpec")]
-pub struct EmbeddedInstallSpec {
+#[serde(from = "RawEmbeddedRecipeInstallSpec")]
+pub struct EmbeddedRecipeInstallSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub requirements: RequirementsList<PinnedRequest>,
+    pub requirements: RequirementsList<PinnableRequest>,
     #[serde(default)]
-    pub components: ComponentSpecList<ComponentSpec>,
+    pub components: ComponentSpecList<RecipeComponentSpec>,
     #[serde(default, skip_serializing_if = "IsDefault::is_default")]
     pub environment: EnvOpList,
 }
 
-impl From<RawEmbeddedInstallSpec> for EmbeddedInstallSpec {
-    fn from(raw: RawEmbeddedInstallSpec) -> Self {
+impl EmbeddedRecipeInstallSpec {
+    /// Render all requests with a package pin using the given resolved packages.
+    pub fn render_all_pins<K, R>(
+        self,
+        options: &OptionMap,
+        resolved_by_name: &std::collections::HashMap<K, R>,
+    ) -> Result<EmbeddedInstallSpec>
+    where
+        K: Eq + std::hash::Hash,
+        K: std::borrow::Borrow<PkgName>,
+        R: HasBuildIdent + Versioned,
+    {
+        Ok(EmbeddedInstallSpec {
+            requirements: self
+                .requirements
+                .render_all_pins(options, resolved_by_name)?,
+            components: self.components.render_all_pins(options, resolved_by_name)?,
+            environment: self.environment,
+        })
+    }
+}
+
+impl From<EmbeddedInstallSpec> for EmbeddedRecipeInstallSpec {
+    fn from(install: EmbeddedInstallSpec) -> Self {
+        Self {
+            requirements: install.requirements.into(),
+            components: install.components.into(),
+            environment: install.environment,
+        }
+    }
+}
+
+impl From<RawEmbeddedRecipeInstallSpec> for EmbeddedRecipeInstallSpec {
+    fn from(raw: RawEmbeddedRecipeInstallSpec) -> Self {
         Self {
             requirements: raw.requirements,
             components: raw.components,
@@ -52,11 +95,11 @@ impl From<RawEmbeddedInstallSpec> for EmbeddedInstallSpec {
 
 /// A raw, unvalidated install spec.
 #[derive(Deserialize)]
-struct RawEmbeddedInstallSpec {
+struct RawEmbeddedRecipeInstallSpec {
     #[serde(default)]
-    requirements: RequirementsList<PinnedRequest>,
+    requirements: RequirementsList<PinnableRequest>,
     #[serde(default)]
-    components: ComponentSpecList<ComponentSpec>,
+    components: ComponentSpecList<RecipeComponentSpec>,
     #[serde(default, deserialize_with = "deserialize_env_conf")]
     environment: EnvOpList,
 }

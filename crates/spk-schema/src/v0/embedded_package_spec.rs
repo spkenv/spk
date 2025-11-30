@@ -6,7 +6,7 @@ use std::borrow::Cow;
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
-use spk_schema_foundation::ident::{AsVersionIdent, BuildIdent, PinnedRequest, VersionIdent};
+use spk_schema_foundation::ident::{AsVersionIdent, BuildIdent, VersionIdent};
 
 use super::TestSpec;
 use crate::foundation::ident_build::Build;
@@ -17,6 +17,7 @@ use crate::ident::{PkgRequest, Satisfy, is_false};
 use crate::metadata::Meta;
 use crate::v0::{EmbeddedBuildSpec, EmbeddedInstallSpec, check_package_spec_satisfies_pkg_request};
 use crate::{
+    ComponentSpec,
     ComponentSpecList,
     Components,
     Deprecate,
@@ -52,7 +53,7 @@ pub struct EmbeddedPackageSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tests: Vec<TestSpec>,
     #[serde(default, skip_serializing_if = "IsDefault::is_default")]
-    pub install: EmbeddedInstallSpec<PinnedRequest>,
+    pub install: EmbeddedInstallSpec,
 }
 
 impl EmbeddedPackageSpec {
@@ -88,9 +89,9 @@ impl AsVersionIdent for EmbeddedPackageSpec {
 }
 
 impl Components for EmbeddedPackageSpec {
-    type Request = PinnedRequest;
+    type ComponentSpecT = ComponentSpec;
 
-    fn components(&self) -> &ComponentSpecList<Self::Request> {
+    fn components(&self) -> &ComponentSpecList<Self::ComponentSpecT> {
         &self.install.components
     }
 }

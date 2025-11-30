@@ -34,6 +34,7 @@ use spk_schema::version::IsSameReasonAs;
 use spk_schema::{
     AnyIdent,
     BuildIdent,
+    ComponentSpec,
     ComponentSpecList,
     Components,
     EmbeddedPackagesList,
@@ -414,7 +415,7 @@ impl<'state> DecisionBuilder<'state, '_> {
 
     fn components_to_changes(
         &self,
-        components: &ComponentSpecList<PinnedRequest>,
+        components: &ComponentSpecList<ComponentSpec>,
         requester: &BuildIdent,
     ) -> Vec<Change> {
         let mut changes = vec![];
@@ -482,7 +483,7 @@ impl<'state> DecisionBuilder<'state, '_> {
     fn embedded_to_changes(
         &self,
         embedded: &EmbeddedPackagesList<EmbeddedPackageSpec>,
-        components: &ComponentSpecList<PinnedRequest>,
+        components: &ComponentSpecList<ComponentSpec>,
         parent: &BuildIdent,
     ) -> Vec<Change> {
         let required = components.resolve_uses(self.components.iter().cloned());

@@ -15,7 +15,7 @@ use super::RequirementsList;
 use crate::foundation::ident_component::Component;
 use crate::foundation::option_map::OptionMap;
 use crate::spec::SpecTest;
-use crate::{DeprecateMut, Opt, RuntimeEnvironment};
+use crate::{ComponentSpec, DeprecateMut, Opt, RuntimeEnvironment};
 
 #[cfg(test)]
 #[path = "./package_test.rs"]
@@ -40,16 +40,16 @@ macro_rules! forward_to_impl {
 
 /// Access to the components defined by a package.
 pub trait Components {
-    type Request;
+    type ComponentSpecT;
 
     /// The components defined by this package
-    fn components(&self) -> &super::ComponentSpecList<Self::Request>;
+    fn components(&self) -> &super::ComponentSpecList<Self::ComponentSpecT>;
 }
 
 forward_to_impl!(Components, {
-    type Request = T::Request;
+    type ComponentSpecT = T::ComponentSpecT;
 
-    fn components(&self) -> &super::ComponentSpecList<Self::Request> {
+    fn components(&self) -> &super::ComponentSpecList<Self::ComponentSpecT> {
         (**self).components()
     }
 });
@@ -74,7 +74,7 @@ pub trait Package:
     + Versioned
     + super::Deprecate
     + RuntimeEnvironment
-    + Components<Request = PinnedRequest>
+    + Components<ComponentSpecT = ComponentSpec>
     + OptionValues
     + Clone
     + Eq

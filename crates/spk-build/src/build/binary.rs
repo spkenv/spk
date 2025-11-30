@@ -31,10 +31,11 @@ use spk_schema::ident::{
     RequestedBy,
     VersionIdent,
 };
+use spk_schema::spec_ops::ComponentFileMatchMode;
 use spk_schema::variant::Override;
 use spk_schema::{
     BuildIdent,
-    ComponentFileMatchMode,
+    ComponentSpec,
     ComponentSpecList,
     Components,
     InputVariant,
@@ -805,7 +806,7 @@ where
 fn split_manifest_by_component(
     pkg: &BuildIdent,
     manifest: &spfs::tracking::Manifest,
-    components: &ComponentSpecList<PinnedRequest>,
+    components: &ComponentSpecList<ComponentSpec>,
 ) -> Result<HashMap<Component, spfs::tracking::Manifest>> {
     let mut seen = HashSet::new();
     let mut manifests = HashMap::with_capacity(components.len());
