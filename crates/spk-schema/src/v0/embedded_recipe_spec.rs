@@ -4,7 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
-use spk_schema_foundation::ident::{AsVersionIdent, PinnableRequest, VersionIdent};
+use spk_schema_foundation::ident::{AsVersionIdent, VersionIdent};
 use spk_schema_foundation::ident_build::{Build, EmbeddedSource};
 use spk_schema_foundation::option_map::OptionMap;
 use spk_schema_foundation::spec_ops::HasBuildIdent;
@@ -15,13 +15,14 @@ use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Version};
 use crate::ident::is_false;
 use crate::metadata::Meta;
-use crate::v0::{EmbeddedBuildSpec, EmbeddedInstallSpec, EmbeddedPackageSpec};
+use crate::v0::{EmbeddedBuildSpec, EmbeddedPackageSpec, EmbeddedRecipeInstallSpec};
 use crate::{
     ComponentSpecList,
     Components,
     Deprecate,
     DeprecateMut,
     EnvOp,
+    RecipeComponentSpec,
     Result,
     RuntimeEnvironment,
     SourceSpec,
@@ -52,7 +53,7 @@ pub struct EmbeddedRecipeSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tests: Vec<TestSpec>,
     #[serde(default, skip_serializing_if = "IsDefault::is_default")]
-    pub install: EmbeddedInstallSpec<PinnableRequest>,
+    pub install: EmbeddedRecipeInstallSpec,
 }
 
 impl EmbeddedRecipeSpec {
@@ -88,9 +89,9 @@ impl AsVersionIdent for EmbeddedRecipeSpec {
 }
 
 impl Components for EmbeddedRecipeSpec {
-    type Request = PinnableRequest;
+    type ComponentSpecT = RecipeComponentSpec;
 
-    fn components(&self) -> &ComponentSpecList<Self::Request> {
+    fn components(&self) -> &ComponentSpecList<Self::ComponentSpecT> {
         &self.install.components
     }
 }

@@ -3,42 +3,49 @@
 // https://github.com/spkenv/spk
 
 use rstest::rstest;
-use spk_schema_foundation::ident::PinnableRequest;
 
 use super::ComponentSpecList;
+use crate::RecipeComponentSpec;
 use crate::foundation::ident_component::Component;
 
 #[rstest]
 fn test_components_no_duplicates() {
-    serde_yaml::from_str::<ComponentSpecList<PinnableRequest>>("[{name: python}, {name: other}]")
-        .expect("should succeed in a simple case with two components");
-    serde_yaml::from_str::<ComponentSpecList<PinnableRequest>>("[{name: python}, {name: python}]")
-        .expect_err("should fail to deserialize with the same component twice");
+    serde_yaml::from_str::<ComponentSpecList<RecipeComponentSpec>>(
+        "[{name: python}, {name: other}]",
+    )
+    .expect("should succeed in a simple case with two components");
+    serde_yaml::from_str::<ComponentSpecList<RecipeComponentSpec>>(
+        "[{name: python}, {name: python}]",
+    )
+    .expect_err("should fail to deserialize with the same component twice");
 }
 
 #[rstest]
 fn test_components_has_defaults() {
-    let components = serde_yaml::from_str::<ComponentSpecList<PinnableRequest>>("[]").unwrap();
+    let components = serde_yaml::from_str::<ComponentSpecList<RecipeComponentSpec>>("[]").unwrap();
     assert_eq!(components.len(), 2, "Should receive default components");
-    let components =
-        serde_yaml::from_str::<ComponentSpecList<PinnableRequest>>("[{name: run}, {name: build}]")
-            .unwrap();
+    let components = serde_yaml::from_str::<ComponentSpecList<RecipeComponentSpec>>(
+        "[{name: run}, {name: build}]",
+    )
+    .unwrap();
     assert_eq!(components.len(), 2, "Should not receive default components");
 }
 
 #[rstest]
 fn test_components_uses_must_exist() {
-    serde_yaml::from_str::<ComponentSpecList<PinnableRequest>>(
+    serde_yaml::from_str::<ComponentSpecList<RecipeComponentSpec>>(
         "[{name: python, uses: [other]}, {name: other}]",
     )
     .expect("should succeed in a simple case");
-    serde_yaml::from_str::<ComponentSpecList<PinnableRequest>>("[{name: python, uses: [other]}]")
-        .expect_err("should fail when the used component does not exist");
+    serde_yaml::from_str::<ComponentSpecList<RecipeComponentSpec>>(
+        "[{name: python, uses: [other]}]",
+    )
+    .expect_err("should fail when the used component does not exist");
 }
 
 #[rstest]
 fn test_resolve_uses() {
-    let components = serde_yaml::from_str::<ComponentSpecList<PinnableRequest>>(
+    let components = serde_yaml::from_str::<ComponentSpecList<RecipeComponentSpec>>(
         r#"[
                 {name: build, uses: [dev, libstatic]},
                 {name: run, uses: [bin, lib]},
@@ -60,7 +67,7 @@ fn test_resolve_uses() {
 
 #[rstest]
 fn test_resolve_uses_all() {
-    let components = serde_yaml::from_str::<ComponentSpecList<PinnableRequest>>(
+    let components = serde_yaml::from_str::<ComponentSpecList<RecipeComponentSpec>>(
         r#"[
                 {name: build, uses: [dev, libstatic]},
                 {name: run, uses: [bin, lib]},

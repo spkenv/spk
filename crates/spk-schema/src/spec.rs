@@ -28,6 +28,7 @@ use crate::metadata::Meta;
 use crate::package::OptionValues;
 use crate::{
     BuildEnv,
+    ComponentSpec,
     Components,
     Deprecate,
     DeprecateMut,
@@ -620,9 +621,9 @@ pub enum Spec {
 }
 
 impl Components for Spec {
-    type Request = PinnedRequest;
+    type ComponentSpecT = ComponentSpec;
 
-    fn components(&self) -> &super::ComponentSpecList<Self::Request> {
+    fn components(&self) -> &super::ComponentSpecList<Self::ComponentSpecT> {
         match self {
             Spec::V0Package(spec) => spec.components(),
         }
