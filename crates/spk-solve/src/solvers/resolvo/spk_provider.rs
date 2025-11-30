@@ -39,7 +39,17 @@ use spk_schema::ident_component::Component;
 use spk_schema::name::{OptNameBuf, PkgNameBuf};
 use spk_schema::prelude::{HasVersion, Named};
 use spk_schema::version_range::{DoubleEqualsVersion, Ranged, VersionFilter, parse_version_range};
-use spk_schema::{BuildIdent, Deprecate, Opt, Package, Recipe, Request, Spec, VersionIdent};
+use spk_schema::{
+    BuildIdent,
+    Components,
+    Deprecate,
+    Opt,
+    Package,
+    Recipe,
+    Request,
+    Spec,
+    VersionIdent,
+};
 use spk_solve_package_iterator::{BuildKey, BuildToSortedOptName, SortedBuildIterator};
 use spk_storage::RepositoryHandle;
 use tracing::{Instrument, debug_span};

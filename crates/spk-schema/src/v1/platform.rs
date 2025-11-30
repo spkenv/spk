@@ -9,7 +9,6 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::{
-    BuildIdent,
     InclusionPolicy,
     NameAndValue,
     PkgRequest,
@@ -31,7 +30,7 @@ use crate::foundation::version::Compat;
 use crate::ident::is_false;
 use crate::metadata::Meta;
 use crate::option::VarOpt;
-use crate::v0::{Spec, TestSpec};
+use crate::v0::{PackageSpec, TestSpec};
 use crate::{
     BuildEnv,
     BuildSpec,
@@ -119,7 +118,7 @@ impl Versioned for Platform {
 }
 
 impl Recipe for Platform {
-    type Output = Spec<BuildIdent>;
+    type Output = PackageSpec;
     type Variant = crate::v0::Variant;
     type Test = TestSpec;
 
@@ -173,7 +172,7 @@ impl Recipe for Platform {
     }
 
     fn generate_source_build(&self, _root: &Path) -> Result<Self::Output> {
-        Ok(Spec::new(
+        Ok(Self::Output::new(
             self.platform.clone().into_build_ident(Build::Source),
         ))
     }
@@ -195,7 +194,7 @@ impl Recipe for Platform {
 
         // Translate the platform spec into a "normal" recipe and delegate to
         // that recipe's generate_binary_build method.
-        let mut spec = crate::v0::Spec::new(platform.clone());
+        let mut spec = crate::v0::RecipeSpec::new(platform.clone());
         spec.compat = compat.clone();
         spec.meta = meta.clone();
 
@@ -284,7 +283,7 @@ impl PlatformRequirement {
     /// Update the given spec with the requirements for this platform.
     fn update_spec_for_binary_build<E, P>(
         &self,
-        spec: &mut crate::v0::Spec<VersionIdent>,
+        spec: &mut crate::v0::RecipeSpec,
         build_env: &E,
     ) -> Result<()>
     where
@@ -326,7 +325,7 @@ impl PlatformPkgRequirement {
     /// Update the given spec with the requirements for this platform.
     fn update_spec_for_binary_build<E, P>(
         &self,
-        spec: &mut crate::v0::Spec<VersionIdent>,
+        spec: &mut crate::v0::RecipeSpec,
         _build_env: &E,
     ) -> Result<()>
     where
@@ -421,7 +420,7 @@ impl PlatformVarRequirement {
     /// Update the given spec with the requirements for this platform.
     fn update_spec_for_binary_build<E, P>(
         &self,
-        spec: &mut crate::v0::Spec<VersionIdent>,
+        spec: &mut crate::v0::RecipeSpec,
         _build_env: &E,
     ) -> Result<()>
     where

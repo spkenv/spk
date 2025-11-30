@@ -3,7 +3,7 @@
 // https://github.com/spkenv/spk
 
 pub use spk_schema::recipe;
-pub use {serde_json, spfs};
+pub use {serde, serde_json, spfs};
 
 /// Creates a repository containing a set of provided package specs.
 /// It will take care of publishing the spec, and creating a build for
@@ -37,7 +37,7 @@ macro_rules! make_repo {
 macro_rules! make_package {
     ($repo:ident, ($build_spec:expr, $components:expr), $opts:expr) => {{ ($build_spec, $components) }};
     ($repo:ident, $build_spec:ident, $opts:expr) => {{
-        use spk_schema::Package;
+        use spk_schema::Components;
         let s = $build_spec.clone();
         let cmpts: std::collections::HashMap<_, $crate::spfs::encoding::Digest> = s
             .components()
@@ -48,11 +48,19 @@ macro_rules! make_package {
     }};
     ($repo:ident, $spec:tt, $opts:expr) => {{
         let json = $crate::serde_json::json!($spec);
-        let spec: spk_schema::v0::Spec<spk_schema::ident::AnyIdent> =
-            $crate::serde_json::from_value(json).expect("Invalid spec json");
-        match spec.pkg.build() {
+
+        // Identify what flavor of spec was provided to the macro.
+        #[derive($crate::serde::Deserialize)]
+        struct IdentType {
+            pkg: spk_schema::ident::AnyIdent,
+        }
+        let ident_type: IdentType =
+            $crate::serde_json::from_value(json.clone()).expect("failed to parse pkg ident");
+
+        match ident_type.pkg.build() {
             None => {
-                let recipe = spec.map_ident(|i| i.into_base());
+                let recipe: spk_schema::v0::RecipeSpec =
+                    $crate::serde_json::from_value(json).expect("Invalid recipe spec json");
                 $repo
                     .force_publish_recipe(&recipe.clone().into())
                     .await
@@ -60,18 +68,16 @@ macro_rules! make_package {
                 make_build_and_components!(recipe = recipe, [], $opts, [])
             }
             Some(spk_schema::foundation::ident_build::Build::Source) => {
-                let recipe = spec.clone().map_ident(|i| i.into_base());
+                let package: spk_schema::v0::PackageSpec =
+                    $crate::serde_json::from_value(json).expect("Invalid package spec json");
+                let recipe: spk_schema::v0::RecipeSpec = package.clone().into();
                 $repo.force_publish_recipe(&recipe.into()).await.unwrap();
-                let build = spec.map_ident(|i| {
-                    i.into_base()
-                        .into_build_ident(spk_schema::foundation::ident_build::Build::Source)
-                });
-                make_build_and_components!(package = build, [], $opts, [])
+                make_build_and_components!(package = package, [], $opts, [])
             }
-            Some(b) => {
-                let b = b.clone();
-                let build = spec.map_ident(|i| i.into_base().into_build_ident(b));
-                make_build_and_components!(package = build, [], $opts, [])
+            Some(_) => {
+                let package: spk_schema::v0::PackageSpec =
+                    $crate::serde_json::from_value(json).expect("Invalid package spec json");
+                make_build_and_components!(package = package, [], $opts, [])
             }
         }
     }};
@@ -120,7 +126,7 @@ macro_rules! make_build_and_components {
         make_build_and_components!($spec, [$($dep),*], opts, [$($component),*])
     }};
     (recipe = $recipe:ident, [$($dep:expr),*], $opts:expr, [$($component:expr),*]) => {{
-        use spk_schema::{Package, Recipe};
+        use spk_schema::{Components, Package, Recipe};
         let mut components = std::collections::HashMap::<spk_schema::foundation::ident_component::Component, $crate::spfs::encoding::Digest>::new();
         let mut build_opts = $opts.clone();
         #[allow(unused_mut)]
@@ -157,7 +163,7 @@ macro_rules! make_build_and_components {
                 components.insert(spk_schema::foundation::ident_component::Component::Source, $crate::spfs::encoding::EMPTY_DIGEST.into());
             }
             _ => {
-                use spk_schema::{Package, Recipe};
+                use spk_schema::{Components, Package, Recipe};
                 let mut names = std::vec![$($component.to_string()),*];
                 if names.is_empty() {
                     names = $package.components().iter().map(|c| c.name.to_string()).collect();
@@ -172,16 +178,24 @@ macro_rules! make_build_and_components {
     }};
     ($spec:tt, [$($dep:expr),*], $opts:expr, [$($component:expr),*]) => {{
         let json = $crate::serde_json::json!($spec);
-        let spec: spk_schema::v0::Spec<spk_schema::ident::AnyIdent> =
-            $crate::serde_json::from_value(json).expect("Invalid spec json");
-        match spec.pkg.build() {
+
+        // Identify what flavor of spec was provided to the macro.
+        #[derive($crate::serde::Deserialize)]
+        struct IdentType {
+            pkg: spk_schema::ident::AnyIdent,
+        }
+        let ident_type: IdentType =
+            $crate::serde_json::from_value(json.clone()).expect("failed to parse pkg ident");
+
+        match ident_type.pkg.build() {
             None => {
-                let recipe = spec.map_ident(|i| i.into_base());
+                let recipe: spk_schema::v0::RecipeSpec =
+                    $crate::serde_json::from_value(json).expect("Invalid recipe spec json");
                 make_build_and_components!(recipe = recipe, [$($dep),*], $opts, [$($component),*])
             }
             Some(b) => {
-                let b = b.clone();
-                let package = spec.map_ident(|i| i.to_build_ident(b));
+                let package: spk_schema::v0::PackageSpec =
+                    $crate::serde_json::from_value(json).expect("Invalid package spec json");
                 make_build_and_components!(package = package, [$($dep),*], $opts, [$($component),*])
             }
         }

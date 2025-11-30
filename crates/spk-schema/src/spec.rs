@@ -26,6 +26,7 @@ use crate::ident::{PkgRequest, Request, Satisfy, VarRequest};
 use crate::metadata::Meta;
 use crate::{
     BuildEnv,
+    Components,
     Deprecate,
     DeprecateMut,
     Error,
@@ -281,7 +282,7 @@ impl TemplateExt for SpecTemplate {
 #[enum_dispatch(Deprecate, DeprecateMut)]
 pub enum SpecRecipe {
     #[serde(rename = "v0/package")]
-    V0Package(super::v0::Spec<VersionIdent>),
+    V0Package(super::v0::RecipeSpec),
     #[serde(rename = "v0/platform")]
     V0Platform(super::v0::Platform),
     #[serde(rename = "v1/platform")]
@@ -610,7 +611,15 @@ impl Test for SpecTest {
 #[enum_dispatch(Deprecate, DeprecateMut)]
 pub enum Spec {
     #[serde(rename = "v0/package")]
-    V0Package(super::v0::Spec<BuildIdent>),
+    V0Package(super::v0::PackageSpec),
+}
+
+impl Components for Spec {
+    fn components(&self) -> &super::ComponentSpecList {
+        match self {
+            Spec::V0Package(spec) => spec.components(),
+        }
+    }
 }
 
 impl Satisfy<PkgRequest> for Spec {
@@ -664,6 +673,7 @@ impl Versioned for Spec {
 // enum_dispatch does not support associated types.
 impl Package for Spec {
     type Package = Self;
+    type EmbeddedPackage = v0::EmbeddedPackageSpec;
 
     fn ident(&self) -> &BuildIdent {
         match self {
@@ -695,7 +705,7 @@ impl Package for Spec {
         }
     }
 
-    fn embedded(&self) -> &super::EmbeddedPackagesList {
+    fn embedded(&self) -> &super::EmbeddedPackagesList<Self::EmbeddedPackage> {
         match self {
             Spec::V0Package(spec) => spec.embedded(),
         }
@@ -708,12 +718,6 @@ impl Package for Spec {
             Spec::V0Package(spec) => spec
                 .embedded_as_packages()
                 .map(|vec| vec.into_iter().map(|(r, c)| (r.into(), c)).collect()),
-        }
-    }
-
-    fn components(&self) -> &super::ComponentSpecList {
-        match self {
-            Spec::V0Package(spec) => spec.components(),
         }
     }
 
@@ -818,6 +822,12 @@ impl FromYaml for Spec {
                 unimplemented!()
             }
         }
+    }
+}
+
+impl From<v0::EmbeddedPackageSpec> for Spec {
+    fn from(value: v0::EmbeddedPackageSpec) -> Self {
+        Spec::V0Package(value.into())
     }
 }
 

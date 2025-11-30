@@ -22,11 +22,13 @@ use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{InclusionPolicy, PkgRequest, Request, RequestedBy, VarRequest};
 use spk_schema::prelude::*;
+use spk_schema::v0::EmbeddedPackageSpec;
 use spk_schema::version::IsSameReasonAs;
 use spk_schema::{
     AnyIdent,
     BuildIdent,
     ComponentSpecList,
+    Components,
     EmbeddedPackagesList,
     RequirementsList,
     Spec,
@@ -474,7 +476,7 @@ impl<'state> DecisionBuilder<'state, '_> {
 
     fn embedded_to_changes(
         &self,
-        embedded: &EmbeddedPackagesList,
+        embedded: &EmbeddedPackagesList<EmbeddedPackageSpec>,
         components: &ComponentSpecList,
         parent: &BuildIdent,
     ) -> Vec<Change> {
@@ -511,7 +513,7 @@ impl<'state> DecisionBuilder<'state, '_> {
                     });
 
                     changes.extend(self.set_package(
-                        Arc::new((*spec).clone()),
+                        Arc::new(spec.clone().into()),
                         PackageSource::Embedded {
                             parent: parent.clone(),
                             components: components_as_hashset,
@@ -535,7 +537,7 @@ impl<'state> DecisionBuilder<'state, '_> {
                     ),
                 ))];
                 changes.extend(self.set_package(
-                    Arc::new(embedded.clone()),
+                    Arc::new(embedded.clone().into()),
                     PackageSource::Embedded {
                         parent: parent.clone(),
                         components: Default::default(),
