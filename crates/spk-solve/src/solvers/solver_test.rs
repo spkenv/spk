@@ -11,9 +11,9 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::{build_ident, opt_name, version_ident};
 use spk_schema::ident::{
     InitialRawRequest,
+    PinnedRequest,
     PkgRequest,
     RangeIdent,
-    Request,
     RequestedBy,
     VarRequest,
     parse_ident_range,
@@ -22,7 +22,13 @@ use spk_schema::ident_build::{Build, BuildId};
 use spk_schema::name::OptName;
 use spk_schema::prelude::*;
 use spk_schema::{recipe, v0};
-use spk_solve_macros::{make_build, make_build_and_components, make_package, make_repo, request};
+use spk_solve_macros::{
+    make_build,
+    make_build_and_components,
+    make_package,
+    make_repo,
+    pinned_request,
+};
 use spk_solve_solution::PackageSource;
 use spk_storage::RepositoryHandle;
 use spk_storage::fixtures::*;
@@ -194,7 +200,7 @@ async fn test_solver_package_with_no_recipe(
 
     solver.update_options(options);
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("my-pkg"));
+    solver.add_request(pinned_request!("my-pkg"));
 
     // Test
     let res = run_and_print_resolve_for_tests(&mut solver).await;
@@ -226,7 +232,7 @@ async fn test_solver_package_with_no_recipe_and_impossible_initial_checks(
 
     solver.update_options(options);
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("my-pkg"));
+    solver.add_request(pinned_request!("my-pkg"));
     if let SolverImpl::Step(ref mut solver) = solver {
         solver.set_initial_request_impossible_checks(true);
     }
@@ -281,7 +287,7 @@ async fn test_solver_package_with_no_recipe_from_cmd_line(#[case] mut solver: So
 
     solver.add_repository(Arc::new(repo));
     // Create this one as requested by the command line, rather than the tests
-    let req = Request::Pkg(PkgRequest::new(
+    let req = PinnedRequest::Pkg(PkgRequest::new(
         parse_ident_range("my-pkg").unwrap(),
         RequestedBy::CommandLineRequest(InitialRawRequest("my-pkg".to_string())),
     ));
@@ -315,7 +321,7 @@ async fn test_solver_package_with_no_recipe_from_cmd_line_and_impossible_initial
 
     solver.add_repository(Arc::new(repo));
     // Create this one as requested by the command line, rather than the tests
-    let req = Request::Pkg(PkgRequest::new(
+    let req = PinnedRequest::Pkg(PkgRequest::new(
         parse_ident_range("my-pkg").unwrap(),
         RequestedBy::CommandLineRequest(InitialRawRequest("my-pkg".to_string())),
     ));
@@ -362,7 +368,7 @@ async fn test_solver_single_package_no_deps(#[case] mut solver: SolverImpl) {
 
     solver.update_options(options);
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("my-pkg"));
+    solver.add_request(pinned_request!("my-pkg"));
 
     let packages = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
     assert_eq!(packages.len(), 1, "expected one resolved package");
@@ -391,7 +397,7 @@ async fn test_solver_single_package_simple_deps(#[case] mut solver: SolverImpl) 
 
     solver.update_options(options);
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("pkg-b/1.1"));
+    solver.add_request(pinned_request!("pkg-b/1.1"));
 
     let packages = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
     assert_eq!(packages.len(), 2, "expected two resolved packages");
@@ -422,7 +428,7 @@ async fn test_solver_dependency_abi_compat(#[case] mut solver: SolverImpl) {
 
     solver.update_options(options);
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("pkg-b/1.1"));
+    solver.add_request(pinned_request!("pkg-b/1.1"));
 
     let packages = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
     assert_eq!(packages.len(), 2, "expected two resolved packages");
@@ -449,9 +455,9 @@ async fn test_solver_dependency_incompatible(#[case] mut solver: SolverImpl) {
     );
 
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("my-plugin/1"));
+    solver.add_request(pinned_request!("my-plugin/1"));
     // this one is incompatible with requirements of my-plugin but the solver doesn't know it yet
-    solver.add_request(request!("maya/2019"));
+    solver.add_request(pinned_request!("maya/2019"));
 
     let res = run_and_print_resolve_for_tests(&mut solver).await;
 
@@ -483,9 +489,9 @@ async fn test_solver_dependency_incompatible_stepback(#[case] mut solver: Solver
     );
 
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("my-plugin/1"));
+    solver.add_request(pinned_request!("my-plugin/1"));
     // this one is incompatible with requirements of my-plugin/1.1.0 but not my-plugin/1.0
-    solver.add_request(request!("maya/2019"));
+    solver.add_request(pinned_request!("maya/2019"));
 
     let packages = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
@@ -518,7 +524,7 @@ async fn test_solver_dependency_already_satisfied(#[case] mut solver: SolverImpl
         ]
     );
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("pkg-top"));
+    solver.add_request(pinned_request!("pkg-top"));
 
     let packages = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
@@ -561,7 +567,7 @@ async fn test_solver_dependency_already_satisfied_conflicting_components(
         ]
     );
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("pkg-top"));
+    solver.add_request(pinned_request!("pkg-top"));
 
     // XXX: This test provides coverage for the
     // "requires {}:{} which embeds {}" incompatibility check inside
@@ -604,7 +610,7 @@ async fn test_solver_dependency_reopen_solvable(#[case] mut solver: SolverImpl) 
         ]
     );
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("my-plugin"));
+    solver.add_request(pinned_request!("my-plugin"));
 
     let packages = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
     assert_resolved!(packages, ["my-plugin", "some-library", "maya"]);
@@ -640,7 +646,7 @@ async fn test_solver_dependency_reiterate(#[case] mut solver: SolverImpl) {
         ]
     );
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("my-plugin"));
+    solver.add_request(pinned_request!("my-plugin"));
 
     let packages = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
     assert_resolved!(packages, ["my-plugin", "some-library", "maya"]);
@@ -675,7 +681,7 @@ async fn test_solver_dependency_reopen_unsolvable(#[case] mut solver: SolverImpl
         ]
     );
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("pkg-top"));
+    solver.add_request(pinned_request!("pkg-top"));
 
     let result = run_and_print_resolve_for_tests(&mut solver).await;
     assert!(result.is_err());
@@ -697,7 +703,7 @@ async fn test_solver_pre_release_config(#[case] mut solver: SolverImpl) {
     let repo = Arc::new(repo);
 
     solver.add_repository(repo.clone());
-    solver.add_request(request!("my-pkg"));
+    solver.add_request(pinned_request!("my-pkg"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
     assert_resolved!(
@@ -709,7 +715,7 @@ async fn test_solver_pre_release_config(#[case] mut solver: SolverImpl) {
 
     solver.reset();
     solver.add_repository(repo);
-    solver.add_request(request!({"pkg": "my-pkg", "prereleasePolicy": "IncludeAll"}));
+    solver.add_request(pinned_request!({"pkg": "my-pkg", "prereleasePolicy": "IncludeAll"}));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
     assert_resolved!(solution, "my-pkg", "1.0.0-pre.2");
@@ -736,8 +742,10 @@ async fn test_solver_pre_release_config_with_requirements(#[case] mut solver: So
     let repo = Arc::new(repo);
 
     solver.add_repository(repo);
-    solver.add_request(request!({"pkg": "my-pkg/=1.0.0-pre.2", "prereleasePolicy": "IncludeAll"}));
-    solver.add_request(request!("my-tool"));
+    solver.add_request(
+        pinned_request!({"pkg": "my-pkg/=1.0.0-pre.2", "prereleasePolicy": "IncludeAll"}),
+    );
+    solver.add_request(pinned_request!("my-tool"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
     assert_resolved!(solution, "my-pkg", "1.0.0-pre.2");
@@ -766,7 +774,7 @@ async fn test_solver_constraint_only(#[case] mut solver: SolverImpl) {
         ]
     );
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("vnp3"));
+    solver.add_request(pinned_request!("vnp3"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
     assert!(solution.get("python").is_none());
@@ -801,7 +809,7 @@ async fn test_solver_constraint_and_request(#[case] mut solver: SolverImpl) {
         ]
     );
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("my-tool"));
+    solver.add_request(pinned_request!("my-tool"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
@@ -857,7 +865,7 @@ async fn test_solver_option_compatibility(
     // 2.x.y values to both solve and pass the test.
     solver.reset();
     solver.add_repository(repo.clone());
-    solver.add_request(request!("vnp3"));
+    solver.add_request(pinned_request!("vnp3"));
     solver.add_request(
         VarRequest {
             var: opt_name!("python").to_owned(),
@@ -921,7 +929,7 @@ async fn test_solver_option_injection(#[case] mut solver: SolverImpl) {
     repo.publish_recipe(&spec).await.unwrap();
 
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("vnp3"));
+    solver.add_request(pinned_request!("vnp3"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
@@ -973,8 +981,8 @@ async fn test_solver_build_from_source(#[case] mut solver: SolverImpl) {
     solver.set_binary_only(false);
     // the new option value should disqualify the existing build
     // but a new one should be generated for this set of options
-    solver.add_request(request!({"var": "debug/on"}));
-    solver.add_request(request!("my-tool"));
+    solver.add_request(pinned_request!({"var": "debug/on"}));
+    solver.add_request(pinned_request!("my-tool"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver)
         .await
@@ -990,8 +998,8 @@ async fn test_solver_build_from_source(#[case] mut solver: SolverImpl) {
 
     solver.reset();
     solver.add_repository(repo);
-    solver.add_request(request!({"var": "debug/on"}));
-    solver.add_request(request!("my-tool"));
+    solver.add_request(pinned_request!({"var": "debug/on"}));
+    solver.add_request(pinned_request!("my-tool"));
     solver.set_binary_only(true);
     // Should fail when binary-only is specified
 
@@ -1039,8 +1047,8 @@ async fn test_solver_build_from_source_unsolvable(#[case] mut solver: SolverImpl
     solver.set_binary_only(false);
     // the new option value should disqualify the existing build
     // and there is no 6.3 that can be resolved for this request
-    solver.add_request(request!({"var": "gcc/6.3"}));
-    solver.add_request(request!("my-tool:run"));
+    solver.add_request(pinned_request!({"var": "gcc/6.3"}));
+    solver.add_request(pinned_request!("my-tool:run"));
 
     let res = run_and_log_resolve_for_tests(&mut solver).await;
 
@@ -1121,7 +1129,7 @@ async fn test_solver_build_from_source_dependency(#[case] mut solver: SolverImpl
     // dependency and so should propose a source build instead
     solver.add_repository(Arc::new(repo));
     solver.set_binary_only(false);
-    solver.add_request(request!("my-tool"));
+    solver.add_request(pinned_request!("my-tool"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
@@ -1182,7 +1190,7 @@ async fn test_solver_build_from_source_dependency_but_hit_loop(#[case] mut solve
     // but a new one should be generated for this set of options
     solver.update_options(option_map! {"debug" => "on"});
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("my-tool/1.2.0"));
+    solver.add_request(pinned_request!("my-tool/1.2.0"));
     solver.set_binary_only(false);
 
     let res = run_and_log_resolve_for_tests(&mut solver).await;
@@ -1208,7 +1216,7 @@ async fn test_solver_deprecated_build(#[case] mut solver: SolverImpl) {
     let repo = Arc::new(repo);
 
     solver.add_repository(repo.clone());
-    solver.add_request(request!("my-pkg"));
+    solver.add_request(pinned_request!("my-pkg"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
     assert_resolved!(
@@ -1249,7 +1257,7 @@ async fn test_solver_deprecated_version(#[case] mut solver: SolverImpl) {
     let repo = Arc::new(repo);
 
     solver.add_repository(repo.clone());
-    solver.add_request(request!("my-pkg"));
+    solver.add_request(pinned_request!("my-pkg"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
     assert_resolved!(
@@ -1309,8 +1317,8 @@ async fn test_solver_build_from_source_deprecated(#[case] mut solver: SolverImpl
 
     solver.add_repository(Arc::new(repo));
     solver.set_binary_only(false);
-    solver.add_request(request!({"var": "debug/on"}));
-    solver.add_request(request!("my-tool"));
+    solver.add_request(pinned_request!({"var": "debug/on"}));
+    solver.add_request(pinned_request!("my-tool"));
 
     let res = run_and_print_resolve_for_tests(&mut solver).await;
     match res {
@@ -1359,8 +1367,8 @@ async fn test_solver_build_from_source_deprecated_and_impossible_initial_checks(
 
     solver.add_repository(Arc::new(repo));
     solver.set_binary_only(false);
-    solver.add_request(request!({"var": "debug/on"}));
-    solver.add_request(request!("my-tool"));
+    solver.add_request(pinned_request!({"var": "debug/on"}));
+    solver.add_request(pinned_request!("my-tool"));
     if let SolverImpl::Step(ref mut solver) = solver {
         solver.set_initial_request_impossible_checks(true);
     }
@@ -1415,7 +1423,7 @@ async fn test_solver_embedded_package_adds_request(#[case] mut solver: SolverImp
     );
 
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("maya"));
+    solver.add_request(pinned_request!("maya"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver)
         .await
@@ -1460,8 +1468,8 @@ async fn test_solver_embedded_package_solvable(#[case] mut solver: SolverImpl) {
     );
 
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("qt"));
-    solver.add_request(request!("maya"));
+    solver.add_request(pinned_request!("qt"));
+    solver.add_request(pinned_request!("maya"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
@@ -1496,7 +1504,7 @@ async fn resolve_src_package_with_embedded_package(#[case] mut solver: SolverImp
     );
 
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("maya:src/2019.2/src"));
+    solver.add_request(pinned_request!("maya:src/2019.2/src"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
@@ -1532,7 +1540,7 @@ async fn test_solver_embedded_package_unsolvable(#[case] mut solver: SolverImpl)
     );
 
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("my-plugin"));
+    solver.add_request(pinned_request!("my-plugin"));
 
     let res = run_and_print_resolve_for_tests(&mut solver).await;
     assert!(res.is_err());
@@ -1580,10 +1588,10 @@ async fn test_solver_embedded_package_replaces_real_package(#[case] mut solver: 
     solver.add_repository(Arc::new(repo));
     // Add qt to the request so "unwanted-dep" becomes part of the solution
     // temporarily.
-    solver.add_request(request!("qt"));
+    solver.add_request(pinned_request!("qt"));
     // Can't directly request "my-plugin" or it gets resolved before
     // "unwanted-dep" is added to solution.
-    solver.add_request(request!("thing-needs-plugin"));
+    solver.add_request(pinned_request!("thing-needs-plugin"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
@@ -1633,8 +1641,8 @@ async fn test_solver_initial_request_impossible_masks_embedded_package_solution(
     // Ask for the embedded qt package first to ensure the embedded
     // package support and the impossible checks on the initial
     // requests work correctly.
-    solver.add_request(request!("qt/5.12.6"));
-    solver.add_request(request!("maya"));
+    solver.add_request(pinned_request!("qt/5.12.6"));
+    solver.add_request(pinned_request!("maya"));
     if let SolverImpl::Step(ref mut solver) = solver {
         solver.set_initial_request_impossible_checks(true);
     }
@@ -1706,7 +1714,7 @@ async fn test_solver_impossible_request_but_embedded_package_makes_solvable(
     );
 
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("needs"));
+    solver.add_request(pinned_request!("needs"));
     if let SolverImpl::Step(ref mut solver) = solver {
         solver.set_resolve_validation_impossible_checks(true);
     }
@@ -1781,7 +1789,7 @@ async fn test_multiple_packages_embed_same_package(
     );
 
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("top-level"));
+    solver.add_request(pinned_request!("top-level"));
     if let SolverImpl::Step(ref mut solver) = solver {
         solver.set_resolve_validation_impossible_checks(resolve_validation_impossible_checks);
     }
@@ -1832,7 +1840,7 @@ async fn test_solver_with_impossible_checks_in_build_keys(#[case] mut solver: So
     repo.publish_recipe(&a_spec).await.unwrap();
 
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("pkg-top"));
+    solver.add_request(pinned_request!("pkg-top"));
     // This is to exercise the check. The missing dep2 package will
     // ensure that the package that depends on dep1 is chosen.
     if let SolverImpl::Step(ref mut solver) = solver {
@@ -1876,7 +1884,7 @@ async fn test_solver_some_versions_conflicting_requests(#[case] mut solver: Solv
     );
 
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("my-lib"));
+    solver.add_request(pinned_request!("my-lib"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
@@ -1911,8 +1919,8 @@ async fn test_solver_embedded_request_invalidates(#[case] mut solver: SolverImpl
     );
 
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("python"));
-    solver.add_request(request!("my-lib"));
+    solver.add_request(pinned_request!("python"));
+    solver.add_request(pinned_request!("my-lib"));
 
     let res = run_and_print_resolve_for_tests(&mut solver).await;
 
@@ -1933,8 +1941,8 @@ async fn test_solver_unknown_package_options(#[case] mut solver: SolverImpl) {
     solver.add_repository(repo.clone());
 
     // this option is specific to the my-lib package and is not known by the package
-    solver.add_request(request!({"var": "my-lib.something/value"}));
-    solver.add_request(request!("my-lib"));
+    solver.add_request(pinned_request!({"var": "my-lib.something/value"}));
+    solver.add_request(pinned_request!("my-lib"));
 
     let res = run_and_print_resolve_for_tests(&mut solver).await;
     assert!(res.is_err());
@@ -1942,7 +1950,7 @@ async fn test_solver_unknown_package_options(#[case] mut solver: SolverImpl) {
     // this time we don't request that option, and it should be ok
     solver.reset();
     solver.add_repository(repo);
-    solver.add_request(request!("my-lib"));
+    solver.add_request(pinned_request!("my-lib"));
     run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 }
 
@@ -1980,7 +1988,7 @@ async fn test_solver_var_requirements(#[case] mut solver: SolverImpl) {
     let repo = Arc::new(repo);
 
     solver.add_repository(repo.clone());
-    solver.add_request(request!("my-app/2"));
+    solver.add_request(pinned_request!("my-app/2"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
@@ -1990,7 +1998,7 @@ async fn test_solver_var_requirements(#[case] mut solver: SolverImpl) {
     // requesting the older version of my-app should force old python abi
     solver.reset();
     solver.add_repository(repo);
-    solver.add_request(request!("my-app/1"));
+    solver.add_request(pinned_request!("my-app/1"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
@@ -2031,9 +2039,9 @@ async fn test_solver_var_requirements_unresolve(#[case] mut solver: SolverImpl) 
 
     solver.add_repository(repo.clone());
     // python is resolved first to get 3.7
-    solver.add_request(request!("python"));
+    solver.add_request(pinned_request!("python"));
     // the addition of this app constrains the python.abi to 2.7
-    solver.add_request(request!("my-app/1"));
+    solver.add_request(pinned_request!("my-app/1"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
@@ -2043,9 +2051,9 @@ async fn test_solver_var_requirements_unresolve(#[case] mut solver: SolverImpl) 
     solver.reset();
     solver.add_repository(repo);
     // python is resolved first to get 3.7
-    solver.add_request(request!("python"));
+    solver.add_request(pinned_request!("python"));
     // the addition of this app constrains the global abi to 2.7
-    solver.add_request(request!("my-app/2"));
+    solver.add_request(pinned_request!("my-app/2"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
@@ -2085,19 +2093,19 @@ async fn test_solver_build_options_dont_affect_compat(#[case] mut solver: Solver
     solver.add_repository(repo.clone());
     // a gets resolved and adds options for debug/on and build-dep/1
     // to the set of options in the solver
-    solver.add_request(request!("pkga"));
+    solver.add_request(pinned_request!("pkga"));
     // b is not affected and can still be resolved
-    solver.add_request(request!("pkgb"));
+    solver.add_request(pinned_request!("pkgb"));
 
     run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
     solver.reset();
     solver.add_repository(repo.clone());
     solver.add_repository(repo);
-    solver.add_request(request!("pkga"));
-    solver.add_request(request!("pkgb"));
+    solver.add_request(pinned_request!("pkga"));
+    solver.add_request(pinned_request!("pkgb"));
     // this time the explicit request will cause a failure
-    solver.add_request(request!({"var": "build-dep/=1.0.0"}));
+    solver.add_request(pinned_request!({"var": "build-dep/=1.0.0"}));
 
     let res = run_and_print_resolve_for_tests(&mut solver).await;
     assert!(res.is_err());
@@ -2136,8 +2144,8 @@ async fn test_solver_option_compat_intersection(#[case] mut solver: SolverImpl) 
     ]);
 
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!({"var": "spi-platform/~2022.4.1.4"}));
-    solver.add_request(request!({"pkg": "openimageio"}));
+    solver.add_request(pinned_request!({"var": "spi-platform/~2022.4.1.4"}));
+    solver.add_request(pinned_request!({"pkg": "openimageio"}));
 
     let _ = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 }
@@ -2177,8 +2185,8 @@ async fn test_solver_components(#[case] mut solver: SolverImpl) {
     );
 
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("pkga"));
-    solver.add_request(request!("pkgb"));
+    solver.add_request(pinned_request!("pkga"));
+    solver.add_request(pinned_request!("pkgb"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
@@ -2259,8 +2267,8 @@ async fn test_solver_components_interaction_with_embeds(#[case] mut solver: Solv
     solver.add_repository(Arc::new(repo));
     // Deliberately not asking for comp2 of fake-pkg. This should be
     // included in the solution because it's required by victim.
-    solver.add_request(request!("fake-pkg:comp1"));
-    solver.add_request(request!("victim"));
+    solver.add_request(pinned_request!("fake-pkg:comp1"));
+    solver.add_request(pinned_request!("victim"));
 
     let Ok(solution) = run_and_print_resolve_for_tests(&mut solver)
         .await
@@ -2319,8 +2327,8 @@ async fn test_solver_components_when_no_components_requested(#[case] mut solver:
     );
 
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("pkga"));
-    solver.add_request(request!("pkgb"));
+    solver.add_request(pinned_request!("pkga"));
+    solver.add_request(pinned_request!("pkgb"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
@@ -2361,7 +2369,7 @@ async fn test_solver_src_package_request_when_no_components_requested(
     );
     solver.add_repository(Arc::new(repo));
 
-    let req = request!("mypkg/1.2.3/src");
+    let req = pinned_request!("mypkg/1.2.3/src");
     solver.add_request(req);
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
@@ -2397,7 +2405,7 @@ async fn test_solver_all_component(#[case] mut solver: SolverImpl) {
     );
 
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("python:all"));
+    solver.add_request(pinned_request!("python:all"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
@@ -2469,7 +2477,7 @@ async fn test_solver_component_availability(#[case] mut solver: SolverImpl) {
     repo.publish_recipe(&spec371).await.unwrap();
 
     solver.add_repository(Arc::new(repo));
-    solver.add_request(request!("python:bin"));
+    solver.add_request(pinned_request!("python:bin"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver)
         .await
@@ -2516,7 +2524,7 @@ async fn test_solver_component_requirements(#[case] mut solver: SolverImpl) {
     let repo = Arc::new(repo);
 
     solver.add_repository(repo.clone());
-    solver.add_request(request!("mypkg:build"));
+    solver.add_request(pinned_request!("mypkg:build"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
@@ -2526,7 +2534,7 @@ async fn test_solver_component_requirements(#[case] mut solver: SolverImpl) {
 
     solver.reset();
     solver.add_repository(repo);
-    solver.add_request(request!("mypkg:run"));
+    solver.add_request(pinned_request!("mypkg:run"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
@@ -2560,10 +2568,10 @@ async fn test_solver_component_requirements_extending(#[case] mut solver: Solver
 
     solver.add_repository(Arc::new(repo));
     // the initial resolve of this component will add no new requirements
-    solver.add_request(request!("depa:build"));
+    solver.add_request(pinned_request!("depa:build"));
     // depb has its own requirement on depa:run, which, also
     // has a new requirement on depc
-    solver.add_request(request!("depb"));
+    solver.add_request(pinned_request!("depb"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
@@ -2615,7 +2623,7 @@ async fn test_solver_component_embedded(#[case] mut solver: SolverImpl) {
     let repo = Arc::new(repo);
 
     solver.add_repository(repo.clone());
-    solver.add_request(request!("downstream1"));
+    solver.add_request(pinned_request!("downstream1"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
@@ -2627,7 +2635,7 @@ async fn test_solver_component_embedded(#[case] mut solver: SolverImpl) {
 
     solver.reset();
     solver.add_repository(repo);
-    solver.add_request(request!("downstream2"));
+    solver.add_request(pinned_request!("downstream2"));
 
     // should fail because the one embedded package
     // does not meet the requirements in downstream spec
@@ -2677,7 +2685,7 @@ async fn test_solver_component_embedded_component_requirements(
 
     solver.add_repository(repo);
     for package_to_request in packages_to_request {
-        solver.add_request(request!(package_to_request));
+        solver.add_request(pinned_request!(package_to_request));
     }
 
     match run_and_print_resolve_for_tests(&mut solver)
@@ -2750,7 +2758,7 @@ async fn test_solver_component_embedded_multiple_versions(
     let repo = Arc::new(repo);
 
     solver.add_repository(repo);
-    solver.add_request(request!(package_to_request));
+    solver.add_request(pinned_request!(package_to_request));
 
     match run_and_print_resolve_for_tests(&mut solver)
         .await
@@ -2803,8 +2811,8 @@ async fn test_solver_component_embedded_incompatible_requests(#[case] mut solver
     let repo = Arc::new(repo);
 
     solver.add_repository(repo);
-    solver.add_request(request!("mypkg:comp1"));
-    solver.add_request(request!("mypkg:comp2"));
+    solver.add_request(pinned_request!("mypkg:comp1"));
+    solver.add_request(pinned_request!("mypkg:comp2"));
 
     run_and_print_resolve_for_tests(&mut solver)
         .await
@@ -2825,7 +2833,7 @@ fn test_solver_get_request_validator() {
 #[tokio::test]
 async fn test_request_default_component() {
     let mut solver = StepSolver::default();
-    solver.add_request(request!("python/3.7.3"));
+    solver.add_request(pinned_request!("python/3.7.3"));
     let state = solver.get_initial_state();
     let request = state
         .get_pkg_requests()
@@ -3041,7 +3049,7 @@ async fn test_version_number_masking(
     solver.update_options(options);
     solver.add_repository(Arc::clone(&repo1.repo));
     solver.add_repository(Arc::clone(&repo2.repo));
-    solver.add_request(request!("my-pkg"));
+    solver.add_request(pinned_request!("my-pkg"));
     solver.add_request(
         VarRequest {
             var: opt_name!("color").to_owned(),
@@ -3082,7 +3090,7 @@ async fn request_for_all_component_picks_correct_version(
 
     solver.add_repository(repo);
     let request_str = format!("mypkg:all/{version}");
-    solver.add_request(request!(request_str));
+    solver.add_request(pinned_request!(request_str));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
     assert_resolved!(solution, "mypkg", version = version);
@@ -3147,7 +3155,7 @@ async fn build_options_not_checked_on_dependencies(#[case] mut solver: SolverImp
     solver.update_options(option_map! {
         "spi-platform" => "~2025.1.1.1"
     });
-    solver.add_request(request!("my-app"));
+    solver.add_request(pinned_request!("my-app"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
     assert_resolved!(solution, "my-app", "4.5.6");
@@ -3179,7 +3187,7 @@ async fn install_requirement_vars_found_in_solution(
     let repo = Arc::new(repo);
 
     solver.add_repository(repo);
-    solver.add_request(request!("mypkg"));
+    solver.add_request(pinned_request!("mypkg"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
     assert!(

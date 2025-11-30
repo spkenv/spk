@@ -11,8 +11,8 @@ use spk_exec::resolve_runtime_layers;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
-use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, Request, RequestedBy};
-use spk_schema::{Recipe, SpecRecipe};
+use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
+use spk_schema::{PinnedRequest, Recipe, SpecRecipe};
 use spk_solve::{DecisionFormatter, SolverExt, SolverMut};
 use spk_storage as storage;
 
@@ -28,7 +28,7 @@ where
     repos: Vec<Arc<storage::RepositoryHandle>>,
     solver: Solver,
     options: OptionMap,
-    additional_requirements: Vec<Request>,
+    additional_requirements: Vec<PinnedRequest>,
     source: Option<PathBuf>,
     env_formatter: DecisionFormatter,
 }
@@ -72,7 +72,10 @@ where
     }
 
     /// Specify additional requirements for the test environment
-    pub fn with_requirements(&mut self, requests: impl IntoIterator<Item = Request>) -> &mut Self {
+    pub fn with_requirements(
+        &mut self,
+        requests: impl IntoIterator<Item = PinnedRequest>,
+    ) -> &mut Self {
         self.additional_requirements.extend(requests);
         self
     }

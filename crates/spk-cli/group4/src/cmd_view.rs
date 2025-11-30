@@ -30,7 +30,7 @@ use spk_cli_common::{
 use spk_schema::foundation::format::{FormatChangeOptions, FormatRequest};
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::spec_ops::Named;
-use spk_schema::ident::{RangeIdent, Request};
+use spk_schema::ident::RangeIdent;
 use spk_schema::ident_component::Component;
 use spk_schema::name::PkgNameBuf;
 use spk_schema::version::Version;
@@ -38,6 +38,7 @@ use spk_schema::{
     AnyIdent,
     BuildIdent,
     Package,
+    PinnedRequest,
     RequirementsList,
     Spec,
     Template,
@@ -218,7 +219,7 @@ impl CommandArgs for View {
 #[derive(Serialize)]
 struct PrintVariant<'a> {
     options: Cow<'a, OptionMap>,
-    additional_requirements: Cow<'a, RequirementsList>,
+    additional_requirements: Cow<'a, RequirementsList<PinnedRequest>>,
 }
 
 #[derive(Serialize)]
@@ -817,7 +818,7 @@ impl View {
         };
 
         let mut request = match parsed_request {
-            Request::Pkg(pkg) => pkg,
+            PinnedRequest::Pkg(pkg) => pkg,
             _ => bail!("Not a package request: {parsed_request:?}"),
         };
 
@@ -966,7 +967,7 @@ impl View {
 
         solver.add_request(request.clone());
         let request = match request {
-            Request::Pkg(pkg) => pkg,
+            PinnedRequest::Pkg(pkg) => pkg,
 
             _ => bail!("Not a package request: {request:?}"),
         };

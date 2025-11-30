@@ -7,7 +7,7 @@ use std::borrow::Cow;
 use rstest::rstest;
 use spk_schema::prelude::HasVersion;
 use spk_schema::{Package, opt_name};
-use spk_solve_macros::{make_repo, request};
+use spk_solve_macros::{make_repo, pinned_request};
 use tap::TapFallible;
 
 use super::Solver;
@@ -23,7 +23,7 @@ async fn basic() {
     );
 
     let mut solver = Solver::new(vec![repo.into()], Cow::Borrowed(&[]));
-    solver.add_request(request!("basic"));
+    solver.add_request(pinned_request!("basic"));
     let solution = solver.solve().await.unwrap();
     assert_eq!(solution.len(), 1);
 }
@@ -39,7 +39,7 @@ async fn two_choices() {
     );
 
     let mut solver = Solver::new(vec![repo.into()], Cow::Borrowed(&[]));
-    solver.add_request(request!("basic"));
+    solver.add_request(pinned_request!("basic"));
     let solution = solver.solve().await.unwrap();
     assert_eq!(solution.len(), 1);
     // All things being equal it should pick the higher version
@@ -60,7 +60,7 @@ async fn two_choices_request_lower() {
     );
 
     let mut solver = Solver::new(vec![repo.into()], Cow::Borrowed(&[]));
-    solver.add_request(request!("basic/1.0.0"));
+    solver.add_request(pinned_request!("basic/1.0.0"));
     let solution = solver.solve().await.unwrap();
     assert_eq!(solution.len(), 1);
     assert_eq!(
@@ -80,7 +80,7 @@ async fn two_choices_request_missing() {
     );
 
     let mut solver = Solver::new(vec![repo.into()], Cow::Borrowed(&[]));
-    solver.add_request(request!("basic/1.0.0"));
+    solver.add_request(pinned_request!("basic/1.0.0"));
     let _solution = solver.solve().await.expect_err("Nothing satisfies 1.0.0");
 }
 
@@ -101,7 +101,7 @@ async fn package_with_dependency() {
     );
 
     let mut solver = Solver::new(vec![repo.into()], Cow::Borrowed(&[]));
-    solver.add_request(request!("needs-dep/1.0.0"));
+    solver.add_request(pinned_request!("needs-dep/1.0.0"));
     let solution = solver.solve().await.tap_err(|e| eprintln!("{e}")).unwrap();
     assert_eq!(solution.len(), 2);
 }
@@ -144,7 +144,7 @@ async fn package_with_dependency_on_variant(
     );
 
     let mut solver = Solver::new(vec![repo.into()], Cow::Borrowed(&[]));
-    solver.add_request(request!("needs-dep/1.0.0"));
+    solver.add_request(pinned_request!("needs-dep/1.0.0"));
     let solution = solver.solve().await.unwrap();
     assert_eq!(solution.len(), 2);
     let dep = solution.get("dep").unwrap();
@@ -189,7 +189,7 @@ async fn global_vars(#[case] global_spec: &str, #[case] expected_color: &str) {
     );
 
     let mut solver = Solver::new(vec![repo.into()], Cow::Borrowed(&[]));
-    solver.add_request(request!("needs-dep/1.0.0"));
+    solver.add_request(pinned_request!("needs-dep/1.0.0"));
     let solution = solver.solve().await.unwrap();
     assert_eq!(solution.len(), 2);
     let dep = solution.get("dep").unwrap();
@@ -216,7 +216,7 @@ async fn package_with_source_build() {
     );
 
     let mut solver = Solver::new(vec![repo.into()], Cow::Borrowed(&[]));
-    solver.add_request(request!("needs-dep/1.0.0"));
+    solver.add_request(pinned_request!("needs-dep/1.0.0"));
     solver
         .solve()
         .await

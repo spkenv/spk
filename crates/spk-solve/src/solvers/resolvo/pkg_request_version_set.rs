@@ -5,8 +5,14 @@
 use std::sync::Arc;
 
 use resolvo::utils::VersionSet;
-use spk_schema::Request;
-use spk_schema::ident::{LocatedBuildIdent, PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
+use spk_schema::ident::{
+    LocatedBuildIdent,
+    PinnedRequest,
+    PkgRequest,
+    PreReleasePolicy,
+    RangeIdent,
+    RequestedBy,
+};
 use spk_schema::ident_component::Component;
 use spk_schema::name::OptNameBuf;
 
@@ -74,7 +80,7 @@ impl std::fmt::Display for VarValue {
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) enum RequestVS {
-    SpkRequest(Request),
+    SpkRequest(PinnedRequest),
     GlobalVar { key: OptNameBuf, value: VarValue },
 }
 
@@ -135,7 +141,7 @@ impl LocatedBuildIdentWithComponent {
     pub(crate) fn as_request_with_components(
         &self,
         components: impl IntoIterator<Item = Component>,
-    ) -> Request {
+    ) -> PinnedRequest {
         let mut range_ident = RangeIdent::double_equals(&self.ident.to_any_ident(), components);
         range_ident.repository_name = Some(self.ident.repository_name().to_owned());
 
@@ -148,7 +154,7 @@ impl LocatedBuildIdentWithComponent {
         // needs to allow it.
         pkg_request.prerelease_policy = Some(PreReleasePolicy::IncludeAll);
 
-        Request::Pkg(pkg_request)
+        PinnedRequest::Pkg(pkg_request)
     }
 }
 

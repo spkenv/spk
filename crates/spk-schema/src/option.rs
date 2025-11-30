@@ -8,7 +8,7 @@ use std::str::FromStr;
 use indexmap::set::IndexSet;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
-use spk_schema_foundation::ident::{NameAndValue, PinnableValue, RangeIdent};
+use spk_schema_foundation::ident::{NameAndValue, PinnedRequest, PinnedValue, RangeIdent};
 use spk_schema_foundation::ident_component::ComponentBTreeSetBuf;
 use spk_schema_foundation::option_map::Stringified;
 use spk_schema_foundation::version::{Compat, IncompatibleReason, VarOptionProblem};
@@ -18,9 +18,9 @@ use crate::foundation::version::{CompatRule, Compatibility};
 use crate::foundation::version_range::{Ranged, VersionRange};
 use crate::ident::{
     InclusionPolicy,
+    PinnableRequest,
     PkgRequest,
     PreReleasePolicy,
-    Request,
     RequestedBy,
     VarRequest,
     parse_ident_range,
@@ -155,12 +155,12 @@ impl Opt {
     }
 }
 
-impl TryFrom<Request> for Opt {
+impl TryFrom<PinnableRequest> for Opt {
     type Error = Error;
     /// Create a build option from the given request."""
-    fn try_from(request: Request) -> Result<Opt> {
+    fn try_from(request: PinnableRequest) -> Result<Opt> {
         match request {
-            Request::Pkg(request) => {
+            PinnableRequest::Pkg(request) => {
                 let default = request.pkg.to_version_and_build_string().map_err(|err| {
                     Error::String(format!("failed to get version and build string: {err}"))
                 })?;
@@ -173,13 +173,48 @@ impl TryFrom<Request> for Opt {
                     required_compat: request.required_compat,
                 }))
             }
-            Request::Var(VarRequest {
+            PinnableRequest::Var(VarRequest {
                 var,
                 value,
                 description,
             }) => Ok(Opt::Var(VarOpt {
                 var,
                 default: value.as_pinned().map(str::to_string).unwrap_or_default(),
+                choices: Default::default(),
+                inheritance: Default::default(),
+                description,
+                compat: None,
+                value: None,
+            })),
+        }
+    }
+}
+
+impl TryFrom<PinnedRequest> for Opt {
+    type Error = Error;
+    /// Create a build option from the given request."""
+    fn try_from(request: PinnedRequest) -> Result<Opt> {
+        match request {
+            PinnedRequest::Pkg(request) => {
+                let default = request.pkg.to_version_and_build_string().map_err(|err| {
+                    Error::String(format!("failed to get version and build string: {err}"))
+                })?;
+                Ok(Opt::Pkg(PkgOpt {
+                    pkg: request.pkg.name.clone(),
+                    components: request.pkg.components.into(),
+                    default,
+                    prerelease_policy: request.prerelease_policy,
+                    value: None,
+                    required_compat: request.required_compat,
+                }))
+            }
+            PinnedRequest::Var(VarRequest {
+                var,
+                value,
+                description,
+            }) => Ok(Opt::Var(VarOpt {
+                var,
+                default: value.to_string(),
                 choices: Default::default(),
                 inheritance: Default::default(),
                 description,
@@ -460,11 +495,11 @@ impl VarOpt {
         }
     }
 
-    pub fn to_request(&self, given_value: Option<&str>) -> VarRequest {
+    pub fn to_request(&self, given_value: Option<&str>) -> VarRequest<PinnedValue> {
         let value = self.get_value(given_value).unwrap_or_default();
         VarRequest {
             var: self.var.clone(),
-            value: PinnableValue::Pinned(value.into()),
+            value: value.into(),
             description: self.description.clone(),
         }
     }

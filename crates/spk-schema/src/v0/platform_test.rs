@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 
 use rstest::rstest;
-use spk_schema_foundation::ident::{InclusionPolicy, Request};
+use spk_schema_foundation::ident::{InclusionPolicy, PinnedRequest};
 use spk_schema_foundation::option_map;
 use spk_schema_foundation::option_map::HOST_OPTIONS;
 
@@ -82,10 +82,10 @@ fn test_platform_add_pkg_requirement(#[case] spec: &str) {
 
     assert_eq!(build.install.requirements.len(), 1);
     assert!(
-        matches!(&build.install.requirements[0], Request::Pkg(pkg) if pkg.pkg.name() == "test-requirement")
+        matches!(&build.install.requirements[0], PinnedRequest::Pkg(pkg) if pkg.pkg.name() == "test-requirement")
     );
     assert!(
-        matches!(&build.install.requirements[0], Request::Pkg(pkg) if pkg.inclusion_policy == InclusionPolicy::IfAlreadyPresent)
+        matches!(&build.install.requirements[0], PinnedRequest::Pkg(pkg) if pkg.inclusion_policy == InclusionPolicy::IfAlreadyPresent)
     );
 }
 
@@ -135,10 +135,10 @@ fn test_platform_inheritance() {
 
     assert_eq!(build.install.requirements.len(), 2);
     assert!(
-        matches!(&build.install.requirements[0], Request::Pkg(pkg) if pkg.pkg.name() == "inherit-me")
+        matches!(&build.install.requirements[0], PinnedRequest::Pkg(pkg) if pkg.pkg.name() == "inherit-me")
     );
     assert!(
-        matches!(&build.install.requirements[1], Request::Pkg(pkg) if pkg.pkg.name() == "test-requirement")
+        matches!(&build.install.requirements[1], PinnedRequest::Pkg(pkg) if pkg.pkg.name() == "test-requirement")
     );
 }
 
@@ -193,9 +193,9 @@ fn test_platform_inheritance_with_override_and_removal() {
 
     assert_eq!(build.install.requirements.len(), 2);
     assert!(
-        matches!(&build.install.requirements[0], Request::Pkg(pkg) if pkg.pkg.name() == "inherit-me1" && pkg.pkg.version.to_string() == "2.0.0")
+        matches!(&build.install.requirements[0], PinnedRequest::Pkg(pkg) if pkg.pkg.name() == "inherit-me1" && pkg.pkg.version.to_string() == "2.0.0")
     );
     assert!(
-        matches!(&build.install.requirements[1], Request::Pkg(pkg) if pkg.pkg.name() == "inherit-me3")
+        matches!(&build.install.requirements[1], PinnedRequest::Pkg(pkg) if pkg.pkg.name() == "inherit-me3")
     );
 }

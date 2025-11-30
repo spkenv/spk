@@ -17,7 +17,15 @@ use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Compatibility;
-use spk_schema::ident::{AsVersionIdent, PkgRequest, Request, RequestedBy, Satisfy, VarRequest};
+use spk_schema::ident::{
+    AsVersionIdent,
+    PinnedRequest,
+    PinnedValue,
+    PkgRequest,
+    RequestedBy,
+    Satisfy,
+    VarRequest,
+};
 use spk_schema::ident_build::EmbeddedSource;
 use spk_schema::prelude::Named;
 use spk_schema::version::{ComponentsMissingProblem, IncompatibleReason, IsSameReasonAs};
@@ -350,14 +358,7 @@ impl Solver {
         }
         for var_request in state.get_var_requests() {
             if !opts.contains_key(&var_request.var) {
-                opts.insert(
-                    var_request.var.clone(),
-                    var_request
-                        .value
-                        .as_pinned()
-                        .unwrap_or_default()
-                        .to_string(),
-                );
+                opts.insert(var_request.var.clone(), var_request.value.to_string());
             }
         }
 
@@ -948,7 +949,7 @@ impl Solver {
         source: &PackageSource,
     ) -> Result<Compatibility>
     where
-        P: Package + Satisfy<PkgRequest> + Satisfy<VarRequest>,
+        P: Package + Satisfy<PkgRequest> + Satisfy<VarRequest<PinnedValue>>,
         <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequest>,
     {
         for validator in self.validators.as_ref() {
@@ -1138,7 +1139,7 @@ impl SolverTrait for Solver {
             .collect()
     }
 
-    fn get_var_requests(&self) -> Vec<VarRequest> {
+    fn get_var_requests(&self) -> Vec<VarRequest<PinnedValue>> {
         self.get_initial_state()
             .get_var_requests()
             .iter()
@@ -1153,9 +1154,9 @@ impl SolverTrait for Solver {
 
 #[async_trait::async_trait]
 impl SolverMut for Solver {
-    fn add_request(&mut self, request: Request) {
+    fn add_request(&mut self, request: PinnedRequest) {
         let request = match request {
-            Request::Pkg(mut request) => {
+            PinnedRequest::Pkg(mut request) => {
                 if request.pkg.components.is_empty() {
                     if request.pkg.is_source() {
                         request.pkg.components.insert(Component::Source);
@@ -1165,7 +1166,7 @@ impl SolverMut for Solver {
                 }
                 Change::RequestPackage(RequestPackage::new(request))
             }
-            Request::Var(request) => Change::RequestVar(RequestVar::new(request)),
+            PinnedRequest::Var(request) => Change::RequestVar(RequestVar::new(request)),
         };
         self.initial_state_builders.push(request);
     }

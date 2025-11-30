@@ -11,7 +11,7 @@ use spk_schema::foundation::env::data_path;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::{opt_name, option_map};
-use spk_schema::ident::{PkgRequest, RangeIdent, Request};
+use spk_schema::ident::{PinnedRequest, PkgRequest, RangeIdent};
 use spk_schema::{
     ComponentSpecList,
     Components,
@@ -99,7 +99,7 @@ fn test_var_with_build_assigns_build() {
     // ... a requirement is generated for that specific build.
     assert!(matches!(
         requirements.first().unwrap(),
-        Request::Pkg(PkgRequest {
+        PinnedRequest::Pkg(PkgRequest {
             pkg: RangeIdent { name, build: Some(digest), .. },
             ..
         })
@@ -258,7 +258,7 @@ async fn test_build_package_pinning(
     let spec = rt.tmprepo.read_package(spec.ident()).await.unwrap();
     let req = spec.runtime_requirements().first().unwrap().clone();
     match req {
-        Request::Pkg(req) => {
+        PinnedRequest::Pkg(req) => {
             assert_eq!(&req.pkg.to_string(), "dep/~1.0");
         }
         _ => panic!("expected a package request"),
@@ -321,7 +321,7 @@ async fn test_build_package_pinning_optional_requirement(#[case] solver: SolverI
         let spec = rt.tmprepo.read_package(spec.ident()).await.unwrap();
         let req = spec.runtime_requirements().first().unwrap().clone();
         match req {
-            Request::Pkg(req) => {
+            PinnedRequest::Pkg(req) => {
                 assert_eq!(req.pkg.to_string(), format!("{expected_dep}/Binary:1.0.0"));
             }
             _ => panic!("expected a package request"),
@@ -387,7 +387,7 @@ async fn test_build_package_pinning_optional_requirement_without_frombuildenv(
         let spec = rt.tmprepo.read_package(spec.ident()).await.unwrap();
         let req = spec.runtime_requirements().first().unwrap().clone();
         match req {
-            Request::Pkg(req) => {
+            PinnedRequest::Pkg(req) => {
                 assert_eq!(req.pkg.to_string(), *expected_dep);
             }
             _ => panic!("expected a package request"),
@@ -460,7 +460,7 @@ async fn test_build_var_pinning_optional_requirement(#[case] solver: SolverImpl)
         let req = spec
             .runtime_requirements()
             .iter()
-            .find(|r| matches!(r, Request::Var(_)))
+            .find(|r| matches!(r, PinnedRequest::Var(_)))
             .map(ToString::to_string);
         assert_eq!(req, expected_dep);
     }
@@ -545,12 +545,12 @@ async fn test_build_var_pinning(#[case] solver: SolverImpl) {
     let spec = rt.tmprepo.read_package(spec.ident()).await.unwrap();
     let top_req = spec.runtime_requirements().first().unwrap().clone();
     match top_req {
-        Request::Var(r) => assert_eq!(r.value.as_pinned(), Some("topvalue")),
+        PinnedRequest::Var(r) => assert_eq!(&*r.value, "topvalue"),
         _ => panic!("expected var request"),
     }
     let depreq = spec.runtime_requirements()[1].clone();
     match depreq {
-        Request::Var(r) => assert_eq!(r.value.as_pinned(), Some("depvalue")),
+        PinnedRequest::Var(r) => assert_eq!(&*r.value, "depvalue"),
         _ => panic!("expected var request"),
     }
 }
@@ -780,7 +780,7 @@ async fn test_default_build_component() {
     assert_eq!(requirements.len(), 1, "should have one build requirement");
     let req = requirements.first().unwrap();
     match req {
-        Request::Pkg(req) => {
+        PinnedRequest::Pkg(req) => {
             assert_eq!(
                 req.pkg.components,
                 vec![Component::default_for_build()].into_iter().collect(),
@@ -859,6 +859,7 @@ async fn test_build_add_startup_files(tmpdir: tempfile::TempDir, #[case] solver:
     rt.tmprepo.publish_recipe(&recipe).await.unwrap();
 
     let spec = recipe
+        .clone()
         .generate_binary_build(&option_map! {}, &Solution::default())
         .unwrap();
     BinaryPackageBuilder::from_recipe_with_solver(recipe, solver)
@@ -930,6 +931,7 @@ async fn test_build_priority_startup_files(tmpdir: tempfile::TempDir, #[case] so
     rt.tmprepo.publish_recipe(&recipe).await.unwrap();
 
     let spec = recipe
+        .clone()
         .generate_binary_build(&option_map! {}, &Solution::default())
         .unwrap();
     BinaryPackageBuilder::from_recipe_with_solver(recipe, solver)
@@ -1077,6 +1079,7 @@ async fn test_dependant_variable_substitution_in_startup_files(
     rt.tmprepo.publish_recipe(&recipe).await.unwrap();
 
     let spec = recipe
+        .clone()
         .generate_binary_build(&option_map! {}, &Solution::default())
         .unwrap();
     BinaryPackageBuilder::from_recipe_with_solver(recipe, solver)
