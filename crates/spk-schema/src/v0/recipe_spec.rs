@@ -59,6 +59,7 @@ use crate::{
     RuntimeEnvironment,
     SourceSpec,
     TestStage,
+    ValidationSpec,
     Variant,
 };
 
@@ -486,6 +487,10 @@ impl Recipe for RecipeSpec {
 
     fn metadata(&self) -> &Meta {
         &self.meta
+    }
+
+    fn validation(&self) -> &ValidationSpec {
+        &self.build.validation
     }
 }
 

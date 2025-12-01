@@ -108,6 +108,9 @@ pub trait Recipe:
 
     /// Return the metadata for this package.
     fn metadata(&self) -> &Meta;
+
+    /// Return the set of configured validators when building this package
+    fn validation(&self) -> &super::ValidationSpec;
 }
 
 impl<T> Recipe for std::sync::Arc<T>
@@ -173,6 +176,10 @@ where
     fn metadata(&self) -> &Meta {
         (**self).metadata()
     }
+
+    fn validation(&self) -> &super::ValidationSpec {
+        (**self).validation()
+    }
 }
 
 impl<T> Recipe for &T
@@ -237,5 +244,9 @@ where
 
     fn metadata(&self) -> &Meta {
         (**self).metadata()
+    }
+
+    fn validation(&self) -> &super::ValidationSpec {
+        (**self).validation()
     }
 }

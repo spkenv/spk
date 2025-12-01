@@ -52,6 +52,7 @@ use crate::{
     TemplateExt,
     Test,
     TestStage,
+    ValidationSpec,
     Variant,
     v0,
 };
@@ -402,6 +403,10 @@ impl Recipe for SpecRecipe {
 
     fn metadata(&self) -> &Meta {
         each_variant!(self, r, r.metadata())
+    }
+
+    fn validation(&self) -> &ValidationSpec {
+        each_variant!(self, r, r.validation())
     }
 }
 
@@ -766,12 +771,6 @@ impl Package for Spec {
     fn runtime_requirements(&self) -> Cow<'_, crate::RequirementsList<RequestWithOptions>> {
         match self {
             Spec::V0Package(spec) => spec.runtime_requirements(),
-        }
-    }
-
-    fn validation(&self) -> &super::ValidationSpec {
-        match self {
-            Spec::V0Package(spec) => spec.validation(),
         }
     }
 
