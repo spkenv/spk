@@ -40,11 +40,15 @@ pub struct Router {
 impl Router {
     /// Construct an empty router with no mounted filesystem views
     pub async fn new(repos: Vec<Arc<spfs::storage::RepositoryHandle>>) -> spfs::Result<Self> {
+        let dummy_spec = spfs::tracking::EnvSpec::try_from("spfs://root@default")
+            .unwrap_or_else(|_| spfs::tracking::EnvSpec::from_reference("default"));
         let default = Arc::new(Mount::new(
             tokio::runtime::Handle::current(),
             Vec::new(),
+            &dummy_spec,
             spfs::tracking::Manifest::default(),
         )?);
+
         Ok(Self {
             repos,
             routes: Arc::new(RwLock::new(HashMap::default())),
@@ -65,7 +69,7 @@ impl Router {
         }
         let manifest = manifest?;
         let rt = tokio::runtime::Handle::current();
-        let mount = Mount::new(rt, self.repos.clone(), manifest)?;
+        let mount = Mount::new(rt, self.repos.clone(), &env_spec, manifest)?;
         tracing::info!(%root_pid, env_spec=%env_spec.to_string(),"mounted");
         let mut routes = self.routes.write().expect("lock is never poisoned");
         if routes.contains_key(&root_pid) {
@@ -95,6 +99,14 @@ impl Router {
             }
         }
         Ok(Arc::clone(&self.default))
+    }
+
+    pub fn iter_mounts(&self) -> Vec<(u32, Arc<Mount>)> {
+        let routes = self.routes.read().expect("Lock is never poisoned");
+        routes
+            .iter()
+            .map(|(pid, mount)| (*pid, Arc::clone(mount)))
+            .collect()
     }
 }
 

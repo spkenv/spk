@@ -212,4 +212,27 @@ impl VfsService for Arc<Service> {
         }
         Ok(Response::new(proto::MountResponse {}))
     }
+
+    #[instrument(skip_all)]
+    async fn status(
+        &self,
+        _request: Request<proto::StatusRequest>,
+    ) -> std::result::Result<Response<proto::StatusResponse>, Status> {
+        let mounts: Vec<proto::MountInfo> = self
+            .router
+            .iter_mounts()
+            .into_iter()
+            .map(|(pid, mount)| proto::MountInfo {
+                root_pid: pid,
+                env_spec: mount.env_spec().to_string(),
+                editable: false,
+                runtime_name: String::new(),
+            })
+            .collect();
+
+        Ok(Response::new(proto::StatusResponse {
+            active_mounts: mounts.len() as u32,
+            mounts,
+        }))
+    }
 }

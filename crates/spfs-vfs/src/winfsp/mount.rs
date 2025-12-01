@@ -40,6 +40,7 @@ pub struct Mount {
     rt: tokio::runtime::Handle,
     repos: Vec<Arc<spfs::storage::RepositoryHandle>>,
     manifest: spfs::tracking::Manifest,
+    env_spec: String,
     security_descriptor: bytes::Bytes,
     next_inode: AtomicU64,
     inodes: DashMap<u64, Arc<Entry<u64>>>,
@@ -65,6 +66,7 @@ impl Mount {
     pub fn new(
         rt: tokio::runtime::Handle,
         repos: Vec<Arc<spfs::storage::RepositoryHandle>>,
+        env_spec: &spfs::tracking::EnvSpec,
         manifest: spfs::tracking::Manifest,
     ) -> spfs::Result<Self> {
         // This syntax describes the default security descriptor settings
@@ -104,6 +106,7 @@ impl Mount {
             rt,
             repos,
             manifest,
+            env_spec: env_spec.to_string(),
             security_descriptor,
             next_inode: AtomicU64::new(ROOT_INODE),
             inodes: Default::default(),
@@ -149,6 +152,10 @@ impl Mount {
         });
         self.inodes.insert(inode, Arc::clone(&entry));
         entry
+    }
+
+    pub fn env_spec(&self) -> &str {
+        &self.env_spec
     }
 
     fn attr_from_entry(&self, entry: &Entry<u64>) -> u32 {
