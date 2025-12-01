@@ -48,6 +48,31 @@ sudo chown $(whoami) /spfs
 
 From the root of the SPK repository:
 
+### Option A: Using Make (Recommended)
+
+The Makefile automatically detects macOS and builds the correct binaries:
+
+```bash
+# Build debug binaries
+make build
+
+# Or build release binaries
+make release
+
+# Install debug binaries and set up /spfs mount point
+make install-debug
+
+# Or install release binaries
+make install
+```
+
+The Makefile handles:
+- Building `spfs-cli-fuse-macos` (the macOS-specific FUSE service)
+- Creating the `/spfs` mount point with proper ownership
+- Installing binaries to `/usr/local/bin`
+
+### Option B: Using Cargo Directly
+
 ```bash
 # Build the macOS FUSE service binary
 cargo build --release -p spfs-cli-fuse-macos

@@ -61,7 +61,9 @@ make build FEATURES=spfs/protobuf-src
 
 ### Binaries and Capabilities
 
-SPFS builds into a number of separate binaries, all of which can be run through the main `spfs` binary. Some of these binaries require special capabilities to be set in order to function properly. The `setcap` Makefile target can be used to set these capabilities on your locally-compiled debug binaries.
+SPFS builds into a number of separate binaries, all of which can be run through the main `spfs` binary. Some of these binaries require special capabilities to be set in order to function properly.
+
+**Linux**: The `setcap` Makefile target can be used to set these capabilities on your locally-compiled debug binaries.
 
 ```sh
 # assign the necessary capabilities to the debug binaries
@@ -70,6 +72,8 @@ make setcap bindir=$PWD/target/debug
 # alternatively, assign the capabilities and install the debug binaries
 make install
 ```
+
+**macOS**: Capabilities are not used on macOS. Instead, SPFS uses macFUSE for filesystem operations. See the [macOS section](#macos) below for setup instructions.
 
 ### RPM Package
 
@@ -225,6 +229,61 @@ Remove-Item -Path "$Env:TEMP\flatc.zip"
     [Environment]::GetEnvironmentVariable("Path", [EnvironmentVariableTarget]::Machine) + ";C:\Program Files\Google\flatc",
     [EnvironmentVariableTarget]::Machine)
 ```
+
+### macOS
+
+SPFS on macOS uses macFUSE to provide filesystem functionality. The main Makefile automatically detects macOS and uses the appropriate platform-specific targets.
+
+#### Prerequisites
+
+First, install macFUSE and other build dependencies:
+
+```sh
+# Install macFUSE (required for SPFS)
+brew install --cask macfuse
+
+# Install build dependencies
+brew install cmake protobuf pkg-config openssl
+```
+
+**Apple Silicon users**: You may need to enable kernel extensions in Recovery Mode:
+1. Restart and hold the power button until "Loading startup options" appears
+2. Click Options → Continue
+3. From the menu bar, choose Utilities → Startup Security Utility
+4. Select your startup disk and click Security Policy
+5. Enable "Reduced Security" and check "Allow user management of kernel extensions"
+6. Restart and approve the macFUSE extension in System Settings
+
+#### Install FlatBuffers Compiler
+
+```sh
+FB_REL=https://github.com/google/flatbuffers/releases/
+curl --proto '=https' --tlsv1.2 -sSfL ${FB_REL}/download/v23.5.26/Mac.flatc.binary.zip -o /tmp/flatc.zip
+cd /tmp && unzip -o flatc.zip
+sudo mv flatc /usr/local/bin/flatc
+sudo chmod +x /usr/local/bin/flatc
+rm /tmp/flatc.zip
+```
+
+#### Build and Install
+
+```sh
+# Build SPFS and SPK
+make build
+
+# Install debug binaries and set up /spfs mount point
+make install-debug
+
+# Or install release binaries
+make install
+```
+
+The Makefile will automatically:
+- Build `spfs-cli-fuse-macos` (the macOS-specific FUSE service)
+- Create the `/spfs` mount point with proper ownership
+- Skip the Linux `setcap` step (not needed on macOS)
+
+For more details on using SPFS on macOS, see the [macOS Getting Started Guide](docs/spfs/macos-getting-started.md).
 
 ### Other Dependencies
 

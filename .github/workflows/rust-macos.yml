@@ -1,0 +1,148 @@
+name: Rust macOS
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-test-macos:
+    name: macOS Build and Test
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      # Define a local origin repo for tests to use
+      SPFS_REMOTE_origin_ADDRESS: "file:///tmp/spfs-repos/origin"
+      SPFS_SUPPRESS_OVERLAYFS_PARAMS_WARNING: "1"
+      # Enable sccache for rust
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
+    steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.11.0
+      
+      - uses: actions/checkout@v4
+      
+      - name: Setup rust toolchain
+        run: rustup show
+      
+      - name: Install Dependencies
+        run: |
+          # Install build dependencies via Homebrew
+          brew install cmake protobuf pkg-config openssl
+          
+          # Install macFUSE
+          brew install --cask macfuse
+          
+          # Install nightly toolchain for formatting
+          rustup install nightly
+          rustup component add clippy
+          rustup component add rustfmt --toolchain nightly
+      
+      - name: Install FlatBuffers Compiler
+        run: |
+          FB_REL=https://github.com/google/flatbuffers/releases/
+          curl --proto '=https' --tlsv1.2 -sSfL ${FB_REL}/download/v23.5.26/Mac.flatc.binary.zip -o /tmp/flatc.zip
+          cd /tmp && unzip -o flatc.zip
+          sudo mv flatc /usr/local/bin/flatc
+          sudo chmod +x /usr/local/bin/flatc
+          rm /tmp/flatc.zip
+      
+      - name: Verify macFUSE Installation
+        run: |
+          echo "Checking for macFUSE kernel extension..."
+          if ! kextstat 2>/dev/null | grep -q fuse; then
+            echo "WARNING: macFUSE kernel extension not loaded"
+            echo "This may cause tests to fail"
+            echo "Note: GitHub Actions runners may not support kernel extensions"
+          else
+            echo "macFUSE kernel extension is loaded"
+          fi
+      
+      - name: Configure cargo
+        run: |
+          mkdir -p .cargo
+          cat << EOF > .cargo/config.toml
+          [build]
+          # Disable incremental compilation to lower disk usage, and sccache
+          # can't cache incremental compiles.
+          incremental = false
+
+          [profile.dev]
+          # Disable debug information to lower disk usage.
+          debug = false
+          EOF
+      
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.9
+      
+      - name: Restore ast-grep cache
+        id: restore-ast-grep-macos
+        uses: actions/cache@v4
+        with:
+          path: /Users/runner/.cargo/bin/ast-grep
+          key: ast-grep-${{ runner.os }}
+          restore-keys: |
+            ast-grep-${{ runner.os }}
+      
+      - name: Install ast-grep
+        if: steps.restore-ast-grep-macos.outputs.cache-hit != 'true'
+        # --force because cache-hit can be false (matched a partial key?) and
+        # then this command will fail if the previous step did restore the file.
+        run: cargo install --locked --force ast-grep
+      
+      # Use the same FEATURES in these different steps to avoid recompiling
+      # as much as possible. Note: macOS uses different features than Linux
+      # (macfuse-backend instead of fuse-backend)
+      - name: Build
+        run: make debug FEATURES=server,spfs/server,spfs-vfs/macfuse-backend
+      
+      - name: Install Debug Binaries
+        run: make install-debug-spfs FEATURES=server,spfs/server,spfs-vfs/macfuse-backend
+      
+      - name: Setup /spfs mount point
+        run: make setup-spfs-mount
+      
+      - name: Setup a local origin repo
+        run: SPFS_REMOTE_origin_ADDRESS="${SPFS_REMOTE_origin_ADDRESS}?create=true" spfs ls-tags -r origin
+      
+      # Run test before lint, lint takes a while and it is useful to know that
+      # the tests are failing before knowing if the lints are passing.
+      - name: Run Unit Tests
+        run: make test FEATURES=server,spfs/server,spfs-vfs/macfuse-backend
+      
+      - name: Lint
+        run: make lint FEATURES=server,spfs/server,spfs-vfs/macfuse-backend
+      
+      - name: Lint Package Specs
+        run: |
+          export PATH="$PWD/target/debug:$PATH"
+          make packages.lint
+      
+      - name: Configure SPFS for Integration tests
+        run: |
+          sudo mkdir -p /etc
+          sudo tee /etc/spfs.toml << EOF
+          [environment]
+          variable_names_to_preserve = ["TMPDIR"]
+          EOF
+      
+      - name: SPFS Integration Tests
+        run: |
+          # Run integration tests
+          # Note: macOS doesn't support mount namespaces, so some tests may be skipped
+          crates/spfs/tests/integration/run_tests.sh
+        continue-on-error: true  # Allow to fail initially while we stabilize macOS support
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-test-results
+          path: |
+            target/debug
+            /tmp/spfs-*

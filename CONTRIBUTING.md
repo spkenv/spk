@@ -104,7 +104,11 @@ own repository on GitHub.
    ```sh
    git checkout -b mytopic main
    # ... do your edits ...
+   make build  # Automatically uses platform-specific Makefile
+   make test
    ```
+
+   Note: The Makefile automatically detects your platform (Linux, macOS, or Windows) and uses the appropriate platform-specific configuration (`Makefile.linux`, `Makefile.macos`, or `Makefile.windows`).
 
 1. Push your changes to your fork (each unrelated pull request to a separate "topic branch", please).
 

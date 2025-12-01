@@ -1,0 +1,88 @@
+SPK_VERSION = $(shell grep Version spk.spec | cut -d ' ' -f 2)
+SPFS_VERSION = $(shell cat spfs.spec | grep Version | cut -d ' ' -f 2)
+CARGO_TARGET_DIR := $(shell \
+	if test -f .cargo/config.toml; \
+	then (grep target-dir .cargo/config.toml || echo target) | sed -sE 's|.*"(.*)".*|\1|'; \
+	else echo target; \
+	fi)
+
+# macOS uses the macFUSE-based FUSE service
+spfs_packages := $(spfs_packages),spfs-cli-fuse-macos
+
+prefix ?= /usr/local
+bindir ?= $(prefix)/bin
+
+install-debug-spfs: copy-debug-spfs setup-spfs-mount
+
+install-debug-spk: copy-debug-spk
+
+install-debug: install-debug-spfs install-debug-spk
+
+install: copy-release setup-spfs-mount
+
+install-spfs: copy-spfs setup-spfs-mount
+
+install-dirs:
+	mkdir -p '$(DESTDIR)$(bindir)'
+
+copy-debug: copy-debug-spfs copy-debug-spk
+
+copy-debug-spfs: debug-spfs install-dirs
+	for bin in $(CARGO_TARGET_DIR)/debug/spfs*; do install -p -m 755 $$bin '$(DESTDIR)$(bindir)'; done
+
+copy-debug-spk: debug install-dirs
+	install -p -m 755 $(CARGO_TARGET_DIR)/debug/spk '$(DESTDIR)$(bindir)'
+
+copy-release: release copy-spfs install-dirs
+	install -p -m 755 $(CARGO_TARGET_DIR)/release/spk '$(DESTDIR)$(bindir)'
+
+copy-spfs: release-spfs install-dirs
+	for bin in $(CARGO_TARGET_DIR)/release/spfs*; do install -p -m 755 $$bin '$(DESTDIR)$(bindir)'; done
+
+# macOS-specific: setup /spfs mount point with proper ownership
+setup-spfs-mount:
+	@if [ ! -d /spfs ]; then \
+		echo "Creating /spfs mount point..."; \
+		sudo mkdir -p /spfs; \
+		sudo chown $$(whoami) /spfs; \
+		echo "/spfs created and owned by $$(whoami)"; \
+	else \
+		echo "/spfs already exists"; \
+	fi
+
+# macOS doesn't use setcap - macFUSE handles permissions
+# This is a no-op to maintain compatibility with Linux workflows
+setcap:
+	@echo "setcap not needed on macOS (using macFUSE permissions)"
+
+# Check for macFUSE installation
+check-macfuse:
+	@echo "Checking for macFUSE..."
+	@if ! kextstat 2>/dev/null | grep -q fuse; then \
+		echo "WARNING: macFUSE kernel extension not loaded"; \
+		echo "Install with: brew install --cask macfuse"; \
+		echo ""; \
+		echo "Apple Silicon users may need to:"; \
+		echo "  1. Restart and hold power button until 'Loading startup options'"; \
+		echo "  2. Click Options → Continue"; \
+		echo "  3. Utilities → Startup Security Utility"; \
+		echo "  4. Enable 'Reduced Security' and 'Allow user management of kernel extensions'"; \
+		echo "  5. Restart and approve the macFUSE extension in System Settings"; \
+		exit 1; \
+	else \
+		echo "macFUSE kernel extension is loaded"; \
+	fi
+
+.PHONY: check-copyrights
+check-copyrights: check-copyrights-exist check-copyrights-spacing
+
+.PHONY: check-copyrights-exist
+check-copyrights-exist:
+	# basic check to ensure that the copyright appears in each source file
+	grep -LR --include="*.rs" "// Copyright (c) Contributors to the SPK project." ./crates/ || exit 1
+
+.PHONY: check-copyrights-spacing
+check-copyrights-spacing:
+	# basic check to ensure that the copyright notice is followed by
+	# a blank line, as this ensures good automated import management
+	grep -zLRP --include="*.rs" "// https://github.com/spkenv/spk\s{2}" ./crates/ || exit 1
