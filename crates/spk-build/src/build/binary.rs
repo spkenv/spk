@@ -606,7 +606,7 @@ where
             let mut writer = std::fs::File::create(&build_script)
                 .map_err(|err| Error::FileOpenError(build_script.to_owned(), err))?;
             writer
-                .write_all(package.build_script().as_bytes())
+                .write_all(self.recipe.build_script().as_bytes())
                 .map_err(|err| Error::String(format!("Failed to save build script: {err}")))?;
             writer
                 .sync_data()

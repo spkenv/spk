@@ -171,6 +171,10 @@ impl Recipe for RecipeSpec {
         self.build.build_digest(self.pkg.name(), variant)
     }
 
+    fn build_script(&self) -> String {
+        self.build.script.join("\n")
+    }
+
     fn default_variants(&self, options: &OptionMap) -> Cow<'_, Vec<Self::Variant>> {
         if self.build.variants.is_empty() {
             Cow::Owned(vec![super::Variant::from_build_options(

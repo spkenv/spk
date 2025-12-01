@@ -335,6 +335,10 @@ impl Recipe for SpecRecipe {
         each_variant!(self, r, Recipe::build_digest(r, variant))
     }
 
+    fn build_script(&self) -> String {
+        each_variant!(self, r, r.build_script())
+    }
+
     fn default_variants(&self, options: &OptionMap) -> Cow<'_, Vec<Self::Variant>> {
         each_variant!(
             self,
@@ -771,12 +775,6 @@ impl Package for Spec {
     fn runtime_requirements(&self) -> Cow<'_, crate::RequirementsList<RequestWithOptions>> {
         match self {
             Spec::V0Package(spec) => spec.runtime_requirements(),
-        }
-    }
-
-    fn build_script(&self) -> String {
-        match self {
-            Spec::V0Package(spec) => spec.build_script(),
         }
     }
 

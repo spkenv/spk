@@ -65,6 +65,9 @@ pub trait Recipe:
     where
         V: Variant;
 
+    /// Return the build script for building this recipe.
+    fn build_script(&self) -> String;
+
     /// Return the default variants defined in this recipe.
     ///
     /// The prevailing option overrides are needed to return a correct default
@@ -130,6 +133,10 @@ where
         V: Variant,
     {
         (**self).build_digest(variant)
+    }
+
+    fn build_script(&self) -> String {
+        (**self).build_script()
     }
 
     fn default_variants(&self, options: &OptionMap) -> Cow<'_, Vec<Self::Variant>> {
@@ -199,6 +206,10 @@ where
         V: Variant,
     {
         (**self).build_digest(variant)
+    }
+
+    fn build_script(&self) -> String {
+        (**self).build_script()
     }
 
     fn default_variants(&self, options: &OptionMap) -> Cow<'_, Vec<Self::Variant>> {

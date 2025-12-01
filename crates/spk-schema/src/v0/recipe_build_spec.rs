@@ -322,11 +322,7 @@ impl From<v0::EmbeddedBuildSpec> for RecipeBuildSpec {
         RecipeBuildSpec {
             options: value.options,
             // Other fields are not part of the embedded build spec
-            auto_host_vars: Default::default(),
-            raw_variants: Default::default(),
-            script: Script::default(),
-            validation: Default::default(),
-            variants: Default::default(),
+            ..Default::default()
         }
     }
 }
@@ -340,12 +336,8 @@ impl From<v0::EmbeddedBuildSpec> for RecipeBuildSpec {
 impl From<BuildSpec> for RecipeBuildSpec {
     fn from(value: BuildSpec) -> Self {
         RecipeBuildSpec {
-            script: value.script,
             options: value.options,
-            raw_variants: Default::default(),
-            variants: Default::default(),
-            validation: Default::default(),
-            auto_host_vars: Default::default(),
+            ..Default::default()
         }
     }
 }
