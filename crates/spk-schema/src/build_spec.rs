@@ -267,20 +267,6 @@ impl BuildSpec {
         Ok((resolved, opts))
     }
 
-    /// Add or update an option in this build spec.
-    ///
-    /// An option is replaced if it shares a name with the given option,
-    /// otherwise the option is appended to the build options
-    pub fn upsert_opt(&mut self, opt: Opt) {
-        for other in self.options.iter_mut() {
-            if other.full_name() == opt.full_name() {
-                let _ = std::mem::replace(other, opt);
-                return;
-            }
-        }
-        self.options.push(opt);
-    }
-
     pub(crate) fn build_digest<V>(&self, pkg_name: &PkgName, variant: &V) -> Result<BuildId>
     where
         V: Variant,
