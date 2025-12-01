@@ -78,7 +78,7 @@ impl From<EmbeddedInstallSpec> for InstallSpec<PinnedRequest> {
             requirements: embedded.requirements,
             embedded: EmbeddedPackagesList::default(),
             components: embedded.components,
-            environment: embedded.environment,
+            environment: EnvOpList::default(),
         }
     }
 }
