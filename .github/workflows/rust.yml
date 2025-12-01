@@ -147,7 +147,7 @@ jobs:
 
   build-and-test-macos:
     name: macOS Build and Test
-    runs-on: macos-latest
+    runs-on: macos-26
     timeout-minutes: 60
     env:
       # Define a local origin repo for tests to use
