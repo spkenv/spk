@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use futures::Stream;
 use spfs_encoding as encoding;
 
-use crate::graph::ObjectProto;
+use crate::graph::{FoundDigest, ObjectProto};
 use crate::storage::prelude::*;
 use crate::tracking::BlobRead;
 use crate::{Error, Result, graph};
@@ -63,10 +63,10 @@ where
         self.inner.read_object(digest).await
     }
 
-    fn find_digests(
+    fn find_digests<'a>(
         &self,
-        search_criteria: graph::DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+        search_criteria: &'a graph::DigestSearchCriteria,
+    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>> {
         self.inner.find_digests(search_criteria)
     }
 
@@ -78,10 +78,7 @@ where
         self.inner.walk_objects(root)
     }
 
-    async fn resolve_full_digest(
-        &self,
-        partial: &encoding::PartialDigest,
-    ) -> Result<encoding::Digest> {
+    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<FoundDigest> {
         self.inner.resolve_full_digest(partial).await
     }
 }
@@ -127,21 +124,20 @@ where
         self.inner.has_payload(digest).await
     }
 
+    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+        self.inner.payload_size(digest).await
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         self.inner.iter_payload_digests()
     }
 
-    async unsafe fn write_data(
-        &self,
-        reader: Pin<Box<dyn BlobRead>>,
-    ) -> Result<(encoding::Digest, u64)> {
+    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
         // payloads are stored by digest, not time, and so can still
         // be safely written to a past repository view. In practice,
         // this allows some recovery and sync operations to still function
         // on pinned repositories
-
-        // Safety: we are simply calling the same inner unsafe function
-        unsafe { self.inner.write_data(reader).await }
+        self.inner.write_data(reader).await
     }
 
     async fn open_payload(
@@ -152,6 +148,14 @@ where
     }
 
     async fn remove_payload(&self, _digest: encoding::Digest) -> Result<()> {
+        Err(Error::RepositoryIsPinned)
+    }
+
+    async fn remove_payload_if_older_than(
+        &self,
+        _older_than: DateTime<Utc>,
+        _digest: encoding::Digest,
+    ) -> Result<bool> {
         Err(Error::RepositoryIsPinned)
     }
 }

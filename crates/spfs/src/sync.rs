@@ -26,6 +26,7 @@ use tokio::sync::Semaphore;
 
 use crate::graph::AnnotationValue;
 use crate::prelude::*;
+use crate::sync::reporter::SyncItemResult;
 use crate::{Error, Result, encoding, graph, storage, tracking};
 
 /// The default limit for concurrent manifest sync operations
@@ -202,14 +203,17 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         tracing::debug!(?item, "Syncing item");
         self.reporter.visit_env_item(&item);
         let res = match item {
-            tracking::EnvSpecItem::Digest(digest) => self
-                .sync_digest(digest)
-                .await
-                .map(SyncEnvItemResult::Object)?,
-            tracking::EnvSpecItem::PartialDigest(digest) => self
-                .sync_partial_digest(digest)
-                .await
-                .map(SyncEnvItemResult::Object)?,
+            tracking::EnvSpecItem::Digest(digest) => match self.sync_object_digest(digest).await {
+                Ok(r) => SyncEnvItemResult::Object(r),
+                Err(Error::UnknownObject(digest)) => self
+                    .sync_payload(digest)
+                    .await
+                    .map(SyncEnvItemResult::Payload)?,
+                Err(e) => return Err(e),
+            },
+            tracking::EnvSpecItem::PartialDigest(digest) => {
+                self.sync_partial_digest(digest).await.map(Into::into)?
+            }
             tracking::EnvSpecItem::TagSpec(tag_spec) => {
                 self.sync_tag(tag_spec).await.map(SyncEnvItemResult::Tag)?
             }
@@ -229,7 +233,14 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         }
         self.reporter.visit_tag(&tag);
         let resolved = self.src.resolve_tag(&tag).await?;
-        let result = self.sync_digest(resolved.target).await?;
+        let result = match self.sync_object_digest(resolved.target).await {
+            Ok(r) => SyncItemResult::Object(r),
+            Err(Error::UnknownObject(digest)) => self
+                .sync_payload(digest)
+                .await
+                .map(SyncItemResult::Payload)?,
+            Err(e) => return Err(e),
+        };
         self.dest.insert_tag(&resolved).await?;
         let res = SyncTagResult::Synced { tag, result };
         self.reporter.synced_tag(&res);
@@ -239,9 +250,9 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
     pub async fn sync_partial_digest(
         &self,
         partial: encoding::PartialDigest,
-    ) -> Result<SyncObjectResult> {
-        let mut res = self.src.resolve_full_digest(&partial).await;
-        res = match res {
+    ) -> Result<SyncItemResult> {
+        let res = self.src.resolve_full_digest(&partial).await;
+        let found_digest = match res {
             Err(err) if self.policy.check_existing_objects() => {
                 // there is a chance that this digest points to an existing object in
                 // dest, which we don't want to fail on unless requested. In theory,
@@ -257,12 +268,20 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
                     .map_err(|_| err)
             }
             res => res,
-        };
-        let obj = self.read_object_with_fallback(res?).await?;
-        self.sync_object(obj).await
+        }?;
+        match found_digest {
+            graph::FoundDigest::Object(digest) => {
+                let obj_result = self.sync_object_digest(digest).await?;
+                Ok(SyncItemResult::Object(obj_result))
+            }
+            graph::FoundDigest::Payload(digest) => {
+                let payload_result = self.sync_payload(digest).await?;
+                Ok(SyncItemResult::Payload(payload_result))
+            }
+        }
     }
 
-    pub async fn sync_digest(&self, digest: encoding::Digest) -> Result<SyncObjectResult> {
+    pub async fn sync_object_digest(&self, digest: encoding::Digest) -> Result<SyncObjectResult> {
         // don't write the digest here, as that is the responsibility
         // of the function that actually handles the data copying.
         // a short-circuit is still nice when possible, though
@@ -299,7 +318,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
 
         let mut futures = FuturesUnordered::new();
         for digest in platform.iter_bottom_up() {
-            futures.push(self.sync_digest(*digest));
+            futures.push(self.sync_object_digest(*digest));
         }
         let mut results = Vec::with_capacity(futures.len());
         while let Some(result) = futures.try_next().await? {
@@ -405,7 +424,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
                     return Ok(SyncAnnotationResult::Duplicate);
                 }
                 self.reporter.visit_annotation(&annotation);
-                let sync_result = self.sync_digest(*digest).await?;
+                let sync_result = self.sync_payload(*digest).await?;
                 let res = SyncAnnotationResult::Synced {
                     digest: *digest,
                     result: Box::new(sync_result),
@@ -447,21 +466,14 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
             return Ok(SyncBlobResult::Duplicate);
         }
 
-        if self.policy.check_existing_objects()
-            && self.dest.has_object(*digest).await
-            && self.dest.has_payload(*blob.payload()).await
-        {
+        if self.policy.check_existing_objects() && self.dest.has_payload(*blob.payload()).await {
             self.processed_digests.insert(*digest);
             return Ok(SyncBlobResult::Skipped);
         }
         self.reporter.visit_blob(blob);
-        // Safety: sync_payload is unsafe to call unless the blob
-        // is synced with it, which is the purpose of this function.
-        let result = unsafe {
-            self.sync_payload_with_perms_opt(*blob.payload(), perms)
-                .await?
-        };
-        self.dest.write_blob(blob.to_owned()).await?;
+        let result = self
+            .sync_payload_with_perms_opt(*blob.payload(), perms)
+            .await?;
         self.processed_digests.insert(*digest);
         let res = SyncBlobResult::Synced {
             blob: blob.to_owned(),
@@ -472,26 +484,13 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
     }
 
     /// Sync a payload with the provided digest
-    ///
-    /// # Safety
-    ///
-    /// It is unsafe to call this sync function on its own,
-    /// as any payload should be synced alongside its
-    /// corresponding Blob instance - use [`Self::sync_blob`] instead
-    pub async unsafe fn sync_payload(&self, digest: encoding::Digest) -> Result<SyncPayloadResult> {
-        // Safety: these concerns are passed on to the caller
-        unsafe { self.sync_payload_with_perms_opt(digest, None).await }
+    pub async fn sync_payload(&self, digest: encoding::Digest) -> Result<SyncPayloadResult> {
+        self.sync_payload_with_perms_opt(digest, None).await
     }
 
     /// Sync a payload with the provided digest and optional set
     /// of desired permissions.
-    ///
-    /// # Safety
-    ///
-    /// It is unsafe to call this sync function on its own,
-    /// as any payload should be synced alongside its
-    /// corresponding Blob instance - use [`Self::sync_blob`] instead
-    pub(crate) async unsafe fn sync_payload_with_perms_opt(
+    pub(crate) async fn sync_payload_with_perms_opt(
         &self,
         digest: encoding::Digest,
         perms: Option<u32>,
@@ -515,9 +514,7 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
             payload = Box::pin(payload.with_permissions(perms));
         }
 
-        // Safety: this is the unsafe part where we actually create
-        // the payload without a corresponding blob
-        let (created_digest, size) = unsafe { self.dest.write_data(payload).await? };
+        let (created_digest, size) = self.dest.write_data(payload).await?;
         if digest != created_digest {
             return Err(Error::String(format!(
                 "Source repository provided payload that did not match the requested digest: wanted {digest}, got {created_digest}. wrote {size} bytes",

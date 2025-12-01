@@ -170,7 +170,7 @@ async fn test_sync_ref_including_annotation_blob(
     // Set up an annotation in a blob for this test
     let value = "this is a test annotation blob for syncing";
     let annotation_digest = repo_a
-        .commit_blob(Box::pin(std::io::Cursor::new(
+        .commit_payload(Box::pin(std::io::Cursor::new(
             value.to_owned().into_bytes(),
         )))
         .await
@@ -205,7 +205,7 @@ async fn test_sync_ref_including_annotation_blob(
             .has_object(layer_with_annotation.digest().unwrap())
             .await
     );
-    assert!(repo_b.has_object(annotation_digest).await);
+    assert!(repo_b.has_payload(annotation_digest).await);
 
     Syncer::new(&repo_b, &repo_a)
         .sync_ref("testing")
@@ -218,7 +218,7 @@ async fn test_sync_ref_including_annotation_blob(
             .has_object(layer_with_annotation.digest().unwrap())
             .await
     );
-    assert!(repo_a.has_object(annotation_digest).await);
+    assert!(repo_a.has_payload(annotation_digest).await);
 }
 
 #[rstest]
@@ -275,7 +275,7 @@ async fn test_sync_missing_from_source(
     let platform_digest = platform.digest().unwrap();
     let partial = platform_digest[..10].into();
     syncer
-        .sync_digest(platform_digest)
+        .sync_object_digest(platform_digest)
         .await
         .expect("Should not fail when object is already in destination");
     syncer

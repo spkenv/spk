@@ -4,6 +4,7 @@
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+use std::path::Path;
 use std::pin::Pin;
 
 use chrono::{DateTime, Utc};
@@ -12,7 +13,7 @@ use encoding::prelude::*;
 use futures::{Stream, StreamExt, TryFutureExt};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-use crate::graph::{DatabaseView, Object, ObjectProto};
+use crate::graph::{DatabaseView, FoundDigest, Object, ObjectProto};
 use crate::{Error, Result, encoding, graph};
 
 #[async_trait::async_trait]
@@ -28,10 +29,10 @@ impl DatabaseView for super::MaybeOpenFsRepository {
         self.opened().await?.read_object(digest).await
     }
 
-    fn find_digests(
+    fn find_digests<'a>(
         &self,
-        search_criteria: graph::DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+        search_criteria: &'a graph::DigestSearchCriteria,
+    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>> {
         self.opened()
             .map_ok(|opened| opened.find_digests(search_criteria))
             .try_flatten_stream()
@@ -46,10 +47,7 @@ impl DatabaseView for super::MaybeOpenFsRepository {
         graph::DatabaseWalker::new(self, *root)
     }
 
-    async fn resolve_full_digest(
-        &self,
-        partial: &encoding::PartialDigest,
-    ) -> Result<encoding::Digest> {
+    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<FoundDigest> {
         self.opened().await?.resolve_full_digest(partial).await
     }
 }
@@ -105,11 +103,20 @@ impl DatabaseView for super::OpenFsRepository {
         Object::new(buf)
     }
 
-    fn find_digests(
+    fn find_digests<'a>(
         &self,
-        search_criteria: graph::DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
-        Box::pin(self.objects.find(search_criteria))
+        search_criteria: &'a graph::DigestSearchCriteria,
+    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>> {
+        Box::pin(
+            self.objects
+                .find(search_criteria)
+                .map(|d| d.map(FoundDigest::Object))
+                .chain(
+                    self.payloads
+                        .find(search_criteria)
+                        .map(|d| d.map(FoundDigest::Payload)),
+                ),
+        )
     }
 
     fn iter_objects(&self) -> graph::DatabaseIterator<'_> {
@@ -120,12 +127,57 @@ impl DatabaseView for super::OpenFsRepository {
         graph::DatabaseWalker::new(self, *root)
     }
 
-    async fn resolve_full_digest(
-        &self,
-        partial: &encoding::PartialDigest,
-    ) -> Result<encoding::Digest> {
-        self.objects.resolve_full_digest(partial).await
+    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<FoundDigest> {
+        match self.objects.resolve_full_digest(partial).await {
+            Ok(digest) => Ok(FoundDigest::Object(digest)),
+            Err(_) => {
+                let digest = self.payloads.resolve_full_digest(partial).await?;
+                Ok(FoundDigest::Payload(digest))
+            }
+        }
     }
+}
+
+/// Remove the file at `filepath` if it is older than `older_than`.
+///
+/// Returns true if the file was removed, false if it was not.
+pub(crate) async fn remove_file_if_older_than(
+    older_than: DateTime<Utc>,
+    filepath: &Path,
+    digest: encoding::Digest,
+) -> crate::Result<bool> {
+    let metadata = tokio::fs::symlink_metadata(&filepath)
+        .await
+        .map_err(|err| match err.kind() {
+            std::io::ErrorKind::NotFound => Error::UnknownObject(digest),
+            _ => {
+                Error::StorageReadError("symlink_metadata on digest path", filepath.to_owned(), err)
+            }
+        })?;
+
+    let mtime = metadata.modified().map_err(|err| {
+        Error::StorageReadError(
+            "modified on symlink metadata of digest path",
+            filepath.to_owned(),
+            err,
+        )
+    })?;
+
+    if DateTime::<Utc>::from(mtime) >= older_than {
+        return Ok(false);
+    }
+
+    if let Err(err) = tokio::fs::remove_file(&filepath).await {
+        return match err.kind() {
+            std::io::ErrorKind::NotFound => Ok(true),
+            _ => Err(Error::StorageWriteError(
+                "remove_file in remove_file_if_older_than",
+                filepath.to_owned(),
+                err,
+            )),
+        };
+    }
+    Ok(true)
 }
 
 #[async_trait::async_trait]
@@ -157,51 +209,17 @@ impl graph::Database for super::OpenFsRepository {
         digest: encoding::Digest,
     ) -> crate::Result<bool> {
         let filepath = self.objects.build_digest_path(&digest);
-
-        // this might fail but we don't consider that fatal just yet
-        #[cfg(unix)]
-        let _ = tokio::fs::set_permissions(&filepath, std::fs::Permissions::from_mode(0o777)).await;
-
-        let metadata = tokio::fs::symlink_metadata(&filepath)
-            .await
-            .map_err(|err| match err.kind() {
-                std::io::ErrorKind::NotFound => Error::UnknownObject(digest),
-                _ => Error::StorageReadError(
-                    "symlink_metadata on digest path",
-                    filepath.clone(),
-                    err,
-                ),
-            })?;
-
-        let mtime = metadata.modified().map_err(|err| {
-            Error::StorageReadError(
-                "modified on symlink metadata of digest path",
-                filepath.clone(),
-                err,
-            )
-        })?;
-
-        if DateTime::<Utc>::from(mtime) >= older_than {
-            return Ok(false);
-        }
-
-        if let Err(err) = tokio::fs::remove_file(&filepath).await {
-            return match err.kind() {
-                std::io::ErrorKind::NotFound => Ok(true),
-                _ => Err(Error::StorageWriteError(
-                    "remove_file on object file in remove_object_if_older_than",
-                    filepath,
-                    err,
-                )),
-            };
-        }
-        Ok(true)
+        remove_file_if_older_than(older_than, &filepath, digest).await
     }
 }
 
 #[async_trait::async_trait]
 impl graph::DatabaseExt for super::OpenFsRepository {
     async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
+        if matches!(obj.to_enum(), graph::object::Enum::Blob(_)) {
+            return Err("writing blob objects is not permitted".into());
+        };
+
         let digest = obj.digest()?;
         let filepath = self.objects.build_digest_path(&digest);
         if filepath.exists() {

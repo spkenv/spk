@@ -37,9 +37,10 @@ message DigestSearchCriteria {
 
 message FindDigestsRequest { DigestSearchCriteria search_criteria = 1; }
 message FindDigestsResponse {
+    reserved 2;
     oneof result {
         Error error = 1;
-        Digest ok = 2;
+        FoundDigest ok = 3;
     }
 }
 

@@ -318,7 +318,7 @@ where
                 spec.ident().format_ident(),
             );
             let syncer = spfs::Syncer::new(repo, &local_repo).with_reporter(reporter());
-            syncer.sync_digest(digest).await?;
+            syncer.sync_object_digest(digest).await?;
         }
     }
 

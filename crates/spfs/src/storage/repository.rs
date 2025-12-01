@@ -43,7 +43,6 @@ pub trait Repository:
     + super::TagStorage
     + super::PayloadStorage
     + super::ManifestStorage
-    + super::BlobStorage
     + super::LayerStorage
     + super::PlatformStorage
     + graph::Database
@@ -53,6 +52,8 @@ pub trait Repository:
     + Sync
 {
     /// Return true if this repository contains the given reference.
+    ///
+    /// This does not work for payload digests.
     async fn has_ref(&self, reference: &str) -> bool {
         self.read_ref(reference).await.is_ok()
     }
@@ -67,10 +68,18 @@ pub trait Repository:
 
         let partial = encoding::PartialDigest::parse(reference)
             .map_err(|_| Error::UnknownReference(reference.to_string()))?;
-        self.resolve_full_digest(&partial).await
+        // This will discover the type of item but discard it. Do callers want
+        // this information? A new type could be added to wrap FoundDigest with
+        // a variant that doesn't have the type information. Note how resolving
+        // a tag above does not determine the type, or require the item exists.
+        self.resolve_full_digest(&partial)
+            .await
+            .map(|found_digest| found_digest.into_digest())
     }
 
     /// Read an object of unknown type by tag or digest.
+    ///
+    /// This does not work for payload digests.
     async fn read_ref(&self, reference: &str) -> Result<graph::Object> {
         let digest = self.resolve_ref(reference).await?;
         self.read_object(digest).await
@@ -107,7 +116,6 @@ impl<T> Repository for T where
         + super::TagStorage
         + super::PayloadStorage
         + super::ManifestStorage
-        + super::BlobStorage
         + super::LayerStorage
         + super::PlatformStorage
         + graph::Database
@@ -120,13 +128,9 @@ impl<T> Repository for T where
 
 #[async_trait]
 pub trait RepositoryExt: super::PayloadStorage + graph::DatabaseExt {
-    /// Commit the data from 'reader' as a blob in this repository
-    async fn commit_blob(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
-        // Safety: it is unsafe to write data without also creating a blob
-        // to track that payload, which is exactly what this function is doing
-        let (digest, size) = unsafe { self.write_data(reader).await? };
-        let blob = graph::Blob::new(digest, size);
-        self.write_object(&blob).await?;
+    /// Commit the data from 'reader' as a payload in this repository
+    async fn commit_payload(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
+        let (digest, _size) = self.write_data(reader).await?;
         Ok(digest)
     }
 }

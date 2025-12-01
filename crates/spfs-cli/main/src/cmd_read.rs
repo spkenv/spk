@@ -8,6 +8,10 @@ use spfs::Error;
 use spfs::prelude::*;
 use spfs_cli_common as cli;
 
+#[cfg(test)]
+#[path = "./cmd_read_test.rs"]
+mod cmd_read_test;
+
 /// Output the contents of a blob to stdout
 #[derive(Debug, Args)]
 #[clap(visible_aliases = &["read-file", "cat", "cat-file"])]
@@ -26,24 +30,27 @@ pub struct CmdRead {
 
 impl CmdRead {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
+        use spfs::graph::object::Enum;
+
         let repo =
             spfs::config::open_repository_from_string(config, self.repos.remote.as_ref()).await?;
 
         #[cfg(feature = "sentry")]
         tracing::info!(target: "sentry", "using repo: {}", repo.address());
 
-        let item = repo.read_ref(&self.reference.to_string()).await?;
-        use spfs::graph::object::Enum;
-        let blob = match item.to_enum() {
-            Enum::Blob(blob) => blob,
-            _ => {
+        let digest = match repo.read_ref(&self.reference.to_string()).await.map(|fb| {
+            let fb_enum = fb.to_enum();
+            (fb, fb_enum)
+        }) {
+            Ok((_, Enum::Blob(blob))) => *blob.digest(),
+            Ok((obj, _)) => {
                 let path = match &self.path {
                     None => {
-                        miette::bail!("PATH must be given to read from {:?}", item.kind());
+                        miette::bail!("PATH must be given to read from {:?}", obj.kind());
                     }
                     Some(p) => p.strip_prefix("/spfs").unwrap_or(p).to_string(),
                 };
-                let manifest = spfs::compute_object_manifest(item, &repo).await?;
+                let manifest = spfs::compute_object_manifest(obj, &repo).await?;
                 let entry = match manifest.get_path(&path) {
                     Some(e) => e,
                     None => {
@@ -55,11 +62,15 @@ impl CmdRead {
                     tracing::error!("path is a directory or masked file: {path}");
                     return Ok(1);
                 }
-                repo.read_blob(entry.object).await?
+                entry.object
+            }
+            Err(Error::UnknownObject(digest)) => digest,
+            Err(err) => {
+                return Err(err.into());
             }
         };
 
-        let (mut payload, filename) = repo.open_payload(*blob.digest()).await?;
+        let (mut payload, filename) = repo.open_payload(digest).await?;
         tokio::io::copy(&mut payload, &mut tokio::io::stdout())
             .await
             .map_err(|err| Error::StorageReadError("copy of payload to stdout", filename, err))?;

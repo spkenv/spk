@@ -20,6 +20,8 @@ async fn test_read_write_manifest(
     repo: TempRepo,
     tmpdir: tempfile::TempDir,
 ) {
+    use crate::graph::FoundDigest;
+
     let dir = tmpdir.path();
     let repo = repo.await;
     std::fs::File::create(dir.join("file.txt")).unwrap();
@@ -40,11 +42,11 @@ async fn test_read_write_manifest(
     repo.write_object(&manifest2).await.unwrap();
 
     let digests: crate::Result<Vec<_>> = repo
-        .find_digests(crate::graph::DigestSearchCriteria::All)
+        .find_digests(&crate::graph::DigestSearchCriteria::All)
         .collect()
         .await;
     let digests = digests.unwrap();
-    assert!(digests.contains(&expected));
+    assert!(digests.contains(&FoundDigest::Object(expected)));
 }
 
 #[rstest]
