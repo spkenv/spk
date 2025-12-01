@@ -22,19 +22,55 @@ use crate::{ComponentSpec, DeprecateMut, Opt, RuntimeEnvironment};
 mod package_test;
 
 /// Macro to forward trait implementations to references, boxes, and Arcs
+///
+/// The code passed to this macro can make use of a `clone!(self)` macro that
+/// will clone the inner value if needed.
+#[macro_export]
 macro_rules! forward_to_impl {
-    ($trait_name:ident, { $($item:item)* }) => {
+    (arc = true, $trait_name:ident, { $($item:item)* }) => {
+        #[allow(unused_macros)]
+        macro_rules! clone {
+            ($expr:expr) => {
+                std::sync::Arc::unwrap_or_clone($expr)
+            };
+        }
+
         impl<T: $trait_name + Send + Sync> $trait_name for std::sync::Arc<T> {
             $($item)*
+        }
+    };
+    (box = true, $trait_name:ident, { $($item:item)* }) => {
+        #[allow(unused_macros)]
+        macro_rules! clone {
+            ($expr:expr) => {
+                (*$expr).clone()
+            };
         }
 
         impl<T: $trait_name + Send + Sync> $trait_name for Box<T> {
             $($item)*
         }
+    };
+    (ref_t = true, $trait_name:ident, { $($item:item)* }) => {
+        #[allow(unused_macros)]
+        macro_rules! clone {
+            ($expr:expr) => {
+                (*$expr).clone()
+            };
+        }
 
         impl<T: $trait_name + Send + Sync> $trait_name for &T {
             $($item)*
         }
+    };
+    (box = false, $trait_name:ident, { $($item:item)* }) => {
+        forward_to_impl!(arc = true, $trait_name, { $($item)* });
+        forward_to_impl!(ref_t = true, $trait_name, { $($item)* });
+    };
+    ($trait_name:ident, { $($item:item)* }) => {
+        forward_to_impl!(arc = true, $trait_name, { $($item)* });
+        forward_to_impl!(box = true, $trait_name, { $($item)* });
+        forward_to_impl!(ref_t = true, $trait_name, { $($item)* });
     };
 }
 
