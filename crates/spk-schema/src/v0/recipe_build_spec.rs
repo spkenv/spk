@@ -344,7 +344,7 @@ impl From<BuildSpec> for RecipeBuildSpec {
             options: value.options,
             raw_variants: Default::default(),
             variants: Default::default(),
-            validation: value.validation,
+            validation: Default::default(),
             auto_host_vars: Default::default(),
         }
     }

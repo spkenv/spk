@@ -12,7 +12,7 @@ use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::name::PkgName;
 use spk_schema_foundation::option_map::{OptionMap, Stringified};
 
-use super::{Opt, ValidationSpec, v0};
+use super::{Opt, v0};
 use crate::option::PkgOpt;
 use crate::v0::RecipeBuildSpec;
 use crate::{Error, Result, Script, Variant};
@@ -30,8 +30,6 @@ pub struct BuildSpec {
     pub script: Script,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub options: Vec<Opt>,
-    #[serde(default, skip_serializing_if = "ValidationSpec::is_default")]
-    pub validation: ValidationSpec,
 }
 
 impl BuildSpec {
@@ -195,7 +193,6 @@ impl From<v0::EmbeddedBuildSpec> for BuildSpec {
             options: value.options,
             // Other fields are not part of the embedded build spec
             script: Script::default(),
-            validation: Default::default(),
         }
     }
 }
@@ -229,7 +226,6 @@ impl From<RecipeBuildSpec> for BuildSpec {
         BuildSpec {
             script: value.script,
             options: value.options,
-            validation: value.validation,
         }
     }
 }
@@ -291,9 +287,6 @@ impl<'de> Deserialize<'de> for UncheckedBuildSpec {
                                 }
                                 unique_options.insert(full_name);
                             }
-                        }
-                        "validation" => {
-                            unchecked.validation = map.next_value::<ValidationSpec>()?
                         }
                         _ => {
                             // for forwards compatibility we ignore any unrecognized

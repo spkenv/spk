@@ -73,7 +73,6 @@ use crate::{
     Result,
     RuntimeEnvironment,
     SourceSpec,
-    ValidationSpec,
 };
 
 #[cfg(test)]
@@ -479,10 +478,6 @@ impl Package for PackageSpec {
         _components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList> {
         self.downstream_requirements(|o| o.inheritance() == Inheritance::Strong)
-    }
-
-    fn validation(&self) -> &ValidationSpec {
-        &self.build.validation
     }
 
     fn build_script(&self) -> String {
