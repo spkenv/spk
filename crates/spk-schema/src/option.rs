@@ -390,6 +390,7 @@ impl std::hash::Hash for VarOpt {
         }
         self.inheritance.hash(state);
         self.description.hash(state);
+        self.compat.hash(state);
         self.value.hash(state)
     }
 }
@@ -413,6 +414,10 @@ impl Ord for VarOpt {
             ord => return ord,
         }
         let _ = self.description.cmp(&other.value);
+        match self.compat.cmp(&other.compat) {
+            std::cmp::Ordering::Equal => {}
+            ord => return ord,
+        }
         self.value.cmp(&other.value)
     }
 }
