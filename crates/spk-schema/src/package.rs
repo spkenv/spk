@@ -196,9 +196,6 @@ pub trait Package:
         &self,
         components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList>;
-
-    /// Return the build script for building package
-    fn build_script(&self) -> String;
 }
 
 pub trait PackageMut: Package + DeprecateMut {
@@ -268,9 +265,5 @@ forward_to_impl!(Package, {
         components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList> {
         (**self).downstream_runtime_requirements(components)
-    }
-
-    fn build_script(&self) -> String {
-        (**self).build_script()
     }
 });
