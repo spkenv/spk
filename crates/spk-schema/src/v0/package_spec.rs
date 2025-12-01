@@ -173,7 +173,7 @@ impl PackageSpec {
             recipe.compat,
             recipe.deprecated,
             recipe.sources,
-            recipe.build,
+            recipe.build.into(),
             recipe.tests,
             InstallSpec::default(),
         );
