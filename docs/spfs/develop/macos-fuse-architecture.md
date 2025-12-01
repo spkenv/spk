@@ -364,14 +364,29 @@ message MountRequest {
 
 ## Usage
 
-### Starting the Service
+### Automatic Service Management
+
+SPFS automatically starts the macFUSE service the first time you run a command that needs `/spfs`:
 
 ```bash
-# Start the macFUSE service daemon
+# Service starts automatically - no manual setup needed
+spfs shell my-package/1.0.0
+
+# The background service keeps running for subsequent commands
+pgrep -f spfs-fuse-macos
+```
+
+### Starting the Service Manually
+
+```bash
+# Start the macFUSE service daemon (foreground)
 spfs-fuse-macos service /spfs
 
-# Or with custom listen address
+# Start with custom listen address
 spfs-fuse-macos service --listen 127.0.0.1:9999 /spfs
+
+# Stop the background service
+spfs-fuse-macos service --stop
 ```
 
 ### Mounting an Environment
