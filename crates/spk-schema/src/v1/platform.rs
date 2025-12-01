@@ -35,6 +35,7 @@ use crate::ident::is_false;
 use crate::metadata::Meta;
 use crate::option::VarOpt;
 use crate::v0::{PackageSpec, TestSpec};
+use crate::validation::DEFAULT_VALIDATION_SPEC;
 use crate::{
     BuildEnv,
     BuildSpec,
@@ -50,6 +51,7 @@ use crate::{
     RuntimeEnvironment,
     Script,
     TestStage,
+    ValidationSpec,
     Variant,
 };
 
@@ -276,6 +278,10 @@ impl Recipe for Platform {
 
     fn metadata(&self) -> &Meta {
         &self.meta
+    }
+
+    fn validation(&self) -> &ValidationSpec {
+        &DEFAULT_VALIDATION_SPEC
     }
 }
 
