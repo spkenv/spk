@@ -21,10 +21,8 @@ use crate::{
     Components,
     Deprecate,
     DeprecateMut,
-    EnvOp,
     RecipeComponentSpec,
     Result,
-    RuntimeEnvironment,
     SourceSpec,
 };
 
@@ -123,12 +121,6 @@ impl HasVersion for EmbeddedRecipeSpec {
 impl Named for EmbeddedRecipeSpec {
     fn name(&self) -> &PkgName {
         self.pkg.name()
-    }
-}
-
-impl RuntimeEnvironment for EmbeddedRecipeSpec {
-    fn runtime_environment(&self) -> &[EnvOp] {
-        &self.install.environment
     }
 }
 
