@@ -9,12 +9,24 @@
 //! so the runtime model is simplified to FUSE-only operation.
 
 use std::path::Path;
+use std::process::Stdio;
+use std::time::{Duration, Instant};
 
 use crate::config::OverlayFsOptions;
 use crate::{Error, Result, runtime};
+use tokio::process::Command;
+use tokio::time::timeout;
+use tonic::transport::Endpoint;
+
+
 
 pub const SPFS_DIR: &str = "/spfs";
 pub const SPFS_DIR_PREFIX: &str = "/spfs/";
+
+const MACOS_FUSE_SERVICE_ADDR: &str = "127.0.0.1:37738";
+const SERVICE_STARTUP_TIMEOUT_SECS: u64 = 10;
+const MAX_SERVICE_START_RETRIES: u32 = 5;
+const SERVICE_CHECK_TIMEOUT_MS: u64 = 100;
 
 /// Overlay arguments constant - required for compatibility but not used on macOS.
 #[allow(dead_code)]
@@ -120,6 +132,7 @@ impl RuntimeConfigurator {
     /// Mount the provided runtime via the macFUSE backend.
     #[cfg(feature = "fuse-backend")]
     pub async fn mount_env_fuse(&self, rt: &runtime::Runtime) -> Result<()> {
+        ensure_service_running().await?;
         self.mount_fuse_onto(rt, SPFS_DIR).await
     }
 
@@ -232,6 +245,7 @@ impl RootConfigurator {
     /// Mount the provided runtime via the macFUSE backend.
     #[cfg(feature = "fuse-backend")]
     pub async fn mount_env_fuse(&self, rt: &runtime::Runtime) -> Result<()> {
+        ensure_service_running().await?;
         RuntimeConfigurator.mount_fuse_onto(rt, SPFS_DIR).await
     }
 
@@ -243,6 +257,11 @@ impl RootConfigurator {
     /// Unmount the FUSE filesystem.
     async fn unmount_env_fuse(&self, _rt: &runtime::Runtime, lazy: bool) -> Result<()> {
         tracing::debug!(%lazy, "unmounting existing fuse env @ {SPFS_DIR}...");
+
+        if !service_is_running(MACOS_FUSE_SERVICE_ADDR).await {
+            tracing::debug!("macFUSE service not running, nothing to unmount");
+            return Ok(());
+        }
 
         // Use umount on macOS
         let flags = if lazy { "-f" } else { "" };
@@ -388,3 +407,122 @@ pub fn get_overlay_args<P: AsRef<Path>>(
 ) -> Result<String> {
     Err("overlayfs is not supported on macOS".into())
 }
+
+async fn service_is_running(addr: &str) -> bool {
+    let endpoint = match Endpoint::from_shared(format!("http://{addr}")) {
+        Ok(endpoint) => endpoint,
+        Err(_) => return false,
+    };
+
+    timeout(Duration::from_millis(SERVICE_CHECK_TIMEOUT_MS), endpoint.connect())
+        .await
+        .ok()
+        .and_then(|result| result.ok())
+        .is_some()
+}
+
+async fn start_service_background() -> Result<()> {
+    let spfs_fuse = crate::resolve::which_spfs("fuse-macos")
+        .ok_or_else(|| Error::MissingBinary("spfs-fuse-macos"))?;
+
+    let mut cmd = Command::new(&spfs_fuse);
+    cmd.arg("service")
+        .arg(SPFS_DIR)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null());
+
+    #[cfg(unix)]
+    {
+        #[allow(unused_imports)]
+        use std::os::unix::process::CommandExt;
+        unsafe {
+            cmd.pre_exec(|| {
+                nix::unistd::setsid()
+                    .map(|_| ())
+                    .map_err(|err| std::io::Error::from_raw_os_error(err as i32))
+            });
+        }
+    }
+
+    tracing::debug!(?spfs_fuse, "starting macFUSE service in background");
+
+    cmd.spawn()
+        .map(|_| ())
+        .map_err(|e| Error::process_spawn_error("spfs-fuse-macos service", e, None))?;
+
+    Ok(())
+}
+
+async fn wait_for_service_ready(addr: &str, timeout: Duration) -> Result<()> {
+    let start = Instant::now();
+    let mut backoff = Duration::from_millis(50);
+    const MAX_BACKOFF: Duration = Duration::from_millis(500);
+
+    while start.elapsed() < timeout {
+        if service_is_running(addr).await {
+            tracing::debug!(elapsed_ms = start.elapsed().as_millis(), "service is ready");
+            return Ok(());
+        }
+
+        tokio::time::sleep(backoff).await;
+        backoff = std::cmp::min(backoff * 2, MAX_BACKOFF);
+    }
+
+    Err(Error::String(format!(
+        "macFUSE service did not start within {} seconds. \
+         Ensure macFUSE is installed: brew install --cask macfuse",
+        timeout.as_secs()
+    )))
+}
+
+pub async fn ensure_service_running() -> Result<()> {
+    let addr = MACOS_FUSE_SERVICE_ADDR;
+
+    for attempt in 0..MAX_SERVICE_START_RETRIES {
+        if service_is_running(addr).await {
+            if attempt > 0 {
+                tracing::debug!(attempt, "service detected after retry");
+            }
+            return Ok(());
+        }
+
+        if attempt == 0 {
+            tracing::info!("macFUSE service not running, starting automatically...");
+        }
+
+        match start_service_background().await {
+            Ok(()) => {
+                let timeout = Duration::from_secs(SERVICE_STARTUP_TIMEOUT_SECS);
+                match wait_for_service_ready(addr, timeout).await {
+                    Ok(()) => {
+                        tracing::info!("macFUSE service started successfully");
+                        return Ok(());
+                    }
+                    Err(e) if attempt < MAX_SERVICE_START_RETRIES - 1 => {
+                        tracing::debug!(attempt, error = %e, "service start attempt failed, retrying");
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+            Err(e) if attempt < MAX_SERVICE_START_RETRIES - 1 => {
+                tracing::debug!(attempt, error = %e, "service start failed, checking if another process started it");
+                let backoff = Duration::from_millis(100 * (1 << attempt));
+                tokio::time::sleep(backoff).await;
+                continue;
+            }
+            Err(e) => {
+                return Err(Error::String(format!(
+                    "Failed to start macFUSE service: {}. \
+                     Ensure macFUSE is installed: brew install --cask macfuse",
+                    e
+                )));
+            }
+        }
+    }
+
+    Err(Error::String(
+        "Could not start or connect to macFUSE service after multiple attempts".to_string(),
+    ))
+}
+
