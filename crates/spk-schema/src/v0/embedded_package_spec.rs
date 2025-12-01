@@ -22,10 +22,8 @@ use crate::{
     Components,
     Deprecate,
     DeprecateMut,
-    EnvOp,
     Opt,
     Result,
-    RuntimeEnvironment,
     SourceSpec,
 };
 
@@ -125,12 +123,6 @@ impl HasVersion for EmbeddedPackageSpec {
 impl Named for EmbeddedPackageSpec {
     fn name(&self) -> &PkgName {
         self.pkg.name()
-    }
-}
-
-impl RuntimeEnvironment for EmbeddedPackageSpec {
-    fn runtime_environment(&self) -> &[EnvOp] {
-        &self.install.environment
     }
 }
 
