@@ -35,7 +35,7 @@ macro_rules! forward_to_impl {
             };
         }
 
-        impl<T: $trait_name + Send + Sync> $trait_name for std::sync::Arc<T> {
+        impl<T: $trait_name> $trait_name for std::sync::Arc<T> {
             $($item)*
         }
     };
@@ -47,7 +47,7 @@ macro_rules! forward_to_impl {
             };
         }
 
-        impl<T: $trait_name + Send + Sync> $trait_name for Box<T> {
+        impl<T: $trait_name> $trait_name for Box<T> {
             $($item)*
         }
     };
@@ -59,7 +59,7 @@ macro_rules! forward_to_impl {
             };
         }
 
-        impl<T: $trait_name + Send + Sync> $trait_name for &T {
+        impl<T: $trait_name> $trait_name for &T {
             $($item)*
         }
     };
