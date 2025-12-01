@@ -64,6 +64,8 @@ enum Command {
     Service(CmdService),
     /// Mount an environment for the current process tree
     Mount(CmdMount),
+    /// Show service status and active mounts
+    Status(CmdStatus),
 }
 
 impl cli::CommandName for CmdFuseMacos {
@@ -83,6 +85,7 @@ impl CmdFuseMacos {
         let res = match &mut self.command {
             Command::Mount(c) => rt.block_on(c.run(config)),
             Command::Service(c) => rt.block_on(c.run(config)),
+            Command::Status(c) => rt.block_on(c.run(config)),
         };
         rt.shutdown_timeout(std::time::Duration::from_secs(30));
         res
@@ -252,6 +255,51 @@ impl CmdMount {
         } else {
             tracing::info!(root_pid, env_spec = %self.reference, "Mount registered");
         }
+        Ok(0)
+    }
+}
+
+/// Show service status and active mounts
+#[derive(Debug, Args)]
+struct CmdStatus {
+    /// Address of the running gRPC service
+    #[clap(
+        long,
+        default_value = "127.0.0.1:37738",
+        env = "SPFS_MACFUSE_LISTEN_ADDRESS"
+    )]
+    service: SocketAddr,
+}
+
+#[cfg(target_os = "macos")]
+impl CmdStatus {
+    async fn run(&self, _config: &spfs::Config) -> Result<i32> {
+        let channel = tonic::transport::Endpoint::from_shared(format!("http://{}", self.service))
+            .into_diagnostic()?
+            .connect()
+            .await
+            .into_diagnostic()
+            .wrap_err("Failed to connect to service - is it running?")?;
+        
+        let mut client = proto::vfs_service_client::VfsServiceClient::new(channel);
+        let response = client.status(proto::StatusRequest {}).await.into_diagnostic()?;
+        let status = response.into_inner();
+        
+        println!("Active mounts: {}", status.active_mounts);
+        
+        if status.mounts.is_empty() {
+            println!("No active mounts");
+        } else {
+            println!();
+            for mount in status.mounts {
+                println!("  PID {}: {} (editable: {})",
+                    mount.root_pid,
+                    mount.env_spec,
+                    mount.editable
+                );
+            }
+        }
+        
         Ok(0)
     }
 }

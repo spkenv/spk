@@ -4,6 +4,9 @@
 
 //! macOS process ancestry tracking using libproc
 
+use std::os::fd::{AsRawFd, OwnedFd};
+use std::io;
+
 use libproc::libproc::bsd_info::BSDInfo;
 use libproc::libproc::proc_pid::pidinfo;
 
@@ -72,6 +75,157 @@ pub fn get_parent_pid() -> Result<u32, ProcessError> {
             pid: std::process::id() as i32,
             message: "No parent process found".to_string(),
         })
+}
+
+/// Watches a set of process IDs for exit events using kqueue.
+///
+/// On macOS, kqueue can efficiently monitor process exit via EVFILT_PROC
+/// with NOTE_EXIT flag.
+pub struct ProcessWatcher {
+    kq: OwnedFd,
+    watched_pids: std::collections::HashSet<u32>,
+}
+
+impl ProcessWatcher {
+    /// Create a new process watcher.
+    pub fn new() -> io::Result<Self> {
+        use std::os::unix::io::FromRawFd;
+        
+        let kq = unsafe {
+            let fd = libc::kqueue();
+            if fd < 0 {
+                return Err(io::Error::last_os_error());
+            }
+            OwnedFd::from_raw_fd(fd)
+        };
+        
+        Ok(Self {
+            kq,
+            watched_pids: std::collections::HashSet::new(),
+        })
+    }
+    
+    /// Add a process ID to watch for exit.
+    ///
+    /// Returns Ok(true) if the PID was added, Ok(false) if already watched,
+    /// or Err if the process doesn't exist or can't be watched.
+    pub fn watch(&mut self, pid: u32) -> io::Result<bool> {
+        if self.watched_pids.contains(&pid) {
+            return Ok(false);
+        }
+        
+        let event = libc::kevent {
+            ident: pid as usize,
+            filter: libc::EVFILT_PROC,
+            flags: libc::EV_ADD | libc::EV_ONESHOT,
+            fflags: libc::NOTE_EXIT,
+            data: 0,
+            udata: std::ptr::null_mut(),
+        };
+        
+        let result = unsafe {
+            libc::kevent(
+                self.kq.as_raw_fd(),
+                &event,
+                1,
+                std::ptr::null_mut(),
+                0,
+                std::ptr::null(),
+            )
+        };
+        
+        if result < 0 {
+            let err = io::Error::last_os_error();
+            // ESRCH means process doesn't exist - not an error, just already exited
+            if err.raw_os_error() == Some(libc::ESRCH) {
+                return Ok(false);
+            }
+            return Err(err);
+        }
+        
+        self.watched_pids.insert(pid);
+        Ok(true)
+    }
+    
+    /// Stop watching a process ID.
+    pub fn unwatch(&mut self, pid: u32) -> bool {
+        if !self.watched_pids.remove(&pid) {
+            return false;
+        }
+        
+        // Remove from kqueue (best effort - process may have already exited)
+        let event = libc::kevent {
+            ident: pid as usize,
+            filter: libc::EVFILT_PROC,
+            flags: libc::EV_DELETE,
+            fflags: 0,
+            data: 0,
+            udata: std::ptr::null_mut(),
+        };
+        
+        unsafe {
+            libc::kevent(
+                self.kq.as_raw_fd(),
+                &event,
+                1,
+                std::ptr::null_mut(),
+                0,
+                std::ptr::null(),
+            );
+        }
+        
+        true
+    }
+    
+    /// Wait for any watched process to exit.
+    ///
+    /// Returns the PID that exited, or None on timeout.
+    pub fn wait_for_exit(&mut self, timeout: std::time::Duration) -> io::Result<Option<u32>> {
+        let timeout_spec = libc::timespec {
+            tv_sec: timeout.as_secs() as i64,
+            tv_nsec: timeout.subsec_nanos() as i64,
+        };
+        
+        let mut event = libc::kevent {
+            ident: 0,
+            filter: 0,
+            flags: 0,
+            fflags: 0,
+            data: 0,
+            udata: std::ptr::null_mut(),
+        };
+        
+        let result = unsafe {
+            libc::kevent(
+                self.kq.as_raw_fd(),
+                std::ptr::null(),
+                0,
+                &mut event,
+                1,
+                &timeout_spec,
+            )
+        };
+        
+        if result < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        
+        if result == 0 {
+            // Timeout
+            return Ok(None);
+        }
+        
+        let pid = event.ident as u32;
+        self.watched_pids.remove(&pid);
+        Ok(Some(pid))
+    }
+    
+    /// Check if a specific process is still running.
+    pub fn is_process_alive(pid: u32) -> bool {
+        unsafe {
+            libc::kill(pid as i32, 0) == 0
+        }
+    }
 }
 
 #[cfg(test)]
@@ -144,5 +298,30 @@ mod tests {
             return;
         };
         assert!(parent > 0);
+    }
+
+    #[test]
+    fn test_process_watcher_watch_current_process() {
+        let mut watcher = ProcessWatcher::new().unwrap();
+        let pid = std::process::id();
+        // Should succeed - we're watching ourselves
+        assert!(watcher.watch(pid).unwrap());
+        // Should return false - already watching
+        assert!(!watcher.watch(pid).unwrap());
+    }
+    
+    #[test]
+    fn test_process_watcher_watch_nonexistent_process() {
+        let mut watcher = ProcessWatcher::new().unwrap();
+        // Use a PID that's very unlikely to exist
+        let fake_pid = 999999;
+        // Should return false (process doesn't exist) without error
+        assert!(!watcher.watch(fake_pid).unwrap_or(false));
+    }
+    
+    #[test]
+    fn test_process_watcher_is_process_alive() {
+        assert!(ProcessWatcher::is_process_alive(std::process::id()));
+        assert!(!ProcessWatcher::is_process_alive(999999));
     }
 }

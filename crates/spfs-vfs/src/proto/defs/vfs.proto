@@ -18,8 +18,24 @@ message MountRequest{
 }
 message MountResponse{}
 
+message StatusRequest{}
+
+message MountInfo {
+    uint32 root_pid = 1;
+    string env_spec = 2;
+    bool editable = 3;
+    string runtime_name = 4;
+}
+
+message StatusResponse {
+    uint32 active_mounts = 1;
+    repeated MountInfo mounts = 2;
+}
+
 service VfsService {
     rpc Mount(MountRequest) returns (MountResponse);
     // shut down the mounted filesystem and all running environments
     rpc Shutdown(ShutdownRequest) returns (ShutdownResponse);
+    // get service status and active mounts
+    rpc Status(StatusRequest) returns (StatusResponse);
 }

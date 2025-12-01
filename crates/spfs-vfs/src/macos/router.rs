@@ -7,17 +7,18 @@
 //! Delegates fuser filesystem requests to per-process Mount instances by
 //! walking the caller's process tree via libproc.
 
-use std::collections::HashMap;
 use std::ffi::OsStr;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::SystemTime;
 
+use dashmap::DashMap;
 use fuser::{Filesystem, ReplyAttr, ReplyData, ReplyDirectory, ReplyEntry, ReplyLseek, ReplyOpen, ReplyStatfs, Request};
 use spfs::tracking::EnvSpec;
 use tracing::instrument;
 
 use super::mount::Mount;
-use super::process::get_parent_pids_macos;
+use super::process::{get_parent_pids_macos, ProcessWatcher};
 
 /// A PID-based filesystem router for macOS.
 ///
@@ -27,19 +28,109 @@ use super::process::get_parent_pids_macos;
 #[derive(Clone)]
 pub struct Router {
     repos: Vec<Arc<spfs::storage::RepositoryHandle>>,
-    routes: Arc<RwLock<HashMap<u32, Arc<Mount>>>>,
+    routes: Arc<DashMap<u32, Arc<Mount>>>,
     default: Arc<Mount>,
+    // Process watcher for cleanup
+    process_watcher: Arc<tokio::sync::Mutex<ProcessWatcher>>,
+    // Shutdown signal for cleanup task
+    shutdown: Arc<AtomicBool>,
 }
 
 impl Router {
     /// Create a new router with the given repositories.
     pub async fn new(repos: Vec<Arc<spfs::storage::RepositoryHandle>>) -> spfs::Result<Self> {
         let default = Arc::new(Mount::empty()?);
+        let process_watcher = ProcessWatcher::new()
+            .map_err(|e| spfs::Error::String(format!("Failed to create process watcher: {}", e)))?;
+        
         Ok(Self {
             repos,
-            routes: Arc::new(RwLock::new(HashMap::new())),
+            routes: Arc::new(DashMap::new()),
             default,
+            process_watcher: Arc::new(tokio::sync::Mutex::new(process_watcher)),
+            shutdown: Arc::new(AtomicBool::new(false)),
         })
+    }
+    
+    /// Start the background cleanup task.
+    ///
+    /// This spawns a task that watches for process exits and cleans up
+    /// orphaned mounts. Call this after creating the Router.
+    pub fn start_cleanup_task(self: &Arc<Self>) {
+        let router = Arc::clone(self);
+        tokio::spawn(async move {
+            router.cleanup_loop().await;
+        });
+    }
+    
+    async fn cleanup_loop(&self) {
+        let cleanup_interval = std::time::Duration::from_secs(5);
+        
+        while !self.shutdown.load(Ordering::Relaxed) {
+            // Wait for process exit or timeout
+            let exited_pid = {
+                let mut watcher = self.process_watcher.lock().await;
+                match watcher.wait_for_exit(cleanup_interval) {
+                    Ok(Some(pid)) => Some(pid),
+                    Ok(None) => None, // Timeout - do periodic GC
+                    Err(e) => {
+                        tracing::warn!(error = %e, "process watcher error");
+                        None
+                    }
+                }
+            };
+            
+            // Handle specific exit
+            if let Some(pid) = exited_pid {
+                self.cleanup_mount(pid).await;
+            }
+            
+            // Periodic garbage collection for any missed exits
+            self.garbage_collect_dead_mounts().await;
+        }
+        
+        tracing::debug!("cleanup loop exiting");
+    }
+    
+    async fn cleanup_mount(&self, root_pid: u32) {
+        if let Some((_, mount)) = self.routes.remove(&root_pid) {
+            tracing::info!(%root_pid, "cleaning up mount for exited process");
+            
+            // Clean up scratch directory if editable
+            if mount.is_editable()
+                && let Some(scratch) = mount.scratch()
+                && let Err(e) = scratch.cleanup()
+            {
+                tracing::warn!(%root_pid, error = %e, "failed to cleanup scratch directory");
+            }
+        }
+    }
+    
+    async fn garbage_collect_dead_mounts(&self) {
+        // Collect PIDs to check (avoid holding lock during check)
+        let pids: Vec<u32> = self.routes.iter().map(|r| *r.key()).collect();
+        
+        for pid in pids {
+            if !ProcessWatcher::is_process_alive(pid) {
+                tracing::debug!(%pid, "found dead process in routes, cleaning up");
+                self.cleanup_mount(pid).await;
+            }
+        }
+    }
+    
+    /// Signal the cleanup task to stop.
+    pub fn shutdown(&self) {
+        self.shutdown.store(true, Ordering::Relaxed);
+    }
+    
+    /// Get an iterator over all active mounts.
+    ///
+    /// Returns (pid, mount) pairs for all registered mounts.
+    pub fn iter_mounts(&self) -> Vec<(u32, Arc<Mount>)> {
+        self.routes
+            .iter()
+            .map(|entry| (*entry.key(), Arc::clone(entry.value())))
+            .collect()
     }
 
     /// Mount an environment for a specific process tree (read-only).
@@ -82,28 +173,45 @@ impl Router {
         }
         let manifest = manifest?;
 
+        let env_spec_str = env_spec.to_string();
         let mount = if editable {
             let default_name = format!("runtime-{}", root_pid);
             let name = runtime_name.unwrap_or(&default_name);
-            Arc::new(Mount::new_editable(
+            Arc::new(Mount::new_editable_with_env_spec(
                 tokio::runtime::Handle::current(),
                 self.repos.clone(),
                 manifest,
                 name,
+                env_spec_str,
             )?)
         } else {
-            Arc::new(Mount::new(
+            Arc::new(Mount::new_with_env_spec(
                 tokio::runtime::Handle::current(),
                 self.repos.clone(),
                 manifest,
+                env_spec_str,
             )?)
         };
 
-        let mut routes = self.routes.write().expect("routes lock");
-        if routes.contains_key(&root_pid) {
-            return Err(spfs::Error::RuntimeExists(root_pid.to_string()));
+        // Watch the root PID for exit
+        {
+            let mut watcher = self.process_watcher.lock().await;
+            if let Err(e) = watcher.watch(root_pid) {
+                tracing::warn!(%root_pid, error = %e, "failed to watch process for cleanup");
+                // Continue anyway - GC will catch it
+            }
         }
-        routes.insert(root_pid, mount);
+        
+        // Insert into routes
+        match self.routes.entry(root_pid) {
+            dashmap::mapref::entry::Entry::Occupied(_) => {
+                return Err(spfs::Error::RuntimeExists(root_pid.to_string()));
+            }
+            dashmap::mapref::entry::Entry::Vacant(entry) => {
+                entry.insert(mount);
+            }
+        }
+        
         Ok(())
     }
 
@@ -112,16 +220,14 @@ impl Router {
     /// Returns true if the PID had an active mount.
     #[instrument(skip(self))]
     pub fn unmount(&self, root_pid: u32) -> bool {
-        let mut routes = self.routes.write().expect("routes lock");
-        routes.remove(&root_pid).is_some()
+        self.routes.remove(&root_pid).is_some()
     }
 
     fn get_mount_for_pid(&self, caller_pid: u32) -> Arc<Mount> {
         let ancestry = get_parent_pids_macos(Some(caller_pid as i32)).unwrap_or_else(|_| vec![caller_pid as i32]);
-        let routes = self.routes.read().expect("routes lock");
         for pid in ancestry {
-            if let Some(mount) = routes.get(&(pid as u32)) {
-                return Arc::clone(mount);
+            if let Some(mount) = self.routes.get(&(pid as u32)) {
+                return Arc::clone(mount.value());
             }
         }
         Arc::clone(&self.default)
@@ -314,7 +420,7 @@ mod tests {
     async fn router_new_creates_default_mount() {
         let router = Router::new(Vec::new()).await.unwrap();
         // Default mount should exist and be empty
-        assert!(router.routes.read().unwrap().is_empty());
+        assert!(router.routes.is_empty());
     }
 
     #[tokio::test]

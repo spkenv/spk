@@ -84,6 +84,10 @@ pub struct Mount {
     gid: u32,
     /// Scratch directory for editable mounts (None for read-only)
     scratch: Option<ScratchDir>,
+    /// The environment spec string for this mount (for status reporting)
+    env_spec: String,
+    /// Runtime name for editable mounts (None for read-only)
+    runtime_name: Option<String>,
 }
 
 impl Mount {
@@ -93,7 +97,17 @@ impl Mount {
         repos: Vec<Arc<RepositoryHandle>>,
         manifest: Manifest,
     ) -> spfs::Result<Self> {
-        Self::new_internal(rt, repos, manifest, None)
+        Self::new_with_env_spec(rt, repos, manifest, String::new())
+    }
+    
+    /// Create a new read-only Mount with an env_spec string.
+    pub fn new_with_env_spec(
+        rt: tokio::runtime::Handle,
+        repos: Vec<Arc<RepositoryHandle>>,
+        manifest: Manifest,
+        env_spec: String,
+    ) -> spfs::Result<Self> {
+        Self::new_internal(rt, repos, manifest, None, env_spec, None)
     }
 
     /// Create a new editable Mount with a scratch directory for writes.
@@ -106,10 +120,21 @@ impl Mount {
         manifest: Manifest,
         runtime_name: &str,
     ) -> spfs::Result<Self> {
+        Self::new_editable_with_env_spec(rt, repos, manifest, runtime_name, String::new())
+    }
+    
+    /// Create a new editable Mount with env_spec string.
+    pub fn new_editable_with_env_spec(
+        rt: tokio::runtime::Handle,
+        repos: Vec<Arc<RepositoryHandle>>,
+        manifest: Manifest,
+        runtime_name: &str,
+        env_spec: String,
+    ) -> spfs::Result<Self> {
         let scratch = ScratchDir::new(runtime_name).map_err(|e| {
             spfs::Error::String(format!("Failed to create scratch directory: {e}"))
         })?;
-        Self::new_internal(rt, repos, manifest, Some(scratch))
+        Self::new_internal(rt, repos, manifest, Some(scratch), env_spec, Some(runtime_name.to_string()))
     }
 
     fn new_internal(
@@ -117,6 +142,8 @@ impl Mount {
         repos: Vec<Arc<RepositoryHandle>>,
         manifest: Manifest,
         scratch: Option<ScratchDir>,
+        env_spec: String,
+        runtime_name: Option<String>,
     ) -> spfs::Result<Self> {
         let uid = nix::unistd::Uid::current().as_raw();
         let gid = nix::unistd::Gid::current().as_raw();
@@ -135,6 +162,8 @@ impl Mount {
             uid,
             gid,
             scratch,
+            env_spec,
+            runtime_name,
         };
         let mut root = manifest.take_root();
         root.mode |= libc::S_IFDIR as u32;
@@ -155,6 +184,16 @@ impl Mount {
     /// Returns true if this mount is editable (has a scratch directory).
     pub fn is_editable(&self) -> bool {
         self.scratch.is_some()
+    }
+    
+    /// Get the environment spec string for this mount.
+    pub fn env_spec(&self) -> &str {
+        &self.env_spec
+    }
+    
+    /// Get the runtime name for this mount (if editable).
+    pub fn runtime_name(&self) -> Option<&str> {
+        self.runtime_name.as_deref()
     }
 
     /// Get the scratch directory, if this is an editable mount.

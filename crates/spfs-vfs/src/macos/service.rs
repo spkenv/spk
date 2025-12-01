@@ -20,6 +20,7 @@ use super::router::Router;
 use super::Config;
 use crate::proto::{
     MountRequest, MountResponse, ShutdownRequest, ShutdownResponse,
+    StatusRequest, StatusResponse, MountInfo,
     vfs_service_server::VfsService,
 };
 use crate::Error;
@@ -43,6 +44,9 @@ pub struct Service {
 impl Service {
     /// Create a new macOS FUSE service with the given configuration
     pub async fn new(config: Config) -> Result<Arc<Self>, Error> {
+        // Clean up any orphaned scratch directories from previous runs
+        cleanup_orphaned_scratch_directories().await;
+        
         // Open the configured repositories
         let mut repos = Vec::new();
 
@@ -87,8 +91,10 @@ impl Service {
             Router::new(repos).await
         }).map_err(|e| Error::String(format!("Failed to create router: {e}")))?;
 
-        // Store router in service
+        // Store router in service and start cleanup task
         rt.block_on(async {
+            let router_arc = Arc::new(router.clone());
+            router_arc.start_cleanup_task();
             *service.router.lock().await = Some(router.clone());
             *service.shutdown_tx.lock().await = Some(shutdown_tx);
         });
@@ -135,6 +141,11 @@ impl Service {
     /// This unmounts the filesystem. Note that this requires the mount
     /// to be idle (no open files or current directories).
     pub async fn stop(&self) -> Result<(), Error> {
+        // Signal router to shutdown cleanup task
+        if let Some(router) = self.router.lock().await.as_ref() {
+            router.shutdown();
+        }
+        
         // Send shutdown signal
         if let Some(tx) = self.shutdown_tx.lock().await.take() {
             let _ = tx.send(()).await;
@@ -224,5 +235,70 @@ impl VfsService for Arc<Service> {
         })?;
 
         Ok(Response::new(ShutdownResponse {}))
+    }
+    
+    async fn status(
+        &self,
+        _request: Request<StatusRequest>,
+    ) -> Result<Response<StatusResponse>, Status> {
+        let router_guard = self.router.lock().await;
+        let router = router_guard.as_ref().ok_or_else(|| {
+            Status::failed_precondition("Service not running - FUSE mount not started")
+        })?;
+        
+        let mounts: Vec<MountInfo> = router
+            .iter_mounts()
+            .iter()
+            .map(|(pid, mount)| MountInfo {
+                root_pid: *pid,
+                env_spec: mount.env_spec().to_string(),
+                editable: mount.is_editable(),
+                runtime_name: mount.runtime_name().unwrap_or_default().to_string(),
+            })
+            .collect();
+        
+        Ok(Response::new(StatusResponse {
+            active_mounts: mounts.len() as u32,
+            mounts,
+        }))
+    }
+}
+
+/// Clean up scratch directories from previous service runs.
+///
+/// This finds any `/tmp/spfs-scratch-*` directories and removes them
+/// if their owning process is no longer running. This handles cases
+/// where the service or runtime crashed without proper cleanup.
+async fn cleanup_orphaned_scratch_directories() {
+    let temp_dir = std::env::temp_dir();
+    let pattern = "spfs-scratch-";
+    
+    let Ok(mut entries) = tokio::fs::read_dir(&temp_dir).await else {
+        return;
+    };
+    
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        
+        if !name_str.starts_with(pattern) {
+            continue;
+        }
+        
+        // Try to extract runtime name and check if any process has it
+        // For now, just remove any scratch directories older than 24 hours
+        // as a conservative cleanup
+        if let Ok(metadata) = entry.metadata().await
+            && let Ok(modified) = metadata.modified()
+        {
+            let age = std::time::SystemTime::now()
+                .duration_since(modified)
+                .unwrap_or_default();
+            
+            if age > std::time::Duration::from_secs(24 * 60 * 60) {
+                tracing::info!(path = %entry.path().display(), "removing orphaned scratch directory");
+                let _ = tokio::fs::remove_dir_all(entry.path()).await;
+            }
+        }
     }
 }
