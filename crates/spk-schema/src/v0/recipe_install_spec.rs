@@ -14,6 +14,7 @@ use crate::component_embedded_packages::ComponentEmbeddedPackage;
 use crate::foundation::option_map::OptionMap;
 use crate::v0::EmbeddedRecipeSpec;
 use crate::{
+    ComponentSpec,
     ComponentSpecList,
     Components,
     EmbeddedPackagesList,
@@ -21,6 +22,7 @@ use crate::{
     EnvOpList,
     InstallSpec,
     OpKind,
+    RecipeComponentSpec,
     RequirementsList,
     Result,
 };
@@ -50,7 +52,7 @@ pub struct RecipeInstallSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub embedded: EmbeddedPackagesList<EmbeddedRecipeSpec>,
     #[serde(default)]
-    pub components: ComponentSpecList<PinnableRequest>,
+    pub components: ComponentSpecList<RecipeComponentSpec>,
     #[serde(default, skip_serializing_if = "IsDefault::is_default")]
     pub environment: EnvOpList,
 }
@@ -87,7 +89,7 @@ impl<Request> From<InstallSpec<Request>> for RecipeInstallSpec
 where
     Request: DeserializeOwned + Named<OptName> + PartialEq + Serialize,
     RequirementsList: From<RequirementsList<Request>>,
-    ComponentSpecList<PinnableRequest>: From<ComponentSpecList<Request>>,
+    ComponentSpecList<RecipeComponentSpec>: From<ComponentSpecList<ComponentSpec>>,
 {
     fn from(install: InstallSpec<Request>) -> Self {
         Self {
@@ -199,7 +201,7 @@ struct RawRecipeInstallSpec {
     #[serde(default)]
     embedded: EmbeddedPackagesList<EmbeddedRecipeSpec>,
     #[serde(default)]
-    components: ComponentSpecList<PinnableRequest>,
+    components: ComponentSpecList<RecipeComponentSpec>,
     #[serde(default, deserialize_with = "deserialize_env_conf")]
     environment: EnvOpList,
 }

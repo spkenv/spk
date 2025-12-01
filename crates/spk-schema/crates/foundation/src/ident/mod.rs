@@ -12,7 +12,9 @@ mod ident_version;
 pub mod parsing;
 mod pinnable_request;
 mod pinned_request;
+mod pkg_request_with_options;
 mod range_ident;
+mod request_with_options;
 mod satisfy;
 
 pub use error::{Error, Result};
@@ -36,7 +38,13 @@ pub use pinnable_request::{
     is_false,
 };
 pub use pinned_request::{PinnedRequest, PinnedValue};
+pub use pkg_request_with_options::{
+    PkgRequestOptionValue,
+    PkgRequestOptions,
+    PkgRequestWithOptions,
+};
 pub use range_ident::{RangeIdent, parse_ident_range, parse_ident_range_list};
+pub use request_with_options::RequestWithOptions;
 pub use satisfy::Satisfy;
 
 pub mod prelude {

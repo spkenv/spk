@@ -5,6 +5,7 @@
 mod embedded_build_spec;
 mod embedded_install_spec;
 mod embedded_package_spec;
+mod embedded_recipe_install_spec;
 mod embedded_recipe_spec;
 mod package_spec;
 mod platform;
@@ -18,6 +19,7 @@ mod variant_spec;
 pub use embedded_build_spec::EmbeddedBuildSpec;
 pub use embedded_install_spec::EmbeddedInstallSpec;
 pub use embedded_package_spec::EmbeddedPackageSpec;
+pub use embedded_recipe_install_spec::EmbeddedRecipeInstallSpec;
 pub use embedded_recipe_spec::EmbeddedRecipeSpec;
 pub use package_spec::PackageSpec;
 pub(crate) use package_spec::check_package_spec_satisfies_pkg_request;

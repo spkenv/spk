@@ -9,9 +9,15 @@ use spk_cli_common::Result;
 use spk_exec::resolve_runtime_layers;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
-use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
+use spk_schema::ident::{
+    PkgRequest,
+    PreReleasePolicy,
+    RangeIdent,
+    RequestWithOptions,
+    RequestedBy,
+};
 use spk_schema::ident_build::Build;
-use spk_schema::{PinnedRequest, Recipe, SpecRecipe, Variant, VariantExt};
+use spk_schema::{Recipe, SpecRecipe, Variant, VariantExt};
 use spk_solve::{DecisionFormatter, SolverExt, SolverMut};
 use spk_storage as storage;
 
@@ -27,7 +33,7 @@ where
     repos: Vec<Arc<storage::RepositoryHandle>>,
     solver: Solver,
     options: OptionMap,
-    additional_requirements: Vec<PinnedRequest>,
+    additional_requirements: Vec<RequestWithOptions>,
     source: Option<PathBuf>,
     env_formatter: DecisionFormatter,
     variant: V,
@@ -75,7 +81,7 @@ where
 
     pub fn with_requirements(
         &mut self,
-        requests: impl IntoIterator<Item = PinnedRequest>,
+        requests: impl IntoIterator<Item = RequestWithOptions>,
     ) -> &mut Self {
         self.additional_requirements.extend(requests);
         self
