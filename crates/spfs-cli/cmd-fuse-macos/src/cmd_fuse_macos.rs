@@ -3,16 +3,24 @@
 // https://github.com/spkenv/spk
 
 use std::net::SocketAddr;
+#[cfg(target_os = "macos")]
 use std::sync::Arc;
 
 use clap::{Args, Parser, Subcommand};
+#[cfg(target_os = "macos")]
 use miette::{Context, IntoDiagnostic, Result, bail};
+#[cfg(not(target_os = "macos"))]
+use miette::Result;
 use spfs::tracking::EnvSpec;
 use spfs_cli_common as cli;
+#[cfg(target_os = "macos")]
 use spfs_vfs::macos::{get_parent_pid, Config, Service};
+#[cfg(target_os = "macos")]
 use spfs_vfs::proto;
+#[cfg(target_os = "macos")]
 use tonic::Request;
 
+#[cfg(target_os = "macos")]
 pub fn main() -> Result<i32> {
     let mut opt = CmdFuseMacos::parse();
     opt.logging.syslog = true;
@@ -29,6 +37,14 @@ pub fn main() -> Result<i32> {
 
     let result = opt.run(&config);
     spfs_cli_common::handle_result!(result)
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn main() -> Result<i32> {
+    eprintln!("spfs-fuse-macos can only be built and run on macOS");
+    eprintln!("For Linux, use: spfs-fuse");
+    eprintln!("For Windows, use: spfs-winfsp");
+    std::process::exit(1);
 }
 
 /// Run a virtual filesystem backed by macFUSE
@@ -56,6 +72,7 @@ impl cli::CommandName for CmdFuseMacos {
     }
 }
 
+#[cfg(target_os = "macos")]
 impl CmdFuseMacos {
     fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -91,6 +108,7 @@ struct CmdService {
     mountpoint: std::path::PathBuf,
 }
 
+#[cfg(target_os = "macos")]
 impl CmdService {
     async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         if self.stop {
@@ -190,6 +208,7 @@ struct CmdMount {
     reference: EnvSpec,
 }
 
+#[cfg(target_os = "macos")]
 impl CmdMount {
     async fn run(&mut self, _config: &spfs::Config) -> Result<i32> {
         let result = tonic::transport::Endpoint::from_shared(format!("http://{}", self.service))
@@ -237,6 +256,7 @@ impl CmdMount {
     }
 }
 
+#[cfg(target_os = "macos")]
 fn is_connection_refused(err: &impl std::error::Error) -> bool {
     let err_str = err.to_string();
     err_str.contains("Connection refused") || err_str.contains("connection refused")
