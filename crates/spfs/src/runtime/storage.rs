@@ -798,15 +798,13 @@ impl Runtime {
             }
             MountBackend::FuseOnly => false,
             // FuseWithScratch uses the upper_dir as the scratch directory
-            MountBackend::FuseWithScratch => {
-                match std::fs::metadata(&self.config.upper_dir) {
-                    #[cfg(unix)]
-                    Ok(meta) => meta.size() != 0,
-                    #[cfg(windows)]
-                    Ok(meta) => meta.file_size() != 0,
-                    Err(err) => !matches!(err.kind(), std::io::ErrorKind::NotFound),
-                }
-            }
+            MountBackend::FuseWithScratch => match std::fs::metadata(&self.config.upper_dir) {
+                #[cfg(unix)]
+                Ok(meta) => meta.size() != 0,
+                #[cfg(windows)]
+                Ok(meta) => meta.file_size() != 0,
+                Err(err) => !matches!(err.kind(), std::io::ErrorKind::NotFound),
+            },
             MountBackend::WinFsp => false,
         }
     }

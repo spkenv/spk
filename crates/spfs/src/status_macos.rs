@@ -94,7 +94,10 @@ pub async unsafe fn reinitialize_runtime(rt: &mut runtime::Runtime) -> Result<Re
 }
 
 #[cfg(feature = "fuse-backend")]
-async fn mount_env_for_backend(with_root: &env::RootConfigurator, rt: &runtime::Runtime) -> Result<()> {
+async fn mount_env_for_backend(
+    with_root: &env::RootConfigurator,
+    rt: &runtime::Runtime,
+) -> Result<()> {
     match rt.config.mount_backend {
         runtime::MountBackend::FuseOnly | runtime::MountBackend::FuseWithScratch => {
             with_root.mount_env_fuse(rt).await
@@ -107,7 +110,10 @@ async fn mount_env_for_backend(with_root: &env::RootConfigurator, rt: &runtime::
 }
 
 #[cfg(not(feature = "fuse-backend"))]
-async fn mount_env_for_backend(_with_root: &env::RootConfigurator, rt: &runtime::Runtime) -> Result<()> {
+async fn mount_env_for_backend(
+    _with_root: &env::RootConfigurator,
+    rt: &runtime::Runtime,
+) -> Result<()> {
     Err(Error::String(format!(
         "This binary was not compiled with support for {} on macOS",
         rt.config.mount_backend

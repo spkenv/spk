@@ -12,13 +12,12 @@ use std::path::Path;
 use std::process::Stdio;
 use std::time::{Duration, Instant};
 
-use crate::config::OverlayFsOptions;
-use crate::{Error, Result, runtime};
 use tokio::process::Command;
 use tokio::time::timeout;
 use tonic::transport::Endpoint;
 
-
+use crate::config::OverlayFsOptions;
+use crate::{Error, Result, runtime};
 
 pub const SPFS_DIR: &str = "/spfs";
 pub const SPFS_DIR_PREFIX: &str = "/spfs/";
@@ -284,10 +283,7 @@ impl RootConfigurator {
     /// Change the runtime to durable mode.
     ///
     /// On macOS with FUSE-only backend, durable runtimes are not supported.
-    pub async fn change_runtime_to_durable(
-        &self,
-        _runtime: &mut runtime::Runtime,
-    ) -> Result<i32> {
+    pub async fn change_runtime_to_durable(&self, _runtime: &mut runtime::Runtime) -> Result<i32> {
         Err(Error::RuntimeChangeToDurableError(
             "macFUSE backend does not support durable runtimes".to_string(),
         ))
@@ -296,11 +292,7 @@ impl RootConfigurator {
     /// Unmount overlayfs portion.
     ///
     /// On macOS, there is no overlayfs. This is a no-op.
-    pub async fn unmount_env_overlayfs(
-        &self,
-        _rt: &runtime::Runtime,
-        _lazy: bool,
-    ) -> Result<()> {
+    pub async fn unmount_env_overlayfs(&self, _rt: &runtime::Runtime, _lazy: bool) -> Result<()> {
         // macOS doesn't have overlayfs
         Ok(())
     }
@@ -414,11 +406,14 @@ async fn service_is_running(addr: &str) -> bool {
         Err(_) => return false,
     };
 
-    timeout(Duration::from_millis(SERVICE_CHECK_TIMEOUT_MS), endpoint.connect())
-        .await
-        .ok()
-        .and_then(|result| result.ok())
-        .is_some()
+    timeout(
+        Duration::from_millis(SERVICE_CHECK_TIMEOUT_MS),
+        endpoint.connect(),
+    )
+    .await
+    .ok()
+    .and_then(|result| result.ok())
+    .is_some()
 }
 
 async fn start_service_background() -> Result<()> {
@@ -525,4 +520,3 @@ pub async fn ensure_service_running() -> Result<()> {
         "Could not start or connect to macFUSE service after multiple attempts".to_string(),
     ))
 }
-

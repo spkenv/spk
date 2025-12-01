@@ -13,12 +13,22 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::SystemTime;
 
 use dashmap::DashMap;
-use fuser::{Filesystem, ReplyAttr, ReplyData, ReplyDirectory, ReplyEntry, ReplyLseek, ReplyOpen, ReplyStatfs, Request};
+use fuser::{
+    Filesystem,
+    ReplyAttr,
+    ReplyData,
+    ReplyDirectory,
+    ReplyEntry,
+    ReplyLseek,
+    ReplyOpen,
+    ReplyStatfs,
+    Request,
+};
 use spfs::tracking::EnvSpec;
 use tracing::instrument;
 
 use super::mount::Mount;
-use super::process::{get_parent_pids_macos, ProcessWatcher};
+use super::process::{ProcessWatcher, get_parent_pids_macos};
 
 /// A PID-based filesystem router for macOS.
 ///
@@ -42,7 +52,7 @@ impl Router {
         let default = Arc::new(Mount::empty()?);
         let process_watcher = ProcessWatcher::new()
             .map_err(|e| spfs::Error::String(format!("Failed to create process watcher: {}", e)))?;
-        
+
         Ok(Self {
             repos,
             routes: Arc::new(DashMap::new()),
@@ -51,7 +61,7 @@ impl Router {
             shutdown: Arc::new(AtomicBool::new(false)),
         })
     }
-    
+
     /// Start the background cleanup task.
     ///
     /// This spawns a task that watches for process exits and cleans up
@@ -62,10 +72,10 @@ impl Router {
             router.cleanup_loop().await;
         });
     }
-    
+
     async fn cleanup_loop(&self) {
         let cleanup_interval = std::time::Duration::from_secs(5);
-        
+
         while !self.shutdown.load(Ordering::Relaxed) {
             // Wait for process exit or timeout
             let exited_pid = {
@@ -79,23 +89,23 @@ impl Router {
                     }
                 }
             };
-            
+
             // Handle specific exit
             if let Some(pid) = exited_pid {
                 self.cleanup_mount(pid).await;
             }
-            
+
             // Periodic garbage collection for any missed exits
             self.garbage_collect_dead_mounts().await;
         }
-        
+
         tracing::debug!("cleanup loop exiting");
     }
-    
+
     async fn cleanup_mount(&self, root_pid: u32) {
         if let Some((_, mount)) = self.routes.remove(&root_pid) {
             tracing::info!(%root_pid, "cleaning up mount for exited process");
-            
+
             // Clean up scratch directory if editable
             if mount.is_editable()
                 && let Some(scratch) = mount.scratch()
@@ -105,11 +115,11 @@ impl Router {
             }
         }
     }
-    
+
     async fn garbage_collect_dead_mounts(&self) {
         // Collect PIDs to check (avoid holding lock during check)
         let pids: Vec<u32> = self.routes.iter().map(|r| *r.key()).collect();
-        
+
         for pid in pids {
             if !ProcessWatcher::is_process_alive(pid) {
                 tracing::debug!(%pid, "found dead process in routes, cleaning up");
@@ -117,12 +127,12 @@ impl Router {
             }
         }
     }
-    
+
     /// Signal the cleanup task to stop.
     pub fn shutdown(&self) {
         self.shutdown.store(true, Ordering::Relaxed);
     }
-    
+
     /// Get an iterator over all active mounts.
     ///
     /// Returns (pid, mount) pairs for all registered mounts.
@@ -153,7 +163,8 @@ impl Router {
         env_spec: EnvSpec,
         runtime_name: &str,
     ) -> spfs::Result<()> {
-        self.mount_internal(root_pid, env_spec, true, Some(runtime_name)).await
+        self.mount_internal(root_pid, env_spec, true, Some(runtime_name))
+            .await
     }
 
     async fn mount_internal(
@@ -201,7 +212,7 @@ impl Router {
                 // Continue anyway - GC will catch it
             }
         }
-        
+
         // Insert into routes
         match self.routes.entry(root_pid) {
             dashmap::mapref::entry::Entry::Occupied(_) => {
@@ -211,7 +222,7 @@ impl Router {
                 entry.insert(mount);
             }
         }
-        
+
         Ok(())
     }
 
@@ -224,7 +235,8 @@ impl Router {
     }
 
     fn get_mount_for_pid(&self, caller_pid: u32) -> Arc<Mount> {
-        let ancestry = get_parent_pids_macos(Some(caller_pid as i32)).unwrap_or_else(|_| vec![caller_pid as i32]);
+        let ancestry = get_parent_pids_macos(Some(caller_pid as i32))
+            .unwrap_or_else(|_| vec![caller_pid as i32]);
         for pid in ancestry {
             if let Some(mount) = self.routes.get(&(pid as u32)) {
                 return Arc::clone(mount.value());
@@ -235,7 +247,11 @@ impl Router {
 }
 
 impl Filesystem for Router {
-    fn init(&mut self, _req: &Request<'_>, _config: &mut fuser::KernelConfig) -> Result<(), libc::c_int> {
+    fn init(
+        &mut self,
+        _req: &Request<'_>,
+        _config: &mut fuser::KernelConfig,
+    ) -> Result<(), libc::c_int> {
         tracing::info!("macFUSE filesystem initialized");
         Ok(())
     }
@@ -246,7 +262,8 @@ impl Filesystem for Router {
 
     #[instrument(skip_all, fields(pid = req.pid()))]
     fn lookup(&mut self, req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEntry) {
-        self.get_mount_for_pid(req.pid()).lookup(parent, name, reply);
+        self.get_mount_for_pid(req.pid())
+            .lookup(parent, name, reply);
     }
 
     #[instrument(skip_all, fields(pid = req.pid()))]
@@ -266,13 +283,32 @@ impl Filesystem for Router {
 
     #[allow(clippy::too_many_arguments)]
     #[instrument(skip_all, fields(pid = req.pid()))]
-    fn read(&mut self, req: &Request<'_>, ino: u64, fh: u64, offset: i64, size: u32, flags: i32, lock_owner: Option<u64>, reply: ReplyData) {
+    fn read(
+        &mut self,
+        req: &Request<'_>,
+        ino: u64,
+        fh: u64,
+        offset: i64,
+        size: u32,
+        flags: i32,
+        lock_owner: Option<u64>,
+        reply: ReplyData,
+    ) {
         self.get_mount_for_pid(req.pid())
             .read(ino, fh, offset, size, flags, lock_owner, reply);
     }
 
     #[instrument(skip_all, fields(pid = req.pid()))]
-    fn release(&mut self, req: &Request<'_>, ino: u64, fh: u64, flags: i32, lock_owner: Option<u64>, flush: bool, reply: fuser::ReplyEmpty) {
+    fn release(
+        &mut self,
+        req: &Request<'_>,
+        ino: u64,
+        fh: u64,
+        flags: i32,
+        lock_owner: Option<u64>,
+        flush: bool,
+        reply: fuser::ReplyEmpty,
+    ) {
         self.get_mount_for_pid(req.pid())
             .release(ino, fh, flags, lock_owner, flush, reply);
     }
@@ -283,13 +319,29 @@ impl Filesystem for Router {
     }
 
     #[instrument(skip_all, fields(pid = req.pid()))]
-    fn readdir(&mut self, req: &Request<'_>, ino: u64, fh: u64, offset: i64, reply: ReplyDirectory) {
-        self.get_mount_for_pid(req.pid()).readdir(ino, fh, offset, reply);
+    fn readdir(
+        &mut self,
+        req: &Request<'_>,
+        ino: u64,
+        fh: u64,
+        offset: i64,
+        reply: ReplyDirectory,
+    ) {
+        self.get_mount_for_pid(req.pid())
+            .readdir(ino, fh, offset, reply);
     }
 
     #[instrument(skip_all, fields(pid = req.pid()))]
-    fn releasedir(&mut self, req: &Request<'_>, ino: u64, fh: u64, flags: i32, reply: fuser::ReplyEmpty) {
-        self.get_mount_for_pid(req.pid()).releasedir(ino, fh, flags, reply);
+    fn releasedir(
+        &mut self,
+        req: &Request<'_>,
+        ino: u64,
+        fh: u64,
+        flags: i32,
+        reply: fuser::ReplyEmpty,
+    ) {
+        self.get_mount_for_pid(req.pid())
+            .releasedir(ino, fh, flags, reply);
     }
 
     #[instrument(skip_all, fields(pid = req.pid()))]
@@ -298,8 +350,17 @@ impl Filesystem for Router {
     }
 
     #[instrument(skip_all, fields(pid = req.pid()))]
-    fn lseek(&mut self, req: &Request<'_>, ino: u64, fh: u64, offset: i64, whence: i32, reply: ReplyLseek) {
-        self.get_mount_for_pid(req.pid()).lseek(ino, fh, offset, whence, reply);
+    fn lseek(
+        &mut self,
+        req: &Request<'_>,
+        ino: u64,
+        fh: u64,
+        offset: i64,
+        whence: i32,
+        reply: ReplyLseek,
+    ) {
+        self.get_mount_for_pid(req.pid())
+            .lseek(ino, fh, offset, whence, reply);
     }
 
     #[instrument(skip_all, fields(pid = req.pid()))]
@@ -325,8 +386,16 @@ impl Filesystem for Router {
         lock_owner: Option<u64>,
         reply: fuser::ReplyWrite,
     ) {
-        self.get_mount_for_pid(req.pid())
-            .write(ino, fh, offset, data, write_flags, flags, lock_owner, reply);
+        self.get_mount_for_pid(req.pid()).write(
+            ino,
+            fh,
+            offset,
+            data,
+            write_flags,
+            flags,
+            lock_owner,
+            reply,
+        );
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -347,7 +416,8 @@ impl Filesystem for Router {
 
     #[instrument(skip_all, fields(pid = req.pid()))]
     fn unlink(&mut self, req: &Request<'_>, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
-        self.get_mount_for_pid(req.pid()).unlink(parent, name, reply);
+        self.get_mount_for_pid(req.pid())
+            .unlink(parent, name, reply);
     }
 
     #[instrument(skip_all, fields(pid = req.pid()))]

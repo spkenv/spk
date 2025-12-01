@@ -67,7 +67,9 @@ impl std::fmt::Debug for Handle {
                 .debug_struct("Tree")
                 .field("ino", &entry.user_data)
                 .finish(),
-            Self::ScratchFile { ino, virtual_path, .. } => f
+            Self::ScratchFile {
+                ino, virtual_path, ..
+            } => f
                 .debug_struct("ScratchFile")
                 .field("ino", ino)
                 .field("virtual_path", virtual_path)

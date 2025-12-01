@@ -198,8 +198,11 @@ impl CmdEnter {
             let render_summary = unsafe {
                 #[cfg(target_os = "linux")]
                 {
-                    spfs::change_to_durable_runtime(&config.filesystem.overlayfs_options, &mut runtime)
-                        .await?
+                    spfs::change_to_durable_runtime(
+                        &config.filesystem.overlayfs_options,
+                        &mut runtime,
+                    )
+                    .await?
                 }
                 #[cfg(not(target_os = "linux"))]
                 {
@@ -255,7 +258,8 @@ impl CmdEnter {
             let render_summary = {
                 #[cfg(target_os = "linux")]
                 {
-                    spfs::initialize_runtime(&config.filesystem.overlayfs_options, &mut owned).await?
+                    spfs::initialize_runtime(&config.filesystem.overlayfs_options, &mut owned)
+                        .await?
                 }
                 #[cfg(not(target_os = "linux"))]
                 {

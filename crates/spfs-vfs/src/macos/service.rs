@@ -16,14 +16,19 @@ use spfs::tracking::EnvSpec;
 use tokio::sync::{Mutex, mpsc};
 use tonic::{Request, Response, Status};
 
-use super::router::Router;
 use super::Config;
-use crate::proto::{
-    MountRequest, MountResponse, ShutdownRequest, ShutdownResponse,
-    StatusRequest, StatusResponse, MountInfo,
-    vfs_service_server::VfsService,
-};
+use super::router::Router;
 use crate::Error;
+use crate::proto::vfs_service_server::VfsService;
+use crate::proto::{
+    MountInfo,
+    MountRequest,
+    MountResponse,
+    ShutdownRequest,
+    ShutdownResponse,
+    StatusRequest,
+    StatusResponse,
+};
 
 /// A macOS FUSE filesystem service
 ///
@@ -46,7 +51,7 @@ impl Service {
     pub async fn new(config: Config) -> Result<Arc<Self>, Error> {
         // Clean up any orphaned scratch directories from previous runs
         cleanup_orphaned_scratch_directories().await;
-        
+
         // Open the configured repositories
         let mut repos = Vec::new();
 
@@ -87,9 +92,9 @@ impl Service {
         // Create the router
         let repos = service.repos.clone();
         let rt = tokio::runtime::Handle::current();
-        let router = rt.block_on(async {
-            Router::new(repos).await
-        }).map_err(|e| Error::String(format!("Failed to create router: {e}")))?;
+        let router = rt
+            .block_on(async { Router::new(repos).await })
+            .map_err(|e| Error::String(format!("Failed to create router: {e}")))?;
 
         // Store router in service and start cleanup task
         rt.block_on(async {
@@ -145,7 +150,7 @@ impl Service {
         if let Some(router) = self.router.lock().await.as_ref() {
             router.shutdown();
         }
-        
+
         // Send shutdown signal
         if let Some(tx) = self.shutdown_tx.lock().await.take() {
             let _ = tx.send(()).await;
@@ -215,9 +220,10 @@ impl VfsService for Arc<Service> {
             tracing::info!(root_pid = req.root_pid, %runtime_name, "Mounted editable environment");
         } else {
             // Read-only mount
-            router.mount(req.root_pid, env_spec).await.map_err(|e| {
-                Status::internal(format!("Failed to mount: {e}"))
-            })?;
+            router
+                .mount(req.root_pid, env_spec)
+                .await
+                .map_err(|e| Status::internal(format!("Failed to mount: {e}")))?;
             tracing::info!(root_pid = req.root_pid, "Mounted read-only environment");
         }
 
@@ -230,13 +236,13 @@ impl VfsService for Arc<Service> {
     ) -> Result<Response<ShutdownResponse>, Status> {
         tracing::info!("Shutdown requested");
 
-        self.stop().await.map_err(|e| {
-            Status::internal(format!("Failed to stop service: {e}"))
-        })?;
+        self.stop()
+            .await
+            .map_err(|e| Status::internal(format!("Failed to stop service: {e}")))?;
 
         Ok(Response::new(ShutdownResponse {}))
     }
-    
+
     async fn status(
         &self,
         _request: Request<StatusRequest>,
@@ -245,7 +251,7 @@ impl VfsService for Arc<Service> {
         let router = router_guard.as_ref().ok_or_else(|| {
             Status::failed_precondition("Service not running - FUSE mount not started")
         })?;
-        
+
         let mounts: Vec<MountInfo> = router
             .iter_mounts()
             .iter()
@@ -256,7 +262,7 @@ impl VfsService for Arc<Service> {
                 runtime_name: mount.runtime_name().unwrap_or_default().to_string(),
             })
             .collect();
-        
+
         Ok(Response::new(StatusResponse {
             active_mounts: mounts.len() as u32,
             mounts,
@@ -272,19 +278,19 @@ impl VfsService for Arc<Service> {
 async fn cleanup_orphaned_scratch_directories() {
     let temp_dir = std::env::temp_dir();
     let pattern = "spfs-scratch-";
-    
+
     let Ok(mut entries) = tokio::fs::read_dir(&temp_dir).await else {
         return;
     };
-    
+
     while let Ok(Some(entry)) = entries.next_entry().await {
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
-        
+
         if !name_str.starts_with(pattern) {
             continue;
         }
-        
+
         // Try to extract runtime name and check if any process has it
         // For now, just remove any scratch directories older than 24 hours
         // as a conservative cleanup
@@ -294,7 +300,7 @@ async fn cleanup_orphaned_scratch_directories() {
             let age = std::time::SystemTime::now()
                 .duration_since(modified)
                 .unwrap_or_default();
-            
+
             if age > std::time::Duration::from_secs(24 * 60 * 60) {
                 tracing::info!(path = %entry.path().display(), "removing orphaned scratch directory");
                 let _ = tokio::fs::remove_dir_all(entry.path()).await;

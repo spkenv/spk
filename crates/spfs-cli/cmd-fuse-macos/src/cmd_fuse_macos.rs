@@ -7,14 +7,14 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use clap::{Args, Parser, Subcommand};
-#[cfg(target_os = "macos")]
-use miette::{Context, IntoDiagnostic, Result, bail};
 #[cfg(not(target_os = "macos"))]
 use miette::Result;
+#[cfg(target_os = "macos")]
+use miette::{Context, IntoDiagnostic, Result, bail};
 use spfs::tracking::EnvSpec;
 use spfs_cli_common as cli;
 #[cfg(target_os = "macos")]
-use spfs_vfs::macos::{get_parent_pid, Config, Service};
+use spfs_vfs::macos::{Config, Service, get_parent_pid};
 #[cfg(target_os = "macos")]
 use spfs_vfs::proto;
 #[cfg(target_os = "macos")]
@@ -25,7 +25,9 @@ pub fn main() -> Result<i32> {
     let mut opt = CmdFuseMacos::parse();
     opt.logging.syslog = true;
     // SAFETY: We're in a single-threaded context at this point
-    unsafe { opt.logging.configure(); }
+    unsafe {
+        opt.logging.configure();
+    }
 
     let config = match spfs::get_config() {
         Err(err) => {
@@ -155,7 +157,10 @@ impl CmdService {
 
         tracing::info!(listen = %self.listen, mountpoint = %self.mountpoint.display(), "Service started");
 
-        server.await.into_diagnostic().wrap_err("gRPC server failed")?;
+        server
+            .await
+            .into_diagnostic()
+            .wrap_err("gRPC server failed")?;
 
         tracing::info!("Service stopped");
         Ok(0)
@@ -280,26 +285,28 @@ impl CmdStatus {
             .await
             .into_diagnostic()
             .wrap_err("Failed to connect to service - is it running?")?;
-        
+
         let mut client = proto::vfs_service_client::VfsServiceClient::new(channel);
-        let response = client.status(proto::StatusRequest {}).await.into_diagnostic()?;
+        let response = client
+            .status(proto::StatusRequest {})
+            .await
+            .into_diagnostic()?;
         let status = response.into_inner();
-        
+
         println!("Active mounts: {}", status.active_mounts);
-        
+
         if status.mounts.is_empty() {
             println!("No active mounts");
         } else {
             println!();
             for mount in status.mounts {
-                println!("  PID {}: {} (editable: {})",
-                    mount.root_pid,
-                    mount.env_spec,
-                    mount.editable
+                println!(
+                    "  PID {}: {} (editable: {})",
+                    mount.root_pid, mount.env_spec, mount.editable
                 );
             }
         }
-        
+
         Ok(0)
     }
 }

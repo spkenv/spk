@@ -39,7 +39,7 @@ pub mod scratch;
 
 pub use handle::Handle;
 pub use mount::Mount;
-pub use process::{get_parent_pid, get_parent_pids_macos, is_in_process_tree, ProcessError};
+pub use process::{ProcessError, get_parent_pid, get_parent_pids_macos, is_in_process_tree};
 pub use router::Router;
 pub use scratch::{ScratchDir, ScratchError};
 

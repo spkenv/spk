@@ -64,10 +64,9 @@ where
             #[cfg(not(target_os = "linux"))]
             let flags = OFlag::O_DIRECTORY | OFlag::O_RDONLY;
 
-            let fd = nix::fcntl::open(&path, flags, Mode::empty())
-                .map_err(|err| {
-                    Error::StorageWriteError("open render target dir", path, err.into())
-                })?;
+            let fd = nix::fcntl::open(&path, flags, Mode::empty()).map_err(|err| {
+                Error::StorageWriteError("open render target dir", path, err.into())
+            })?;
             // Safety: from_raw_fd takes ownership of this fd which is what we want
             Ok(unsafe { tokio::fs::File::from_raw_fd(fd) })
         })
@@ -392,17 +391,14 @@ where
                                     err,
                                 )
                             })?;
-                        nix::sys::stat::fchmod(
-                            proxy_file_fd,
-                            mode_from_u32(entry.mode()),
-                        )
-                        .map_err(|err| {
-                            Error::StorageWriteError(
-                                "set permissions on proxy payload",
-                                PathBuf::from(entry.name()),
-                                err.into(),
-                            )
-                        })?;
+                        nix::sys::stat::fchmod(proxy_file_fd, mode_from_u32(entry.mode()))
+                            .map_err(|err| {
+                                Error::StorageWriteError(
+                                    "set permissions on proxy payload",
+                                    PathBuf::from(entry.name()),
+                                    err.into(),
+                                )
+                            })?;
                         // Move temporary file into place.
                         if let Err(err) = temp_proxy_file.persist_noclobber(&proxy_path) {
                             match err.error.kind() {

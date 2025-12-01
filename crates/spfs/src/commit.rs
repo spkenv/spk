@@ -379,15 +379,13 @@ impl CommitReporter for SilentCommitReporter {}
 /// directory for FuseWithScratch on macOS.
 fn get_runtime_changes_dir(runtime: &runtime::Runtime) -> Result<PathBuf> {
     match runtime.config.mount_backend {
-        runtime::MountBackend::OverlayFsWithRenders
-        | runtime::MountBackend::OverlayFsWithFuse => {
+        runtime::MountBackend::OverlayFsWithRenders | runtime::MountBackend::OverlayFsWithFuse => {
             // Linux: read from overlayfs upper directory
             Ok(runtime.config.upper_dir.clone())
         }
         runtime::MountBackend::FuseWithScratch => {
             // macOS: read from scratch directory
-            let scratch_dir =
-                std::env::temp_dir().join(format!("spfs-scratch-{}", runtime.name()));
+            let scratch_dir = std::env::temp_dir().join(format!("spfs-scratch-{}", runtime.name()));
             if !scratch_dir.exists() {
                 return Err(Error::String(format!(
                     "Scratch directory does not exist: {}",
@@ -396,12 +394,12 @@ fn get_runtime_changes_dir(runtime: &runtime::Runtime) -> Result<PathBuf> {
             }
             Ok(scratch_dir)
         }
-        runtime::MountBackend::FuseOnly | runtime::MountBackend::WinFsp => Err(Error::String(
-            format!(
+        runtime::MountBackend::FuseOnly | runtime::MountBackend::WinFsp => {
+            Err(Error::String(format!(
                 "Backend {} does not support commit (read-only)",
                 runtime.config.mount_backend
-            ),
-        )),
+            )))
+        }
     }
 }
 

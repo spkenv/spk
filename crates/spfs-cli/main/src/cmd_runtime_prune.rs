@@ -83,10 +83,9 @@ impl CmdRuntimePrune {
                 .nth(1)
                 .and_then(|s| s.split(',').next())
                 .ok_or_else(|| spfs::Error::String("Failed to parse boot time".to_string()))?;
-            let sec: i64 = sec_str
-                .trim()
-                .parse()
-                .map_err(|err| spfs::Error::String(format!("Failed to parse boot time seconds: {err}")))?;
+            let sec: i64 = sec_str.trim().parse().map_err(|err| {
+                spfs::Error::String(format!("Failed to parse boot time seconds: {err}"))
+            })?;
             chrono::DateTime::from_timestamp(sec, 0)
                 .ok_or_else(|| spfs::Error::String("Failed to convert boot time".to_string()))?
         };

@@ -250,11 +250,7 @@ impl ScratchDir {
     /// Rename a path in scratch.
     ///
     /// Both old and new paths should be virtual paths.
-    pub fn rename(
-        &self,
-        old_virtual: &Path,
-        new_virtual: &Path,
-    ) -> Result<(), ScratchError> {
+    pub fn rename(&self, old_virtual: &Path, new_virtual: &Path) -> Result<(), ScratchError> {
         let old_scratch = self.scratch_path(old_virtual);
         let new_scratch = self.scratch_path(new_virtual);
 
@@ -338,9 +334,11 @@ impl Drop for ScratchDir {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::io::Write;
+
     use tempfile::TempDir;
+
+    use super::*;
 
     fn test_scratch() -> (TempDir, ScratchDir) {
         let temp = TempDir::new().unwrap();

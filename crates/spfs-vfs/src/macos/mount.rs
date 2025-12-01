@@ -18,7 +18,17 @@ use std::time::{Duration, SystemTime};
 
 use dashmap::DashMap;
 use fuser::consts::{FOPEN_KEEP_CACHE, FOPEN_NONSEEKABLE};
-use fuser::{FileAttr, FileType, ReplyAttr, ReplyData, ReplyDirectory, ReplyEntry, ReplyLseek, ReplyOpen, ReplyStatfs};
+use fuser::{
+    FileAttr,
+    FileType,
+    ReplyAttr,
+    ReplyData,
+    ReplyDirectory,
+    ReplyEntry,
+    ReplyLseek,
+    ReplyOpen,
+    ReplyStatfs,
+};
 use spfs::prelude::*;
 use spfs::storage::{LocalRepository, RepositoryHandle};
 use spfs::tracking::{Entry, EntryKind, Manifest};
@@ -99,7 +109,7 @@ impl Mount {
     ) -> spfs::Result<Self> {
         Self::new_with_env_spec(rt, repos, manifest, String::new())
     }
-    
+
     /// Create a new read-only Mount with an env_spec string.
     pub fn new_with_env_spec(
         rt: tokio::runtime::Handle,
@@ -122,7 +132,7 @@ impl Mount {
     ) -> spfs::Result<Self> {
         Self::new_editable_with_env_spec(rt, repos, manifest, runtime_name, String::new())
     }
-    
+
     /// Create a new editable Mount with env_spec string.
     pub fn new_editable_with_env_spec(
         rt: tokio::runtime::Handle,
@@ -131,10 +141,16 @@ impl Mount {
         runtime_name: &str,
         env_spec: String,
     ) -> spfs::Result<Self> {
-        let scratch = ScratchDir::new(runtime_name).map_err(|e| {
-            spfs::Error::String(format!("Failed to create scratch directory: {e}"))
-        })?;
-        Self::new_internal(rt, repos, manifest, Some(scratch), env_spec, Some(runtime_name.to_string()))
+        let scratch = ScratchDir::new(runtime_name)
+            .map_err(|e| spfs::Error::String(format!("Failed to create scratch directory: {e}")))?;
+        Self::new_internal(
+            rt,
+            repos,
+            manifest,
+            Some(scratch),
+            env_spec,
+            Some(runtime_name.to_string()),
+        )
     }
 
     fn new_internal(
@@ -173,7 +189,11 @@ impl Mount {
 
     /// Create an empty mount with no repositories or entries.
     pub fn empty() -> spfs::Result<Self> {
-        Self::new(tokio::runtime::Handle::current(), Vec::new(), Manifest::default())
+        Self::new(
+            tokio::runtime::Handle::current(),
+            Vec::new(),
+            Manifest::default(),
+        )
     }
 
     /// Get the repositories backing this mount.
@@ -185,12 +205,12 @@ impl Mount {
     pub fn is_editable(&self) -> bool {
         self.scratch.is_some()
     }
-    
+
     /// Get the environment spec string for this mount.
     pub fn env_spec(&self) -> &str {
         &self.env_spec
     }
-    
+
     /// Get the runtime name for this mount (if editable).
     pub fn runtime_name(&self) -> Option<&str> {
         self.runtime_name.as_deref()
@@ -207,19 +227,21 @@ impl Mount {
             reply.error(libc::EINVAL);
             return;
         };
-        
+
         // Determine parent path
-        let parent_path = self.get_virtual_path(parent)
+        let parent_path = self
+            .get_virtual_path(parent)
             .unwrap_or_else(|| std::path::PathBuf::from("/"));
         let virtual_path = parent_path.join(name_str);
-        
+
         // Check for whiteout first
         if let Some(scratch) = &self.scratch
-            && scratch.is_deleted(&virtual_path) {
-                reply.error(libc::ENOENT);
-                return;
-            }
-        
+            && scratch.is_deleted(&virtual_path)
+        {
+            reply.error(libc::ENOENT);
+            return;
+        }
+
         // Check scratch for this path
         if let Some(scratch_ino) = self.scratch_inodes.get(&virtual_path) {
             let scratch_ino = *scratch_ino;
@@ -238,7 +260,7 @@ impl Mount {
                 }
             }
         }
-        
+
         // Check base layer
         let Some(parent_entry) = self.inodes.get(&parent) else {
             reply.error(libc::ENOENT);
@@ -266,32 +288,33 @@ impl Mount {
     pub fn getattr(&self, ino: u64, reply: ReplyAttr) {
         // Check if this is a scratch inode
         if let Some(virtual_path) = self.inode_to_path.get(&ino)
-            && let Some(scratch) = &self.scratch {
-                // Check for whiteout
-                if scratch.is_deleted(&virtual_path) {
-                    reply.error(libc::ENOENT);
+            && let Some(scratch) = &self.scratch
+        {
+            // Check for whiteout
+            if scratch.is_deleted(&virtual_path) {
+                reply.error(libc::ENOENT);
+                return;
+            }
+
+            let scratch_path = scratch.scratch_path(&virtual_path);
+            match std::fs::metadata(&scratch_path) {
+                Ok(meta) => {
+                    let attr = self.attr_from_metadata(ino, &meta);
+                    reply.attr(&self.ttl, &attr);
                     return;
                 }
-                
-                let scratch_path = scratch.scratch_path(&virtual_path);
-                match std::fs::metadata(&scratch_path) {
-                    Ok(meta) => {
-                        let attr = self.attr_from_metadata(ino, &meta);
-                        reply.attr(&self.ttl, &attr);
-                        return;
-                    }
-                    Err(e) => {
-                        tracing::warn!(
-                            path = %scratch_path.display(),
-                            error = %e,
-                            "scratch file stat failed"
-                        );
-                        reply.error(libc::EIO);
-                        return;
-                    }
+                Err(e) => {
+                    tracing::warn!(
+                        path = %scratch_path.display(),
+                        error = %e,
+                        "scratch file stat failed"
+                    );
+                    reply.error(libc::EIO);
+                    return;
                 }
             }
-        
+        }
+
         // Fall back to base layer
         let Some(entry) = self.inodes.get(&ino) else {
             reply.error(libc::ENOENT);
@@ -348,21 +371,21 @@ impl Mount {
             drop(virtual_path_ref);
             return self.open_scratch_file(&virtual_path, ino, flags, reply);
         }
-        
+
         // Look up in base layer
         let Some(entry) = self.inodes.get(&ino).map(|kv| Arc::clone(kv.value())) else {
             reply.error(libc::ENOENT);
             return;
         };
-        
+
         if entry.is_dir() {
             reply.error(libc::EISDIR);
             return;
         }
-        
+
         // Check if write access requested
         let write_requested = (flags & libc::O_WRONLY) != 0 || (flags & libc::O_RDWR) != 0;
-        
+
         if write_requested {
             // Need copy-up
             if let Some(_scratch) = &self.scratch {
@@ -373,7 +396,7 @@ impl Mount {
                     return;
                 };
                 let virtual_path = virtual_path.clone();
-                
+
                 // Perform copy-up
                 match self.perform_copy_up(&entry, &virtual_path) {
                     Ok(scratch_ino) => {
@@ -391,7 +414,7 @@ impl Mount {
             }
             return;
         }
-        
+
         // Read-only open - proceed as before
         let handle = match self.open_blob_handle(entry) {
             Ok(handle) => handle,
@@ -442,7 +465,11 @@ impl Mount {
                 }
                 reply.data(&buf[..consumed]);
             }
-            Handle::BlobStream { stream, offset: pos, .. } => {
+            Handle::BlobStream {
+                stream,
+                offset: pos,
+                ..
+            } => {
                 if pos.load(Ordering::Relaxed) != offset as u64 {
                     reply.error(libc::EINVAL);
                     return;
@@ -465,7 +492,10 @@ impl Mount {
                 });
                 match read_res {
                     Ok(data) => reply.data(&data),
-                    Err(err) => reply_error!(reply, spfs::Error::String(format!("stream read error: {err}"))),
+                    Err(err) => reply_error!(
+                        reply,
+                        spfs::Error::String(format!("stream read error: {err}"))
+                    ),
                 }
             }
         }
@@ -506,11 +536,12 @@ impl Mount {
     pub fn readdir(&self, ino: u64, _fh: u64, offset: i64, mut reply: ReplyDirectory) {
         let mut entries: Vec<(u64, FileType, String)> = Vec::new();
         let mut seen_names: std::collections::HashSet<String> = std::collections::HashSet::new();
-        
+
         // Get parent path for whiteout/scratch checks
-        let parent_path = self.get_virtual_path(ino)
+        let parent_path = self
+            .get_virtual_path(ino)
             .unwrap_or_else(|| std::path::PathBuf::from("/"));
-        
+
         // First, add . and ..
         if offset == 0 {
             entries.push((ino, FileType::Directory, ".".to_string()));
@@ -521,7 +552,8 @@ impl Mount {
             let parent_ino = if parent_path == std::path::Path::new("/") {
                 1
             } else {
-                self.base_inode_to_path.iter()
+                self.base_inode_to_path
+                    .iter()
                     .find(|kv| kv.value().as_path() == parent_path.parent().unwrap_or(&parent_path))
                     .map(|kv| *kv.key())
                     .unwrap_or(1)
@@ -529,12 +561,14 @@ impl Mount {
             entries.push((parent_ino, FileType::Directory, "..".to_string()));
             seen_names.insert("..".to_string());
         }
-        
+
         // Collect whiteouts if editable
-        let whiteouts: std::collections::HashSet<std::path::PathBuf> = self.scratch.as_ref()
+        let whiteouts: std::collections::HashSet<std::path::PathBuf> = self
+            .scratch
+            .as_ref()
             .map(|s| s.deleted_paths().into_iter().collect())
             .unwrap_or_default();
-        
+
         // Add scratch directory entries
         if let Some(scratch) = &self.scratch {
             let scratch_parent = scratch.scratch_path(&parent_path);
@@ -544,56 +578,58 @@ impl Mount {
                     if seen_names.contains(&name) {
                         continue;
                     }
-                    
+
                     let child_path = parent_path.join(&name);
                     if whiteouts.contains(&child_path) {
                         continue;
                     }
-                    
+
                     // Get inode for scratch file
-                    let child_ino = self.scratch_inodes.get(&child_path)
+                    let child_ino = self
+                        .scratch_inodes
+                        .get(&child_path)
                         .map(|v| *v)
                         .unwrap_or_else(|| self.allocate_inode());
-                    
+
                     let file_type = if entry.path().is_dir() {
                         FileType::Directory
                     } else {
                         FileType::RegularFile
                     };
-                    
+
                     entries.push((child_ino, file_type, name.clone()));
                     seen_names.insert(name);
                 }
             }
         }
-        
+
         // Add base layer entries (not whiteout'd and not already in scratch)
         let Some(parent_entry) = self.inodes.get(&ino) else {
             reply.error(libc::ENOENT);
             return;
         };
-        
+
         for (name, child) in &parent_entry.entries {
             if seen_names.contains(name) {
                 continue;
             }
-            
+
             let child_path = parent_path.join(name);
             if whiteouts.contains(&child_path) {
                 continue;
             }
-            
+
             let file_type = match child.kind {
                 EntryKind::Blob(_) if child.is_symlink() => FileType::Symlink,
                 EntryKind::Blob(_) => FileType::RegularFile,
                 EntryKind::Tree => FileType::Directory,
                 EntryKind::Mask => continue, // Skip masks
             };
-            
+
             entries.push((child.user_data, file_type, name.clone()));
             seen_names.insert(name.clone());
         }
-        
+
         // Reply with entries starting at offset
         for (i, (ino, kind, name)) in entries.iter().enumerate().skip(offset as usize) {
             if reply.add(*ino, (i + 1) as i64, *kind, name) {
@@ -601,7 +637,7 @@ impl Mount {
                 break;
             }
         }
-        
+
         reply.ok();
     }
 
@@ -626,7 +662,16 @@ impl Mount {
             .iter()
             .filter(|entry| entry.value().kind.is_blob())
             .count();
-        reply.statfs(blocks, 0, 0, files as u64, 0, BLOCK_SIZE, u32::MAX, BLOCK_SIZE);
+        reply.statfs(
+            blocks,
+            0,
+            0,
+            files as u64,
+            0,
+            BLOCK_SIZE,
+            u32::MAX,
+            BLOCK_SIZE,
+        );
     }
 
     /// Check file access permissions.
@@ -689,7 +734,7 @@ impl Mount {
         } = entry;
 
         let inode = self.allocate_inode();
-        
+
         // Allocate inodes for children first, passing the correct paths
         let entries = entries
             .into_iter()
@@ -708,13 +753,13 @@ impl Mount {
             user_data: inode,
             legacy_size,
         });
-        
+
         // Register inode -> entry mapping
         self.inodes.insert(inode, Arc::clone(&entry));
-        
+
         // Register inode -> path mapping for base layer
         self.base_inode_to_path.insert(inode, current_path);
-        
+
         entry
     }
 
@@ -796,7 +841,7 @@ impl Mount {
     /// Create FileAttr from filesystem metadata (for scratch files).
     fn attr_from_metadata(&self, ino: u64, meta: &std::fs::Metadata) -> FileAttr {
         use std::os::unix::fs::MetadataExt;
-        
+
         let kind = if meta.is_dir() {
             FileType::Directory
         } else if meta.file_type().is_symlink() {
@@ -804,7 +849,7 @@ impl Mount {
         } else {
             FileType::RegularFile
         };
-        
+
         FileAttr {
             ino,
             size: meta.size(),
@@ -835,11 +880,13 @@ impl Mount {
                     match std::fs::OpenOptions::new().read(true).open(&payload_path) {
                         Ok(file) => return Ok(Handle::BlobFile { entry, file }),
                         Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
-                        Err(err) => return Err(spfs::Error::StorageReadError(
-                            "open payload file",
-                            payload_path,
-                            err,
-                        )),
+                        Err(err) => {
+                            return Err(spfs::Error::StorageReadError(
+                                "open payload file",
+                                payload_path,
+                                err,
+                            ));
+                        }
                     }
                 }
                 repo => match self.rt.block_on(repo.open_payload(entry.object)) {
@@ -866,51 +913,52 @@ impl Mount {
         entry: &Entry<u64>,
         virtual_path: &std::path::Path,
     ) -> spfs::Result<u64> {
-        let scratch = self.scratch.as_ref().ok_or_else(|| {
-            spfs::Error::String("Cannot copy-up on read-only mount".to_string())
-        })?;
-        
+        let scratch = self
+            .scratch
+            .as_ref()
+            .ok_or_else(|| spfs::Error::String("Cannot copy-up on read-only mount".to_string()))?;
+
         // Check if already copied up (race condition check)
         if let Some(existing_ino) = self.scratch_inodes.get(virtual_path) {
             return Ok(*existing_ino);
         }
-        
+
         tracing::debug!(
             virtual_path = %virtual_path.display(),
             object = %entry.object,
             "performing copy-up"
         );
-        
+
         // Render the blob to a temporary file first
         let temp_path = self.render_blob_to_temp(entry)?;
-        
+
         // Copy to scratch
-        let _scratch_path = scratch.copy_to_scratch(virtual_path, &temp_path)
+        let _scratch_path = scratch
+            .copy_to_scratch(virtual_path, &temp_path)
             .map_err(|e| spfs::Error::String(format!("copy-up failed: {e}")))?;
-        
+
         // Clean up temp file
         let _ = std::fs::remove_file(&temp_path);
-        
+
         // Allocate inode and register in tracking maps
         let ino = self.allocate_inode();
         self.scratch_inodes.insert(virtual_path.to_path_buf(), ino);
         self.inode_to_path.insert(ino, virtual_path.to_path_buf());
-        
+
         // Copy permissions from original entry
         let scratch_path = scratch.scratch_path(virtual_path);
-        if let Err(e) = std::fs::set_permissions(
-            &scratch_path,
-            std::fs::Permissions::from_mode(entry.mode),
-        ) {
+        if let Err(e) =
+            std::fs::set_permissions(&scratch_path, std::fs::Permissions::from_mode(entry.mode))
+        {
             tracing::warn!(error = %e, "failed to preserve permissions during copy-up");
         }
-        
+
         tracing::info!(
             virtual_path = %virtual_path.display(),
             scratch_ino = ino,
             "copy-up complete"
         );
-        
+
         Ok(ino)
     }
 
@@ -918,8 +966,12 @@ impl Mount {
     fn render_blob_to_temp(&self, entry: &Entry<u64>) -> spfs::Result<std::path::PathBuf> {
         let temp_dir = std::env::temp_dir();
         // Use process ID and inode for uniqueness
-        let temp_path = temp_dir.join(format!("spfs-copyup-{}-{}", std::process::id(), entry.user_data));
-        
+        let temp_path = temp_dir.join(format!(
+            "spfs-copyup-{}-{}",
+            std::process::id(),
+            entry.user_data
+        ));
+
         // Open the blob from repository
         let mut reader = None;
         for repo in &self.repos {
@@ -932,19 +984,21 @@ impl Mount {
                 Err(e) => return Err(e),
             }
         }
-        
+
         let Some(mut reader) = reader else {
             return Err(spfs::Error::UnknownObject(entry.object));
         };
-        
+
         // Write to temp file
         let mut file = std::fs::File::create(&temp_path)
             .map_err(|e| spfs::Error::String(format!("failed to create temp file: {e}")))?;
-        
+
         self.rt.block_on(async {
             let mut buf = vec![0u8; 64 * 1024]; // 64KB buffer
             loop {
-                let n = reader.read(&mut buf).await
+                let n = reader
+                    .read(&mut buf)
+                    .await
                     .map_err(|e| spfs::Error::String(format!("read error: {e}")))?;
                 if n == 0 {
                     break;
@@ -954,7 +1008,7 @@ impl Mount {
             }
             Ok::<(), spfs::Error>(())
         })?;
-        
+
         Ok(temp_path)
     }
 
@@ -970,15 +1024,15 @@ impl Mount {
             reply.error(libc::EROFS);
             return;
         };
-        
+
         let scratch_path = scratch.scratch_path(virtual_path);
-        
+
         // Build open options based on flags
         let mut opts = std::fs::OpenOptions::new();
-        
+
         // Extract the access mode (O_RDONLY=0, O_WRONLY=1, O_RDWR=2)
         let access_mode = flags & libc::O_ACCMODE;
-        
+
         // Set read permission for O_RDONLY or O_RDWR
         if access_mode == libc::O_RDONLY || access_mode == libc::O_RDWR {
             opts.read(true);
@@ -993,7 +1047,7 @@ impl Mount {
         if (flags & libc::O_TRUNC) != 0 {
             opts.truncate(true);
         }
-        
+
         let file = match opts.open(&scratch_path) {
             Ok(f) => f,
             Err(e) => {
@@ -1006,13 +1060,13 @@ impl Mount {
                 return;
             }
         };
-        
+
         let handle = Handle::ScratchFile {
             ino,
             virtual_path: virtual_path.to_path_buf(),
             file,
         };
-        
+
         let fh = self.allocate_handle(handle);
         reply.opened(fh, FOPEN_KEEP_CACHE);
     }
@@ -1504,18 +1558,24 @@ mod tests {
 
     #[tokio::test]
     async fn allocate_inodes_assigns_ids() {
-        let mount =
-            Mount::new(tokio::runtime::Handle::current(), Vec::new(), Manifest::default())
-                .unwrap();
+        let mount = Mount::new(
+            tokio::runtime::Handle::current(),
+            Vec::new(),
+            Manifest::default(),
+        )
+        .unwrap();
         // Root inode (1) should always exist
         assert!(mount.inodes.contains_key(&1));
     }
 
     #[tokio::test]
     async fn root_inode_is_directory() {
-        let mount =
-            Mount::new(tokio::runtime::Handle::current(), Vec::new(), Manifest::default())
-                .unwrap();
+        let mount = Mount::new(
+            tokio::runtime::Handle::current(),
+            Vec::new(),
+            Manifest::default(),
+        )
+        .unwrap();
         let root = mount.inodes.get(&1).expect("root inode should exist");
         // Root should be a tree (directory)
         assert!(root.kind.is_tree(), "root should be a directory");
@@ -1523,9 +1583,12 @@ mod tests {
 
     #[tokio::test]
     async fn read_only_mount_is_not_editable() {
-        let mount =
-            Mount::new(tokio::runtime::Handle::current(), Vec::new(), Manifest::default())
-                .unwrap();
+        let mount = Mount::new(
+            tokio::runtime::Handle::current(),
+            Vec::new(),
+            Manifest::default(),
+        )
+        .unwrap();
         assert!(!mount.is_editable());
         assert!(mount.scratch().is_none());
     }
@@ -1591,17 +1654,23 @@ mod tests {
             "test-scratch-mapping",
         )
         .unwrap();
-        
+
         let virtual_path = std::path::PathBuf::from("/test-file.txt");
         let ino = mount.allocate_inode();
-        
+
         // Register a scratch file
         mount.scratch_inodes.insert(virtual_path.clone(), ino);
         mount.inode_to_path.insert(ino, virtual_path.clone());
-        
+
         // Should be able to retrieve it
-        assert_eq!(mount.scratch_inodes.get(&virtual_path).map(|v| *v), Some(ino));
-        assert_eq!(mount.inode_to_path.get(&ino).as_ref().map(|v| v.as_path()), Some(virtual_path.as_path()));
+        assert_eq!(
+            mount.scratch_inodes.get(&virtual_path).map(|v| *v),
+            Some(ino)
+        );
+        assert_eq!(
+            mount.inode_to_path.get(&ino).as_ref().map(|v| v.as_path()),
+            Some(virtual_path.as_path())
+        );
     }
 
     #[tokio::test]
@@ -1614,25 +1683,33 @@ mod tests {
             "test-idempotent",
         )
         .unwrap();
-        
+
         let virtual_path = std::path::PathBuf::from("/testfile.txt");
         let existing_ino = mount.allocate_inode();
-        
+
         // Pre-register a scratch file (simulating already copied-up)
-        mount.scratch_inodes.insert(virtual_path.clone(), existing_ino);
-        mount.inode_to_path.insert(existing_ino, virtual_path.clone());
-        
+        mount
+            .scratch_inodes
+            .insert(virtual_path.clone(), existing_ino);
+        mount
+            .inode_to_path
+            .insert(existing_ino, virtual_path.clone());
+
         // Create a dummy entry to test with
         let entry = Entry::empty_file_with_open_perms();
-        
+
         // perform_copy_up should detect existing scratch file and return its inode
         // without attempting to copy again
         let result = mount.perform_copy_up(&entry, &virtual_path);
-        
+
         // Should succeed and return the existing inode
         assert!(result.is_ok(), "should detect existing scratch file");
-        assert_eq!(result.unwrap(), existing_ino, "should return existing inode");
-        
+        assert_eq!(
+            result.unwrap(),
+            existing_ino,
+            "should return existing inode"
+        );
+
         // Should still be only one entry in scratch
         assert_eq!(
             mount.scratch_inodes.len(),
@@ -1645,36 +1722,27 @@ mod tests {
     async fn base_inode_to_path_mapping_complete() {
         // Create a manifest with nested structure
         let mut root = Entry::empty_dir_with_open_perms();
-        
+
         // Add a directory
         let mut dir_entry = Entry::empty_dir_with_open_perms();
-        
+
         // Add a file inside the directory
         let file_entry = Entry::empty_file_with_open_perms();
         dir_entry.entries.insert("file.txt".to_string(), file_entry);
-        
+
         root.entries.insert("subdir".to_string(), dir_entry);
-        
+
         let manifest = Manifest::new(root);
-        
-        let mount = Mount::new(
-            tokio::runtime::Handle::current(),
-            Vec::new(),
-            manifest,
-        )
-        .unwrap();
-        
+
+        let mount = Mount::new(tokio::runtime::Handle::current(), Vec::new(), manifest).unwrap();
+
         // Every inode should have a path mapping
         for inode_entry in mount.inodes.iter() {
             let ino = *inode_entry.key();
             let path = mount.base_inode_to_path.get(&ino);
-            assert!(
-                path.is_some(),
-                "inode {} should have a path mapping",
-                ino
-            );
+            assert!(path.is_some(), "inode {} should have a path mapping", ino);
         }
-        
+
         // Check specific paths
         let root_path = mount.base_inode_to_path.get(&1);
         assert_eq!(
@@ -1688,28 +1756,23 @@ mod tests {
     async fn get_virtual_path_works_for_all_inodes() {
         // Create a manifest with nested structure
         let mut root = Entry::empty_dir_with_open_perms();
-        
+
         let mut dir_entry = Entry::empty_dir_with_open_perms();
         let file_entry = Entry::empty_file_with_open_perms();
         dir_entry.entries.insert("file.txt".to_string(), file_entry);
         root.entries.insert("subdir".to_string(), dir_entry);
-        
+
         let manifest = Manifest::new(root);
-        
-        let mount = Mount::new(
-            tokio::runtime::Handle::current(),
-            Vec::new(),
-            manifest,
-        )
-        .unwrap();
-        
+
+        let mount = Mount::new(tokio::runtime::Handle::current(), Vec::new(), manifest).unwrap();
+
         // Root inode should resolve
         let root_path = mount.get_virtual_path(1);
         assert_eq!(
             root_path.as_ref().map(|p| p.as_path()),
             Some(std::path::Path::new("/")),
         );
-        
+
         // All base inodes should resolve via get_virtual_path
         for inode_entry in mount.inodes.iter() {
             let ino = *inode_entry.key();
