@@ -5,6 +5,7 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
+use spk_schema_foundation::ident::PinnedRequest;
 
 use crate::RequirementsList;
 
@@ -13,7 +14,7 @@ use crate::RequirementsList;
 pub struct Requirements {
     /// A list of var or pkg requests
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub requirements: RequirementsList,
+    pub requirements: RequirementsList<PinnedRequest>,
 
     /// Additional options for templates and solver's initial options
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]

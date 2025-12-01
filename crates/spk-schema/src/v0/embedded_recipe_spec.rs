@@ -4,7 +4,9 @@
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
-use spk_schema_foundation::ident::{AsVersionIdent, VersionIdent};
+use spk_schema_foundation::ident::{AsVersionIdent, BuildIdent, PinnableRequest, VersionIdent};
+use spk_schema_foundation::ident_build::{Build, EmbeddedSource};
+use spk_schema_foundation::option_map::OptionMap;
 
 use super::TestSpec;
 use crate::foundation::name::PkgName;
@@ -46,7 +48,28 @@ pub struct EmbeddedRecipeSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tests: Vec<TestSpec>,
     #[serde(default, skip_serializing_if = "IsDefault::is_default")]
-    pub install: EmbeddedInstallSpec,
+    pub install: EmbeddedInstallSpec<PinnableRequest>,
+}
+
+impl EmbeddedRecipeSpec {
+    pub fn render_all_pins(
+        self,
+        options: &OptionMap,
+        resolved_by_name: &std::collections::HashMap<&PkgName, &BuildIdent>,
+    ) -> Result<EmbeddedPackageSpec> {
+        Ok(EmbeddedPackageSpec {
+            pkg: self
+                .pkg
+                .into_build_ident(Build::Embedded(EmbeddedSource::Unknown)),
+            meta: self.meta,
+            compat: self.compat,
+            deprecated: self.deprecated,
+            sources: self.sources,
+            build: self.build,
+            tests: self.tests,
+            install: self.install.render_all_pins(options, resolved_by_name)?,
+        })
+    }
 }
 
 impl AsVersionIdent for EmbeddedRecipeSpec {
@@ -56,7 +79,9 @@ impl AsVersionIdent for EmbeddedRecipeSpec {
 }
 
 impl Components for EmbeddedRecipeSpec {
-    fn components(&self) -> &ComponentSpecList {
+    type Request = PinnableRequest;
+
+    fn components(&self) -> &ComponentSpecList<Self::Request> {
         &self.install.components
     }
 }
@@ -113,7 +138,7 @@ impl From<EmbeddedPackageSpec> for EmbeddedRecipeSpec {
             sources: pkg_spec.sources,
             build: pkg_spec.build,
             tests: pkg_spec.tests,
-            install: pkg_spec.install,
+            install: pkg_spec.install.into(),
         }
     }
 }
