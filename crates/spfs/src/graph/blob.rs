@@ -46,7 +46,7 @@ impl Blob {
 
     #[inline]
     pub fn size(&self) -> u64 {
-        self.proto().size()
+        self.proto().size_()
     }
 
     pub(super) fn legacy_encode(&self, writer: &mut impl std::io::Write) -> Result<()> {
@@ -98,7 +98,7 @@ impl BlobBuilder {
                 builder,
                 &spfs_proto::BlobArgs {
                     payload: Some(&self.payload),
-                    size: self.size,
+                    size_: self.size,
                 },
             );
             let any = spfs_proto::AnyObject::create(

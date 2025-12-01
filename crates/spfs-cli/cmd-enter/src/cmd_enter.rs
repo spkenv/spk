@@ -182,6 +182,7 @@ impl CmdEnter {
         // attributes. It can take many milliseconds to run so we prime the cache as
         // soon as possible in a separate thread
 
+        #[cfg(target_os = "linux")]
         std::thread::spawn(spfs::runtime::overlayfs::overlayfs_available_options_prime_cache);
 
         let mut runtime = self.load_runtime(config).await?;
@@ -195,8 +196,15 @@ impl CmdEnter {
             let start_time = Instant::now();
             // Safety: the responsibility of the caller.
             let render_summary = unsafe {
-                spfs::change_to_durable_runtime(&config.filesystem.overlayfs_options, &mut runtime)
-                    .await?
+                #[cfg(target_os = "linux")]
+                {
+                    spfs::change_to_durable_runtime(&config.filesystem.overlayfs_options, &mut runtime)
+                        .await?
+                }
+                #[cfg(not(target_os = "linux"))]
+                {
+                    spfs::change_to_durable_runtime(&mut runtime).await?
+                }
             };
             // Safety: the responsibility of the caller.
             unsafe {
@@ -211,6 +219,7 @@ impl CmdEnter {
             let with_root = in_namespace.become_root()?;
             const LAZY: bool = false;
             with_root.unmount_env(&runtime, LAZY).await?;
+            #[cfg(target_os = "linux")]
             with_root.unmount_runtime(&runtime.config)?;
             with_root.become_original_user()?;
             Ok(None)
@@ -218,8 +227,15 @@ impl CmdEnter {
             let start_time = Instant::now();
             // Safety: the responsibility of the caller.
             let render_summary = unsafe {
-                spfs::reinitialize_runtime(&config.filesystem.overlayfs_options, &mut runtime)
-                    .await?
+                #[cfg(target_os = "linux")]
+                {
+                    spfs::reinitialize_runtime(&config.filesystem.overlayfs_options, &mut runtime)
+                        .await?
+                }
+                #[cfg(not(target_os = "linux"))]
+                {
+                    spfs::reinitialize_runtime(&mut runtime).await?
+                }
             };
             // Safety: the responsibility of the caller.
             unsafe {
@@ -236,8 +252,16 @@ impl CmdEnter {
             tracing::debug!("initializing runtime {owned:#?}");
 
             let start_time = Instant::now();
-            let render_summary =
-                spfs::initialize_runtime(&config.filesystem.overlayfs_options, &mut owned).await?;
+            let render_summary = {
+                #[cfg(target_os = "linux")]
+                {
+                    spfs::initialize_runtime(&config.filesystem.overlayfs_options, &mut owned).await?
+                }
+                #[cfg(not(target_os = "linux"))]
+                {
+                    spfs::initialize_runtime(&mut owned).await?
+                }
+            };
             // Safety: the responsibility of the caller.
             unsafe {
                 self.report_render_summary(render_summary, start_time.elapsed().as_secs_f64())

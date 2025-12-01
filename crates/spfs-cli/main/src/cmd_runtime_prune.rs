@@ -5,7 +5,7 @@
 use chrono::{Duration, Utc};
 use clap::Args;
 use miette::Result;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use procfs::Current;
 use spfs_cli_common as cli;
 use tokio_stream::StreamExt;
@@ -55,7 +55,7 @@ impl CmdRuntimePrune {
 
         let default_author = spfs::runtime::Author::default();
 
-        #[cfg(unix)]
+        #[cfg(target_os = "linux")]
         let boot_time = match procfs::Uptime::current() {
             Ok(uptime) => {
                 Utc::now()
@@ -67,6 +67,28 @@ impl CmdRuntimePrune {
                 tracing::error!("Failed to get system uptime: {err}");
                 return Ok(1);
             }
+        };
+        #[cfg(target_os = "macos")]
+        let boot_time = {
+            // On macOS, use sysctl to get boot time
+            use std::process::Command;
+            let output = Command::new("sysctl")
+                .args(["-n", "kern.boottime"])
+                .output()
+                .map_err(|err| spfs::Error::String(format!("Failed to get boot time: {err}")))?;
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            // Parse the format: "{ sec = 1234567890, usec = 123456 } ..."
+            let sec_str = stdout
+                .split("sec = ")
+                .nth(1)
+                .and_then(|s| s.split(',').next())
+                .ok_or_else(|| spfs::Error::String("Failed to parse boot time".to_string()))?;
+            let sec: i64 = sec_str
+                .trim()
+                .parse()
+                .map_err(|err| spfs::Error::String(format!("Failed to parse boot time seconds: {err}")))?;
+            chrono::DateTime::from_timestamp(sec, 0)
+                .ok_or_else(|| spfs::Error::String("Failed to convert boot time".to_string()))?
         };
         #[cfg(windows)]
         let boot_time = Utc::now()

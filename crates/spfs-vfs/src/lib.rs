@@ -15,7 +15,7 @@ mod _featurecomb {}
 mod error;
 pub use error::Error;
 
-#[cfg(all(unix, feature = "fuse-backend"))]
+#[cfg(all(target_os = "linux", feature = "fuse-backend"))]
 mod fuse;
 #[cfg(all(any(target_os = "macos", windows), any(feature = "macfuse-backend", feature = "winfsp-backend")))]
 pub mod proto;
@@ -24,7 +24,7 @@ pub mod winfsp;
 #[cfg(all(target_os = "macos", feature = "macfuse-backend"))]
 pub mod macos;
 
-#[cfg(all(unix, feature = "fuse-backend"))]
+#[cfg(all(target_os = "linux", feature = "fuse-backend"))]
 pub use fuse::{Config, Session};
 #[cfg(all(windows, feature = "winfsp-backend"))]
 pub use winfsp::{Config, Service};

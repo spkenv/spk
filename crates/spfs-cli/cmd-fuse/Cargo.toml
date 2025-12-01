@@ -29,17 +29,17 @@ sentry = ["spfs-cli-common/sentry"]
 [dependencies]
 clap = { workspace = true }
 dashmap = { workspace = true }
-# enable the lowest fuse abi currently supported; at least one must be
-# enabled for this crate to compile
-spfs-vfs = { workspace = true, features = ["fuse-backend-abi-7-22"] }
 libc = "0.2"
 miette = { workspace = true, features = ["fancy"] }
 nix = { workspace = true, features = ["process"] }
-spfs = { workspace = true, features = ["fuse-backend"] }
+spfs = { workspace = true }
 spfs-cli-common = { workspace = true }
 tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
 tracing = { workspace = true }
 url = "2.2"
 
-[target.'cfg(unix)'.dependencies]
+[target.'cfg(target_os = "linux")'.dependencies]
 fuser = { workspace = true }
+# enable the lowest fuse abi currently supported; at least one must be
+# enabled for this crate to compile
+spfs-vfs = { workspace = true, features = ["fuse-backend-abi-7-22"] }

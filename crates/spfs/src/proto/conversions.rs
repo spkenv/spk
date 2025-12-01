@@ -312,7 +312,7 @@ impl TryFrom<super::Manifest> for graph::Manifest {
                             kind,
                             object: Some(&convert_digest(entry.object)?),
                             mode: entry.mode,
-                            size: entry.size,
+                            size_: entry.size,
                             name: Some(name),
                         },
                     ))

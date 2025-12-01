@@ -131,6 +131,17 @@ impl Runtime {
             self.relaunch_with_runtime(no_runtime_arg_insertion_index)
         }
 
+        #[cfg(target_os = "macos")]
+        {
+            let no_runtime_arg_insertion_index = std::env::args()
+                .skip(1)
+                .position(|arg| sub_command_aliases.iter().any(|command| arg == *command))
+                .map(|index| index + 2)
+                .unwrap_or(2);
+
+            self.relaunch_with_runtime(no_runtime_arg_insertion_index)
+        }
+
         #[cfg(target_os = "windows")]
         {
             // Prevent unused variable warning.
@@ -225,6 +236,67 @@ impl Runtime {
                 statsd_client.record_duration_from_start(&SPK_RUN_TIME_METRIC);
             }
         }
+
+        nix::unistd::execvp(&spfs, args.as_slice())
+            .into_diagnostic()
+            .wrap_err("Failed to re-launch spk in an spfs runtime")?;
+        unreachable!()
+    }
+
+    #[cfg(target_os = "macos")]
+    pub fn relaunch_with_runtime(
+        &self,
+        no_runtime_arg_insertion_index: usize,
+    ) -> Result<spfs::runtime::Runtime> {
+        use std::os::unix::ffi::OsStrExt;
+
+        let args = std::env::args_os();
+
+        let spfs = std::ffi::CString::new("spfs").expect("should never fail");
+        let mut found_insertion_index = false;
+        let mut args = args
+            .enumerate()
+            .flat_map(|(index, arg)| {
+                if index == no_runtime_arg_insertion_index {
+                    found_insertion_index = true;
+                    vec![
+                        std::ffi::CString::new("--no-runtime"),
+                        std::ffi::CString::new(arg.as_bytes()),
+                    ]
+                } else {
+                    vec![std::ffi::CString::new(arg.as_bytes())]
+                }
+            })
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .into_diagnostic()
+            .wrap_err("One or more arguments were not a valid c-string")?;
+        if !found_insertion_index {
+            args.push(std::ffi::CString::new("--no-runtime").expect("--no-runtime is valid UTF-8"));
+        }
+        args.insert(0, std::ffi::CString::new("--").expect("should never fail"));
+        args.insert(
+            0,
+            std::ffi::CString::new(spfs::tracking::ENV_SPEC_EMPTY).expect("should never fail"),
+        );
+        if let Some(runtime_name) = &self.runtime_name {
+            args.insert(
+                0,
+                std::ffi::CString::new(runtime_name.clone()).expect("should never fail"),
+            );
+            args.insert(
+                0,
+                std::ffi::CString::new("--runtime-name").expect("should never fail"),
+            );
+        }
+
+        if self.keep_runtime {
+            args.insert(
+                0,
+                std::ffi::CString::new("--keep-runtime").expect("should never fail"),
+            );
+        }
+
+        args.insert(0, std::ffi::CString::new("run").expect("should never fail"));
 
         nix::unistd::execvp(&spfs, args.as_slice())
             .into_diagnostic()

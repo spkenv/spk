@@ -2,28 +2,28 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use std::sync::Arc;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use std::time::Duration;
 
 use clap::Parser;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use fuser::MountOption;
 use miette::Result;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use miette::{Context, IntoDiagnostic, bail, miette};
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use spfs::Error;
 use spfs::tracking::EnvSpec;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use spfs_cli_common::warn_and_sentry_event;
 use spfs_cli_common::{self as cli};
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use spfs_vfs::{Config, Session};
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use tokio::signal::unix::{SignalKind, signal};
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use tokio::time::timeout;
 
 // The runtime setup process manages the current namespace
@@ -122,7 +122,7 @@ impl cli::CommandName for CmdFuse {
 }
 
 impl CmdFuse {
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     pub fn run(&mut self, config: &spfs::Config) -> Result<i32> {
         let calling_uid = nix::unistd::geteuid();
         let calling_gid = nix::unistd::getegid();
@@ -386,9 +386,15 @@ impl CmdFuse {
         eprintln!("spfs-fuse is not supported on Windows.");
         Ok(1)
     }
+
+    #[cfg(target_os = "macos")]
+    pub fn run(&mut self, _config: &spfs::Config) -> Result<i32> {
+        eprintln!("spfs-fuse is not supported on macOS. Use spfs-fuse-macos instead.");
+        Ok(1)
+    }
 }
 
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 /// Copies from the private [`fuser::MountOption::from_str`]
 fn parse_options_from_args(args: &[String]) -> Vec<MountOption> {
     args.iter()
@@ -417,7 +423,7 @@ fn parse_options_from_args(args: &[String]) -> Vec<MountOption> {
         .collect()
 }
 
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 /// Checks if fusermount3 is available to be used on this system
 fn fuse3_available() -> bool {
     spfs::which("fusermount3").is_some()

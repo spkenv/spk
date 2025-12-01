@@ -23,8 +23,13 @@ sentry = ["spfs/sentry", "spfs-cli-common/sentry"]
 clap = { workspace = true }
 miette = { workspace = true, features = ["fancy"] }
 nix = { workspace = true }
-spfs = { workspace = true, features = ["fuse-backend"] }
 spfs-cli-common = { workspace = true }
 tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
 tracing = { workspace = true }
 url = "2.2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+spfs = { workspace = true, features = ["fuse-backend"] }
+
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+spfs = { workspace = true }

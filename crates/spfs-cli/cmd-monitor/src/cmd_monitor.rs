@@ -90,7 +90,7 @@ impl CmdMonitor {
         // clean up this runtime and all other threads before detaching
         drop(rt);
 
-        #[cfg(unix)]
+        #[cfg(not(target_os = "macos"))]
         nix::unistd::daemon(self.no_chdir, self.no_close)
             .into_diagnostic()
             .wrap_err("Failed to daemonize the monitor process")?;
