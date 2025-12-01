@@ -300,8 +300,8 @@ async fn test_repo_update_and_deprecate_spec_updates_embed_stubs(#[case] repo: R
         "pkg": "my-pkg/1.0.0/3I42H3S6",
         "install": {
             "embedded": [
-                {"pkg": "my-embedded-pkg/1.0.0"},
-                {"pkg": "my-embedded-pkg2/1.0.0"}
+                {"pkg": "my-embedded-pkg/1.0.0/embedded"},
+                {"pkg": "my-embedded-pkg2/1.0.0/embedded"}
             ]
         }
     });
@@ -332,8 +332,8 @@ async fn test_repo_update_and_deprecate_spec_updates_embed_stubs(#[case] repo: R
         "pkg": "my-pkg/1.0.0/3I42H3S6",
         "install": {
             "embedded": [
-                {"pkg": "my-embedded-pkg2/1.0.0"},
-                {"pkg": "my-embedded-pkg3/1.0.0"}
+                {"pkg": "my-embedded-pkg2/1.0.0/embedded"},
+                {"pkg": "my-embedded-pkg3/1.0.0/embedded"}
             ]
         }
     });

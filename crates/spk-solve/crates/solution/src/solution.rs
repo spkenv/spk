@@ -23,7 +23,7 @@ use spk_schema::ident::{InitialRawRequest, PkgRequest, RequestedBy};
 use spk_schema::name::{PkgNameBuf, RepositoryNameBuf};
 use spk_schema::prelude::*;
 use spk_schema::version::Version;
-use spk_schema::{BuildEnv, BuildIdent, Package, Spec, SpecRecipe, VersionIdent};
+use spk_schema::{BuildEnv, BuildIdent, Components, Package, Spec, SpecRecipe, VersionIdent};
 use spk_storage::RepositoryHandle;
 
 use crate::{Error, PackageSolveData, PackagesToSolveData, Result};

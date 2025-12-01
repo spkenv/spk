@@ -53,6 +53,7 @@ pub use spk_solve_solution::{PackageSource, Solution};
 pub use spk_storage::RepositoryHandle;
 pub(crate) use status_line::StatusLine;
 pub use {
+    serde,
     serde_json,
     spfs,
     spk_solve_graph as graph,
