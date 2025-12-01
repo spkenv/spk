@@ -65,6 +65,9 @@ pub trait Recipe:
     where
         V: Variant;
 
+    /// Return the build script for building this recipe.
+    fn build_script(&self) -> String;
+
     /// Return the default variants defined in this recipe.
     ///
     /// The prevailing option overrides are needed to return a correct default
@@ -121,6 +124,9 @@ pub trait Recipe:
 
     /// Return the metadata for this package.
     fn metadata(&self) -> &Meta;
+
+    /// Return the set of configured validators when building this package
+    fn validation(&self) -> &super::ValidationSpec;
 }
 
 impl<T> Recipe for std::sync::Arc<T>
@@ -140,6 +146,10 @@ where
         V: Variant,
     {
         (**self).build_digest(variant)
+    }
+
+    fn build_script(&self) -> String {
+        (**self).build_script()
     }
 
     fn default_variants(&self, options: &OptionMap) -> Cow<'_, Vec<Self::Variant>> {
@@ -196,6 +206,10 @@ where
     fn metadata(&self) -> &Meta {
         (**self).metadata()
     }
+
+    fn validation(&self) -> &super::ValidationSpec {
+        (**self).validation()
+    }
 }
 
 impl<T> Recipe for &T
@@ -215,6 +229,10 @@ where
         V: Variant,
     {
         (**self).build_digest(variant)
+    }
+
+    fn build_script(&self) -> String {
+        (**self).build_script()
     }
 
     fn default_variants(&self, options: &OptionMap) -> Cow<'_, Vec<Self::Variant>> {
@@ -270,5 +288,9 @@ where
 
     fn metadata(&self) -> &Meta {
         (**self).metadata()
+    }
+
+    fn validation(&self) -> &super::ValidationSpec {
+        (**self).validation()
     }
 }

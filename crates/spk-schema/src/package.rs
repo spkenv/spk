@@ -191,12 +191,6 @@ pub trait Package:
         &self,
         components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList>;
-
-    /// Return the set of configured validators when building this package
-    fn validation(&self) -> &super::ValidationSpec;
-
-    /// Return the build script for building package
-    fn build_script(&self) -> String;
 }
 
 pub trait PackageMut: Package + DeprecateMut {
@@ -262,13 +256,5 @@ forward_to_impl!(Package, {
         components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList> {
         (**self).downstream_runtime_requirements(components)
-    }
-
-    fn validation(&self) -> &super::ValidationSpec {
-        (**self).validation()
-    }
-
-    fn build_script(&self) -> String {
-        (**self).build_script()
     }
 });
