@@ -451,10 +451,6 @@ impl Package for PackageSpec {
     ) -> Cow<'_, RequirementsList> {
         self.downstream_requirements(|o| o.inheritance() == Inheritance::Strong)
     }
-
-    fn build_script(&self) -> String {
-        self.build.script.join("\n")
-    }
 }
 
 impl PackageMut for PackageSpec {

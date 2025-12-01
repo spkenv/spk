@@ -15,7 +15,7 @@ use spk_schema_foundation::option_map::{OptionMap, Stringified};
 use super::{Opt, v0};
 use crate::option::PkgOpt;
 use crate::v0::RecipeBuildSpec;
-use crate::{Error, Result, Script, Variant};
+use crate::{Error, Result, Variant};
 
 #[cfg(test)]
 #[path = "./build_spec_test.rs"]
@@ -24,7 +24,6 @@ mod build_spec_test;
 /// A set of structured inputs used to build a package.
 #[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct BuildSpec {
-    pub script: Script,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub options: Vec<Opt>,
 }
@@ -188,8 +187,6 @@ impl From<v0::EmbeddedBuildSpec> for BuildSpec {
     fn from(value: v0::EmbeddedBuildSpec) -> Self {
         BuildSpec {
             options: value.options,
-            // Other fields are not part of the embedded build spec
-            script: Script::default(),
         }
     }
 }
@@ -221,7 +218,6 @@ impl<'de> Deserialize<'de> for BuildSpec {
 impl From<RecipeBuildSpec> for BuildSpec {
     fn from(value: RecipeBuildSpec) -> Self {
         BuildSpec {
-            script: value.script,
             options: value.options,
         }
     }
@@ -271,7 +267,6 @@ impl<'de> Deserialize<'de> for UncheckedBuildSpec {
                 let mut unchecked = BuildSpec::default();
                 while let Some(key) = map.next_key::<Stringified>()? {
                     match key.as_str() {
-                        "script" => unchecked.script = map.next_value::<Script>()?,
                         "options" => {
                             unchecked.options = map.next_value::<Vec<Opt>>()?;
                             let mut unique_options = HashSet::new();
