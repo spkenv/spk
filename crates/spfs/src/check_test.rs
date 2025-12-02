@@ -253,6 +253,8 @@ impl CheckReporter for &DebugReporter {
 /// The check should complete successfully and report a missing object.
 #[rstest]
 #[tokio::test]
+// This test just needs the config to not change while it is running.
+#[serial_test::serial(config)]
 async fn check_missing_annotation_blob(#[future] tmprepo: TempRepo) {
     init_logging();
     let tmprepo = tmprepo.await;
