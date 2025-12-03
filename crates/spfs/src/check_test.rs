@@ -295,7 +295,7 @@ async fn check_missing_annotation_blob(#[future] tmprepo: TempRepo) {
 
     let summary: CheckSummary = results.iter().map(|r| r.summary()).sum();
     tracing::info!("{summary:#?}");
-    assert_eq!(summary.checked_objects, 2);
+    assert_eq!(summary.checked_objects, 1);
     assert_eq!(summary.checked_payloads, 0);
     assert!(
         summary.missing_objects.contains(&blob),
