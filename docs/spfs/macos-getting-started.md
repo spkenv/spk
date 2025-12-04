@@ -201,19 +201,9 @@ Each process tree sees its own isolated view of `/spfs`.
 
 ## Known Limitations
 
-### Writing to Existing Files
+### No Durable Runtimes
 
-Currently, you cannot directly write to an existing file from the repository. You must copy it first:
-
-```bash
-# Workaround for modifying existing files
-cp /spfs/lib/config.json /tmp/config.json.tmp
-rm /spfs/lib/config.json
-cp /tmp/config.json.tmp /spfs/lib/config.json
-# Now you can edit /spfs/lib/config.json
-```
-
-Future versions will implement automatic copy-on-write for existing files.
+macOS does not support durable runtimes (the `--keep-runtime` flag). On Linux, durable runtimes persist after you exit and can be reconnected later with `spfs run --rerun`. On macOS, runtimes are tied to the process tree lifetime, so you must commit your changes before exiting or they will be lost.
 
 ### Scratch Directory Cleanup
 

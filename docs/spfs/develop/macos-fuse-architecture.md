@@ -273,6 +273,27 @@ macOS supports editable runtimes through the `FuseWithScratch` mount backend. Th
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+#### Copy-Up on Write
+
+When a file from the base layer (repository) is opened with write flags (`O_WRONLY` or `O_RDWR`), automatic copy-up is performed:
+
+1. The `open()` handler detects write flags
+2. `perform_copy_up()` is called which:
+   - Checks if the file was already copied (idempotency/race protection)
+   - Renders the blob from the repository to a temporary file
+   - Copies the temp file to the scratch directory
+   - Allocates a new inode and registers path mappings
+   - Preserves the original file permissions
+3. The scratch file is then opened for writing
+
+This allows transparent modification of existing files:
+
+```bash
+# In an editable shell, this "just works"
+spfs shell --edit my-package/1.0.0
+echo "new line" >> /spfs/existing-file.txt  # Automatic copy-up happens here
+```
+
 #### ScratchDir Operations
 
 The `ScratchDir` struct manages the scratch directory:
@@ -457,35 +478,18 @@ spfs-fuse-macos service --stop
 - [x] CLI `--editable` flag for `spfs-fuse-macos mount`
 - [x] Commit support reads from scratch directory
 - [x] Integration tests (24 tests passing)
+- [x] Automatic copy-up on open for existing files (when `O_WRONLY` or `O_RDWR` flags detected)
 
 ### Planned (Phase 3)
 - [ ] Monitor process for orphaned mount cleanup
 - [ ] Performance optimizations (ancestry caching)
-- [ ] Copy-up on open for existing files (see Known Limitations)
 - [ ] macOS CI/CD integration
 
 ## Known Limitations
 
-### Copy-up for Existing Files
+### No Durable Runtimes
 
-Currently, writing to an existing file from the base layer (repository) requires explicit copy-up. The current behavior:
-
-| Operation | On New File | On Scratch File | On Repository File |
-|-----------|-------------|-----------------|---------------------|
-| `create()` | Creates in scratch | N/A | Creates new in scratch |
-| `write()` | Works | Works | Returns `EROFS` |
-| `open(O_WRONLY)` | Works | Works | Returns `EROFS` |
-
-**Workaround**: To modify an existing file, first copy it to scratch:
-```bash
-# Copy the file to enable writes
-cp /spfs/lib/config.json /tmp/config.json.tmp
-rm /spfs/lib/config.json
-cp /tmp/config.json.tmp /spfs/lib/config.json
-# Now you can edit it
-```
-
-**Future improvement**: Implement automatic copy-up in `open()` when write flags (`O_WRONLY`, `O_RDWR`) are detected. This would transparently copy the file to scratch before allowing writes.
+macOS does not support durable runtimes. On Linux, the `--keep-runtime` flag allows a runtime to persist after exit and be reconnected later with `spfs run --rerun`. On macOS, runtimes are tied to the process tree lifetime via PID-based routing, so there is no kernel-level namespace to keep alive. You must commit your changes before exiting or they will be lost.
 
 ### Scratch Directory Persistence
 

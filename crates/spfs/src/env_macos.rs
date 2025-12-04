@@ -150,7 +150,6 @@ impl RuntimeConfigurator {
 
     #[cfg(feature = "fuse-backend")]
     async fn mount_fuse_onto<P>(&self, rt: &runtime::Runtime, path: P) -> Result<()>
-
     where
         P: AsRef<std::ffi::OsStr>,
     {
