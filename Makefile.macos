@@ -39,15 +39,30 @@ copy-release: release copy-spfs install-dirs
 copy-spfs: release-spfs install-dirs
 	for bin in $(CARGO_TARGET_DIR)/release/spfs*; do install -p -m 755 $$bin '$(DESTDIR)$(bindir)'; done
 
-# macOS-specific: setup /spfs mount point with proper ownership
+# macOS-specific: setup /spfs mount point via synthetic.conf
 setup-spfs-mount:
 	@if [ ! -d /spfs ]; then \
-		echo "Creating /spfs mount point..."; \
-		sudo mkdir -p /spfs; \
-		sudo chown $$(whoami) /spfs; \
-		echo "/spfs created and owned by $$(whoami)"; \
+		echo "[spfs] Setting up /spfs via /etc/synthetic.conf..."; \
+		if ! grep -q "^spfs$$" /etc/synthetic.conf 2>/dev/null; then \
+			echo "spfs" | sudo tee -a /etc/synthetic.conf; \
+		else \
+			echo "[spfs] /etc/synthetic.conf already contains 'spfs'"; \
+		fi; \
+		if /System/Library/Filesystems/apfs.fs/Contents/Resources/apfs.util -t 2>/dev/null; then \
+			echo "[spfs] synthetic.conf applied (Big Sur+)."; \
+		elif /System/Library/Filesystems/apfs.fs/Contents/Resources/apfs.util -B 2>/dev/null; then \
+			echo "[spfs] synthetic.conf applied (Catalina)."; \
+		else \
+			echo "[spfs] Could not apply synthetic.conf automatically."; \
+			echo "[spfs] You may need to reboot for /spfs to appear."; \
+		fi; \
+		if [ ! -d /spfs ]; then \
+			echo "[spfs] /spfs does not exist yet."; \
+			echo "[spfs] Please reboot your Mac, then rerun this command if needed."; \
+			exit 1; \
+		fi; \
 	else \
-		echo "/spfs already exists"; \
+		echo "[spfs] /spfs already exists"; \
 	fi
 
 # macOS doesn't use setcap - macFUSE handles permissions

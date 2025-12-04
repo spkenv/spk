@@ -37,12 +37,26 @@ kextstat | grep fuse
 # com.github.osxfuse.filesystems.osxfuse
 ```
 
-### 3. Create the SPFS Mount Point
+### 3. Create the SPFS Mount Point (synthetic.conf)
+
+On modern macOS versions, the root filesystem `/` is read-only, so you cannot create `/spfs` directly with `mkdir`. Instead, SPFS uses `/etc/synthetic.conf` to create a synthetic directory at `/spfs`.
+
+The easiest way to set this up is via the provided Makefile:
 
 ```bash
-sudo mkdir -p /spfs
-sudo chown $(whoami) /spfs
+# From the root of the SPK repository
+make -f Makefile.macos setup-spfs-mount
 ```
+
+On macOS Big Sur and later, this usually creates `/spfs` immediately. On macOS Catalina, you may need to reboot once after running the command.
+
+Verify that `/spfs` exists:
+
+```bash
+ls -ld /spfs
+```
+
+If you see a directory, you are ready to use SPFS.
 
 ## Building SPFS
 

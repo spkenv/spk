@@ -22,6 +22,18 @@ use crate::{Error, Result, runtime};
 pub const SPFS_DIR: &str = "/spfs";
 pub const SPFS_DIR_PREFIX: &str = "/spfs/";
 
+fn ensure_spfs_mountpoint_exists() -> Result<()> {
+    let path = Path::new(SPFS_DIR);
+    if path.is_dir() {
+        return Ok(());
+    }
+
+    Err(Error::String(format!(
+        "SPFS mount point {} does not exist. On macOS, you must configure /etc/synthetic.conf (e.g. via 'make -f Makefile.macos setup-spfs-mount') and reboot if required.",
+        SPFS_DIR
+    )))
+}
+
 const MACOS_FUSE_SERVICE_ADDR: &str = "127.0.0.1:37738";
 const SERVICE_STARTUP_TIMEOUT_SECS: u64 = 10;
 const MAX_SERVICE_START_RETRIES: u32 = 5;
@@ -132,11 +144,13 @@ impl RuntimeConfigurator {
     #[cfg(feature = "fuse-backend")]
     pub async fn mount_env_fuse(&self, rt: &runtime::Runtime) -> Result<()> {
         ensure_service_running().await?;
+        ensure_spfs_mountpoint_exists()?;
         self.mount_fuse_onto(rt, SPFS_DIR).await
     }
 
     #[cfg(feature = "fuse-backend")]
     async fn mount_fuse_onto<P>(&self, rt: &runtime::Runtime, path: P) -> Result<()>
+
     where
         P: AsRef<std::ffi::OsStr>,
     {
@@ -227,12 +241,10 @@ impl RootConfigurator {
         Ok(())
     }
 
-    /// Check or create the necessary directories for mounting the provided runtime.
+    /// Check the necessary directories for mounting the provided runtime.
     pub fn ensure_mount_targets_exist(&self, _config: &runtime::Config) -> Result<()> {
         tracing::debug!("ensuring mount targets exist...");
-        runtime::makedirs_with_perms(SPFS_DIR, 0o777)
-            .map_err(|source| Error::CouldNotCreateSpfsRoot { source })?;
-        Ok(())
+        ensure_spfs_mountpoint_exists()
     }
 
     /// Setup runtime directories.
@@ -245,6 +257,7 @@ impl RootConfigurator {
     #[cfg(feature = "fuse-backend")]
     pub async fn mount_env_fuse(&self, rt: &runtime::Runtime) -> Result<()> {
         ensure_service_running().await?;
+        ensure_spfs_mountpoint_exists()?;
         RuntimeConfigurator.mount_fuse_onto(rt, SPFS_DIR).await
     }
 
