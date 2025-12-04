@@ -40,30 +40,52 @@ copy-spfs: release-spfs install-dirs
 	for bin in $(CARGO_TARGET_DIR)/release/spfs*; do install -p -m 755 $$bin '$(DESTDIR)$(bindir)'; done
 
 # macOS-specific: setup /spfs mount point via synthetic.conf
+# Uses a symlink to a user-owned directory so FUSE can mount without root
+SPFS_MOUNT_DIR = $(HOME)/.spfs-mount
+
 setup-spfs-mount:
-	@if [ ! -d /spfs ]; then \
-		echo "[spfs] Setting up /spfs via /etc/synthetic.conf..."; \
-		if ! grep -q "^spfs$$" /etc/synthetic.conf 2>/dev/null; then \
-			echo "spfs" | sudo tee -a /etc/synthetic.conf; \
-		else \
-			echo "[spfs] /etc/synthetic.conf already contains 'spfs'"; \
+	@echo "[spfs] Setting up /spfs mount point..."
+	@# Create the user-owned mount directory
+	@mkdir -p "$(SPFS_MOUNT_DIR)"
+	@chmod 755 "$(SPFS_MOUNT_DIR)"
+	@echo "[spfs] Created $(SPFS_MOUNT_DIR)"
+	@# Check if /spfs already exists and is correct
+	@if [ -L /spfs ] && [ "$$(readlink /spfs)" = "$(SPFS_MOUNT_DIR)" ]; then \
+		echo "[spfs] /spfs is already correctly symlinked to $(SPFS_MOUNT_DIR)"; \
+	elif [ -e /spfs ]; then \
+		echo "[spfs] WARNING: /spfs already exists but is not a symlink to $(SPFS_MOUNT_DIR)"; \
+		echo "[spfs] Current /spfs:"; \
+		ls -la /spfs; \
+		echo ""; \
+		echo "[spfs] To fix, you need to:"; \
+		echo "  1. Edit /etc/synthetic.conf (sudo nano /etc/synthetic.conf)"; \
+		echo "  2. Remove any existing 'spfs' line"; \
+		echo "  3. Add this line (use TAB not spaces between spfs and path):"; \
+		echo "     spfs	$(SPFS_MOUNT_DIR)"; \
+		echo "  4. Reboot your Mac"; \
+		exit 1; \
+	else \
+		echo "[spfs] Configuring /etc/synthetic.conf..."; \
+		if grep -q "^spfs" /etc/synthetic.conf 2>/dev/null; then \
+			echo "[spfs] Removing old spfs entry from synthetic.conf..."; \
+			sudo sed -i '' '/^spfs/d' /etc/synthetic.conf; \
 		fi; \
+		printf "spfs\t$(SPFS_MOUNT_DIR)\n" | sudo tee -a /etc/synthetic.conf > /dev/null; \
+		echo "[spfs] Added symlink entry to synthetic.conf"; \
 		if /System/Library/Filesystems/apfs.fs/Contents/Resources/apfs.util -t 2>/dev/null; then \
-			echo "[spfs] synthetic.conf applied (Big Sur+)."; \
+			echo "[spfs] synthetic.conf applied (Big Sur+)"; \
 		elif /System/Library/Filesystems/apfs.fs/Contents/Resources/apfs.util -B 2>/dev/null; then \
-			echo "[spfs] synthetic.conf applied (Catalina)."; \
+			echo "[spfs] synthetic.conf applied (Catalina)"; \
 		else \
-			echo "[spfs] Could not apply synthetic.conf automatically."; \
-			echo "[spfs] You may need to reboot for /spfs to appear."; \
+			echo "[spfs] Could not apply synthetic.conf automatically"; \
+			echo "[spfs] You may need to reboot for /spfs to appear"; \
 		fi; \
-		if [ ! -d /spfs ]; then \
-			echo "[spfs] /spfs does not exist yet."; \
-			echo "[spfs] Please reboot your Mac, then rerun this command if needed."; \
+		if [ ! -L /spfs ]; then \
+			echo "[spfs] /spfs symlink not created yet - please reboot your Mac"; \
 			exit 1; \
 		fi; \
-	else \
-		echo "[spfs] /spfs already exists"; \
 	fi
+	@echo "[spfs] Setup complete! /spfs -> $(SPFS_MOUNT_DIR)"
 
 # macOS doesn't use setcap - macFUSE handles permissions
 # This is a no-op to maintain compatibility with Linux workflows

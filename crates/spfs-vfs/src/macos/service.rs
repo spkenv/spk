@@ -28,6 +28,8 @@ use crate::proto::{
     ShutdownResponse,
     StatusRequest,
     StatusResponse,
+    UnmountRequest,
+    UnmountResponse,
 };
 
 /// A macOS FUSE filesystem service
@@ -55,8 +57,11 @@ impl Service {
         // Open the configured repositories
         let mut repos = Vec::new();
 
-        // Open local repository
-        let local = spfs::open_repository("local")
+        // Open local repository using the config
+        let spfs_config = spfs::get_config()
+            .map_err(|e| Error::String(format!("Failed to load spfs config: {e}")))?;
+        let local = spfs_config
+            .get_local_repository_handle()
             .await
             .map_err(|e| Error::String(format!("Failed to open local repository: {e}")))?;
         repos.push(Arc::new(local));
@@ -83,7 +88,7 @@ impl Service {
     ///
     /// This creates the router and spawns a blocking thread to run
     /// the fuser session. Returns immediately after starting.
-    pub fn start_mount(self: &mut Arc<Self>) -> Result<(), Error> {
+    pub async fn start_mount(self: &mut Arc<Self>) -> Result<(), Error> {
         let service = Arc::clone(self);
 
         // Create shutdown channel
@@ -91,25 +96,24 @@ impl Service {
 
         // Create the router
         let repos = service.repos.clone();
-        let rt = tokio::runtime::Handle::current();
-        let router = rt
-            .block_on(async { Router::new(repos).await })
+        let router = Router::new(repos)
+            .await
             .map_err(|e| Error::String(format!("Failed to create router: {e}")))?;
 
         // Store router in service and start cleanup task
-        rt.block_on(async {
-            let router_arc = Arc::new(router.clone());
-            router_arc.start_cleanup_task();
-            *service.router.lock().await = Some(router.clone());
-            *service.shutdown_tx.lock().await = Some(shutdown_tx);
-        });
+        let router_arc = Arc::new(router.clone());
+        router_arc.start_cleanup_task();
+        *service.router.lock().await = Some(router.clone());
+        *service.shutdown_tx.lock().await = Some(shutdown_tx);
 
         // Build mount options
         let mut options: Vec<MountOption> = service.config.mount_options.iter().cloned().collect();
         options.push(MountOption::RO); // read-only
         options.push(MountOption::FSName("spfs".to_string()));
         options.push(MountOption::Subtype("spfs".to_string()));
-        options.push(MountOption::AllowOther); // allow other users to access
+        // Note: AllowOther requires root or special macFUSE configuration
+        // For single-user development, we skip it. If needed, run as root or
+        // configure macFUSE to allow user_allow_other.
 
         let mount_path = service.config.mountpoint.clone();
 
@@ -230,6 +234,23 @@ impl VfsService for Arc<Service> {
         Ok(Response::new(MountResponse {}))
     }
 
+    async fn unmount(
+        &self,
+        request: Request<UnmountRequest>,
+    ) -> Result<Response<UnmountResponse>, Status> {
+        let req = request.into_inner();
+
+        let router_guard = self.router.lock().await;
+        let router = router_guard.as_ref().ok_or_else(|| {
+            Status::failed_precondition("Service not running - FUSE mount not started")
+        })?;
+
+        let was_mounted = router.unmount(req.root_pid);
+        tracing::info!(root_pid = req.root_pid, was_mounted, "Unmounted environment");
+
+        Ok(Response::new(UnmountResponse { was_mounted }))
+    }
+
     async fn shutdown(
         &self,
         _request: Request<ShutdownRequest>,
@@ -272,26 +293,22 @@ impl VfsService for Arc<Service> {
 
 /// Clean up scratch directories from previous service runs.
 ///
-/// This finds any `/tmp/spfs-scratch-*` directories and removes them
-/// if their owning process is no longer running. This handles cases
+/// This finds any scratch directories under ~/Library/Caches/spfs/scratch/
+/// and removes them if they are older than 24 hours. This handles cases
 /// where the service or runtime crashed without proper cleanup.
 async fn cleanup_orphaned_scratch_directories() {
-    let temp_dir = std::env::temp_dir();
-    let pattern = "spfs-scratch-";
+    // Use the macOS-approved cache directory
+    let scratch_dir = match dirs::cache_dir() {
+        Some(cache) => cache.join("spfs").join("scratch"),
+        None => return,
+    };
 
-    let Ok(mut entries) = tokio::fs::read_dir(&temp_dir).await else {
+    let Ok(mut entries) = tokio::fs::read_dir(&scratch_dir).await else {
         return;
     };
 
     while let Ok(Some(entry)) = entries.next_entry().await {
-        let name = entry.file_name();
-        let name_str = name.to_string_lossy();
-
-        if !name_str.starts_with(pattern) {
-            continue;
-        }
-
-        // Try to extract runtime name and check if any process has it
+        // Each entry is a runtime's scratch directory
         // For now, just remove any scratch directories older than 24 hours
         // as a conservative cleanup
         if let Ok(metadata) = entry.metadata().await

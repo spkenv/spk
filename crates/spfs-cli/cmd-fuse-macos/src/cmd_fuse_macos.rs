@@ -66,6 +66,8 @@ enum Command {
     Service(CmdService),
     /// Mount an environment for the current process tree
     Mount(CmdMount),
+    /// Unmount an environment for a specific process tree
+    Unmount(CmdUnmount),
     /// Show service status and active mounts
     Status(CmdStatus),
 }
@@ -86,6 +88,7 @@ impl CmdFuseMacos {
             .wrap_err("Failed to establish async runtime")?;
         let res = match &mut self.command {
             Command::Mount(c) => rt.block_on(c.run(config)),
+            Command::Unmount(c) => rt.block_on(c.run(config)),
             Command::Service(c) => rt.block_on(c.run(config)),
             Command::Status(c) => rt.block_on(c.run(config)),
         };
@@ -135,6 +138,7 @@ impl CmdService {
 
         service
             .start_mount()
+            .await
             .into_diagnostic()
             .wrap_err("Failed to start FUSE mount")?;
 
@@ -161,6 +165,12 @@ impl CmdService {
             .await
             .into_diagnostic()
             .wrap_err("gRPC server failed")?;
+
+        // Unmount the filesystem on shutdown
+        tracing::info!("Unmounting filesystem...");
+        if let Err(err) = service.stop().await {
+            tracing::warn!(?err, "Failed to cleanly unmount filesystem");
+        }
 
         tracing::info!("Service stopped");
         Ok(0)
@@ -259,6 +269,58 @@ impl CmdMount {
             tracing::info!(root_pid, env_spec = %self.reference, "Editable mount registered");
         } else {
             tracing::info!(root_pid, env_spec = %self.reference, "Mount registered");
+        }
+        Ok(0)
+    }
+}
+
+/// Unmount an environment for a specific process tree
+#[derive(Debug, Args)]
+struct CmdUnmount {
+    /// The root process ID to unmount
+    #[clap(name = "PID")]
+    root_pid: u32,
+
+    /// Address of the running gRPC service
+    #[clap(
+        long,
+        default_value = "127.0.0.1:37738",
+        env = "SPFS_MACFUSE_LISTEN_ADDRESS"
+    )]
+    service: SocketAddr,
+}
+
+#[cfg(target_os = "macos")]
+impl CmdUnmount {
+    async fn run(&self, _config: &spfs::Config) -> Result<i32> {
+        let result = tonic::transport::Endpoint::from_shared(format!("http://{}", self.service))
+            .into_diagnostic()
+            .wrap_err("Invalid server address")?
+            .connect()
+            .await;
+
+        let channel = match result {
+            Err(err) if is_connection_refused(&err) => {
+                bail!("Service is not running. Start it with: spfs-fuse-macos service");
+            }
+            res => res.into_diagnostic()?,
+        };
+
+        let mut client = proto::vfs_service_client::VfsServiceClient::new(channel);
+
+        let response = client
+            .unmount(Request::new(proto::UnmountRequest {
+                root_pid: self.root_pid,
+            }))
+            .await
+            .into_diagnostic()
+            .wrap_err("Failed to unmount")?;
+
+        let resp = response.into_inner();
+        if resp.was_mounted {
+            tracing::info!(root_pid = self.root_pid, "Unmounted environment");
+        } else {
+            tracing::info!(root_pid = self.root_pid, "No mount found for PID");
         }
         Ok(0)
     }

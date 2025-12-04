@@ -4222,6 +4222,7 @@ dependencies = [
  "bytes",
  "clap 4.5.47",
  "dashmap",
+ "dirs 5.0.1",
  "featurecomb",
  "fuser",
  "futures-core",

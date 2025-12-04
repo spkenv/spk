@@ -79,7 +79,7 @@ pub async fn change_to_durable_runtime(_rt: &mut runtime::Runtime) -> Result<Ren
 /// more details on safety.
 pub async unsafe fn reinitialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSummary> {
     // Safety: the responsibility of the caller.
-    let configurator = unsafe { env::RuntimeConfigurator::default().current_runtime(rt)? };
+    let configurator = unsafe { env::RuntimeConfigurator.current_runtime(rt)? };
 
     tracing::debug!("computing runtime manifest");
     let _manifest = super::compute_runtime_manifest(rt).await?;
@@ -93,7 +93,6 @@ pub async unsafe fn reinitialize_runtime(rt: &mut runtime::Runtime) -> Result<Re
     Ok(RenderSummary::default())
 }
 
-#[cfg(feature = "fuse-backend")]
 async fn mount_env_for_backend(
     with_root: &env::RootConfigurator,
     rt: &runtime::Runtime,
@@ -109,17 +108,6 @@ async fn mount_env_for_backend(
     }
 }
 
-#[cfg(not(feature = "fuse-backend"))]
-async fn mount_env_for_backend(
-    _with_root: &env::RootConfigurator,
-    rt: &runtime::Runtime,
-) -> Result<()> {
-    Err(Error::String(format!(
-        "This binary was not compiled with support for {} on macOS",
-        rt.config.mount_backend
-    )))
-}
-
 /// Initialize the current runtime as rt.
 ///
 /// This function will run blocking IO on the current thread. On macOS,
@@ -131,10 +119,24 @@ pub async fn initialize_runtime(rt: &mut runtime::Runtime) -> Result<RenderSumma
     tracing::debug!("computing runtime manifest");
     let _manifest = super::compute_runtime_manifest(rt).await?;
 
-    // On macOS, we don't have mount namespaces, so we skip that step
+    // On macOS, we don't have mount namespaces, so we need unique runtime
+    // directories per runtime since they're shared across processes.
+    // Use the macOS-approved cache directory (~/Library/Caches/spfs/runtimes/)
+    let runtime_root = dirs::cache_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
+        .join("spfs")
+        .join("runtimes")
+        .join(rt.name());
+    rt.config.upper_dir = runtime_root.join("upper");
+    rt.config.lower_dir = runtime_root.join("lower");
+    rt.config.work_dir = runtime_root.join("work");
+    rt.config.sh_startup_file = runtime_root.join("startup.sh");
+    rt.config.csh_startup_file = runtime_root.join(".cshrc");
+    rt.config.runtime_dir = Some(runtime_root);
+
     rt.save_state_to_storage().await?;
 
-    let configurator = env::RuntimeConfigurator::default();
+    let configurator = env::RuntimeConfigurator;
     let with_root = configurator.become_root()?;
     with_root.ensure_mount_targets_exist(&rt.config)?;
 

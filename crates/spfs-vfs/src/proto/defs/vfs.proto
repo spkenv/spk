@@ -18,6 +18,13 @@ message MountRequest{
 }
 message MountResponse{}
 
+message UnmountRequest{
+    uint32 root_pid = 1;
+}
+message UnmountResponse{
+    bool was_mounted = 1;
+}
+
 message StatusRequest{}
 
 message MountInfo {
@@ -34,6 +41,8 @@ message StatusResponse {
 
 service VfsService {
     rpc Mount(MountRequest) returns (MountResponse);
+    // unmount an environment for a specific process tree
+    rpc Unmount(UnmountRequest) returns (UnmountResponse);
     // shut down the mounted filesystem and all running environments
     rpc Shutdown(ShutdownRequest) returns (ShutdownResponse);
     // get service status and active mounts

@@ -743,20 +743,45 @@ impl Runtime {
     ///
     /// If no paths are specified, nothing is done.
     pub fn reset<S: AsRef<str>>(&self, paths: &[S]) -> Result<()> {
+        // Determine which directory holds the edits based on mount backend
+        let edit_dir = match self.config.mount_backend {
+            MountBackend::OverlayFsWithFuse | MountBackend::OverlayFsWithRenders => {
+                // Linux: overlayfs upper directory
+                std::borrow::Cow::Borrowed(&self.config.upper_dir)
+            }
+            MountBackend::FuseWithScratch => {
+                // macOS: scratch directory in ~/Library/Caches/spfs/scratch/
+                let scratch_dir = dirs::cache_dir()
+                    .unwrap_or_else(std::env::temp_dir)
+                    .join("spfs")
+                    .join("scratch")
+                    .join(self.name());
+                if !scratch_dir.exists() {
+                    // No scratch directory means no edits to reset
+                    return Ok(());
+                }
+                std::borrow::Cow::Owned(scratch_dir)
+            }
+            MountBackend::FuseOnly | MountBackend::WinFsp => {
+                // These backends don't support edits, nothing to reset
+                return Ok(());
+            }
+        };
+
         let paths = paths
             .iter()
-            .map(|pat| gitignore::Pattern::new(pat.as_ref(), &self.config.upper_dir))
+            .map(|pat| gitignore::Pattern::new(pat.as_ref(), edit_dir.as_ref()))
             .map(|res| match res {
                 Err(err) => Err(Error::from(err)),
                 Ok(pat) => Ok(pat),
             })
             .collect::<Result<Vec<gitignore::Pattern>>>()?;
-        for entry in walkdir::WalkDir::new(&self.config.upper_dir) {
+        for entry in walkdir::WalkDir::new(edit_dir.as_ref()) {
             let entry = entry.map_err(|err| {
-                Error::RuntimeReadError(self.config.upper_dir.clone(), err.into())
+                Error::RuntimeReadError(edit_dir.clone().into_owned(), err.into())
             })?;
             let fullpath = entry.path();
-            if fullpath == self.config.upper_dir {
+            if fullpath == edit_dir.as_ref() {
                 continue;
             }
             for pattern in paths.iter() {
@@ -797,14 +822,18 @@ impl Runtime {
                 }
             }
             MountBackend::FuseOnly => false,
-            // FuseWithScratch uses the upper_dir as the scratch directory
-            MountBackend::FuseWithScratch => match std::fs::metadata(&self.config.upper_dir) {
-                #[cfg(unix)]
-                Ok(meta) => meta.size() != 0,
-                #[cfg(windows)]
-                Ok(meta) => meta.file_size() != 0,
-                Err(err) => !matches!(err.kind(), std::io::ErrorKind::NotFound),
-            },
+            MountBackend::FuseWithScratch => {
+                // macOS: check scratch directory in ~/Library/Caches/spfs/scratch/
+                let scratch_dir = dirs::cache_dir()
+                    .unwrap_or_else(std::env::temp_dir)
+                    .join("spfs")
+                    .join("scratch")
+                    .join(self.name());
+                match std::fs::read_dir(&scratch_dir) {
+                    Ok(mut entries) => entries.next().is_some(),
+                    Err(_) => false, // Directory doesn't exist or can't be read = not dirty
+                }
+            }
             MountBackend::WinFsp => false,
         }
     }
@@ -834,6 +863,12 @@ impl Runtime {
         &self,
         environment_overrides_for_child_process: &[EnvKeyValue],
     ) -> Result<()> {
+        // Ensure the parent directory exists for startup scripts
+        if let Some(parent) = self.config.sh_startup_file.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|err| Error::RuntimeWriteError(parent.to_path_buf(), err))?;
+        }
+        
         #[cfg(unix)]
         std::fs::write(
             &self.config.sh_startup_file,

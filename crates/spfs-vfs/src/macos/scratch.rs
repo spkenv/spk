@@ -59,10 +59,15 @@ pub struct ScratchDir {
 impl ScratchDir {
     /// Create a new scratch directory for the given runtime.
     ///
-    /// The directory is created under the system temp directory with
-    /// a name based on the runtime name.
+    /// The directory is created under the macOS cache directory
+    /// (~/Library/Caches/spfs/scratch/) with a name based on the runtime name.
     pub fn new(runtime_name: &str) -> Result<Self, ScratchError> {
-        let root = std::env::temp_dir().join(format!("spfs-scratch-{}", runtime_name));
+        // Use macOS-approved cache directory instead of /tmp
+        let root = dirs::cache_dir()
+            .unwrap_or_else(std::env::temp_dir)
+            .join("spfs")
+            .join("scratch")
+            .join(runtime_name);
         std::fs::create_dir_all(&root)?;
 
         tracing::debug!(path = %root.display(), "Created scratch directory");

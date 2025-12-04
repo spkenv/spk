@@ -58,6 +58,7 @@ fuse-backend.requires = { groups = ["fuse-abi"] }
 bytes = { workspace = true }
 clap = { workspace = true }
 dashmap = { workspace = true }
+dirs = { workspace = true }
 featurecomb = { workspace = true }
 futures-core = { workspace = true, optional = true }
 nix = { workspace = true, features = ["process"] }

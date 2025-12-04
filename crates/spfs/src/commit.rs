@@ -384,8 +384,12 @@ fn get_runtime_changes_dir(runtime: &runtime::Runtime) -> Result<PathBuf> {
             Ok(runtime.config.upper_dir.clone())
         }
         runtime::MountBackend::FuseWithScratch => {
-            // macOS: read from scratch directory
-            let scratch_dir = std::env::temp_dir().join(format!("spfs-scratch-{}", runtime.name()));
+            // macOS: read from scratch directory (in ~/Library/Caches/spfs/scratch/)
+            let scratch_dir = dirs::cache_dir()
+                .unwrap_or_else(std::env::temp_dir)
+                .join("spfs")
+                .join("scratch")
+                .join(runtime.name());
             if !scratch_dir.exists() {
                 return Err(Error::String(format!(
                     "Scratch directory does not exist: {}",

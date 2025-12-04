@@ -119,21 +119,13 @@ impl RuntimeConfigurator {
 
     /// Escalate the current process' privileges, becoming root.
     ///
-    /// On macOS, this attempts to become root via setuid if the binary
-    /// has the appropriate permissions.
+    /// On macOS with FUSE, we don't actually need root privileges since
+    /// the FUSE service runs in userspace. This function simply returns
+    /// a RootConfigurator without changing privileges.
     pub fn become_root(self) -> Result<RootConfigurator> {
-        tracing::debug!("becoming root...");
-        let original_euid = nix::unistd::geteuid();
-        if let Err(err) = nix::unistd::seteuid(nix::unistd::Uid::from_raw(0)) {
-            return Err(Error::wrap_nix(
-                err,
-                "Failed to become root user (effective)",
-            ));
-        }
+        tracing::debug!("become_root called (no-op on macOS with FUSE)");
         let original_uid = nix::unistd::getuid();
-        if let Err(err) = nix::unistd::setuid(nix::unistd::Uid::from_raw(0)) {
-            return Err(Error::wrap_nix(err, "Failed to become root user (actual)"));
-        }
+        let original_euid = nix::unistd::geteuid();
         Ok(RootConfigurator {
             original_uid,
             original_euid,
@@ -141,14 +133,12 @@ impl RuntimeConfigurator {
     }
 
     /// Mount the provided runtime via the macFUSE backend.
-    #[cfg(feature = "fuse-backend")]
     pub async fn mount_env_fuse(&self, rt: &runtime::Runtime) -> Result<()> {
         ensure_service_running().await?;
         ensure_spfs_mountpoint_exists()?;
         self.mount_fuse_onto(rt, SPFS_DIR).await
     }
 
-    #[cfg(feature = "fuse-backend")]
     async fn mount_fuse_onto<P>(&self, rt: &runtime::Runtime, path: P) -> Result<()>
     where
         P: AsRef<std::ffi::OsStr>,
@@ -160,8 +150,8 @@ impl RuntimeConfigurator {
         let editable = rt.status.editable;
         let read_only = !editable;
 
-        // Build mount options for macFUSE
-        let opts = get_fuse_args(&rt.config, read_only);
+        // Build mount options for macFUSE (currently unused as we delegate to CLI)
+        let _opts = get_fuse_args(&rt.config, read_only);
 
         tracing::debug!(editable, "mounting the FUSE filesystem on macOS...");
         let spfs_fuse = match super::resolve::which_spfs("fuse-macos") {
@@ -175,21 +165,32 @@ impl RuntimeConfigurator {
             cmd.arg("--editable");
             cmd.arg("--runtime-name").arg(rt.name());
         }
-        cmd.arg(&platform);
-        cmd.stdout(std::process::Stdio::null());
-        cmd.stderr(std::process::Stdio::null());
-        tracing::debug!("{cmd:?}");
-
-        match cmd.status() {
-            Err(err) => return Err(Error::process_spawn_error("mount", err, None)),
-            Ok(status) if status.code() == Some(0) => {}
-            Ok(status) => {
-                return Err(Error::String(format!(
-                    "Failed to mount fuse filesystem, mount command exited with non-zero status {:?}",
-                    status.code()
-                )));
-            }
+        // For editable mounts, use the runtime owner's PID (the shell process that
+        // will be writing to the filesystem). For read-only mounts, use the current
+        // process PID. This is important because spfs-enter --remount is a transient
+        // process that exits immediately, but the runtime owner (shell) keeps running.
+        let root_pid = if editable {
+            rt.status.owner.unwrap_or_else(std::process::id)
+        } else {
+            std::process::id()
         };
+        cmd.arg("--root-process").arg(root_pid.to_string());
+        cmd.arg(&platform);
+        // Capture stderr to see mount errors
+        cmd.stdout(std::process::Stdio::null());
+        cmd.stderr(std::process::Stdio::piped());
+        tracing::debug!("Running mount command: {cmd:?}");
+
+        let output = cmd.output().map_err(|err| Error::process_spawn_error("mount", err, None))?;
+        
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(Error::String(format!(
+                "Failed to mount fuse filesystem, mount command exited with status {:?}. stderr: {}",
+                output.status.code(),
+                stderr
+            )));
+        }
 
         // Wait for FUSE to be ready
         let mut sleep_time_ms = vec![2, 5, 10, 50, 100, 100, 100, 100];
@@ -213,22 +214,11 @@ pub struct RootConfigurator {
 
 impl RootConfigurator {
     /// Drop all capabilities and become the original user.
+    ///
+    /// On macOS with FUSE, we never actually escalated privileges,
+    /// so this is a no-op.
     pub fn become_original_user(self) -> Result<RuntimeConfigurator> {
-        tracing::debug!("dropping root...");
-        let mut result = nix::unistd::setuid(self.original_uid);
-        if let Err(err) = result {
-            return Err(Error::wrap_nix(
-                err,
-                "Failed to become regular user (actual)",
-            ));
-        }
-        result = nix::unistd::seteuid(self.original_euid);
-        if let Err(err) = result {
-            return Err(Error::wrap_nix(
-                err,
-                "Failed to become regular user (effective)",
-            ));
-        }
+        tracing::debug!("become_original_user called (no-op on macOS with FUSE)");
         Ok(RuntimeConfigurator)
     }
 
@@ -253,7 +243,6 @@ impl RootConfigurator {
     }
 
     /// Mount the provided runtime via the macFUSE backend.
-    #[cfg(feature = "fuse-backend")]
     pub async fn mount_env_fuse(&self, rt: &runtime::Runtime) -> Result<()> {
         ensure_service_running().await?;
         ensure_spfs_mountpoint_exists()?;
@@ -265,31 +254,51 @@ impl RootConfigurator {
         self.unmount_env_fuse(rt, lazy).await
     }
 
-    /// Unmount the FUSE filesystem.
-    async fn unmount_env_fuse(&self, _rt: &runtime::Runtime, lazy: bool) -> Result<()> {
-        tracing::debug!(%lazy, "unmounting existing fuse env @ {SPFS_DIR}...");
+    /// Unmount the FUSE filesystem route for a process tree.
+    ///
+    /// This doesn't actually unmount the FUSE filesystem (which is shared),
+    /// but tells the router to remove the route for this runtime's owner.
+    async fn unmount_env_fuse(&self, rt: &runtime::Runtime, _lazy: bool) -> Result<()> {
+        tracing::debug!("unmounting fuse env route for runtime...");
 
         if !service_is_running(MACOS_FUSE_SERVICE_ADDR).await {
             tracing::debug!("macFUSE service not running, nothing to unmount");
             return Ok(());
         }
 
-        // Use umount on macOS
-        let flags = if lazy { "-f" } else { "" };
-        let mut cmd = tokio::process::Command::new("umount");
-        if !flags.is_empty() {
-            cmd.arg(flags);
-        }
-        cmd.arg(SPFS_DIR);
+        // Get the PID to unmount - prefer the runtime owner, fall back to current process
+        let root_pid = rt.status.owner.unwrap_or_else(std::process::id);
 
-        match cmd.status().await {
-            Err(err) => Err(Error::ProcessSpawnError("umount".into(), err)),
-            Ok(status) if status.success() => Ok(()),
-            Ok(status) => Err(Error::String(format!(
-                "Failed to unmount FUSE filesystem: umount exited with {:?}",
-                status.code()
-            ))),
+        // Tell the service to unmount this PID's route
+        let spfs_fuse = match super::resolve::which_spfs("fuse-macos") {
+            None => return Err(Error::MissingBinary("spfs-fuse-macos")),
+            Some(exe) => exe,
+        };
+
+        let mut cmd = std::process::Command::new(spfs_fuse);
+        cmd.arg("unmount").arg(root_pid.to_string());
+        tracing::debug!("Running unmount command: {cmd:?}");
+
+        let output = cmd
+            .output()
+            .map_err(|err| Error::process_spawn_error("unmount", err, None))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            // Don't fail if there was nothing to unmount
+            if stderr.contains("No mount found") {
+                tracing::debug!("No existing mount found for PID {root_pid}");
+                return Ok(());
+            }
+            return Err(Error::String(format!(
+                "Failed to unmount fuse route: spfs-fuse-macos unmount exited with {:?}. stderr: {}",
+                output.status.code(),
+                stderr
+            )));
         }
+
+        tracing::debug!(%root_pid, "Unmounted fuse route");
+        Ok(())
     }
 
     /// Change the runtime to durable mode.
@@ -345,60 +354,24 @@ impl RootConfigurator {
 }
 
 /// Get FUSE mount arguments for macOS.
-#[cfg(feature = "fuse-backend")]
+///
+/// Returns a comma-separated string of mount options to pass to macFUSE.
 fn get_fuse_args(config: &runtime::Config, read_only: bool) -> String {
-    use fuser::MountOption::*;
-    use itertools::Itertools;
-
     let mut opts = vec![
-        NoDev,
-        NoAtime,
-        NoSuid,
-        Exec,
-        AllowOther,
-        CUSTOM(format!("uid={}", nix::unistd::getuid())),
-        CUSTOM(format!("gid={}", nix::unistd::getgid())),
+        "nodev".to_string(),
+        "noatime".to_string(),
+        "nosuid".to_string(),
+        "exec".to_string(),
+        "allow_other".to_string(),
+        format!("uid={}", nix::unistd::getuid()),
+        format!("gid={}", nix::unistd::getgid()),
     ];
-    opts.push(if read_only { RO } else { RW });
-    opts.extend(
-        config
-            .secondary_repositories
-            .iter()
-            .map(|r| CUSTOM(format!("remote={r}"))),
-    );
-    opts.push(CUSTOM(format!(
-        "incl_sec_tags={}",
-        config.include_secondary_tags
-    )));
-    opts.iter().map(option_to_string).join(",")
-}
-
-/// Format option to be passed to libfuse or kernel.
-#[cfg(feature = "fuse-backend")]
-pub fn option_to_string(option: &fuser::MountOption) -> String {
-    use fuser::MountOption;
-    match option {
-        MountOption::FSName(name) => format!("fsname={}", name),
-        MountOption::Subtype(subtype) => format!("subtype={}", subtype),
-        MountOption::CUSTOM(value) => value.to_string(),
-        MountOption::AutoUnmount => "auto_unmount".to_string(),
-        MountOption::AllowOther => "allow_other".to_string(),
-        MountOption::AllowRoot => "allow_other".to_string(),
-        MountOption::DefaultPermissions => "default_permissions".to_string(),
-        MountOption::Dev => "dev".to_string(),
-        MountOption::NoDev => "nodev".to_string(),
-        MountOption::Suid => "suid".to_string(),
-        MountOption::NoSuid => "nosuid".to_string(),
-        MountOption::RO => "ro".to_string(),
-        MountOption::RW => "rw".to_string(),
-        MountOption::Exec => "exec".to_string(),
-        MountOption::NoExec => "noexec".to_string(),
-        MountOption::Atime => "atime".to_string(),
-        MountOption::NoAtime => "noatime".to_string(),
-        MountOption::DirSync => "dirsync".to_string(),
-        MountOption::Sync => "sync".to_string(),
-        MountOption::Async => "async".to_string(),
+    opts.push(if read_only { "ro" } else { "rw" }.to_string());
+    for repo in &config.secondary_repositories {
+        opts.push(format!("remote={repo}"));
     }
+    opts.push(format!("incl_sec_tags={}", config.include_secondary_tags));
+    opts.join(",")
 }
 
 /// Get the overlayfs arguments for the given list of layer directories.
