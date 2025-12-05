@@ -57,6 +57,10 @@ async fn test_shell_initialization_startup_scripts(
     for startup_script in &[&rt.config.sh_startup_file, &rt.config.csh_startup_file] {
         let mut cmd = Command::new("sed");
         cmd.arg("-i");
+        // macOS BSD sed requires an argument after -i (backup extension), while GNU sed does not.
+        // Use an empty string to indicate no backup file on macOS.
+        #[cfg(target_os = "macos")]
+        cmd.arg("");
         cmd.arg(format!(
             "s|/spfs/etc/spfs/startup.d|{}|",
             tmp_startup_dir.to_string_lossy()
@@ -140,6 +144,10 @@ async fn test_shell_initialization_no_startup_scripts(
     for startup_script in &[&rt.config.sh_startup_file, &rt.config.csh_startup_file] {
         let mut cmd = Command::new("sed");
         cmd.arg("-i");
+        // macOS BSD sed requires an argument after -i (backup extension), while GNU sed does not.
+        // Use an empty string to indicate no backup file on macOS.
+        #[cfg(target_os = "macos")]
+        cmd.arg("");
         cmd.arg(format!(
             "s|/spfs/etc/spfs/startup.d|{}|",
             tmp_startup_dir.display()
