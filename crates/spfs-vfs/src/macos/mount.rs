@@ -19,14 +19,7 @@ use std::time::{Duration, SystemTime};
 use dashmap::DashMap;
 use fuser::consts::{FOPEN_KEEP_CACHE, FOPEN_NONSEEKABLE};
 use fuser::{
-    FileAttr,
-    FileType,
-    ReplyAttr,
-    ReplyData,
-    ReplyDirectory,
-    ReplyEntry,
-    ReplyLseek,
-    ReplyOpen,
+    FileAttr, FileType, ReplyAttr, ReplyData, ReplyDirectory, ReplyEntry, ReplyLseek, ReplyOpen,
     ReplyStatfs,
 };
 use spfs::prelude::*;

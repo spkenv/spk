@@ -8,13 +8,7 @@ use std::str::FromStr;
 use relative_path::RelativePathBuf;
 
 use crate::ident::{
-    AnyIdent,
-    AsVersionIdent,
-    BuildIdent,
-    Ident,
-    Result,
-    ToAnyIdentWithoutBuild,
-    parsing,
+    AnyIdent, AsVersionIdent, BuildIdent, Ident, Result, ToAnyIdentWithoutBuild, parsing,
 };
 use crate::ident_build::Build;
 use crate::ident_ops::TagPath;

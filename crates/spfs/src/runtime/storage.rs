@@ -868,7 +868,7 @@ impl Runtime {
             std::fs::create_dir_all(parent)
                 .map_err(|err| Error::RuntimeWriteError(parent.to_path_buf(), err))?;
         }
-        
+
         #[cfg(unix)]
         std::fs::write(
             &self.config.sh_startup_file,

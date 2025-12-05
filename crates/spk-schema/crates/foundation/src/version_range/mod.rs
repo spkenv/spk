@@ -15,16 +15,8 @@ use itertools::Itertools;
 use self::intersection::{CombineWith, ValidRange};
 use crate::spec_ops::Versioned;
 use crate::version::{
-    CompatRule,
-    Compatibility,
-    IncompatibleReason,
-    RangeSupersetProblem,
-    VERSION_SEP,
-    Version,
-    VersionForClause,
-    VersionNotDifferentProblem,
-    VersionNotEqualProblem,
-    VersionRangeProblem,
+    CompatRule, Compatibility, IncompatibleReason, RangeSupersetProblem, VERSION_SEP, Version,
+    VersionForClause, VersionNotDifferentProblem, VersionNotEqualProblem, VersionRangeProblem,
     get_version_position_label,
 };
 

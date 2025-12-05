@@ -21,22 +21,11 @@ use futures::{Stream, StreamExt};
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use spk_schema::foundation::format::{
-    FormatChange,
-    FormatChangeOptions,
-    FormatIdent,
-    FormatOptionMap,
-    FormatRequest,
-    FormatSolution,
+    FormatChange, FormatChangeOptions, FormatIdent, FormatOptionMap, FormatRequest, FormatSolution,
 };
 use spk_schema::prelude::*;
 use spk_solve_graph::{
-    Change,
-    DUPLICATE_REQUESTS_COUNT,
-    Decision,
-    Graph,
-    Node,
-    Note,
-    REQUESTS_FOR_SAME_PACKAGE_COUNT,
+    Change, DUPLICATE_REQUESTS_COUNT, Decision, Graph, Node, Note, REQUESTS_FOR_SAME_PACKAGE_COUNT,
     State,
 };
 
@@ -45,11 +34,8 @@ use crate::solvers::{StepSolver, StepSolverRuntime};
 use crate::{Error, Result, Solution, Solver, StatusLine, show_search_space_stats};
 #[cfg(feature = "statsd")]
 use crate::{
-    SPK_SOLUTION_PACKAGE_COUNT_METRIC,
-    SPK_SOLVER_INITIAL_REQUESTS_COUNT_METRIC,
-    SPK_SOLVER_RUN_COUNT_METRIC,
-    SPK_SOLVER_RUN_TIME_METRIC,
-    SPK_SOLVER_SOLUTION_SIZE_METRIC,
+    SPK_SOLUTION_PACKAGE_COUNT_METRIC, SPK_SOLVER_INITIAL_REQUESTS_COUNT_METRIC,
+    SPK_SOLVER_RUN_COUNT_METRIC, SPK_SOLVER_RUN_TIME_METRIC, SPK_SOLVER_SOLUTION_SIZE_METRIC,
     get_metrics_client,
 };
 

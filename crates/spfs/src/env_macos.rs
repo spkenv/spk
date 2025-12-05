@@ -181,8 +181,10 @@ impl RuntimeConfigurator {
         cmd.stderr(std::process::Stdio::piped());
         tracing::debug!("Running mount command: {cmd:?}");
 
-        let output = cmd.output().map_err(|err| Error::process_spawn_error("mount", err, None))?;
-        
+        let output = cmd
+            .output()
+            .map_err(|err| Error::process_spawn_error("mount", err, None))?;
+
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(Error::String(format!(

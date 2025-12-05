@@ -9,14 +9,7 @@ use relative_path::RelativePathBuf;
 
 use crate::ident::ident_version::VersionIdent;
 use crate::ident::{
-    AnyIdent,
-    Error,
-    Ident,
-    LocatedBuildIdent,
-    RangeIdent,
-    Result,
-    ToAnyIdentWithoutBuild,
-    parsing,
+    AnyIdent, Error, Ident, LocatedBuildIdent, RangeIdent, Result, ToAnyIdentWithoutBuild, parsing,
 };
 use crate::ident_build::{Build, EmbeddedSourcePackage};
 use crate::ident_ops::parsing::IdentPartsBuf;

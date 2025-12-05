@@ -19,10 +19,7 @@ use crate::ident_build::Build;
 use crate::ident_build::parsing::build;
 use crate::name::RepositoryName;
 use crate::name::parsing::{
-    is_legal_package_name_chr,
-    known_repository_name,
-    package_name,
-    repository_name,
+    is_legal_package_name_chr, known_repository_name, package_name, repository_name,
 };
 use crate::version::Version;
 use crate::version::parsing::{version, version_str};

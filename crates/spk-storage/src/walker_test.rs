@@ -16,12 +16,7 @@ use spk_schema::{DeprecateMut, Spec, recipe, spec};
 use super::RepoWalkerBuilder;
 use crate::fixtures::{empty_layer_digest, spfs_runtime, spfsrepo};
 use crate::walker::{
-    DeprecationState,
-    RepoWalkerFilter,
-    WalkedBuild,
-    WalkedComponent,
-    WalkedPackage,
-    WalkedRepo,
+    DeprecationState, RepoWalkerFilter, WalkedBuild, WalkedComponent, WalkedPackage, WalkedRepo,
     WalkedVersion,
 };
 use crate::{RepoWalkerItem, RepositoryHandle, remote_repository};

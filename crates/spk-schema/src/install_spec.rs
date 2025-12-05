@@ -11,13 +11,7 @@ use spk_schema_foundation::spec_ops::Named;
 use crate::component_embedded_packages::ComponentEmbeddedPackage;
 use crate::foundation::option_map::OptionMap;
 use crate::{
-    ComponentSpecList,
-    EmbeddedPackagesList,
-    EnvOp,
-    EnvOpList,
-    OpKind,
-    Package,
-    RequirementsList,
+    ComponentSpecList, EmbeddedPackagesList, EnvOp, EnvOpList, OpKind, Package, RequirementsList,
     Result,
 };
 

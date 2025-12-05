@@ -10,13 +10,7 @@ use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::{build_ident, opt_name, version_ident};
 use spk_schema::ident::{
-    InitialRawRequest,
-    PkgRequest,
-    RangeIdent,
-    Request,
-    RequestedBy,
-    VarRequest,
-    parse_ident_range,
+    InitialRawRequest, PkgRequest, RangeIdent, Request, RequestedBy, VarRequest, parse_ident_range,
 };
 use spk_schema::ident_build::{Build, BuildId};
 use spk_schema::name::OptName;

@@ -5,8 +5,7 @@
 use std::collections::HashSet;
 
 use spk_schema::validation::{
-    ValidationMatcherDiscriminants,
-    ValidationRuleDiscriminants as RuleKind,
+    ValidationMatcherDiscriminants, ValidationRuleDiscriminants as RuleKind,
 };
 use spk_schema::{Package, Variant};
 

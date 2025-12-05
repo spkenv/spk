@@ -10,15 +10,7 @@ use spk_schema::foundation::pkg_name;
 use spk_schema::foundation::spec_ops::Named;
 use spk_schema::ident::{AsVersionIdent, parse_build_ident, parse_version_ident};
 use spk_schema::{
-    Deprecate,
-    DeprecateMut,
-    Package,
-    Recipe,
-    Spec,
-    SpecRecipe,
-    VersionIdent,
-    recipe,
-    spec,
+    Deprecate, DeprecateMut, Package, Recipe, Spec, SpecRecipe, VersionIdent, recipe, spec,
 };
 
 use crate::Error;

@@ -13,12 +13,7 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Compatibility;
 use spk_schema::ident::{
-    AsVersionIdent,
-    InclusionPolicy,
-    PkgRequest,
-    RangeIdent,
-    Request,
-    RequestedBy,
+    AsVersionIdent, InclusionPolicy, PkgRequest, RangeIdent, Request, RequestedBy,
 };
 use spk_schema::spec_ops::{Versioned, WithVersion};
 use spk_schema::version::{ImpossibleRequestProblem, IncompatibleReason};
@@ -29,10 +24,7 @@ use spk_storage::RepositoryHandle;
 use tokio::sync::mpsc::{self, Sender};
 
 use crate::validators::{
-    BinaryOnlyValidator,
-    ComponentsValidator,
-    DeprecationValidator,
-    PkgRequestValidator,
+    BinaryOnlyValidator, ComponentsValidator, DeprecationValidator, PkgRequestValidator,
 };
 use crate::{Error, GetMergedRequest, Result, ValidatorT, Validators};
 

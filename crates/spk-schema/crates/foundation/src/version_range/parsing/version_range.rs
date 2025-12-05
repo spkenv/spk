@@ -17,19 +17,9 @@ use nom_supreme::tag::complete::tag;
 use crate::version::CompatRule;
 use crate::version::parsing::{version, version_str};
 use crate::version_range::{
-    CompatRange,
-    DoubleEqualsVersion,
-    DoubleNotEqualsVersion,
-    EqualsVersion,
-    GreaterThanOrEqualToRange,
-    GreaterThanRange,
-    LessThanOrEqualToRange,
-    LessThanRange,
-    LowestSpecifiedRange,
-    NotEqualsVersion,
-    SemverRange,
-    VersionFilter,
-    VersionRange,
+    CompatRange, DoubleEqualsVersion, DoubleNotEqualsVersion, EqualsVersion,
+    GreaterThanOrEqualToRange, GreaterThanRange, LessThanOrEqualToRange, LessThanRange,
+    LowestSpecifiedRange, NotEqualsVersion, SemverRange, VersionFilter, VersionRange,
     WildcardRange,
 };
 

@@ -22,21 +22,11 @@ use crate::ident_component::ComponentSet;
 use crate::name::{OptName, OptNameBuf, PkgName};
 use crate::option_map::Stringified;
 use crate::version::{
-    API_STR,
-    BINARY_STR,
-    CompatRule,
-    Compatibility,
-    InclusionPolicyProblem,
-    IncompatibleReason,
-    VarRequestProblem,
-    Version,
+    API_STR, BINARY_STR, CompatRule, Compatibility, InclusionPolicyProblem, IncompatibleReason,
+    VarRequestProblem, Version,
 };
 use crate::version_range::{
-    DoubleEqualsVersion,
-    EqualsVersion,
-    Ranged,
-    RestrictMode,
-    VersionFilter,
+    DoubleEqualsVersion, EqualsVersion, Ranged, RestrictMode, VersionFilter,
 };
 
 #[cfg(test)]

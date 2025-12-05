@@ -10,12 +10,7 @@ use std::path::{Path, PathBuf};
 
 use linux_raw_sys::general::{fsconfig_command, mount_attr};
 use linux_syscall::{
-    SYS_fsconfig,
-    SYS_fsmount,
-    SYS_fsopen,
-    SYS_mount_setattr,
-    SYS_move_mount,
-    SYS_open_tree,
+    SYS_fsconfig, SYS_fsmount, SYS_fsopen, SYS_mount_setattr, SYS_move_mount, SYS_open_tree,
     syscall,
 };
 

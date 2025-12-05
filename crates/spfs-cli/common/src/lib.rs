@@ -12,15 +12,8 @@ pub mod __private {
 }
 
 pub use args::{
-    AnnotationViewing,
-    CommandName,
-    HasRepositoryArgs,
-    Logging,
-    Progress,
-    Render,
-    Repositories,
-    Sync,
-    capture_if_relevant,
+    AnnotationViewing, CommandName, HasRepositoryArgs, Logging, Progress, Render, Repositories,
+    Sync, capture_if_relevant,
 };
 #[cfg(feature = "sentry")]
 pub use args::{configure_sentry, shutdown_sentry};

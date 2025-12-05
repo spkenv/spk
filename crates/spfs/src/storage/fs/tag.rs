@@ -23,11 +23,7 @@ use tokio::io::{AsyncRead, AsyncSeek, AsyncWriteExt, ReadBuf};
 use super::{MaybeOpenFsRepository, OpenFsRepository};
 use crate::storage::tag::{EntryType, TagSpecAndTagStream, TagStream};
 use crate::storage::{
-    TAG_NAMESPACE_MARKER,
-    TagNamespace,
-    TagNamespaceBuf,
-    TagStorage,
-    TagStorageMut,
+    TAG_NAMESPACE_MARKER, TagNamespace, TagNamespaceBuf, TagStorage, TagStorageMut,
 };
 use crate::{Error, OsError, OsErrorExt, Result, encoding, tracking};
 

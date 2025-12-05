@@ -4,9 +4,7 @@
 
 use itertools::Itertools;
 use spk_schema::validation::{
-    NameOrCurrent,
-    ValidationMatcherDiscriminants,
-    ValidationRuleDiscriminants as RuleKind,
+    NameOrCurrent, ValidationMatcherDiscriminants, ValidationRuleDiscriminants as RuleKind,
 };
 use spk_schema::{Package, Variant};
 

@@ -11,28 +11,12 @@ use std::sync::Arc;
 use itertools::Itertools;
 use resolvo::utils::Pool;
 use resolvo::{
-    Candidates,
-    Dependencies,
-    DependencyProvider,
-    Interner,
-    KnownDependencies,
-    NameId,
-    Requirement,
-    SolvableId,
-    SolverCache,
-    StringId,
-    VersionSetId,
-    VersionSetUnionId,
+    Candidates, Dependencies, DependencyProvider, Interner, KnownDependencies, NameId, Requirement,
+    SolvableId, SolverCache, StringId, VersionSetId, VersionSetUnionId,
 };
 use spk_schema::ident::{
-    LocatedBuildIdent,
-    PinnableValue,
-    PkgRequest,
-    PreReleasePolicy,
-    RangeIdent,
-    RequestedBy,
-    Satisfy,
-    VarRequest,
+    LocatedBuildIdent, PinnableValue, PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy,
+    Satisfy, VarRequest,
 };
 use spk_schema::ident_build::{Build, EmbeddedSource, EmbeddedSourcePackage};
 use spk_schema::ident_component::Component;
@@ -45,11 +29,7 @@ use spk_storage::RepositoryHandle;
 use tracing::{Instrument, debug_span};
 
 use super::pkg_request_version_set::{
-    LocatedBuildIdentWithComponent,
-    RequestVS,
-    SpkSolvable,
-    SyntheticComponent,
-    VarValue,
+    LocatedBuildIdentWithComponent, RequestVS, SpkSolvable, SyntheticComponent, VarValue,
 };
 use crate::SolverMut;
 

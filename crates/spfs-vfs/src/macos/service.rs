@@ -21,15 +21,8 @@ use super::router::Router;
 use crate::Error;
 use crate::proto::vfs_service_server::VfsService;
 use crate::proto::{
-    MountInfo,
-    MountRequest,
-    MountResponse,
-    ShutdownRequest,
-    ShutdownResponse,
-    StatusRequest,
-    StatusResponse,
-    UnmountRequest,
-    UnmountResponse,
+    MountInfo, MountRequest, MountResponse, ShutdownRequest, ShutdownResponse, StatusRequest,
+    StatusResponse, UnmountRequest, UnmountResponse,
 };
 
 /// A macOS FUSE filesystem service
@@ -246,7 +239,11 @@ impl VfsService for Arc<Service> {
         })?;
 
         let was_mounted = router.unmount(req.root_pid);
-        tracing::info!(root_pid = req.root_pid, was_mounted, "Unmounted environment");
+        tracing::info!(
+            root_pid = req.root_pid,
+            was_mounted,
+            "Unmounted environment"
+        );
 
         Ok(Response::new(UnmountResponse { was_mounted }))
     }

@@ -8,19 +8,9 @@ use std::sync::Arc;
 
 use futures::stream::{FuturesUnordered, TryStreamExt};
 use reporter::{
-    SyncAnnotationResult,
-    SyncBlobResult,
-    SyncEntryResult,
-    SyncEnvItemResult,
-    SyncEnvResult,
-    SyncLayerResult,
-    SyncManifestResult,
-    SyncObjectResult,
-    SyncPayloadResult,
-    SyncPlatformResult,
-    SyncReporter,
-    SyncReporters,
-    SyncTagResult,
+    SyncAnnotationResult, SyncBlobResult, SyncEntryResult, SyncEnvItemResult, SyncEnvResult,
+    SyncLayerResult, SyncManifestResult, SyncObjectResult, SyncPayloadResult, SyncPlatformResult,
+    SyncReporter, SyncReporters, SyncTagResult,
 };
 use tokio::sync::Semaphore;
 

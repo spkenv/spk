@@ -32,10 +32,7 @@ use spk_cmd_test::cmd_test;
 use spk_schema::foundation::format::FormatError;
 #[cfg(feature = "statsd")]
 use spk_solve::{
-    SPK_ERROR_COUNT_METRIC,
-    SPK_RUN_COUNT_METRIC,
-    SPK_RUN_TIME_METRIC,
-    get_metrics_client,
+    SPK_ERROR_COUNT_METRIC, SPK_RUN_COUNT_METRIC, SPK_RUN_TIME_METRIC, get_metrics_client,
 };
 
 /// A Package Manager for SPFS

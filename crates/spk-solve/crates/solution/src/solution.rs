@@ -11,10 +11,7 @@ use colored::Colorize;
 use itertools::Itertools;
 use spfs::Digest;
 use spk_schema::foundation::format::{
-    FormatChangeOptions,
-    FormatOptionMap,
-    FormatRequest,
-    FormatSolution,
+    FormatChangeOptions, FormatOptionMap, FormatRequest, FormatSolution,
 };
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;

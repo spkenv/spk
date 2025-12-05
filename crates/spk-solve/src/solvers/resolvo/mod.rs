@@ -24,14 +24,8 @@ use std::time::Instant;
 use pkg_request_version_set::{SpkSolvable, SyntheticComponent};
 use spk_provider::SpkProvider;
 use spk_schema::ident::{
-    InclusionPolicy,
-    LocatedBuildIdent,
-    PinPolicy,
-    PinnableValue,
-    PkgRequest,
-    RangeIdent,
-    RequestedBy,
-    VarRequest,
+    InclusionPolicy, LocatedBuildIdent, PinPolicy, PinnableValue, PkgRequest, RangeIdent,
+    RequestedBy, VarRequest,
 };
 use spk_schema::ident_component::Component;
 use spk_schema::name::PkgNameBuf;

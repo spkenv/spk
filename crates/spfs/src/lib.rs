@@ -40,10 +40,7 @@ pub mod tracking;
 // re-exported to make downstream implementations easier
 pub use async_trait::async_trait;
 pub use bootstrap::{
-    Shell,
-    ShellKind,
-    build_command_for_runtime,
-    build_interactive_shell_command,
+    Shell, ShellKind, build_command_for_runtime, build_interactive_shell_command,
     build_shell_initialized_command,
 };
 pub use check::Checker;
@@ -53,36 +50,17 @@ pub use diff::{diff, diff_runtime_changes, runtime_active_changes};
 pub use encoding::Digest;
 pub use error::{Error, OsError, OsErrorExt, Result};
 pub use resolve::{
-    RenderResult,
-    compute_environment_manifest,
-    compute_manifest,
-    compute_object_manifest,
-    resolve_stack_to_layers,
-    resolve_stack_to_layers_with_repo,
-    which,
-    which_spfs,
+    RenderResult, compute_environment_manifest, compute_manifest, compute_object_manifest,
+    resolve_stack_to_layers, resolve_stack_to_layers_with_repo, which, which_spfs,
 };
 pub use spfs_encoding as encoding;
 pub use status::{
-    active_runtime,
-    change_to_durable_runtime,
-    compute_runtime_manifest,
-    exit_runtime,
-    get_runtime_backing_repo,
-    initialize_runtime,
-    make_active_runtime_editable,
-    make_runtime_durable,
-    reinitialize_runtime,
-    remount_runtime,
+    active_runtime, change_to_durable_runtime, compute_runtime_manifest, exit_runtime,
+    get_runtime_backing_repo, initialize_runtime, make_active_runtime_editable,
+    make_runtime_durable, reinitialize_runtime, remount_runtime,
 };
 pub use sync::Syncer;
 
 pub use self::config::{
-    Config,
-    RemoteAddress,
-    RemoteConfig,
-    Sentry,
-    get_config,
-    load_config,
-    open_repository,
+    Config, RemoteAddress, RemoteConfig, Sentry, get_config, load_config, open_repository,
 };

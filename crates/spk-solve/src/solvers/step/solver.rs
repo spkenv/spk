@@ -21,44 +21,20 @@ use spk_schema::ident::{PkgRequest, Request, RequestedBy, Satisfy, VarRequest};
 use spk_schema::ident_build::EmbeddedSource;
 use spk_schema::version::{ComponentsMissingProblem, IncompatibleReason, IsSameReasonAs};
 use spk_schema::{
-    BuildIdent,
-    Deprecate,
-    Package,
-    Recipe,
-    Spec,
-    SpecRecipe,
-    VersionIdent,
-    try_recipe,
+    BuildIdent, Deprecate, Package, Recipe, Spec, SpecRecipe, VersionIdent, try_recipe,
 };
 use spk_solve_graph::{
-    Change,
-    DEAD_STATE,
-    Decision,
-    Graph,
-    Node,
-    Note,
-    RequestPackage,
-    RequestVar,
-    SetOptions,
-    SkipPackageNote,
-    State,
-    StepBack,
+    Change, DEAD_STATE, Decision, Graph, Node, Note, RequestPackage, RequestVar, SetOptions,
+    SkipPackageNote, State, StepBack,
 };
 use spk_solve_package_iterator::{
-    BuildIterator,
-    EmptyBuildIterator,
-    PackageIterator,
-    RepositoryPackageIterator,
+    BuildIterator, EmptyBuildIterator, PackageIterator, RepositoryPackageIterator,
     SortedBuildIterator,
 };
 use spk_solve_solution::{PackageSource, Solution};
 use spk_solve_validation::validators::BinaryOnlyValidator;
 use spk_solve_validation::{
-    IMPOSSIBLE_CHECKS_TARGET,
-    ImpossibleRequestsChecker,
-    ValidatorT,
-    Validators,
-    default_validators,
+    IMPOSSIBLE_CHECKS_TARGET, ImpossibleRequestsChecker, ValidatorT, Validators, default_validators,
 };
 use spk_storage::RepositoryHandle;
 

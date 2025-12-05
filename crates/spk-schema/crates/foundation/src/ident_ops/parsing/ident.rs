@@ -12,10 +12,7 @@ use nom::sequence::preceded;
 use nom_supreme::tag::TagError;
 
 use super::{
-    range_ident_pkg_name,
-    repo_name_in_ident,
-    version_and_build,
-    version_and_optional_build,
+    range_ident_pkg_name, repo_name_in_ident, version_and_build, version_and_optional_build,
 };
 use crate::ident_build::parsing::build;
 use crate::ident_component::Component;

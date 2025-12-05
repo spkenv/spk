@@ -15,30 +15,12 @@ use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 
 pub use compat::{
-    API_STR,
-    BINARY_STR,
-    BuildIdProblem,
-    CommaSeparated,
-    Compat,
-    CompatRule,
-    CompatRuleSet,
-    Compatibility,
-    ComponentsMissingProblem,
-    ConflictingRequirementProblem,
-    ImpossibleRequestProblem,
-    InclusionPolicyProblem,
-    IncompatibleReason,
-    IsSameReasonAs,
-    PackageNameProblem,
-    PackageRepoProblem,
-    RangeSupersetProblem,
-    VarOptionProblem,
-    VarRequestProblem,
-    VersionForClause,
-    VersionNotDifferentProblem,
-    VersionNotEqualProblem,
-    VersionRangeProblem,
-    parse_compat,
+    API_STR, BINARY_STR, BuildIdProblem, CommaSeparated, Compat, CompatRule, CompatRuleSet,
+    Compatibility, ComponentsMissingProblem, ConflictingRequirementProblem,
+    ImpossibleRequestProblem, InclusionPolicyProblem, IncompatibleReason, IsSameReasonAs,
+    PackageNameProblem, PackageRepoProblem, RangeSupersetProblem, VarOptionProblem,
+    VarRequestProblem, VersionForClause, VersionNotDifferentProblem, VersionNotEqualProblem,
+    VersionRangeProblem, parse_compat,
 };
 pub use error::{Error, Result};
 use itertools::Itertools;

@@ -8,11 +8,7 @@ use super::{InclusionPolicy, PreReleasePolicy, Request};
 use crate::FromYaml;
 use crate::ident::parse_build_ident;
 use crate::version::{
-    API_STR,
-    BINARY_STR,
-    Compatibility,
-    InclusionPolicyProblem,
-    IncompatibleReason,
+    API_STR, BINARY_STR, Compatibility, InclusionPolicyProblem, IncompatibleReason,
 };
 
 #[rstest]

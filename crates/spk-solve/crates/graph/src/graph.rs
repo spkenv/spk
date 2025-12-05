@@ -24,12 +24,7 @@ use spk_schema::ident::{InclusionPolicy, PkgRequest, Request, RequestedBy, VarRe
 use spk_schema::prelude::*;
 use spk_schema::version::IsSameReasonAs;
 use spk_schema::{
-    AnyIdent,
-    BuildIdent,
-    ComponentSpecList,
-    EmbeddedPackagesList,
-    RequirementsList,
-    Spec,
+    AnyIdent, BuildIdent, ComponentSpecList, EmbeddedPackagesList, RequirementsList, Spec,
     SpecRecipe,
 };
 use spk_solve_package_iterator::{PackageIterator, PromotionPatterns};
