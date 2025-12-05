@@ -22,8 +22,17 @@ pub use ident_optversion::{OptVersionIdent, parse_optversion_ident};
 pub use ident_version::{VersionIdent, parse_version_ident};
 pub use range_ident::{RangeIdent, parse_ident_range, parse_ident_range_list};
 pub use request::{
-    InclusionPolicy, InitialRawRequest, NameAndValue, PinPolicy, PinnableValue, PkgRequest,
-    PreReleasePolicy, Request, RequestedBy, VarRequest, is_false,
+    InclusionPolicy,
+    InitialRawRequest,
+    NameAndValue,
+    PinPolicy,
+    PinnableValue,
+    PkgRequest,
+    PreReleasePolicy,
+    Request,
+    RequestedBy,
+    VarRequest,
+    is_false,
 };
 pub use satisfy::Satisfy;
 

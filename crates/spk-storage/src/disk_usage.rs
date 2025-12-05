@@ -19,8 +19,14 @@ use spk_schema::version::Version;
 use spk_schema::{BuildIdent, Deprecate, Package, VersionIdent};
 
 use crate::walker::{
-    RepoWalkerBuilder, RepoWalkerFilter, RepoWalkerItem, WalkedBuild, WalkedComponent, WalkedFile,
-    WalkedPackage, WalkedVersion,
+    RepoWalkerBuilder,
+    RepoWalkerFilter,
+    RepoWalkerItem,
+    WalkedBuild,
+    WalkedComponent,
+    WalkedFile,
+    WalkedPackage,
+    WalkedVersion,
 };
 use crate::{Error, RepositoryHandle};
 

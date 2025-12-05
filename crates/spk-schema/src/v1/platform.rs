@@ -9,8 +9,15 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::{
-    BuildIdent, InclusionPolicy, NameAndValue, PkgRequest, RangeIdent, Request, RequestedBy,
-    VarRequest, VersionIdent,
+    BuildIdent,
+    InclusionPolicy,
+    NameAndValue,
+    PkgRequest,
+    RangeIdent,
+    Request,
+    RequestedBy,
+    VarRequest,
+    VersionIdent,
 };
 use spk_schema_foundation::ident_build::{Build, BuildId};
 use spk_schema_foundation::ident_component::Component;
@@ -26,8 +33,21 @@ use crate::metadata::Meta;
 use crate::option::VarOpt;
 use crate::v0::{Spec, TestSpec};
 use crate::{
-    BuildEnv, BuildSpec, ComponentSpec, Deprecate, DeprecateMut, InputVariant, Opt, Package,
-    Recipe, RequirementsList, Result, RuntimeEnvironment, Script, TestStage, Variant,
+    BuildEnv,
+    BuildSpec,
+    ComponentSpec,
+    Deprecate,
+    DeprecateMut,
+    InputVariant,
+    Opt,
+    Package,
+    Recipe,
+    RequirementsList,
+    Result,
+    RuntimeEnvironment,
+    Script,
+    TestStage,
+    Variant,
 };
 
 #[cfg(test)]

@@ -25,9 +25,25 @@ use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{PkgRequest, Request, Satisfy, VarRequest};
 use crate::metadata::Meta;
 use crate::{
-    BuildEnv, Deprecate, DeprecateMut, Error, FromYaml, InputVariant, Opt, Package, PackageMut,
-    Recipe, RequirementsList, Result, RuntimeEnvironment, Template, TemplateExt, Test, TestStage,
-    Variant, v0,
+    BuildEnv,
+    Deprecate,
+    DeprecateMut,
+    Error,
+    FromYaml,
+    InputVariant,
+    Opt,
+    Package,
+    PackageMut,
+    Recipe,
+    RequirementsList,
+    Result,
+    RuntimeEnvironment,
+    Template,
+    TemplateExt,
+    Test,
+    TestStage,
+    Variant,
+    v0,
 };
 
 #[cfg(test)]

@@ -21,8 +21,15 @@ use super::router::Router;
 use crate::Error;
 use crate::proto::vfs_service_server::VfsService;
 use crate::proto::{
-    MountInfo, MountRequest, MountResponse, ShutdownRequest, ShutdownResponse, StatusRequest,
-    StatusResponse, UnmountRequest, UnmountResponse,
+    MountInfo,
+    MountRequest,
+    MountResponse,
+    ShutdownRequest,
+    ShutdownResponse,
+    StatusRequest,
+    StatusResponse,
+    UnmountRequest,
+    UnmountResponse,
 };
 
 /// A macOS FUSE filesystem service

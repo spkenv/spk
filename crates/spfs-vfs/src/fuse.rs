@@ -18,8 +18,15 @@ use std::time::{Duration, SystemTime};
 use dashmap::DashMap;
 use fuser::consts::*;
 use fuser::{
-    FileAttr, FileType, MountOption, ReplyData, ReplyDirectory, ReplyDirectoryPlus, ReplyEntry,
-    ReplyOpen, Request,
+    FileAttr,
+    FileType,
+    MountOption,
+    ReplyData,
+    ReplyDirectory,
+    ReplyDirectoryPlus,
+    ReplyEntry,
+    ReplyOpen,
+    Request,
 };
 use spfs::OsError;
 use spfs::prelude::*;

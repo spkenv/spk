@@ -4,7 +4,8 @@
 
 use spk_schema::name::PkgNameBuf;
 use spk_schema::validation::{
-    ValidationMatcherDiscriminants, ValidationRuleDiscriminants as RuleKind,
+    ValidationMatcherDiscriminants,
+    ValidationRuleDiscriminants as RuleKind,
 };
 use spk_schema::version::Compatibility;
 use spk_schema::{Package, Variant};

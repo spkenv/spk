@@ -13,10 +13,20 @@ use indexmap::IndexSet;
 use itertools::Itertools;
 use problems::VersionNotCompatibleProblem;
 pub use problems::{
-    BuildIdProblem, ComponentsMissingProblem, ConflictingRequirementProblem,
-    ImpossibleRequestProblem, InclusionPolicyProblem, PackageNameProblem, PackageRepoProblem,
-    RangeSupersetProblem, VarOptionProblem, VarRequestProblem, VersionForClause,
-    VersionNotDifferentProblem, VersionNotEqualProblem, VersionRangeProblem,
+    BuildIdProblem,
+    ComponentsMissingProblem,
+    ConflictingRequirementProblem,
+    ImpossibleRequestProblem,
+    InclusionPolicyProblem,
+    PackageNameProblem,
+    PackageRepoProblem,
+    RangeSupersetProblem,
+    VarOptionProblem,
+    VarRequestProblem,
+    VersionForClause,
+    VersionNotDifferentProblem,
+    VersionNotEqualProblem,
+    VersionRangeProblem,
 };
 use serde::{Deserialize, Serialize};
 

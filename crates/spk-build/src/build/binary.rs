@@ -13,7 +13,9 @@ use relative_path::RelativePathBuf;
 use spfs::prelude::*;
 use spfs::tracking::DiffMode;
 use spk_exec::{
-    ConflictingPackagePair, pull_resolved_runtime_layers, resolve_runtime_layers,
+    ConflictingPackagePair,
+    pull_resolved_runtime_layers,
+    resolve_runtime_layers,
     solution_to_resolved_runtime_layers,
 };
 use spk_schema::foundation::env::data_path;
@@ -24,8 +26,14 @@ use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy, VersionIdent};
 use spk_schema::variant::Override;
 use spk_schema::{
-    BuildIdent, ComponentFileMatchMode, ComponentSpecList, InputVariant, Package, PackageMut,
-    Variant, VariantExt,
+    BuildIdent,
+    ComponentFileMatchMode,
+    ComponentSpecList,
+    InputVariant,
+    Package,
+    PackageMut,
+    Variant,
+    VariantExt,
 };
 use spk_solve::graph::Graph;
 use spk_solve::solution::Solution;

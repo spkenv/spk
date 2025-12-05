@@ -9,14 +9,20 @@
 use std::collections::BTreeSet;
 
 use super::{
-    CommaSeparated, CompatNotCompatible, CompatNotCompatibleSpan, IncompatibleReason,
+    CommaSeparated,
+    CompatNotCompatible,
+    CompatNotCompatibleSpan,
+    IncompatibleReason,
     IsSameReasonAs,
 };
 use crate::ident_build::Build;
 use crate::name::{OptNameBuf, PkgNameBuf, RepositoryNameBuf};
 use crate::version::Version;
 use crate::version_range::{
-    DoubleEqualsVersion, DoubleNotEqualsVersion, EqualsVersion, NotEqualsVersion,
+    DoubleEqualsVersion,
+    DoubleNotEqualsVersion,
+    EqualsVersion,
+    NotEqualsVersion,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq, strum::Display)]

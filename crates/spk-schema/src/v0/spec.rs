@@ -12,15 +12,24 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::{
-    AnyIdent, AsVersionIdent, BuildIdent, Ident, RangeIdent, VersionIdent,
+    AnyIdent,
+    AsVersionIdent,
+    BuildIdent,
+    Ident,
+    RangeIdent,
+    VersionIdent,
 };
 use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::ident_component::ComponentBTreeSet;
 use spk_schema_foundation::name::PkgNameBuf;
 use spk_schema_foundation::option_map::{OptFilter, Stringified};
 use spk_schema_foundation::version::{
-    BuildIdProblem, CommaSeparated, ComponentsMissingProblem, IncompatibleReason,
-    PackageNameProblem, VarOptionProblem,
+    BuildIdProblem,
+    CommaSeparated,
+    ComponentsMissingProblem,
+    IncompatibleReason,
+    PackageNameProblem,
+    VarOptionProblem,
 };
 
 use super::TestSpec;
@@ -34,15 +43,42 @@ use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, CompatRule, Compatibility, Version};
 use crate::foundation::version_range::Ranged;
 use crate::ident::{
-    PkgRequest, PreReleasePolicy, Request, RequestedBy, Satisfy, VarRequest, is_false,
+    PkgRequest,
+    PreReleasePolicy,
+    Request,
+    RequestedBy,
+    Satisfy,
+    VarRequest,
+    is_false,
 };
 use crate::metadata::Meta;
 use crate::option::VarOpt;
 use crate::{
-    BuildEnv, BuildSpec, ComponentSpec, ComponentSpecList, Deprecate, DeprecateMut,
-    EmbeddedPackagesList, EnvOp, EnvOpList, Error, Inheritance, InputVariant, InstallSpec,
-    LocalSource, Opt, Package, PackageMut, Recipe, RequirementsList, Result, RuntimeEnvironment,
-    SourceSpec, TestStage, ValidationSpec, Variant,
+    BuildEnv,
+    BuildSpec,
+    ComponentSpec,
+    ComponentSpecList,
+    Deprecate,
+    DeprecateMut,
+    EmbeddedPackagesList,
+    EnvOp,
+    EnvOpList,
+    Error,
+    Inheritance,
+    InputVariant,
+    InstallSpec,
+    LocalSource,
+    Opt,
+    Package,
+    PackageMut,
+    Recipe,
+    RequirementsList,
+    Result,
+    RuntimeEnvironment,
+    SourceSpec,
+    TestStage,
+    ValidationSpec,
+    Variant,
 };
 
 #[cfg(test)]

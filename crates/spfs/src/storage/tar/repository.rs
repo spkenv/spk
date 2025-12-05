@@ -19,7 +19,11 @@ use crate::prelude::*;
 use crate::storage::fs::DURABLE_EDITS_DIR;
 use crate::storage::tag::TagSpecAndTagStream;
 use crate::storage::{
-    EntryType, OpenRepositoryError, OpenRepositoryResult, TagNamespace, TagNamespaceBuf,
+    EntryType,
+    OpenRepositoryError,
+    OpenRepositoryResult,
+    TagNamespace,
+    TagNamespaceBuf,
     TagStorageMut,
 };
 use crate::tracking::BlobRead;

@@ -11,8 +11,13 @@ use std::sync::Arc;
 use clap::{Args, ValueEnum, ValueHint};
 use miette::{Context, IntoDiagnostic, Result, bail, miette};
 use solve::{
-    DEFAULT_SOLVER_RUN_FILE_PREFIX, DecisionFormatter, DecisionFormatterBuilder, MultiSolverKind,
-    SolverExt, SolverImpl, SolverMut,
+    DEFAULT_SOLVER_RUN_FILE_PREFIX,
+    DecisionFormatter,
+    DecisionFormatterBuilder,
+    MultiSolverKind,
+    SolverExt,
+    SolverImpl,
+    SolverMut,
 };
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::ident_build::Build;
@@ -21,8 +26,15 @@ use spk_schema::foundation::name::OptName;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::CompatRule;
 use spk_schema::ident::{
-    AnyIdent, AsVersionIdent, InitialRawRequest, PkgRequest, RangeIdent, Request, RequestedBy,
-    VarRequest, parse_ident,
+    AnyIdent,
+    AsVersionIdent,
+    InitialRawRequest,
+    PkgRequest,
+    RangeIdent,
+    Request,
+    RequestedBy,
+    VarRequest,
+    parse_ident,
 };
 use spk_schema::option_map::HOST_OPTIONS;
 use spk_schema::{Recipe, SpecFileData, SpecRecipe, Template, TestStage, VariantExt};

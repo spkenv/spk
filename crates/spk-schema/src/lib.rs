@@ -34,7 +34,14 @@ pub use component_spec_list::ComponentSpecList;
 pub use deprecate::{Deprecate, DeprecateMut};
 pub use embedded_packages_list::EmbeddedPackagesList;
 pub use environ::{
-    AppendEnv, EnvComment, EnvOp, EnvOpList, EnvPriority, OpKind, PrependEnv, RuntimeEnvironment,
+    AppendEnv,
+    EnvComment,
+    EnvOp,
+    EnvOpList,
+    EnvPriority,
+    OpKind,
+    PrependEnv,
+    RuntimeEnvironment,
     SetEnv,
 };
 pub use error::{Error, Result};
@@ -48,12 +55,25 @@ pub use serde_json;
 pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
 pub use spec::{ApiVersion, Spec, SpecFileData, SpecRecipe, SpecTemplate, SpecVariant};
 pub use spk_schema_foundation::ident::{
-    self as ident, AnyIdent, BuildIdent, Request, VersionIdent,
+    self as ident,
+    AnyIdent,
+    BuildIdent,
+    Request,
+    VersionIdent,
 };
 pub use spk_schema_foundation::option_map::{self, OptionMap};
 pub use spk_schema_foundation::{
-    self as foundation, FromYaml, env, ident_build, ident_component, ident_ops, name, opt_name,
-    spec_ops, version, version_range,
+    self as foundation,
+    FromYaml,
+    env,
+    ident_build,
+    ident_component,
+    ident_ops,
+    name,
+    opt_name,
+    spec_ops,
+    version,
+    version_range,
 };
 pub use template::{Template, TemplateData, TemplateExt};
 pub use test::{Test, TestStage};

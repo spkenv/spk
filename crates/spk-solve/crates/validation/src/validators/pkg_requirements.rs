@@ -3,7 +3,10 @@
 // https://github.com/spkenv/spk
 
 use spk_schema::version::{
-    CommaSeparated, ComponentsMissingProblem, ConflictingRequirementProblem, IncompatibleReason,
+    CommaSeparated,
+    ComponentsMissingProblem,
+    ConflictingRequirementProblem,
+    IncompatibleReason,
 };
 
 use super::prelude::*;

@@ -20,7 +20,12 @@ use spfs::graph::{HasKind, ObjectKind};
 use spfs::io::Pluralize;
 use spk_cli_common::with_version_and_build_set::WithVersionSet;
 use spk_cli_common::{
-    CommandArgs, DefaultVersionStrategy, Run, current_env, flags, remove_ansi_escapes,
+    CommandArgs,
+    DefaultVersionStrategy,
+    Run,
+    current_env,
+    flags,
+    remove_ansi_escapes,
 };
 use spk_schema::foundation::format::{FormatChangeOptions, FormatRequest};
 use spk_schema::foundation::option_map::OptionMap;
@@ -30,7 +35,14 @@ use spk_schema::ident_component::Component;
 use spk_schema::name::PkgNameBuf;
 use spk_schema::version::Version;
 use spk_schema::{
-    AnyIdent, BuildIdent, Package, RequirementsList, Spec, Template, TestStage, Variant,
+    AnyIdent,
+    BuildIdent,
+    Package,
+    RequirementsList,
+    Spec,
+    Template,
+    TestStage,
+    Variant,
     VersionIdent,
 };
 use spk_solve::solution::{LayerPackageAndComponents, get_spfs_layers_to_packages};

@@ -16,7 +16,9 @@ use crate::ident::RangeIdent;
 use crate::ident_build::Build;
 use crate::ident_build::parsing::build;
 use crate::ident_ops::parsing::{
-    range_ident_pkg_name, repo_name_in_ident, version_and_optional_build,
+    range_ident_pkg_name,
+    repo_name_in_ident,
+    version_and_optional_build,
 };
 use crate::version_range::VersionFilter;
 use crate::version_range::parsing::version_range;

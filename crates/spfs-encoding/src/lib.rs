@@ -17,8 +17,18 @@ mod error;
 mod hash;
 
 pub use binary::{
-    consume_header, read_digest, read_int, read_string, read_uint8, read_uint64, write_digest,
-    write_header, write_int, write_string, write_uint8, write_uint64,
+    consume_header,
+    read_digest,
+    read_int,
+    read_string,
+    read_uint8,
+    read_uint64,
+    write_digest,
+    write_header,
+    write_int,
+    write_string,
+    write_uint8,
+    write_uint64,
 };
 pub use error::{Error, Result};
 pub use hash::{Decodable, Digestible, Encodable, Hasher, PartialDigest};

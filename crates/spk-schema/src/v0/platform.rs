@@ -8,7 +8,12 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::{
-    BuildIdent, InclusionPolicy, PkgRequest, Request, RequestedBy, VersionIdent,
+    BuildIdent,
+    InclusionPolicy,
+    PkgRequest,
+    Request,
+    RequestedBy,
+    VersionIdent,
 };
 use spk_schema_foundation::ident_build::{Build, BuildId};
 use spk_schema_foundation::name::PkgName;
@@ -22,8 +27,20 @@ use crate::ident::is_false;
 use crate::metadata::Meta;
 use crate::option::VarOpt;
 use crate::{
-    BuildEnv, BuildSpec, Deprecate, DeprecateMut, InputVariant, Opt, Package, Recipe,
-    RequirementsList, Result, RuntimeEnvironment, Script, TestStage, Variant,
+    BuildEnv,
+    BuildSpec,
+    Deprecate,
+    DeprecateMut,
+    InputVariant,
+    Opt,
+    Package,
+    Recipe,
+    RequirementsList,
+    Result,
+    RuntimeEnvironment,
+    Script,
+    TestStage,
+    Variant,
 };
 
 #[cfg(test)]

@@ -17,8 +17,13 @@ use crate::storage::fs::{FsHashStore, ManifestRenderPath, OpenFsRepository, Rend
 use crate::storage::proxy::ProxyRepositoryExt;
 use crate::storage::tag::TagSpecAndTagStream;
 use crate::storage::{
-    EntryType, LocalRepository, OpenRepositoryError, OpenRepositoryResult, TagNamespace,
-    TagNamespaceBuf, TagStorageMut,
+    EntryType,
+    LocalRepository,
+    OpenRepositoryError,
+    OpenRepositoryResult,
+    TagNamespace,
+    TagNamespaceBuf,
+    TagStorageMut,
 };
 use crate::sync::reporter::SyncReporters;
 use crate::tracking::BlobRead;

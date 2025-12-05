@@ -9,7 +9,9 @@
 mod repository;
 pub use repository::{Config, ProxyRepository};
 pub(crate) use repository::{
-    find_tags_in_namespace, iter_tag_streams_in_namespace, ls_tags_in_namespace,
+    find_tags_in_namespace,
+    iter_tag_streams_in_namespace,
+    ls_tags_in_namespace,
     read_tag_in_namespace,
 };
 

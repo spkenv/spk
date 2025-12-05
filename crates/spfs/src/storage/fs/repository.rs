@@ -24,7 +24,11 @@ use crate::config::{ToAddress, pathbuf_deserialize_with_tilde_expansion};
 use crate::runtime::makedirs_with_perms;
 use crate::storage::prelude::*;
 use crate::storage::{
-    LocalRepository, OpenRepositoryError, OpenRepositoryResult, TagNamespace, TagNamespaceBuf,
+    LocalRepository,
+    OpenRepositoryError,
+    OpenRepositoryResult,
+    TagNamespace,
+    TagNamespaceBuf,
 };
 use crate::{Error, Result};
 

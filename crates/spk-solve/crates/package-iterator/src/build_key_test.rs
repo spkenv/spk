@@ -10,7 +10,10 @@ use spk_schema::version::Epsilon;
 use spk_schema::{Package, spec};
 
 use super::{
-    BuildKey, BuildKeyEntry, BuildKeyExpandedVersionRange, BuildKeyVersionNumber,
+    BuildKey,
+    BuildKeyEntry,
+    BuildKeyExpandedVersionRange,
+    BuildKeyVersionNumber,
     BuildKeyVersionNumberPiece,
 };
 

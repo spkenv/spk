@@ -13,9 +13,20 @@ use spk_schema_foundation::version::Epsilon;
 use super::{Spec, spec};
 use crate::foundation::version::{CompatRule, TagSet, Version, VersionParts, parse_version};
 use crate::foundation::version_range::{
-    CompatRange, DoubleEqualsVersion, DoubleNotEqualsVersion, EqualsVersion,
-    GreaterThanOrEqualToRange, GreaterThanRange, LessThanOrEqualToRange, LessThanRange,
-    LowestSpecifiedRange, NotEqualsVersion, Ranged, SemverRange, VersionRange, WildcardRange,
+    CompatRange,
+    DoubleEqualsVersion,
+    DoubleNotEqualsVersion,
+    EqualsVersion,
+    GreaterThanOrEqualToRange,
+    GreaterThanRange,
+    LessThanOrEqualToRange,
+    LessThanRange,
+    LowestSpecifiedRange,
+    NotEqualsVersion,
+    Ranged,
+    SemverRange,
+    VersionRange,
+    WildcardRange,
     parse_version_range,
 };
 use crate::{SpecRecipe, recipe};

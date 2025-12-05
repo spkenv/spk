@@ -12,8 +12,15 @@ pub mod validation;
 mod archive_test;
 
 pub use build::{
-    BinaryPackageBuilder, BuildSource, SourcePackageBuilder, build_options_path, build_script_path,
-    build_spec_path, commit_component_layers, component_marker_path, source_package_path,
+    BinaryPackageBuilder,
+    BuildSource,
+    SourcePackageBuilder,
+    build_options_path,
+    build_script_path,
+    build_spec_path,
+    commit_component_layers,
+    component_marker_path,
+    source_package_path,
     validate_source_changeset,
 };
 pub use error::{Error, Result};

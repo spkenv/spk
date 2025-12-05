@@ -14,8 +14,15 @@ use std::time::SystemTime;
 
 use dashmap::DashMap;
 use fuser::{
-    Filesystem, ReplyAttr, ReplyData, ReplyDirectory, ReplyEntry, ReplyLseek, ReplyOpen,
-    ReplyStatfs, Request,
+    Filesystem,
+    ReplyAttr,
+    ReplyData,
+    ReplyDirectory,
+    ReplyEntry,
+    ReplyLseek,
+    ReplyOpen,
+    ReplyStatfs,
+    Request,
 };
 use spfs::tracking::EnvSpec;
 use tracing::instrument;

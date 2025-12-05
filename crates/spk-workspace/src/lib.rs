@@ -16,5 +16,8 @@ mod workspace;
 
 pub use file::WorkspaceFile;
 pub use workspace::{
-    FindOrLoadPackageTemplateError, FindPackageTemplateError, FindPackageTemplateResult, Workspace,
+    FindOrLoadPackageTemplateError,
+    FindPackageTemplateError,
+    FindPackageTemplateResult,
+    Workspace,
 };

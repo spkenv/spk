@@ -10,7 +10,10 @@ use spfs::tracking::EnvSpec;
 use tracing::instrument;
 use windows::Win32::Foundation::{CloseHandle, ERROR_NO_MORE_FILES};
 use windows::Win32::System::Diagnostics::ToolHelp::{
-    CreateToolhelp32Snapshot, PROCESSENTRY32, Process32Next, TH32CS_SNAPPROCESS,
+    CreateToolhelp32Snapshot,
+    PROCESSENTRY32,
+    Process32Next,
+    TH32CS_SNAPPROCESS,
 };
 use windows::Win32::System::Threading::GetCurrentProcessId;
 use windows::core::HRESULT;

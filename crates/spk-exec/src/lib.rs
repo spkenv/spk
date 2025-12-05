@@ -7,8 +7,15 @@ mod exec;
 
 pub use error::{Error, Result};
 pub use exec::{
-    ConflictingPackagePair, ResolvedLayer, ResolvedLayers, pull_resolved_runtime_layers,
-    pull_resolved_runtime_layers_with_reporter, resolve_runtime_layers,
-    resolve_runtime_layers_with_reporter, setup_current_runtime, setup_runtime,
-    setup_runtime_with_reporter, solution_to_resolved_runtime_layers,
+    ConflictingPackagePair,
+    ResolvedLayer,
+    ResolvedLayers,
+    pull_resolved_runtime_layers,
+    pull_resolved_runtime_layers_with_reporter,
+    resolve_runtime_layers,
+    resolve_runtime_layers_with_reporter,
+    setup_current_runtime,
+    setup_runtime,
+    setup_runtime_with_reporter,
+    solution_to_resolved_runtime_layers,
 };

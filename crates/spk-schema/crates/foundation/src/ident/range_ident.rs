@@ -16,11 +16,20 @@ use crate::ident_component::{Component, Components};
 use crate::ident_ops::parsing::KNOWN_REPOSITORY_NAMES;
 use crate::name::{PkgName, PkgNameBuf, RepositoryNameBuf};
 use crate::version::{
-    BuildIdProblem, CompatRule, Compatibility, IncompatibleReason, PackageNameProblem,
+    BuildIdProblem,
+    CompatRule,
+    Compatibility,
+    IncompatibleReason,
+    PackageNameProblem,
     PackageRepoProblem,
 };
 use crate::version_range::{
-    DoubleEqualsVersion, EqualsVersion, Ranged, RestrictMode, VersionFilter, VersionRange,
+    DoubleEqualsVersion,
+    EqualsVersion,
+    Ranged,
+    RestrictMode,
+    VersionFilter,
+    VersionRange,
 };
 
 #[cfg(test)]

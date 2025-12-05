@@ -21,7 +21,10 @@ use crate::prelude::*;
 use crate::runtime::makedirs_with_perms;
 use crate::storage::LocalRepository;
 use crate::storage::fs::{
-    ManifestRenderPath, OpenFsRepository, RenderReporter, SilentRenderReporter,
+    ManifestRenderPath,
+    OpenFsRepository,
+    RenderReporter,
+    SilentRenderReporter,
 };
 use crate::{Error, OsError, Result, encoding, graph, tracking};
 

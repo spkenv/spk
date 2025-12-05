@@ -14,7 +14,11 @@ use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
 use spk_schema::{Package, VersionIdent};
 use spk_solve::package_iterator::BUILD_SORT_TARGET;
 use spk_solve::solution::{
-    PackageSolveData, PackageSource, PackagesToSolveData, SPK_SOLVE_EXTRA_DATA_KEY, Solution,
+    PackageSolveData,
+    PackageSource,
+    PackagesToSolveData,
+    SPK_SOLVE_EXTRA_DATA_KEY,
+    Solution,
 };
 use spk_solve::validation::IMPOSSIBLE_CHECKS_TARGET;
 use spk_storage as storage;
