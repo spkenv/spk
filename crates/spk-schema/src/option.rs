@@ -416,6 +416,15 @@ impl VarOpt {
         }
     }
 
+    /// If this option is not already pinned, and it has a non-empty default,
+    /// pin the default value.
+    pub fn pin_with_default(&mut self) {
+        if self.value.is_some() || self.default.is_empty() {
+            return;
+        }
+        self.value = Some(self.default.clone());
+    }
+
     pub fn set_value(&mut self, value: String) -> Result<()> {
         if !self.choices.is_empty() && !value.is_empty() && !self.choices.contains(&value) {
             return Err(Error::String(format!(
