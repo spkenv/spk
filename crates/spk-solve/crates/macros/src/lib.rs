@@ -3,6 +3,7 @@
 // https://github.com/spkenv/spk
 
 pub use spk_schema::recipe;
+pub use spk_solve_solution::{PackageSource, Solution};
 pub use {serde, serde_json, spfs};
 
 /// Creates a repository containing a set of provided package specs.
@@ -130,7 +131,7 @@ macro_rules! make_build_and_components {
         let mut components = std::collections::HashMap::<spk_schema::foundation::ident_component::Component, $crate::spfs::encoding::Digest>::new();
         let mut build_opts = $opts.clone();
         #[allow(unused_mut)]
-        let mut solution = spk_solve_solution::Solution::new(build_opts.clone());
+        let mut solution = $crate::Solution::new(build_opts.clone());
         $(
         let dep = Arc::new($dep.clone());
         solution.add(
@@ -139,7 +140,7 @@ macro_rules! make_build_and_components {
                 spk_schema::ident::RequestedBy::SpkInternalTest,
             ),
             Arc::clone(&dep),
-            spk_solve_solution::PackageSource::SpkInternalTest,
+            $crate::PackageSource::SpkInternalTest,
         );
         )*
         let mut resolved_opts = $recipe.resolve_options(&build_opts).unwrap().into_iter();

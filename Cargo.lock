@@ -4860,6 +4860,7 @@ dependencies = [
  "serde_json",
  "spfs",
  "spk-schema",
+ "spk-solve-solution",
 ]
 
 [[package]]
