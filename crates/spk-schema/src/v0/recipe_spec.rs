@@ -15,6 +15,7 @@ use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::ident_component::ComponentBTreeSet;
 use spk_schema_foundation::option_map::Stringified;
 use spk_schema_foundation::version::{IncompatibleReason, VarOptionProblem};
+use variantly::Variantly;
 
 use super::TestSpec;
 use super::variant_spec::VariantSpecEntryKey;
@@ -328,35 +329,61 @@ impl Recipe for RecipeSpec {
             .map(|p| (p.name().to_owned(), p))
             .collect();
 
-        for opt in updated.build.options.iter_mut() {
-            match opt {
-                Opt::Var(opt) => {
-                    opt.set_value(
-                        build_options
-                            .get(&opt.var)
-                            .or_else(|| build_options.get(opt.var.without_namespace()))
-                            .map(String::to_owned)
-                            .or_else(|| opt.get_value(None))
-                            .unwrap_or_default(),
-                    )?;
-                    continue;
-                }
-                Opt::Pkg(opt) => {
-                    let spec = specs.get(&opt.pkg);
-                    match spec {
-                        None => {
-                            return Err(Error::String(format!(
-                                "PkgOpt missing in resolved: {}",
-                                opt.pkg
-                            )));
-                        }
-                        Some(spec) => {
-                            let rendered = spec.compat().render(HasVersion::version(spec));
-                            opt.set_value(rendered)?;
+        #[derive(Clone, Copy, Variantly)]
+        enum RequirePkgInBuildEnv {
+            Yes,
+            No,
+        }
+
+        let pin_options = |options: &mut [Opt], require_pkg_in_build_env: RequirePkgInBuildEnv| {
+            for opt in options.iter_mut() {
+                match opt {
+                    Opt::Var(opt) => {
+                        opt.set_value(
+                            build_options
+                                .get(&opt.var)
+                                .or_else(|| build_options.get(opt.var.without_namespace()))
+                                .map(String::to_owned)
+                                .or_else(|| opt.get_value(None))
+                                .unwrap_or_default(),
+                        )?;
+                    }
+                    Opt::Pkg(opt) => {
+                        let spec = specs.get(&opt.pkg);
+                        match spec {
+                            None if require_pkg_in_build_env.is_yes() => {
+                                return Err(Error::String(format!(
+                                    "PkgOpt missing in resolved: {}",
+                                    opt.pkg
+                                )));
+                            }
+                            None => {}
+                            Some(spec) => {
+                                let rendered = spec.compat().render(HasVersion::version(spec));
+                                opt.set_value(rendered)?;
+                            }
                         }
                     }
                 }
             }
+            Ok(())
+        };
+
+        pin_options(&mut updated.build.options, RequirePkgInBuildEnv::Yes)?;
+        for embedded in updated.install.embedded.iter_mut() {
+            pin_options(
+                &mut embedded.build.options,
+                // An embedded package that says it depends on a package
+                // "foo" that the parent package doesn't have in its build
+                // requirements means that "foo" will not necessarily be in
+                // the build env. That shouldn't prevent the parent package
+                // from building, but also the embedded stub will not get
+                // its build requirement for "foo" pinned. It is impossible
+                // to "build" an embedded package anyway; build pkg
+                // requirements in an embedded package are basically
+                // meaningless.
+                RequirePkgInBuildEnv::No,
+            )?;
         }
 
         updated
