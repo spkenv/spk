@@ -32,6 +32,10 @@ pub struct CmdRuntimePrune {
     #[clap(long)]
     ignore_monitor: bool,
 
+    /// Ignore runtimes that appear to be zombies
+    #[clap(long)]
+    ignore_zombies: bool,
+
     /// Remove runtimes started before last reboot
     #[clap(long)]
     from_before_boot: bool,
@@ -48,8 +52,16 @@ impl CmdRuntimePrune {
         };
 
         // TODO: Clap 4.x AppGroup supports grouping flags better.
-        if !self.from_before_boot {
+        if !self.from_before_boot && self.ignore_zombies {
             tracing::info!("No pruning strategy selected.");
+            if self.ignore_zombies {
+                tracing::info!(" > remove --ignore-zombies to enable pruning of zombie runtimes");
+            }
+            if !self.from_before_boot {
+                tracing::info!(
+                    " > add --from-before-boot to enable pruning of runtimes created before last reboot"
+                );
+            }
             return Ok(1);
         }
 
@@ -100,7 +112,7 @@ impl CmdRuntimePrune {
         while let Some(runtime) = runtimes.next().await {
             match runtime {
                 Ok(runtime) => {
-                    if runtime.author.created >= boot_time {
+                    if runtime.author.created >= boot_time && self.from_before_boot {
                         // This runtime is newer than the system boot time.
                         tracing::debug!(
                             created = ?runtime.author.created,
@@ -149,6 +161,15 @@ impl CmdRuntimePrune {
                             "Won't delete {}, the runtime is durable. Use `spk runtime rm` to delete it.",
                             runtime.name()
                         );
+                        continue;
+                    }
+
+                    if self.ignore_zombies && runtime.is_zombie() {
+                        tracing::info!(
+                            "Won't delete zombie runtime {}, ignore-zombies is set.",
+                            runtime.name()
+                        );
+                        tracing::info!(" > remove --ignore-zombies to ignore this error");
                         continue;
                     }
 

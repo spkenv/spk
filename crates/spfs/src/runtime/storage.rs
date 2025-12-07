@@ -518,6 +518,10 @@ impl Runtime {
         self.data.is_durable()
     }
 
+    pub fn is_zombie(&self) -> bool {
+        !self.status.running && self.status.owner.is_none() && self.status.monitor.is_none()
+    }
+
     /// Store a list of arbitrary key-value string pairs in the runtime
     pub async fn add_annotations(
         &mut self,
