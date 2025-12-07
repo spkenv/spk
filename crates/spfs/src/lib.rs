@@ -23,10 +23,14 @@ pub mod find_path;
 pub mod graph;
 pub mod io;
 #[cfg_attr(windows, path = "./monitor_win.rs")]
+#[cfg_attr(target_os = "macos", path = "./monitor_macos.rs")]
 pub mod monitor;
 pub mod prelude;
 pub mod proto;
 mod prune;
+#[cfg(target_os = "macos")]
+#[path = "./process_macos.rs"]
+pub mod process;
 mod repeating_timeout;
 mod resolve;
 pub mod runtime;

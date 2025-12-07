@@ -5,7 +5,7 @@
 //! PID-based filesystem router for macOS.
 //!
 //! Delegates fuser filesystem requests to per-process Mount instances by
-//! walking the caller's process tree via libproc.
+//! walking the caller's process tree via sysctl.
 
 use std::ffi::OsStr;
 use std::sync::Arc;
@@ -33,7 +33,7 @@ use super::process::{ProcessWatcher, get_parent_pids_macos};
 /// A PID-based filesystem router for macOS.
 ///
 /// Routes fuser filesystem requests to per-process Mount instances by
-/// walking the caller's process tree via libproc. This allows different
+/// walking the caller's process tree via sysctl. This allows different
 /// process trees to see different filesystem views.
 #[derive(Clone)]
 pub struct Router {

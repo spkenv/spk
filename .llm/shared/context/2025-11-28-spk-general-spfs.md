@@ -6,11 +6,14 @@ branch: main
 discovery_prompt: "/dicovery update existing discovery please"
 generated_by: "opencode:/discovery"
 tags: [context, discovery]
-status: complete
-last_updated: 2025-11-29
+status: superseded
+last_updated: 2025-12-07
+superseded_by: 2025-12-07-spk-general.md
 ---
 
 # Repo Context Guide: spk
+
+> **Note**: This document is superseded by [2025-12-07-spk-general.md](./2025-12-07-spk-general.md). Refer to the newer version for up‑to‑date information.
 
 ## TL;DR
 - Monorepo for SPK (package manager) and SPFS (per-process layered filesystem) written in Rust.

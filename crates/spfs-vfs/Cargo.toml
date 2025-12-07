@@ -34,7 +34,6 @@ macfuse-backend = [
     "dep:prost",
     "dep:futures-core",
     "dep:fuser",
-    "dep:libproc",
 ]
 
 [package.metadata.feature-groups]
@@ -77,7 +76,6 @@ fuser = { workspace = true, optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 fuser = { workspace = true, optional = true, features = ["macfuse-4-compat", "libfuse"] }
-libproc = { version = "0.14", optional = true }
 
 [target.'cfg(windows)'.dependencies]
 winfsp = { workspace = true, optional = true, default-features = false, features = [
