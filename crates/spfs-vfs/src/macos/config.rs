@@ -34,12 +34,21 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
+        let mut mount_options = HashSet::new();
+        mount_options.insert(MountOption::RW);
+        mount_options.insert(MountOption::NoDev);
+        mount_options.insert(MountOption::NoSuid);
+        mount_options.insert(MountOption::NoAtime);
+        mount_options.insert(MountOption::Exec);
+        // Note: AllowOther intentionally omitted for security
+        // Note: FSName and Subtype added by service.rs
+
         Self {
             mountpoint: PathBuf::from("/spfs"),
             root_mode: 0o555,
             uid: nix::unistd::getuid(),
             gid: nix::unistd::getgid(),
-            mount_options: HashSet::new(),
+            mount_options,
             remotes: Vec::new(),
             include_secondary_tags: false,
         }

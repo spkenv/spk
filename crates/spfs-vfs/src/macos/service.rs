@@ -108,7 +108,7 @@ impl Service {
 
         // Build mount options
         let mut options: Vec<MountOption> = service.config.mount_options.iter().cloned().collect();
-        options.push(MountOption::RO); // read-only
+        // Note: RO/RW now determined by config defaults
         options.push(MountOption::FSName("spfs".to_string()));
         options.push(MountOption::Subtype("spfs".to_string()));
         // Note: AllowOther requires root or special macFUSE configuration
