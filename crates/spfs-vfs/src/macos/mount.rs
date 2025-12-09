@@ -1123,6 +1123,36 @@ impl Mount {
         }
     }
 
+    /// Get parent directory info for mutation operations (create, mkdir, unlink, rmdir).
+    ///
+    /// Returns (is_dir, parent_path) if the parent inode is found in either the base
+    /// layer or scratch layer. Returns None if the parent inode is not found.
+    fn get_parent_info_for_mutation(&self, parent: u64) -> Option<(bool, std::path::PathBuf)> {
+        // Check base layer first
+        if let Some(entry) = self.inodes.get(&parent) {
+            let path = self
+                .base_inode_to_path
+                .get(&parent)
+                .map(|r| r.clone())
+                .unwrap_or_else(|| std::path::PathBuf::from("/"));
+            return Some((entry.is_dir(), path));
+        }
+
+        // Check scratch layer - inode must be in inode_to_path
+        if let Some(path_ref) = self.inode_to_path.get(&parent) {
+            let path = path_ref.clone();
+            // Verify it exists in scratch and check if it's a directory
+            if let Some(scratch) = &self.scratch {
+                let scratch_path = scratch.scratch_path(&path);
+                if scratch_path.exists() {
+                    return Some((scratch_path.is_dir(), path));
+                }
+            }
+        }
+
+        None
+    }
+
     /// Create a new file.
     #[allow(clippy::too_many_arguments)]
     pub fn create(
@@ -1139,13 +1169,13 @@ impl Mount {
             return;
         };
 
-        // Get parent entry to build the path
-        let Some(parent_entry) = self.inodes.get(&parent) else {
+        // Get parent info from either base layer or scratch layer
+        let Some((is_dir, parent_path)) = self.get_parent_info_for_mutation(parent) else {
             reply.error(libc::ENOENT);
             return;
         };
 
-        if !parent_entry.is_dir() {
+        if !is_dir {
             reply.error(libc::ENOTDIR);
             return;
         }
@@ -1156,11 +1186,6 @@ impl Mount {
         };
 
         // Build virtual path
-        let parent_path = self
-            .inode_to_path
-            .get(&parent)
-            .map(|p| p.clone())
-            .unwrap_or_else(|| std::path::PathBuf::from("/"));
         let virtual_path = parent_path.join(name_str);
 
         // Check if file was deleted (whiteout) - if so, recreate it
@@ -1235,12 +1260,13 @@ impl Mount {
             return;
         };
 
-        let Some(parent_entry) = self.inodes.get(&parent) else {
+        // Get parent info from either base layer or scratch layer
+        let Some((is_dir, parent_path)) = self.get_parent_info_for_mutation(parent) else {
             reply.error(libc::ENOENT);
             return;
         };
 
-        if !parent_entry.is_dir() {
+        if !is_dir {
             reply.error(libc::ENOTDIR);
             return;
         }
@@ -1251,11 +1277,6 @@ impl Mount {
         };
 
         // Build virtual path
-        let parent_path = self
-            .inode_to_path
-            .get(&parent)
-            .map(|p| p.clone())
-            .unwrap_or_else(|| std::path::PathBuf::from("/"));
         let virtual_path = parent_path.join(name_str);
 
         // Mark as deleted (whiteout)
@@ -1280,12 +1301,13 @@ impl Mount {
             return;
         };
 
-        let Some(parent_entry) = self.inodes.get(&parent) else {
+        // Get parent info from either base layer or scratch layer
+        let Some((is_dir, parent_path)) = self.get_parent_info_for_mutation(parent) else {
             reply.error(libc::ENOENT);
             return;
         };
 
-        if !parent_entry.is_dir() {
+        if !is_dir {
             reply.error(libc::ENOTDIR);
             return;
         }
@@ -1296,11 +1318,6 @@ impl Mount {
         };
 
         // Build virtual path
-        let parent_path = self
-            .inode_to_path
-            .get(&parent)
-            .map(|p| p.clone())
-            .unwrap_or_else(|| std::path::PathBuf::from("/"));
         let virtual_path = parent_path.join(name_str);
 
         // Create directory in scratch
@@ -1343,12 +1360,13 @@ impl Mount {
             return;
         };
 
-        let Some(parent_entry) = self.inodes.get(&parent) else {
+        // Get parent info from either base layer or scratch layer
+        let Some((is_dir, parent_path)) = self.get_parent_info_for_mutation(parent) else {
             reply.error(libc::ENOENT);
             return;
         };
 
-        if !parent_entry.is_dir() {
+        if !is_dir {
             reply.error(libc::ENOTDIR);
             return;
         }
@@ -1359,11 +1377,6 @@ impl Mount {
         };
 
         // Build virtual path
-        let parent_path = self
-            .inode_to_path
-            .get(&parent)
-            .map(|p| p.clone())
-            .unwrap_or_else(|| std::path::PathBuf::from("/"));
         let virtual_path = parent_path.join(name_str);
 
         // Check if directory is empty in scratch
