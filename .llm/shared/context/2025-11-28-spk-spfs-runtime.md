@@ -1,13 +1,13 @@
 ---
-date: 2025-11-29T00:00:00-08:00
+date: 2025-12-07T00:00:00-08:00
 repository: spk
-git_commit: d2855f085f4ebaa50a2241c013c88c3187cd6076
-branch: main
+git_commit: 263ab61c
+branch: feature/macos-fuse-auto-start
 discovery_prompt: "@.llm/shared/context/2025-11-28-spk-spfs-runtime.md update"
 generated_by: "opencode:/discovery"
 tags: [context, discovery]
 status: complete
-last_updated: 2025-11-29
+last_updated: 2025-12-07
 ---
 
 # Repo Context Guide: spk (SpFS Filesystem Initialization)
@@ -17,23 +17,26 @@ last_updated: 2025-11-29
 - Runtime state (layers, editability, durability, annotations, live layers) is serialized into the runtime repository so monitors and future sessions can recover it (`crates/spfs/src/runtime/storage.rs`).
 - Overlay-based backends flatten stacks as needed, render manifests to real directories, and select kernel options (e.g., `lowerdir+`) based on `/sbin/modinfo overlay` output (`crates/spfs/src/resolve.rs`, `crates/spfs/src/runtime/overlayfs.rs`).
 - Namespace + mount orchestration happens via `env.rs` guards plus `spfs-enter`; threads must stay put because mount namespaces are per-thread (`crates/spfs/src/env.rs`, `crates/spfs/src/status_unix.rs`).
+- macOS macFUSE runtime uses PID-based routing with a singleton FUSE service (`spfs-fuse-macos`), process ancestry tracking via sysctl/kqueue, and synthetic.conf provisioning for `/spfs` mount point (`crates/spfs/src/env_macos.rs`, `crates/spfs/src/status_macos.rs`).
 - Startup scripts rewrite shell env vars that get lost during privilege changes, and source `/spfs/etc/spfs/startup.d` before handing control to the user (`runtime/startup_sh.rs`, `runtime/startup_csh.rs`).
 - Live layers bind host paths into `/spfs` for per-run customization; durable runtimes relocate upper/work dirs into repo-owned storage and can be rerun safely (`runtime/live_layer.rs`, `runtime/storage.rs`).
 
 ## Quickstart (dev)
 - **Prereqs**
-  - Linux with overlayfs + user namespaces (or Windows with WinFsp build).
+  - **Linux**: overlayfs + user namespaces. **Windows**: WinFsp build. **macOS**: macFUSE (brew install --cask macfuse), synthetic.conf provisioning for `/spfs` mount point (run `make -f Makefile.macos setup-spfs-mount`).
   - Rust toolchain from `rust-toolchain.toml`, `cargo` + `rustfmt`, `clippy`.
   - `rsync`, `/sbin/modinfo overlay`, and `setcap`/`sudo` to grant `spfs-enter` capabilities; optional WinFsp for Windows.
 - **Setup**
-  - `cargo build -p spfs-cli -p spfs-enter -p spfs-render -p spfs-monitor`.
-  - `make setcap bindir=target/debug` (or release) so `spfs-enter` can `unshare`/`mount`.
+  - `cargo build -p spfs-cli -p spfs-enter -p spfs-render -p spfs-monitor` (on macOS, also builds `spfs-fuse-macos`).
+  - **Linux**: `make setcap bindir=target/debug` (or release) so `spfs-enter` can `unshare`/`mount`.
+  - **macOS**: Ensure `/spfs` mount point exists via synthetic.conf (run `make -f Makefile.macos setup-spfs-mount` and reboot if required).
   - Initialize storage repo: `spfs repo init` or manually create `{objects,payloads,tags}` tree; configure remotes in `~/.config/spfs/config.toml` or via CLI.
 - **Run**
   - `target/debug/spfs run base+tools -- bash` -> resolves refs, renders, enters runtime.
   - `SPFS_FILESYSTEM_TMPFS_SIZE=20G spfs run sdk -- shell` to grow tmpfs.
   - `spfs shell -` for an empty editable runtime.
-  - `spfs run --keep-runtime --runtime-name dev image -- zsh` to keep/durable.
+  - `spfs run --keep-runtime --runtime-name dev image -- zsh` to keep/durable (Linux only; macOS does not support durable runtimes).
+  - **macOS**: Runtime directories stored in `~/Library/Caches/spfs/runtimes/`; uses macFUSE service auto-start via `ensure_service_running()`.
 - **Test**
   - `cargo test -p spfs -- runtime::` (needs Linux + privileges; ignored tests for overlay operations).
   - `cargo test -p spfs-cli cmd_run::` to vet CLI orchestration.
@@ -47,17 +50,19 @@ last_updated: 2025-11-29
 ## How to use (user)
 - **Launch builds**: `spfs run platform+patch -- my-build.sh` resolves stack, ensures layers locally (or via proxy when using FUSE), mounts `/spfs`, runs script.
 - **Interactive shells**: `spfs shell workspace/tag --edit -- zsh` for editable session; startup scripts propagate env overrides and source `/spfs/etc/spfs/startup.d/*.sh`.
-- **Durable runtimes**: `spfs run --keep-runtime --runtime-name dev tools -- bash`; re-enter with `spfs run --rerun dev -- bash` (optionally `--force` to clean stale owner/monitor state).
+- **Durable runtimes**: `spfs run --keep-runtime --runtime-name dev tools -- bash`; re-enter with `spfs run --rerun dev -- bash` (optionally `--force` to clean stale owner/monitor state). **(Linux only; macOS does not support durable runtimes)**
 - **Live layers**: include YAML spec path inside `EnvSpec` (e.g., `project/live.spfs.yaml`); CLI loads, validates, and `env.rs` bind-mounts host content into `/spfs`.
 - **Monitoring/cleanup**: `spfs monitor` watches owner PID; `spfs-enter --exit` tears down overlay + tmpfs; durability keeps upper/work dir until `spfs runtime remove` or `spfs-clean --remove-durable` runs.
 
 ## Repo map
 - `crates/spfs/src/runtime/`: runtime metadata, live layers, overlay runtime logic, startup scripts.
-- `crates/spfs/src/status_{unix,win}.rs`: platform-specific runtime lifecycle entrypoints.
-- `crates/spfs/src/env.rs`: namespace, privilege, mount orchestration.
+- `crates/spfs/src/status_{unix,win,macos}.rs`: platform-specific runtime lifecycle entrypoints.
+- `crates/spfs/src/env.rs`, `env_macos.rs`: namespace, privilege, mount orchestration (Linux) and macOS macFUSE configuration.
 - `crates/spfs/src/resolve.rs`: stack resolution, flattening, rendering, `which_spfs` helpers.
 - `crates/spfs-cli/main/src/cmd_run.rs`: CLI entrypoint for `spfs run`/`shell` (plus fixtures/tests).
-- `docs/spfs/develop/{runtime.md,design.md}`: narrative design, process diagrams.
+- `crates/spfs-cli/cmd-fuse-macos/`: macOS macFUSE service CLI (`spfs-fuse-macos`).
+- `crates/spfs/src/monitor_macos.rs`, `process_macos.rs`: macOS process ancestry tracking via sysctl/kqueue.
+- `docs/spfs/develop/{runtime.md,design.md,macos-fuse-architecture.md}`: narrative design, process diagrams.
 - `crates/spfs/src/runtime/live_layer.rs`: schema + validation for live layer bind mounts.
 - **Read first**: `runtime/storage.rs`, `status_unix.rs`, `env.rs`, `resolve.rs`, `docs/spfs/develop/runtime.md`.
 
@@ -65,8 +70,9 @@ last_updated: 2025-11-29
 - **CLI orchestration**: `CmdRun::run` acquires repository handles, loads/creates runtime, syncs refs (via `EnvSpec` + `Sync` helper), applies annotations, decides backend, persists runtime, and builds final `Command` via `spfs::build_command_for_runtime`.
 - **Runtime metadata layer**: `runtime::Storage` persists `Data { Status, Config }` objects inside runtime repo as blobs referenced by special tags, enabling multi-process coordination and `spfs runtime list/info` to introspect state.
 - **Resolution/render pipeline**: `resolve.rs` converts stacks into `graph::Layer`s, flattening overly large sets (group size 7) until overlay arg length fits kernel limits; renders via `spfs-render` (copy strategy for durable runtimes) and records `RenderResult` paths.
-- **Namespace + mount control**: `env::RuntimeConfigurator` guards transitions into new mount namespaces, toggles root privileges, mounts tmpfs runtime roots, overlayfs (syscalls vs CLI path), optional FUSE backends, and masks deletions using overlay whiteouts.
-- **Durability & live layers**: `runtime::Runtime::setup_durable_upper_dir` moves upper/work dirs into repo-local `DURABLE_EDITS_DIR`, uses `rsync` to copy contents, and toggles overlay remount; live layers ensure mountpoints exist by creating temp manifests inserted at bottom of stack.
+- **Namespace + mount control**: `env::RuntimeConfigurator` guards transitions into new mount namespaces, toggles root privileges, mounts tmpfs runtime roots, overlayfs (syscalls vs CLI path), optional FUSE backends, and masks deletions using overlay whiteouts. **macOS**: Uses `env_macos::RuntimeConfigurator` with PID-based routing, macFUSE service auto-start (`ensure_service_running`), and synthetic.conf provisioning for `/spfs` mount point.
+- **macOS macFUSE runtime**: Singleton FUSE service (`spfs-fuse-macos`) with PID-based router, process ancestry tracking via sysctl/kqueue, editable mounts via copy-on-write scratch directory (`FuseWithScratch`), runtime directories at `~/Library/Caches/spfs/runtimes/`.
+- **Durability & live layers**: `runtime::Runtime::setup_durable_upper_dir` moves upper/work dirs into repo-local `DURABLE_EDITS_DIR`, uses `rsync` to copy contents, and toggles overlay remount; live layers ensure mountpoints exist by creating temp manifests inserted at bottom of stack. **macOS**: No durable runtime support; live layers supported via bind mounts.
 - **Startup & child exec**: Startup scripts rewrite env vars lost when `spfs-enter` `exec`s privileged helpers, then run user shell/command; `SPFS_METRICS_SYNC_TIME_SECS` surfaces sync latency.
 
 ## Key components (deep links)
@@ -79,6 +85,17 @@ last_updated: 2025-11-29
 - **Purpose**: Manage `unshare`, `setns`, `setuid/euid`, overlay/fuse mounting, mask deletions, change-to-durable operations.
 - **Key abstractions**: `RuntimeConfigurator<UserState, NamespaceState>` ensures compile-time enforcement of root/mount-state, `ThreadIsInMountNamespace` vs `ProcessIsInMountNamespace` for thread safety.
 - **Flow**: `initialize_runtime` -> `Runtime::prepare_live_layers` -> enter namespace -> mount tmpfs runtime dir -> render overlay -> mask deletes -> run startup; `change_to_durable_runtime` reuses same pipeline but only remounts overlay portion.
+
+### macOS macFUSE runtime (`crates/spfs/src/env_macos.rs`, `crates/spfs/src/status_macos.rs`, `crates/spfs-cli/cmd-fuse-macos/`)
+- **Purpose**: Provide macOS runtime using macFUSE with PID-based routing, synthetic.conf provisioning, process ancestry tracking, and editable mounts via copy-on-write scratch directory.
+- **Key components**:
+  - `env_macos::RuntimeConfigurator`: macOS-specific mount orchestration, macFUSE service auto-start (`ensure_service_running`), synthetic.conf validation.
+  - `status_macos.rs`: macOS runtime lifecycle entrypoints (`initialize_runtime`, `remount_runtime`, `exit_runtime`).
+  - `process_macos.rs`, `monitor_macos.rs`: Process ancestry tracking via sysctl/kqueue, PID-based monitoring.
+  - `cmd-fuse-macos/`: CLI for macFUSE service daemon (`spfs-fuse-macos service`), mount/unmount commands, gRPC service on port 37738.
+  - `spfs-vfs/src/macos/`: macOS VFS implementation with router, scratch directory for editable mounts.
+- **Flow**: `initialize_runtime` -> ensure service running -> compute runtime manifest -> set up runtime directories (`~/Library/Caches/spfs/runtimes/`) -> mount via FUSE -> register PID route.
+- **Limitations**: No durable runtime support; no overlayfs; no mount namespaces; scratch directories not automatically cleaned up.
 
 ### Resolution/render pipeline (`crates/spfs/src/resolve.rs`)
 - **Purpose**: Evaluate `EnvSpec`, resolve tags/digests to layers, flatten stacks, call `spfs-render`, compute manifests for masking.
@@ -96,12 +113,13 @@ last_updated: 2025-11-29
 ## Configuration & environments
 - **Config sources**: `spfs::Config::current()` loads workspace/user config (default `~/.config/spfs/config.toml`); repo-level `workspace.spk.{yaml,yml}` describes packages/layers.
 - **Filesystem backends**: `MountBackend` enum selects overlay renders vs overlay+fuse vs fuse-only vs WinFsp; `requires_localization()` controls when remote refs must be synced locally.
-- **Env vars**: `SPFS_RUNTIME` (active runtime name), `SPFS_FILESYSTEM_TMPFS_SIZE`, `SPFS_SUPPRESS_OVERLAYFS_PARAMS_WARNING`, `SPFS_SHELL_MESSAGE`, `SPFS_DEBUG`, `SPFS_DIR_PREFIX`, `SPFS_METRICS_SYNC_TIME_SECS` (exported by CLI), `SPFS_KEEP_RUNTIME`.
+- **Env vars**: `SPFS_RUNTIME` (active runtime name), `SPFS_FILESYSTEM_TMPFS_SIZE`, `SPFS_SUPPRESS_OVERLAYFS_PARAMS_WARNING`, `SPFS_SHELL_MESSAGE`, `SPFS_DEBUG`, `SPFS_DIR_PREFIX`, `SPFS_METRICS_SYNC_TIME_SECS` (exported by CLI), `SPFS_KEEP_RUNTIME`. **macOS-specific**: `SPFS_MACFUSE_LISTEN_ADDRESS` (default 127.0.0.1:37738), `SPFS_MONITOR_FOREGROUND_LOGGING`.
+- **macOS-specific**: synthetic.conf provisioning for `/spfs` mount point; macFUSE service auto-start via `ensure_service_running()`; runtime directories at `~/Library/Caches/spfs/runtimes/`.
 - **Secrets**: Remotes may include credentials; runtime metadata stored in repo tags (ensure secure repo perms). Durable upper dirs live under local repo `DURABLE_EDITS_DIR` (cannot be on NFS due to overlayfs requirements).
 
 ## Testing & quality
-- **Unit tests**: `runtime/*_test.rs` (storage, overlayfs, live layers), `resolve_test.rs`, CLI fixtures under `crates/spfs-cli/main/src/cmd_run_test.rs`.
-- **Integration**: Overlay + namespace tests often `#[ignore]` due to needing privileges—run manually on Linux host with `sudo make test`.
+- **Unit tests**: `runtime/*_test.rs` (storage, overlayfs, live layers), `resolve_test.rs`, CLI fixtures under `crates/spfs-cli/main/src/cmd_run_test.rs`. **macOS-specific**: `process_macos.rs` tests (requires process inspection permissions).
+- **Integration**: Overlay + namespace tests often `#[ignore]` due to needing privileges—run manually on Linux host with `sudo make test`. **macOS**: macFUSE integration tests require macFUSE installation; see `Makefile.macos` for test targets.
 - **CI**: GitHub workflows run lint/test/cspell; ensure `cargo fmt`, `cargo clippy --workspace`, and `make lint` pass before PR.
 - **Fixtures**: `crates/spfs/fixtures.rs`, CLI fixtures for repo scaffolding.
 
@@ -118,10 +136,11 @@ last_updated: 2025-11-29
 - **Observability**: CLI records sync duration in `SPFS_METRICS_SYNC_TIME_SECS`; Sentry integration configured via global config (see `spfs::Config::sentry`).
 - **Performance**: Overlay arg length is kernel-limited; flattening merges layers and writes manifests to repo (kept alive via `flattened_layers` set). Durable runtimes disable overlay `index=on` and enforce copy renders to avoid hard-link semantics issues.
 - **Cross-platform**: `status_win.rs` + `runtime/winfsp.rs` handle WinFsp specifics; ensure parity with Linux flows (masking handled differently because Win overlay semantics differ).
+- **macOS-specific**: No durable runtime support; no overlayfs; macFUSE service auto-start via `ensure_service_running()`; process ancestry tracking via sysctl/kqueue; synthetic.conf provisioning for `/spfs` mount point; runtime directories at `~/Library/Caches/spfs/runtimes/`.
 
 ## LLM working set
 1. `crates/spfs/src/runtime/storage.rs` – runtime schema, persistence, durability, live layers.
-2. `crates/spfs/src/status_unix.rs` & `status.rs` – lifecycle entrypoints (init, remount, durable, exit).
+2. `crates/spfs/src/status_{unix,win,macos}.rs` & `status.rs` – lifecycle entrypoints (init, remount, durable, exit).
 3. `crates/spfs/src/env.rs` – namespace, privilege, mount operations, mask handling.
 4. `crates/spfs/src/resolve.rs` – stack resolution, flattening, rendering helper.
 5. `crates/spfs-cli/main/src/cmd_run.rs` – CLI orchestration, annotation parsing, sync.
@@ -130,10 +149,19 @@ last_updated: 2025-11-29
 8. `docs/spfs/develop/runtime.md` – runtime semantics narrative.
 9. `docs/spfs/develop/design.md` – system architecture & process diagram.
 10. `crates/spfs/src/runtime/overlayfs.rs` – overlay option detection, kernel capability handling.
+11. `crates/spfs/src/status_macos.rs` – macOS runtime lifecycle entrypoints.
+12. `crates/spfs/src/env_macos.rs` – macOS macFUSE configuration and service auto-start.
+13. `crates/spfs/src/process_macos.rs`, `monitor_macos.rs` – macOS process ancestry tracking via sysctl/kqueue.
+14. `crates/spfs-cli/cmd-fuse-macos/` – macOS macFUSE service CLI.
+15. `docs/spfs/develop/macos-fuse-architecture.md` – macOS-specific architecture documentation.
 
 ## Open questions
 - `spfs-enter` internals live outside this crate; inspect its source (likely `crates/spfs-enter`) to document exact namespace + process orchestration sequence.
 - Windows backend parity: confirm `runtime/winfsp.rs` provides the same live-layer + durability guarantees; document deviations.
+- macOS macFUSE runtime parity: confirm `env_macos.rs` and `status_macos.rs` provide equivalent functionality to Linux/Windows; document deviations (no durable runtimes, no overlayfs).
+- macOS process ancestry tracking: verify sysctl/kqueue implementation correctly tracks descendant processes across forks and execs.
+- macOS synthetic.conf provisioning: ensure `/spfs` mount point creation works across macOS versions and reboot scenarios.
+- macOS scratch directory cleanup: implement automatic cleanup of orphaned scratch directories (`/tmp/spfs-scratch-*`).
 - Fuse backend (`MountBackend::OverlayFsWithFuse` / `FuseOnly`) is behind a crate feature; enumerate how to enable/build/test it.
 - Runtime monitoring (`spfs monitor`) behavior is implied but not covered here—trace `crates/spfs-cli/main/src/cmd_runtime*.rs` for lifecycle automation.
 - Telemetry hooks: Sentry/metrics integration referenced in config but detailed flows aren’t documented; audit `crates/spfs/src/config.rs` + sentry crates.

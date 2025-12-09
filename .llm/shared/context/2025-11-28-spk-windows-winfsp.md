@@ -1,13 +1,13 @@
 ---
 date: 2025-11-28T10:45:00-08:00
 repository: spk
-git_commit: 5c32e2093677ef44b7fc8b227ae20ccec29a1069
-branch: main
+git_commit: 263ab61c
+branch: feature/macos-fuse-auto-start
 discovery_prompt: "How does the FUSE layer work with Windows which does not have the namespace mounts and capabilities system?"
 generated_by: "opencode:/discovery"
 tags: [context, discovery]
 status: complete
-last_updated: 2025-11-28
+last_updated: 2025-12-07
 ---
 
 # Repo Context Guide: spk (Windows WinFSP backend for SpFS)
@@ -69,6 +69,7 @@ last_updated: 2025-11-28
    - All mounts are read-only (`FILE_ATTRIBUTE_READONLY`), as Windows backend lacks overlay upper/work directories.
 6. **Teardown**:
    - Currently only service shutdown (`spfs-winfsp service --stop`) is implemented. `status_win.rs` contains TODOs for remount, exit, durable flows, so cleanup is manual.
+7. **Status monitoring**: The gRPC service exposes a `Status` RPC endpoint that returns active mounts and their details (root PID, environment spec). This endpoint is used internally for debugging but is not exposed via CLI commands.
 
 ## Key components (deep links)
 ### `MountBackend::WinFsp` (`crates/spfs/src/runtime/storage.rs`)
@@ -84,9 +85,10 @@ last_updated: 2025-11-28
 ### `spfs-winfsp` CLI (`crates/spfs-cli/cmd-winfsp/src/cmd_winfsp.rs`)
 - **`service` subcommand**: Initializes WinFSP, opens repository stack, spawns gRPC + host threads, handles Ctrl-C, and supports `--stop` by calling `proto::VfsService::shutdown`.
 - **`mount` subcommand**: Ensures service is running (auto-spawns if connection refused), determines parent PID (or provided `--root-process`), and sends `MountRequest` over gRPC. Uses `DETACHED_PROCESS` flag to background the service when autospawned.
+- **Status endpoint**: The gRPC service includes a `Status` RPC that returns active mounts, but there is no CLI subcommand to query it directly.
 
 ### WinFSP filesystem core (`crates/spfs-vfs/src/winfsp`) 
-- **`Service`**: Wraps repository stack, host controller, and router; exposes gRPC methods `mount` and `shutdown`.
+- **`Service`**: Wraps repository stack, host controller, and router; exposes gRPC methods `mount`, `shutdown`, and `status`. The `unmount` endpoint is defined in the protocol but not yet implemented.
 - **`Router`**: Maintains map of root PID ➜ `Mount`. Routes WinFSP callbacks by inspecting the calling process stack, effectively simulating namespaces.
 - **`Mount`**: Implements `winfsp::filesystem::FileSystemContext` with pre-allocated inodes, attribute mapping, and read-only file handles (either `BlobFile` or streaming handles). Uses async tasks to fetch payloads, bridging to WinFSP via channels.
 
@@ -127,7 +129,7 @@ last_updated: 2025-11-28
 2. `crates/spfs/src/env_win.rs` – Windows configurator and WinFSP mount call.
 3. `crates/spfs/src/status_win.rs` – Windows lifecycle (TODO markers + init).
 4. `crates/spfs-cli/cmd-winfsp/src/cmd_winfsp.rs` – CLI orchestration of service/mount commands.
-5. `crates/spfs-vfs/src/winfsp/mod.rs` – Service, Config, HostController wiring.
+5. `crates/spfs-vfs/src/winfsp/mod.rs` – Service, Config, HostController wiring; includes status RPC implementation (lines 212-237).
 6. `crates/spfs-vfs/src/winfsp/router.rs` – Process routing logic simulating namespaces.
 7. `crates/spfs-vfs/src/winfsp/mount.rs` & `handle.rs` – File operations, attribute mapping, streaming.
 8. `docs/admin/install.md` & `README.md` (Windows sections) – user-facing requirements and limitations.
@@ -135,6 +137,9 @@ last_updated: 2025-11-28
 10. `TODO.md` & Windows monitor/renderer stubs – highlight unimplemented functionality.
 
 ## Open questions
+
+Recent addition: status RPC (commit `f0095b8a`) provides visibility into active mounts via gRPC (not exposed in CLI).
+
 - How will durable runtimes and editable overlays be supported on Windows? (`status_win.rs` and `renderer_win.rs` are TODOs.)
 - What replaces `spfs-monitor` on Windows once `monitor_win.rs` is implemented? Need spec for detecting orphaned PID trees without namespaces.
 - Can router-based isolation be bypassed (e.g., other processes reading `C:\spfs`)? Audit required for security guarantees.

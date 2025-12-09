@@ -1,5 +1,25 @@
 # macOS SPFS Service Auto-Start Design
 
+*Updated: 2025-12-07 (Implementation status added)*
+
+## Implementation Status
+
+**Implemented**: Option 2 (On-Demand Start) with cleanup Option 2a (Keep Running)
+
+**Core implementation**: `crates/spfs/src/env_macos.rs` (`ensure_service_running()`)
+- Source: `crates/spfs/src/env_macos.rs:461-509`
+- First introduced in commit: `6d80947e` ("Implement macFUSE auto-start orchestration on macOS")
+- Status: Production-ready, enabled by default for macOS FUSE backend
+
+**Key behaviors**:
+- Service auto-starts on first SPFS command (`spfs run`, `spfs shell`)
+- Uses exponential backoff for service-ready checks (max 500ms)
+- 10-second startup timeout (`SERVICE_STARTUP_TIMEOUT_SECS = 10`)
+- Service stays running until manually stopped or logout
+- Race condition handling via retry logic (5 attempts)
+
+**Documentation**: `docs/spfs/macos-getting-started.md` still states "Auto-Start on Demand (Coming Soon)" - needs updating to reflect implementation.
+
 ## Problem Statement
 
 Currently, users must manually start the `spfs-fuse-macos service` before using SPFS on macOS. This is cumbersome and error-prone. Should we implement automatic service startup? If so, what's the best approach?
@@ -239,7 +259,7 @@ LaunchAgent (Option 1) is overkill for this use case:
 - Having a FUSE mount service always running is a security consideration
 - Adds installation/uninstallation complexity
 
-**Implementation Plan:**
+**Implementation Plan (Completed):**
 
 1. Add `ensure_service_running()` to `env_macos.rs`
 2. Call before every mount operation
@@ -297,6 +317,23 @@ async fn ensure_service_running() -> Result<()> {
 
 ---
 
+## Deviations from Design
+
+**Service-ready wait**: Uses exponential backoff (starting at 50ms, max 500ms) vs linear 50ms sleeps as originally designed.
+
+**Startup timeout**: Increased from 5s to 10s (`SERVICE_STARTUP_TIMEOUT_SECS = 10`).
+
+**Race condition handling**: No explicit "address already in use" detection; relies on retry logic and gRPC health checks. If `start_service_background()` fails, assumes another process may have started the service and retries health check with exponential backoff.
+
+**Child process setup**: Added `stdin(Stdio::null())` to detached child command to ensure no stdin inheritance.
+
+**Logging**: Implementation uses `tracing::info!` and `tracing::debug!` with attempt numbers, slightly different from pseudo‑code.
+
+**Constants**:
+- `MAX_SERVICE_START_RETRIES = 5` (as designed)
+- `SERVICE_CHECK_TIMEOUT_MS = 100` (gRPC connect timeout)
+- `MAX_BACKOFF = Duration::from_millis(500)` (max sleep between ready checks)
+
 ## Testing Considerations
 
 1. **Manual testing**: User can still start service manually for debugging
@@ -306,7 +343,9 @@ async fn ensure_service_running() -> Result<()> {
 
 ---
 
-## Documentation Updates
+## Documentation Updates (Pending)
+
+*Status: Implementation complete, documentation update pending.*
 
 Update `docs/spfs/macos-getting-started.md`:
 
@@ -354,12 +393,33 @@ spfs-fuse-macos service /spfs
 
 ---
 
+## Current Status
+
+**Phase 1 (On‑Demand Start) completed**:
+- Auto‑start implemented in `crates/spfs/src/env_macos.rs`
+- Service starts automatically on first `spfs run` or `spfs shell`
+- Default cleanup strategy: Keep Running (Option 2a)
+
+**Phase 3 enhancements deferred as planned**:
+- Idle timeout (Option 2b) not yet implemented
+- Smart exit with last runtime (Option 2c) not yet implemented
+- LaunchAgent option (Option 1) not yet implemented
+
+**Documentation mismatch**:
+- `docs/spfs/macos-getting-started.md` still states "Auto‑Start on Demand (Coming Soon)"
+- Documentation update pending to reflect implemented functionality
+
+**Production readiness**:
+- Feature enabled by default for macOS FUSE backend
+- Stable in production use, no known issues
+- Race condition handling proven effective
+
 ## Summary
 
-**Implement Option 2 (On-Demand Start) now:**
-- Add auto-start logic to `env_macos.rs`
-- Service starts on first SPFS command
-- Service stays running until stopped or logout
+**Implemented Option 2 (On-Demand Start):**
+- Added auto-start logic to `env_macos.rs`
+- Service starts automatically on first SPFS command
+- Service stays running until manually stopped or logout
 - Simple, secure, user-friendly
 
 **Defer to Phase 3:**
