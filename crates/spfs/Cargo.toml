@@ -112,7 +112,7 @@ linux-syscall = "1.0.0"
 procfs = { workspace = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-sysctl = "0.7"
+libproc = "0.14.11"
 
 [target.'cfg(windows)'.dependencies.windows]
 features = ["Win32_Foundation", "Win32_Storage_FileSystem"]

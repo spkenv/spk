@@ -7,14 +7,14 @@
 use std::time::Duration;
 
 use tokio::time::{Instant, interval};
-use tokio_stream::wrappers::IntervalStream;
 use tokio_stream::StreamExt;
+use tokio_stream::wrappers::IntervalStream;
 
 use super::runtime;
 use crate::{Error, Result};
 
 #[cfg(target_os = "macos")]
-use crate::process::{ProcessWatcher, is_descendant};
+use crate::process::{ProcessWatcher, is_in_process_tree};
 
 pub const SPFS_MONITOR_FOREGROUND_LOGGING_VAR: &str = "SPFS_MONITOR_FOREGROUND_LOGGING";
 
@@ -80,11 +80,12 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime, config: &crate::Confi
     tracing::debug!(pid = root_pid, "starting macOS process monitor");
 
     // Initialize process watcher for macOS
-    let mut watcher = ProcessWatcher::new()
-        .map_err(|e| Error::RuntimeReadError("kqueue".into(), e))?;
+    let mut watcher =
+        ProcessWatcher::new().map_err(|e| Error::RuntimeReadError("kqueue".into(), e))?;
 
     // Try to watch the root process
-    if !watcher.watch(root_pid)
+    if !watcher
+        .watch(root_pid)
         .map_err(|e| Error::RuntimeReadError("kqueue watch".into(), e))?
     {
         // Root process already exited
@@ -116,14 +117,16 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime, config: &crate::Confi
                         if pid as u32 == root_pid {
                             continue;
                         }
-                        if ProcessWatcher::is_process_alive(pid as u32) && is_descendant(pid, root_pid as i32) {
+                        if ProcessWatcher::is_process_alive(pid as u32)
+                            && is_in_process_tree(pid, root_pid as i32)
+                        {
                             tracing::debug!(descendant_pid = pid, "found living descendant");
                             has_descendants = true;
                             // Start watching this descendant
                             let _ = watcher.watch(pid as u32);
                         }
                     }
-                    
+
                     if !has_descendants {
                         tracing::debug!("root process and all descendants exited");
                         break;
@@ -133,21 +136,26 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime, config: &crate::Confi
             Ok(None) => {
                 // Timeout, check if root process is still alive
                 if !ProcessWatcher::is_process_alive(root_pid) {
-                    tracing::debug!(pid = root_pid, "root process no longer alive, checking descendants");
-                    
+                    tracing::debug!(
+                        pid = root_pid,
+                        "root process no longer alive, checking descendants"
+                    );
+
                     // Check if any descendant processes are still alive
                     let mut has_descendants = false;
                     for pid in 1..=100000 {
                         if pid as u32 == root_pid {
                             continue;
                         }
-                        if ProcessWatcher::is_process_alive(pid as u32) && is_descendant(pid, root_pid as i32) {
+                        if ProcessWatcher::is_process_alive(pid as u32)
+                            && is_in_process_tree(pid, root_pid as i32)
+                        {
                             tracing::debug!(descendant_pid = pid, "found living descendant");
                             has_descendants = true;
                             break;
                         }
                     }
-                    
+
                     if !has_descendants {
                         tracing::debug!("root process and all descendants exited");
                         break;
@@ -205,7 +213,9 @@ pub async fn identify_mount_namespace_of_process(_pid: u32) -> Result<Option<std
 /// Return an inventory of all known pids and their mount namespaces.
 ///
 /// On macOS, mount namespaces don't exist, so we return an empty map.
-pub async fn find_processes_and_mount_namespaces() -> Result<std::collections::HashMap<u32, Option<std::path::PathBuf>>> {
+pub async fn find_processes_and_mount_namespaces()
+-> Result<std::collections::HashMap<u32, Option<std::path::PathBuf>>> {
     // macOS doesn't have mount namespaces
     Ok(std::collections::HashMap::new())
 }
+

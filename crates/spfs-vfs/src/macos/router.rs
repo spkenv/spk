@@ -14,15 +14,8 @@ use std::time::SystemTime;
 
 use dashmap::DashMap;
 use fuser::{
-    Filesystem,
-    ReplyAttr,
-    ReplyData,
-    ReplyDirectory,
-    ReplyEntry,
-    ReplyLseek,
-    ReplyOpen,
-    ReplyStatfs,
-    Request,
+    Filesystem, ReplyAttr, ReplyData, ReplyDirectory, ReplyEntry, ReplyLseek, ReplyOpen,
+    ReplyStatfs, Request,
 };
 use spfs::tracking::EnvSpec;
 use tracing::instrument;
@@ -235,13 +228,20 @@ impl Router {
     }
 
     fn get_mount_for_pid(&self, caller_pid: u32) -> Arc<Mount> {
-        let ancestry = get_parent_pids_macos(Some(caller_pid as i32))
-            .unwrap_or_else(|_| vec![caller_pid as i32]);
+        let ancestry_result = get_parent_pids_macos(Some(caller_pid as i32));
+        let ancestry = match ancestry_result {
+            Ok(ancestry) => ancestry,
+            Err(e) => {
+                tracing::error!("get_parent_pids_macos failed for PID {}: {}", caller_pid, e);
+                vec![caller_pid as i32]
+            }
+        };
         for pid in ancestry {
             if let Some(mount) = self.routes.get(&(pid as u32)) {
                 return Arc::clone(mount.value());
             }
         }
+        tracing::warn!("No mount found for PID {}, using default mount", caller_pid);
         Arc::clone(&self.default)
     }
 }

@@ -410,6 +410,7 @@ impl Mount {
                 }
             } else {
                 // Not editable
+                tracing::error!("open failed: scratch is None, mount not editable!");
                 reply.error(libc::EROFS);
             }
             return;
@@ -1021,6 +1022,7 @@ impl Mount {
         reply: ReplyOpen,
     ) {
         let Some(scratch) = &self.scratch else {
+            tracing::error!("open_scratch_file called but scratch is None!");
             reply.error(libc::EROFS);
             return;
         };

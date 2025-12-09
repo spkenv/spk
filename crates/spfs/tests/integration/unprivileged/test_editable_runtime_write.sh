@@ -22,7 +22,7 @@ spfs run - -- bash -c "\
 "
 
 # 2. Run an editable runtime and write a new file
-spfs run -e ${BASE_TAG} --edit -- bash -c "\
+spfs run -e ${BASE_TAG} -- bash -c "\
   echo \"${NEW_FILE_CONTENT}\" > ${NEW_FILE} && \
   test -f ${ORIGINAL_FILE} && \
   test -f ${NEW_FILE} && \
