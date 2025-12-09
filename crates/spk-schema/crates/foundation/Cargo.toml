@@ -58,3 +58,7 @@ variantly = { workspace = true }
 [dev-dependencies]
 proptest = { workspace = true }
 rstest = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSProcessInfo", "NSString"] }

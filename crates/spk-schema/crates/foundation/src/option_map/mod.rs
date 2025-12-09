@@ -57,6 +57,19 @@ macro_rules! option_map {
     }};
 }
 
+/// Detect macOS version using Foundation APIs.
+///
+/// Returns the marketing version (e.g., "14.0") as major.minor format.
+#[cfg(target_os = "macos")]
+fn get_macos_version() -> Result<String> {
+    use objc2_foundation::NSProcessInfo;
+
+    let process_info = NSProcessInfo::processInfo();
+    let version = process_info.operatingSystemVersion();
+
+    Ok(format!("{}.{}", version.majorVersion, version.minorVersion))
+}
+
 /// A lazy, thread-safe, cache of the host options.
 ///
 /// Use [`HostOptions::get`] to get an owned copy of the options.
@@ -71,28 +84,77 @@ impl HostOptions {
     /// Detect and return the default options for the current host system.
     fn host_options() -> Result<OptionMap> {
         let mut opts = OptionMap::default();
-        opts.insert(OptName::os().to_owned(), std::env::consts::OS.into());
         opts.insert(OptName::arch().to_owned(), std::env::consts::ARCH.into());
 
-        let info = match sys_info::linux_os_release() {
-            Ok(i) => i,
-            Err(err) => {
-                return Err(Error::String(format!("Failed to get linux info: {err:?}")));
-            }
-        };
+        #[cfg(target_os = "linux")]
+        {
+            // Use "linux" for OS (kernel name)
+            opts.insert(OptName::os().to_owned(), "linux".into());
 
-        if let Some(id) = info.id {
-            opts.insert(OptName::distro().to_owned(), id.clone());
-            match OptNameBuf::try_from(id) {
-                Ok(id) => {
-                    if let Some(version_id) = info.version_id {
-                        opts.insert(id, version_id);
+            let info = match sys_info::linux_os_release() {
+                Ok(i) => i,
+                Err(err) => {
+                    return Err(Error::String(format!("Failed to get linux info: {err:?}")));
+                }
+            };
+
+            if let Some(id) = info.id {
+                opts.insert(OptName::distro().to_owned(), id.clone());
+                match OptNameBuf::try_from(id) {
+                    Ok(id) => {
+                        if let Some(version_id) = info.version_id {
+                            opts.insert(id, version_id);
+                        }
+                    }
+                    Err(err) => {
+                        tracing::warn!("Reported distro id is not a valid option name: {err}");
+                    }
+                }
+            }
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            // Use "darwin" for OS (kernel name) to match Linux pattern
+            // (Linux uses kernel name "linux", not distribution name)
+            opts.insert(OptName::os().to_owned(), "darwin".into());
+
+            let distro_name = "macos";
+            opts.insert(OptName::distro().to_owned(), distro_name.into());
+
+            match get_macos_version() {
+                Ok(version) => {
+                    match OptNameBuf::try_from(distro_name) {
+                        Ok(distro_opt) => {
+                            opts.insert(distro_opt, version);
+                        }
+                        Err(err) => {
+                            tracing::warn!("Distro name is not a valid option name: {err}");
+                        }
                     }
                 }
                 Err(err) => {
-                    tracing::warn!("Reported distro id is not a valid option name: {err}");
+                    return Err(Error::String(format!(
+                        "Failed to get macOS version: {err}"
+                    )));
                 }
             }
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            // Windows support is not yet implemented
+            return Err(Error::String(
+                "Host option detection is not yet implemented for Windows".to_string(),
+            ));
+        }
+
+        #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+        {
+            return Err(Error::String(format!(
+                "Host option detection is not implemented for OS: {}",
+                std::env::consts::OS
+            )));
         }
 
         Ok(opts)
