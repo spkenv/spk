@@ -1047,7 +1047,10 @@ impl DependencyProvider for SpkProvider {
                                 .read_package(located_build_ident_with_component.ident.target())
                                 .await
                             {
-                                if var_request.is_satisfied_by(&package).is_ok() ^ inverse {
+                                let satisfied = var_request.is_satisfied_by(&package);
+                                tracing::trace!(%var_request, package = %package.ident(), %satisfied, %inverse, "is_satisfied_by");
+
+                                if satisfied.is_ok() ^ inverse {
                                     selected.push(*candidate);
                                 }
                             } else if inverse {

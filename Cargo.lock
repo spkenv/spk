@@ -4257,6 +4257,7 @@ dependencies = [
  "spk-exec",
  "spk-schema",
  "spk-solve",
+ "spk-solve-macros",
  "spk-storage",
  "strum",
  "tar",
@@ -4720,6 +4721,7 @@ dependencies = [
  "tempfile",
  "thiserror 1.0.69",
  "tracing",
+ "variantly",
 ]
 
 [[package]]
@@ -4860,6 +4862,7 @@ dependencies = [
  "serde_json",
  "spfs",
  "spk-schema",
+ "spk-solve-solution",
 ]
 
 [[package]]

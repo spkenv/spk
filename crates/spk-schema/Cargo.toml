@@ -28,16 +28,17 @@ ignore = "0.4.18"
 indexmap = { workspace = true }
 is_default_derive_macro = { workspace = true }
 itertools = { workspace = true }
+miette = { workspace = true }
 nom = { workspace = true }
 nom-supreme = { workspace = true }
 regex = { workspace = true }
 relative-path = { workspace = true }
 ring = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-serde_yaml = { workspace = true }
 serde_json = { workspace = true }
-spfs = { workspace = true }
+serde_yaml = { workspace = true }
 shellexpand = "3.1.0"
+spfs = { workspace = true }
 spk-config = { workspace = true }
 spk-schema-foundation = { workspace = true }
 spk-schema-tera = { workspace = true }
@@ -46,7 +47,7 @@ sys-info = "0.9.0"
 tempfile = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-miette = { workspace = true }
+variantly = { workspace = true }
 
 [dev-dependencies]
 proptest = "1.0.0"

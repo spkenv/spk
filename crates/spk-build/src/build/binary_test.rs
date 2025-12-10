@@ -10,7 +10,7 @@ use spfs::prelude::*;
 use spk_schema::foundation::env::data_path;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::ident_component::Component;
-use spk_schema::foundation::{opt_name, option_map};
+use spk_schema::foundation::{opt_name, option_map, version_ident};
 use spk_schema::ident::{PkgRequest, RangeIdent, Request};
 use spk_schema::{
     ComponentSpecList,
@@ -23,6 +23,7 @@ use spk_schema::{
     recipe,
 };
 use spk_solve::{Solution, SolverImpl};
+use spk_solve_macros::make_repo;
 use spk_storage::fixtures::*;
 use spk_storage::{self as storage, Repository};
 
@@ -553,6 +554,58 @@ async fn test_build_var_pinning(#[case] solver: SolverImpl) {
         Request::Var(r) => assert_eq!(r.value.as_pinned(), Some("depvalue")),
         _ => panic!("expected var request"),
     }
+}
+
+#[rstest]
+#[tokio::test]
+async fn embedded_stub_build_var_pinning() {
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "parent/1.0.0",
+                "install": {
+                    "embedded": [
+                        {
+                            "pkg": "python/3.10.8",
+                            "build": {
+                                "options": [
+                                    {
+                                        "var": "abi/cp310"
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    );
+    let stub_ident = repo
+        .list_package_builds(&version_ident!("python/3.10.8"))
+        .await
+        .unwrap()
+        .into_iter()
+        .next()
+        .unwrap();
+    let stub = repo.read_embed_stub(&stub_ident).await.unwrap();
+    let python_abi = stub
+        .get_build_options()
+        .iter()
+        .find_map(|opt| {
+            opt.clone()
+                .into_var()
+                .and_then(|var_opt| (var_opt.var == "abi").then_some(var_opt))
+        })
+        .unwrap();
+    assert_eq!(
+        // This "not-cp310" will be ignored if the var is already pinned,
+        // otherwise it will end up returning whatever value we provide as a
+        // default. Passing None here returns the default value and would be a
+        // false positive.
+        python_abi.get_value(Some("not-cp310")),
+        Some("cp310".to_string()),
+        "expect var options in an embedded package to be pinned when saved as an embedded stub"
+    );
 }
 
 #[rstest]
