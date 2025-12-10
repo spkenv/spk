@@ -12,7 +12,7 @@ pub use error::{Error, Result};
 use miette::Diagnostic;
 use thiserror::Error;
 
-use crate::spec_ops::EnvName;
+use crate::spec_ops::{EnvName, Named};
 
 #[cfg(test)]
 #[path = "./name_test.rs"]
@@ -71,6 +71,12 @@ impl InvalidNameError {
 parsedbuf::parsed!(OptName, Error, "option");
 parsedbuf::parsed!(PkgName, Error, "package");
 parsedbuf::parsed!(RepositoryName, Error, "repository");
+
+impl Named for PkgName {
+    fn name(&self) -> &PkgName {
+        self
+    }
+}
 
 impl Borrow<OptName> for PkgName {
     fn borrow(&self) -> &OptName {
@@ -267,6 +273,12 @@ impl OptNameBuf {
 }
 
 impl EnvName for OptNameBuf {
+    fn env_name(&self) -> String {
+        self.0.replace('-', "_")
+    }
+}
+
+impl EnvName for OptName {
     fn env_name(&self) -> String {
         self.0.replace('-', "_")
     }

@@ -20,7 +20,14 @@ build:
 
 All options that are declared in your package should be used in the build script, otherwise they are not relevant build options and your package may need rebuilding unnecessarily.
 
-When writing your build script, the value of each option is made available in an environment variable with the name `SPK_OPT_{name}`. Package options are also resolved into the build environment and can be accessed more concretely with the variables `SPK_PKG_{name}`, `SPK_PKG_{name}_VERSION`, `SPK_PKG_{name}_BUILD`, `SPK_PKG_{name}_VERSION_MAJOR`, `SPK_PKG_{name}_VERSION_MINOR`, `SPK_PKG_{name}_VERSION_PATCH`
+When writing your build script, the value of each option is made available in an
+environment variable with the name `SPK_OPT_{name}`. Options specific to a
+package are in the form `SPK_PKG_{pkg_name}_OPT_{opt_name}`.
+Package properties are also resolved into the build environment and can be
+accessed more concretely with the variables `SPK_PKG_{pkg_name}`,
+`SPK_PKG_{pkg_name}_VERSION`, `SPK_PKG_{pkg_name}_BUILD`,
+`SPK_PKG_{pkg_name}_VERSION_MAJOR`, `SPK_PKG_{pkg_name}_VERSION_MINOR`,
+`SPK_PKG_{pkg_name}_VERSION_PATCH`
 
 > [!TIP]
 > Best practice for defining boolean options is to follow the cmake convention of having two choices: `on` and `off`
