@@ -224,6 +224,10 @@ struct CmdMount {
     /// The environment reference to mount (e.g., tag name or digest)
     #[clap(name = "REF")]
     reference: EnvSpec,
+
+    /// Repositories to use for this mount (overrides defaults)
+    #[clap(long = "repository")]
+    repositories: Vec<String>,
 }
 
 #[cfg(target_os = "macos")]
@@ -260,6 +264,7 @@ impl CmdMount {
                 env_spec: self.reference.to_string(),
                 editable: self.editable,
                 runtime_name,
+                repositories: self.repositories.clone(),
             }))
             .await
             .into_diagnostic()

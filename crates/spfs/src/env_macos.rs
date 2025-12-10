@@ -161,6 +161,17 @@ impl RuntimeConfigurator {
 
         let mut cmd = std::process::Command::new(spfs_fuse);
         cmd.arg("mount");
+
+        // Pass configured repositories to the service
+        // This ensures the service uses the same repository configuration as this process
+        // (including temp directories for tests)
+        let config = crate::get_config()?;
+        cmd.arg("--repository")
+            .arg(config.storage.address().to_string());
+        for remote in config.get_secondary_runtime_repositories() {
+            cmd.arg("--repository").arg(remote.to_string());
+        }
+
         if editable {
             cmd.arg("--editable");
             cmd.arg("--runtime-name").arg(rt.name());

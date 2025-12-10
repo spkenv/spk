@@ -140,23 +140,30 @@ impl Router {
     ///
     /// The given PID becomes the root of the process tree that will
     /// see the specified environment.
-    #[instrument(skip(self))]
-    pub async fn mount(&self, root_pid: u32, env_spec: EnvSpec) -> spfs::Result<()> {
-        self.mount_internal(root_pid, env_spec, false, None).await
+    #[instrument(skip(self, repos))]
+    pub async fn mount(
+        &self,
+        root_pid: u32,
+        env_spec: EnvSpec,
+        repos: Option<Vec<Arc<spfs::storage::RepositoryHandle>>>,
+    ) -> spfs::Result<()> {
+        self.mount_internal(root_pid, env_spec, false, None, repos)
+            .await
     }
 
     /// Mount an editable environment for a specific process tree.
     ///
     /// The given PID becomes the root of the process tree that will
     /// see the specified environment with write support via scratch directory.
-    #[instrument(skip(self))]
+    #[instrument(skip(self, repos))]
     pub async fn mount_editable(
         &self,
         root_pid: u32,
         env_spec: EnvSpec,
         runtime_name: &str,
+        repos: Option<Vec<Arc<spfs::storage::RepositoryHandle>>>,
     ) -> spfs::Result<()> {
-        self.mount_internal(root_pid, env_spec, true, Some(runtime_name))
+        self.mount_internal(root_pid, env_spec, true, Some(runtime_name), repos)
             .await
     }
 
@@ -166,10 +173,13 @@ impl Router {
         env_spec: EnvSpec,
         editable: bool,
         runtime_name: Option<&str>,
+        repos: Option<Vec<Arc<spfs::storage::RepositoryHandle>>>,
     ) -> spfs::Result<()> {
         tracing::debug!(%root_pid, %env_spec, %editable, "mount request");
+        let repos = repos.unwrap_or_else(|| self.repos.clone());
+
         let mut manifest = Err(spfs::Error::UnknownReference(env_spec.to_string()));
-        for repo in &self.repos {
+        for repo in &repos {
             manifest = spfs::compute_environment_manifest(&env_spec, repo).await;
             if manifest.is_ok() {
                 break;
@@ -183,7 +193,7 @@ impl Router {
             let name = runtime_name.unwrap_or(&default_name);
             Arc::new(Mount::new_editable_with_env_spec(
                 tokio::runtime::Handle::current(),
-                self.repos.clone(),
+                repos,
                 manifest,
                 name,
                 env_spec_str,
@@ -191,7 +201,7 @@ impl Router {
         } else {
             Arc::new(Mount::new_with_env_spec(
                 tokio::runtime::Handle::current(),
-                self.repos.clone(),
+                repos,
                 manifest,
                 env_spec_str,
             )?)

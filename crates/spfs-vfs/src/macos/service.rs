@@ -205,6 +205,24 @@ impl VfsService for Arc<Service> {
             .parse()
             .map_err(|e| Status::invalid_argument(format!("Invalid env spec: {e}")))?;
 
+        // Open repositories if provided
+        let mut repos = Vec::new();
+        if !req.repositories.is_empty() {
+            for repo_str in &req.repositories {
+                let repo = spfs::open_repository(repo_str)
+                    .await
+                    .map_err(|e| {
+                        Status::invalid_argument(format!("Failed to open repo {repo_str}: {e}"))
+                    })?;
+                repos.push(Arc::new(repo));
+            }
+        }
+        let repos_opt = if repos.is_empty() {
+            None
+        } else {
+            Some(repos)
+        };
+
         let router_guard = self.router.lock().await;
         let router = router_guard.as_ref().ok_or_else(|| {
             Status::failed_precondition("Service not running - FUSE mount not started")
@@ -218,14 +236,14 @@ impl VfsService for Arc<Service> {
                 req.runtime_name.clone()
             };
             router
-                .mount_editable(req.root_pid, env_spec, &runtime_name)
+                .mount_editable(req.root_pid, env_spec, &runtime_name, repos_opt)
                 .await
                 .map_err(|e| Status::internal(format!("Failed to mount editable: {e}")))?;
             tracing::info!(root_pid = req.root_pid, %runtime_name, "Mounted editable environment");
         } else {
             // Read-only mount
             router
-                .mount(req.root_pid, env_spec)
+                .mount(req.root_pid, env_spec, repos_opt)
                 .await
                 .map_err(|e| Status::internal(format!("Failed to mount: {e}")))?;
             tracing::info!(root_pid = req.root_pid, "Mounted read-only environment");

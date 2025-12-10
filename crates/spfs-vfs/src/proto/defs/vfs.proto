@@ -15,6 +15,9 @@ message MountRequest{
     bool editable = 3;
     // Runtime name for scratch directory naming (required if editable)
     string runtime_name = 4;
+    // List of repositories to use for this mount.
+    // If provided, these fully replace the service's default repositories for this request.
+    repeated string repositories = 5;
 }
 message MountResponse{}
 
