@@ -20,6 +20,30 @@ use crate::{DeprecateMut, Opt, RuntimeEnvironment};
 #[path = "./package_test.rs"]
 mod package_test;
 
+/// Access to the components defined by a package.
+pub trait Components {
+    /// The components defined by this package
+    fn components(&self) -> &super::ComponentSpecList;
+}
+
+impl<T: Components + Send + Sync> Components for std::sync::Arc<T> {
+    fn components(&self) -> &super::ComponentSpecList {
+        (**self).components()
+    }
+}
+
+impl<T: Components + Send + Sync> Components for Box<T> {
+    fn components(&self) -> &super::ComponentSpecList {
+        (**self).components()
+    }
+}
+
+impl<T: Components + Send + Sync> Components for &T {
+    fn components(&self) -> &super::ComponentSpecList {
+        (**self).components()
+    }
+}
+
 /// Can be resolved into an environment.
 #[enum_dispatch::enum_dispatch]
 pub trait Package:
@@ -27,6 +51,7 @@ pub trait Package:
     + Versioned
     + super::Deprecate
     + RuntimeEnvironment
+    + Components
     + Clone
     + Eq
     + std::hash::Hash
@@ -34,6 +59,7 @@ pub trait Package:
     + Send
 {
     type Package;
+    type EmbeddedPackage;
 
     /// The full identifier for this package
     ///
@@ -54,7 +80,7 @@ pub trait Package:
     fn sources(&self) -> &Vec<super::SourceSpec>;
 
     /// The packages that are embedded within this one
-    fn embedded(&self) -> &super::EmbeddedPackagesList;
+    fn embedded(&self) -> &super::EmbeddedPackagesList<Self::EmbeddedPackage>;
 
     /// The packages that are embedded within this one.
     ///
@@ -65,9 +91,6 @@ pub trait Package:
     fn embedded_as_packages(
         &self,
     ) -> std::result::Result<Vec<(Self::Package, Option<Component>)>, &str>;
-
-    /// The components defined by this package
-    fn components(&self) -> &super::ComponentSpecList;
 
     /// The list of build options for this package
     fn get_build_options(&self) -> &Vec<Opt>;
@@ -146,6 +169,7 @@ pub trait PackageMut: Package + DeprecateMut {
 
 impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
     type Package = T::Package;
+    type EmbeddedPackage = T::EmbeddedPackage;
 
     fn ident(&self) -> &BuildIdent {
         (**self).ident()
@@ -167,7 +191,7 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
         (**self).sources()
     }
 
-    fn embedded(&self) -> &super::EmbeddedPackagesList {
+    fn embedded(&self) -> &super::EmbeddedPackagesList<Self::EmbeddedPackage> {
         (**self).embedded()
     }
 
@@ -175,10 +199,6 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
         &self,
     ) -> std::result::Result<Vec<(Self::Package, Option<Component>)>, &str> {
         (**self).embedded_as_packages()
-    }
-
-    fn components(&self) -> &super::ComponentSpecList {
-        (**self).components()
     }
 
     fn get_build_options(&self) -> &Vec<Opt> {
@@ -218,6 +238,7 @@ impl<T: Package + Send + Sync> Package for std::sync::Arc<T> {
 
 impl<T: Package + Send + Sync> Package for Box<T> {
     type Package = T::Package;
+    type EmbeddedPackage = T::EmbeddedPackage;
 
     fn ident(&self) -> &BuildIdent {
         (**self).ident()
@@ -239,7 +260,7 @@ impl<T: Package + Send + Sync> Package for Box<T> {
         (**self).sources()
     }
 
-    fn embedded(&self) -> &super::EmbeddedPackagesList {
+    fn embedded(&self) -> &super::EmbeddedPackagesList<Self::EmbeddedPackage> {
         (**self).embedded()
     }
 
@@ -247,10 +268,6 @@ impl<T: Package + Send + Sync> Package for Box<T> {
         &self,
     ) -> std::result::Result<Vec<(Self::Package, Option<Component>)>, &str> {
         (**self).embedded_as_packages()
-    }
-
-    fn components(&self) -> &super::ComponentSpecList {
-        (**self).components()
     }
 
     fn get_build_options(&self) -> &Vec<Opt> {
@@ -290,6 +307,7 @@ impl<T: Package + Send + Sync> Package for Box<T> {
 
 impl<T: Package + Send + Sync> Package for &T {
     type Package = T::Package;
+    type EmbeddedPackage = T::EmbeddedPackage;
 
     fn ident(&self) -> &BuildIdent {
         (**self).ident()
@@ -311,7 +329,7 @@ impl<T: Package + Send + Sync> Package for &T {
         (**self).sources()
     }
 
-    fn embedded(&self) -> &super::EmbeddedPackagesList {
+    fn embedded(&self) -> &super::EmbeddedPackagesList<Self::EmbeddedPackage> {
         (**self).embedded()
     }
 
@@ -319,10 +337,6 @@ impl<T: Package + Send + Sync> Package for &T {
         &self,
     ) -> std::result::Result<Vec<(Self::Package, Option<Component>)>, &str> {
         (**self).embedded_as_packages()
-    }
-
-    fn components(&self) -> &super::ComponentSpecList {
-        (**self).components()
     }
 
     fn get_build_options(&self) -> &Vec<Opt> {

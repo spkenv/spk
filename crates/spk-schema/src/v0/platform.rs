@@ -8,7 +8,6 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::{
-    BuildIdent,
     InclusionPolicy,
     PkgRequest,
     Request,
@@ -21,11 +20,12 @@ use spk_schema_foundation::option_map::{HOST_OPTIONS, OptionMap, Stringified};
 use spk_schema_foundation::spec_ops::{HasVersion, Named, Versioned};
 use spk_schema_foundation::version::Version;
 
-use super::{Spec, TestSpec};
+use super::TestSpec;
 use crate::foundation::version::Compat;
 use crate::ident::is_false;
 use crate::metadata::Meta;
 use crate::option::VarOpt;
+use crate::v0::PackageSpec;
 use crate::{
     BuildEnv,
     BuildSpec,
@@ -80,7 +80,7 @@ impl PlatformRequirements {
     /// Update the given spec with the requirements for this platform.
     fn update_spec_for_binary_build<E, P>(
         &self,
-        spec: &mut super::Spec<VersionIdent>,
+        spec: &mut super::RecipeSpec,
         _build_env: &E,
     ) -> Result<()>
     where
@@ -176,7 +176,7 @@ impl Versioned for Platform {
 }
 
 impl Recipe for Platform {
-    type Output = Spec<BuildIdent>;
+    type Output = PackageSpec;
     type Variant = super::Variant;
     type Test = TestSpec;
 
@@ -231,7 +231,7 @@ impl Recipe for Platform {
     }
 
     fn generate_source_build(&self, _root: &Path) -> Result<Self::Output> {
-        Ok(Spec::new(
+        Ok(Self::Output::new(
             self.platform.clone().into_build_ident(Build::Source),
         ))
     }
@@ -253,7 +253,7 @@ impl Recipe for Platform {
 
         // Translate the platform spec into a "normal" recipe and delegate to
         // that recipe's generate_binary_build method.
-        let mut spec = super::Spec::new(platform.clone());
+        let mut spec = super::RecipeSpec::new(platform.clone());
         spec.compat = compat.clone();
         spec.meta = meta.clone();
 

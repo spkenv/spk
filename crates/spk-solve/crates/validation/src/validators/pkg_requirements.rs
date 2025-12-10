@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use spk_schema::Components;
 use spk_schema::version::{
     CommaSeparated,
     ComponentsMissingProblem,

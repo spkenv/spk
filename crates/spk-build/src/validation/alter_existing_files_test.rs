@@ -12,7 +12,7 @@ use crate::validation::Validator;
 
 #[tokio::test]
 async fn test_validate_build_changeset_modified() {
-    let package = v0::Spec::new("test-pkg/1.0.0/3I42H3S6".parse().unwrap());
+    let package = v0::PackageSpec::new("test-pkg/1.0.0/3I42H3S6".parse().unwrap());
     let report = BuildReport {
         output: BuildOutputReport {
             collected_changes: vec![spfs::tracking::Diff {

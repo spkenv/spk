@@ -4,6 +4,7 @@
 
 use std::collections::BTreeSet;
 
+use spk_schema::ident::AsVersionIdent;
 use spk_schema::version::{CommaSeparated, ComponentsMissingProblem, IncompatibleReason};
 
 use super::prelude::*;
@@ -24,6 +25,7 @@ impl ValidatorT for ComponentsValidator {
     ) -> crate::Result<Compatibility>
     where
         P: Package,
+        <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequest>,
     {
         use Compatibility::Compatible;
 

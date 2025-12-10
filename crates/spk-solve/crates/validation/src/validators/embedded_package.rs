@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use spk_schema::ident::AsVersionIdent;
 use spk_schema::version::IncompatibleReason;
 
 use super::prelude::*;
@@ -19,6 +20,7 @@ impl ValidatorT for EmbeddedPackageValidator {
     ) -> crate::Result<Compatibility>
     where
         P: Package,
+        <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequest>,
     {
         // Only the embedded packages that are active based on the components
         // being requested from this spec are checked. There may be
@@ -45,13 +47,14 @@ impl ValidatorT for EmbeddedPackageValidator {
 }
 
 impl EmbeddedPackageValidator {
-    pub(crate) fn validate_embedded_package_against_state<P>(
+    pub(crate) fn validate_embedded_package_against_state<P, E>(
         spec: &P,
-        embedded: &Spec,
+        embedded: &E,
         state: &State,
     ) -> crate::Result<Compatibility>
     where
         P: Package,
+        E: Named + Satisfy<PkgRequest>,
     {
         use Compatibility::Compatible;
 
@@ -78,7 +81,7 @@ impl EmbeddedPackageValidator {
         if let Compatibility::Incompatible(incompatible) = existing.is_satisfied_by(embedded) {
             return Ok(Compatibility::Incompatible(
                 IncompatibleReason::EmbeddedIncompatible {
-                    pkg: embedded.ident().to_string(),
+                    pkg: embedded.name().to_string(),
                     inner_reason: Box::new(incompatible),
                 },
             ));
@@ -96,6 +99,7 @@ impl EmbeddedPackageValidator {
     ) -> crate::Result<Compatibility>
     where
         P: Package,
+        <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequest>,
     {
         let required_components = spec
             .components()

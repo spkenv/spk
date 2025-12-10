@@ -12,7 +12,7 @@ use crate::validation::Validator;
 
 #[tokio::test]
 async fn test_validate_build_changeset_collected() {
-    let mut package = v0::Spec::new("test-pkg/1.0.0/3I42H3S6".parse().unwrap());
+    let mut package = v0::PackageSpec::new("test-pkg/1.0.0/3I42H3S6".parse().unwrap());
     // the default components are added and collect all files,
     // so we remove them to ensure nothing is collected
     let _ = package.install.components.drain(..);

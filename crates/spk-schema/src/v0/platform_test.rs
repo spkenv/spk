@@ -5,13 +5,13 @@
 use std::collections::HashMap;
 
 use rstest::rstest;
-use spk_schema_foundation::ident::{BuildIdent, InclusionPolicy, Request};
+use spk_schema_foundation::ident::{InclusionPolicy, Request};
 use spk_schema_foundation::option_map;
 use spk_schema_foundation::option_map::HOST_OPTIONS;
 
 use super::Platform;
 use crate::Opt::Var;
-use crate::v0::Spec;
+use crate::v0::PackageSpec;
 use crate::{BuildEnv, Recipe};
 
 #[rstest]
@@ -47,7 +47,7 @@ fn test_platform_add_pkg_requirement(#[case] spec: &str) {
     struct TestBuildEnv();
 
     impl BuildEnv for TestBuildEnv {
-        type Package = Spec<BuildIdent>;
+        type Package = PackageSpec;
 
         fn build_env(&self) -> Vec<Self::Package> {
             Vec::new()
@@ -94,7 +94,7 @@ fn test_platform_inheritance() {
     struct TestBuildEnv();
 
     impl BuildEnv for TestBuildEnv {
-        type Package = Spec<BuildIdent>;
+        type Package = PackageSpec;
 
         fn build_env(&self) -> Vec<Self::Package> {
             vec![
@@ -147,7 +147,7 @@ fn test_platform_inheritance_with_override_and_removal() {
     struct TestBuildEnv();
 
     impl BuildEnv for TestBuildEnv {
-        type Package = Spec<BuildIdent>;
+        type Package = PackageSpec;
 
         fn build_env(&self) -> Vec<Self::Package> {
             vec![
