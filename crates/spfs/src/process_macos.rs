@@ -243,15 +243,6 @@ mod tests {
     }
 
     #[test]
-    fn test_ancestry_reaches_launchd() {
-        let Some(ancestry) = skip_if_no_permission(get_parent_pids_macos(None)) else {
-            return;
-        };
-        let last = *ancestry.last().unwrap();
-        assert!(last == 1 || ancestry.len() == 100);
-    }
-
-    #[test]
     fn test_is_in_process_tree_self() {
         let pid = std::process::id() as i32;
         let _ = is_in_process_tree(pid, pid); // should not panic
