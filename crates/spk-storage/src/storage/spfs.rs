@@ -26,7 +26,7 @@ use spk_schema::ident::{AsVersionIdent, VersionIdent};
 use spk_schema::ident_build::parsing::embedded_source_package;
 use spk_schema::ident_build::{EmbeddedSource, EmbeddedSourcePackage};
 use spk_schema::ident_ops::TagPath;
-use spk_schema::{AnyIdent, BuildIdent, FromYaml, Package, Recipe, Spec, SpecRecipe};
+use spk_schema::{AnyIdent, BuildIdent, FromYaml, Opt, Package, Recipe, Spec, SpecRecipe};
 use tokio::io::AsyncReadExt;
 
 use super::CachePolicy;
@@ -504,7 +504,6 @@ impl Storage for SpfsRepository {
         {
             return v.value().clone().into();
         }
-
         let r: Result<Arc<Spec>> = async move {
             let tag_path = Self::build_spec_tag(pkg);
             let tag_spec = spfs::tracking::TagSpec::parse(tag_path.as_str())?;
@@ -517,6 +516,25 @@ impl Storage for SpfsRepository {
                 .await
                 .map_err(|err| Error::FileReadError(filename, err))?;
             Spec::from_yaml(&yaml)
+                .map(|spec| match spec {
+                    Spec::V0Package(mut spec) => {
+                        for opt in spec.build.options.iter_mut() {
+                            let Opt::Var(var_opt) = opt else {
+                                continue;
+                            };
+                            var_opt.pin_with_default()
+                        }
+                        for embedded in spec.install.embedded.iter_mut() {
+                            for opt in embedded.build.options.iter_mut() {
+                                let Opt::Var(var_opt) = opt else {
+                                    continue;
+                                };
+                                var_opt.pin_with_default()
+                            }
+                        }
+                        Spec::V0Package(spec)
+                    }
+                })
                 .map_err(|err| {
                     Error::InvalidPackageSpec(Box::new(InvalidPackageSpec(
                         pkg.to_any_ident(),
@@ -768,6 +786,17 @@ impl crate::Repository for SpfsRepository {
                 .await
                 .map_err(|err| Error::FileReadError(tag.target.to_string().into(), err))?;
             Spec::from_yaml(yaml)
+                .map(|spec| match spec {
+                    Spec::V0Package(mut spec) => {
+                        for opt in spec.build.options.iter_mut() {
+                            let Opt::Var(var_opt) = opt else {
+                                continue;
+                            };
+                            var_opt.pin_with_default()
+                        }
+                        Spec::V0Package(spec)
+                    }
+                })
                 .map_err(|err| {
                     Error::InvalidPackageSpec(Box::new(InvalidPackageSpec(
                         pkg.to_any_ident(),
