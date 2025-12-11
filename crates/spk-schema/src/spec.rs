@@ -739,6 +739,12 @@ impl Package for Spec {
         }
     }
 
+    fn get_all_tests(&self) -> Vec<SpecTest> {
+        match self {
+            Spec::V0Package(spec) => spec.get_all_tests(),
+        }
+    }
+
     fn validation(&self) -> &super::ValidationSpec {
         match self {
             Spec::V0Package(spec) => spec.validation(),
