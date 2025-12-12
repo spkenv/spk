@@ -10,12 +10,11 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
-use spk_schema_foundation::ident::{AsVersionIdent, RangeIdent, VersionIdent};
+use spk_schema_foundation::ident::{AsVersionIdent, PinnedRequest, RangeIdent, VersionIdent};
 use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::ident_component::ComponentBTreeSet;
 use spk_schema_foundation::option_map::Stringified;
 use spk_schema_foundation::version::{IncompatibleReason, VarOptionProblem};
-use variantly::Variantly;
 
 use super::TestSpec;
 use super::variant_spec::VariantSpecEntryKey;
@@ -26,7 +25,7 @@ use crate::foundation::name::{OptNameBuf, PkgName};
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
-use crate::ident::{PkgRequest, Request, RequestedBy, Satisfy, VarRequest, is_false};
+use crate::ident::{PinnableRequest, PkgRequest, RequestedBy, Satisfy, VarRequest, is_false};
 use crate::metadata::Meta;
 use crate::option::VarOpt;
 use crate::v0::{PackageSpec, RecipeInstallSpec};
@@ -177,7 +176,10 @@ impl Recipe for RecipeSpec {
             .map(|(options, _)| options)
     }
 
-    fn get_build_requirements<V>(&self, variant: &V) -> Result<Cow<'_, RequirementsList>>
+    fn get_build_requirements<V>(
+        &self,
+        variant: &V,
+    ) -> Result<Cow<'_, RequirementsList<PinnedRequest>>>
     where
         V: Variant,
     {
@@ -197,7 +199,7 @@ impl Recipe for RecipeSpec {
                         // inject the default component for this context if needed
                         req.pkg.components.insert(Component::default_for_build());
                     }
-                    requests.insert_or_merge(req.into())?;
+                    requests.insert_or_merge_pinned(req.into())?;
                 }
                 Opt::Var(opt) => {
                     // If no value was specified in the spec, there's
@@ -206,7 +208,7 @@ impl Recipe for RecipeSpec {
                     if let Some(value) = options.get(&opt.var)
                         && !value.is_empty()
                     {
-                        requests.insert_or_merge(opt.to_request(Some(value)).into())?;
+                        requests.insert_or_merge_pinned(opt.to_request(Some(value)).into())?;
                     }
                 }
             }
@@ -246,7 +248,7 @@ impl Recipe for RecipeSpec {
                                     .unwrap_or_default()
                                     .iter()
                                     .any(|req| match req {
-                                        Request::Pkg(PkgRequest {
+                                        PinnedRequest::Pkg(PkgRequest {
                                             pkg:
                                                 RangeIdent {
                                                     name, components, ..
@@ -258,7 +260,7 @@ impl Recipe for RecipeSpec {
                                                     &ComponentBTreeSet::new(&pkg.0.components),
                                                 )
                                         }
-                                        Request::Var(VarRequest {
+                                        PinnedRequest::Var(VarRequest {
                                             var,
                                             value: var_request_value,
                                             ..
@@ -269,8 +271,7 @@ impl Recipe for RecipeSpec {
                                             // no components specified.
                                             pkg.0.components.is_empty()
                                                 && var.as_str() == pkg.0.name.as_str()
-                                                && var_request_value.as_pinned()
-                                                    == Some(value.as_str())
+                                                && &**var_request_value == value.as_str()
                                         }
                                     })
                                 {
@@ -298,7 +299,7 @@ impl Recipe for RecipeSpec {
             compat: self.compat.clone(),
             deprecated: self.deprecated,
             build: self.build.clone(),
-            install: self.install.clone().into(),
+            install: Default::default(),
             sources: self.sources.clone(),
             tests: self.tests.clone(),
         };
@@ -311,7 +312,7 @@ impl Recipe for RecipeSpec {
         Ok(source)
     }
 
-    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
+    fn generate_binary_build<V, E, P>(self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
         V: InputVariant,
         E: BuildEnv<Package = P>,
@@ -320,8 +321,20 @@ impl Recipe for RecipeSpec {
         let build_requirements = self.get_build_requirements(variant)?.into_owned();
 
         let build_options = variant.options();
-        let mut updated = self.clone();
-        updated.build.options = self.build.opts_for_variant(variant)?;
+
+        let RecipeSpec {
+            pkg: recipe_pkg,
+            meta: mut recipe_meta,
+            compat: recipe_compat,
+            deprecated: recipe_deprecated,
+            build: mut recipe_build,
+            install: recipe_install,
+            sources: recipe_sources,
+            tests: recipe_tests,
+        } = self;
+
+        let original_build = recipe_build.clone();
+        recipe_build.options = recipe_build.opts_for_variant(variant)?;
 
         let specs: HashMap<_, _> = build_env
             .build_env()
@@ -329,66 +342,22 @@ impl Recipe for RecipeSpec {
             .map(|p| (p.name().to_owned(), p))
             .collect();
 
-        #[derive(Clone, Copy, Variantly)]
-        enum RequirePkgInBuildEnv {
-            Yes,
-            No,
-        }
-
-        let pin_options = |options: &mut [Opt], require_pkg_in_build_env: RequirePkgInBuildEnv| {
-            for opt in options.iter_mut() {
-                match opt {
-                    Opt::Var(opt) => {
-                        opt.set_value(
-                            build_options
-                                .get(&opt.var)
-                                .or_else(|| build_options.get(opt.var.without_namespace()))
-                                .map(String::to_owned)
-                                .or_else(|| opt.get_value(None))
-                                .unwrap_or_default(),
-                        )?;
-                    }
-                    Opt::Pkg(opt) => {
-                        let spec = specs.get(&opt.pkg);
-                        match spec {
-                            None if require_pkg_in_build_env.is_yes() => {
-                                return Err(Error::String(format!(
-                                    "PkgOpt missing in resolved: {}",
-                                    opt.pkg
-                                )));
-                            }
-                            None => {}
-                            Some(spec) => {
-                                let rendered = spec.compat().render(HasVersion::version(spec));
-                                opt.set_value(rendered)?;
-                            }
-                        }
-                    }
-                }
-            }
-            Ok(())
-        };
-
-        pin_options(&mut updated.build.options, RequirePkgInBuildEnv::Yes)?;
-        for embedded in updated.install.embedded.iter_mut() {
-            pin_options(
-                &mut embedded.build.options,
-                // An embedded package that says it depends on a package
-                // "foo" that the parent package doesn't have in its build
-                // requirements means that "foo" will not necessarily be in
-                // the build env. That shouldn't prevent the parent package
-                // from building, but also the embedded stub will not get
-                // its build requirement for "foo" pinned. It is impossible
-                // to "build" an embedded package anyway; build pkg
-                // requirements in an embedded package are basically
-                // meaningless.
-                RequirePkgInBuildEnv::No,
-            )?;
-        }
-
-        updated
-            .install
-            .render_all_pins(&build_options, specs.values().map(|p| p.ident()))?;
+        // XXX why not add a BuildSpec::render_all_pins method (one might
+        // already get added in a later PR)?
+        recipe_build.options = recipe_build
+            .options
+            .into_iter()
+            .map(|opt| {
+                opt.render_all_pins(
+                    &build_options,
+                    &specs,
+                    // Pinning recipe build options requires all pkg
+                    // requirements to be present in the build env.
+                    true,
+                )
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let mut package_install = recipe_install.render_all_pins(&build_options, &specs)?;
 
         // Update metadata fields from the output of the executable.
         let config = match spk_config::get_config() {
@@ -396,7 +365,7 @@ impl Recipe for RecipeSpec {
             Err(err) => return Err(Error::String(format!("Failed to load spk config: {err}"))),
         };
 
-        if let Err(err) = updated.meta.update_metadata(&config.metadata) {
+        if let Err(err) = recipe_meta.update_metadata(&config.metadata) {
             tracing::warn!("Failed to collect extra package metadata: {err}");
         }
 
@@ -410,8 +379,8 @@ impl Recipe for RecipeSpec {
                 match build_requirements.contains_request(request) {
                     Compatibility::Compatible => continue,
                     Compatibility::Incompatible(_) => match request {
-                        Request::Pkg(_) => continue,
-                        Request::Var(var) => {
+                        PinnableRequest::Pkg(_) => continue,
+                        PinnableRequest::Var(var) => {
                             let Some(value) = var.value.as_pinned() else {
                                 continue;
                             };
@@ -436,11 +405,11 @@ impl Recipe for RecipeSpec {
             }
             let downstream_runtime = spec.downstream_runtime_requirements([]);
             for request in downstream_runtime.iter() {
-                match updated.install.requirements.contains_request(request) {
+                match package_install.requirements.contains_request(request) {
                     Compatibility::Compatible => continue,
                     Compatibility::Incompatible(_) => match request {
-                        Request::Pkg(_) => continue,
-                        Request::Var(var) => {
+                        PinnableRequest::Pkg(_) => continue,
+                        PinnableRequest::Var(var) => {
                             let Some(value) = var.value.as_pinned() else {
                                 continue;
                             };
@@ -468,27 +437,31 @@ impl Recipe for RecipeSpec {
         for req in missing_build_requirements {
             let mut var = VarOpt::new(req.0)?;
             var.set_value(req.1)?;
-            updated.build.options.push(Opt::Var(var));
+            recipe_build.options.push(Opt::Var(var));
         }
         for (name, (value, description)) in missing_runtime_requirements {
-            updated.install.requirements.insert_or_merge(Request::Var(
-                VarRequest::new_with_description(name, value, description.as_ref()),
-            ))?;
+            package_install
+                .requirements
+                .insert_or_merge_pinned(PinnedRequest::Var(VarRequest::new_with_description(
+                    name,
+                    value,
+                    description.as_ref(),
+                )))?;
         }
 
         // Calculate the digest from the non-updated spec so it isn't affected
         // by `build_env`. The digest is expected to be based solely on the
         // input options and recipe.
-        let digest = self.build_digest(variant.input_variant())?;
+        let digest = original_build.build_digest(recipe_pkg.name(), variant.input_variant())?;
         let mut build = PackageSpec {
-            pkg: updated.pkg.into_build_ident(Build::BuildId(digest)),
-            meta: updated.meta,
-            compat: updated.compat,
-            deprecated: updated.deprecated,
-            build: updated.build,
-            install: updated.install.into(),
-            sources: updated.sources,
-            tests: updated.tests,
+            pkg: recipe_pkg.into_build_ident(Build::BuildId(digest)),
+            meta: recipe_meta,
+            compat: recipe_compat,
+            deprecated: recipe_deprecated,
+            build: recipe_build,
+            install: package_install,
+            sources: recipe_sources,
+            tests: recipe_tests,
         };
 
         // Expand env variables from EnvOp.

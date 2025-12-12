@@ -2,9 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
-use spk_schema_foundation::ident::BuildIdent;
+use spk_schema_foundation::ident::{PinnableRequest, PinnedRequest};
+use spk_schema_foundation::name::{OptName, PkgName};
+use spk_schema_foundation::spec_ops::{HasBuildIdent, Named};
 
 use crate::foundation::option_map::OptionMap;
 use crate::{ComponentSpecList, EnvOp, EnvOpList, OpKind, RequirementsList, Result};
@@ -19,7 +22,6 @@ mod embedded_install_spec_test;
 #[derive(
     Clone,
     Debug,
-    Default,
     Deserialize,
     Eq,
     Hash,
@@ -29,37 +31,70 @@ mod embedded_install_spec_test;
     PartialOrd,
     Serialize,
 )]
-#[serde(from = "RawEmbeddedInstallSpec")]
-pub struct EmbeddedInstallSpec {
+#[serde(
+    from = "RawEmbeddedInstallSpec<Request>",
+    bound = "Request: DeserializeOwned + Named<OptName>"
+)]
+pub struct EmbeddedInstallSpec<Request: DeserializeOwned + Named<OptName> + PartialEq + Serialize> {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub requirements: RequirementsList,
+    pub requirements: RequirementsList<Request>,
     #[serde(default)]
-    pub components: ComponentSpecList,
+    pub components: ComponentSpecList<Request>,
     #[serde(default, skip_serializing_if = "IsDefault::is_default")]
     pub environment: EnvOpList,
 }
 
-impl EmbeddedInstallSpec {
-    /// Render all requests with a package pin using the given resolved packages.
-    pub fn render_all_pins<'a>(
-        &mut self,
-        options: &OptionMap,
-        resolved: impl Iterator<Item = &'a BuildIdent>,
-    ) -> Result<()> {
-        let resolved_by_name = resolved.map(|x| (x.name(), x)).collect();
-        self.requirements
-            .render_all_pins(options, &resolved_by_name)?;
-        for component in self.components.iter_mut() {
-            component
-                .requirements
-                .render_all_pins(options, &resolved_by_name)?;
+// Using derived Default adds a `Request: Default` bound, which we don't want.
+impl<Request> Default for EmbeddedInstallSpec<Request>
+where
+    Request: DeserializeOwned + Named<OptName> + PartialEq + Serialize,
+{
+    fn default() -> Self {
+        Self {
+            requirements: RequirementsList::default(),
+            components: ComponentSpecList::default(),
+            environment: EnvOpList::default(),
         }
-        Ok(())
     }
 }
 
-impl From<RawEmbeddedInstallSpec> for EmbeddedInstallSpec {
-    fn from(raw: RawEmbeddedInstallSpec) -> Self {
+impl EmbeddedInstallSpec<PinnableRequest> {
+    /// Render all requests with a package pin using the given resolved packages.
+    pub fn render_all_pins<K, R>(
+        self,
+        options: &OptionMap,
+        resolved_by_name: &std::collections::HashMap<K, R>,
+    ) -> Result<EmbeddedInstallSpec<PinnedRequest>>
+    where
+        K: Eq + std::hash::Hash,
+        K: std::borrow::Borrow<PkgName>,
+        R: HasBuildIdent,
+    {
+        Ok(EmbeddedInstallSpec {
+            requirements: self
+                .requirements
+                .render_all_pins(options, resolved_by_name)?,
+            components: self.components.render_all_pins(options, resolved_by_name)?,
+            environment: self.environment,
+        })
+    }
+}
+
+impl From<EmbeddedInstallSpec<PinnedRequest>> for EmbeddedInstallSpec<PinnableRequest> {
+    fn from(install: EmbeddedInstallSpec<PinnedRequest>) -> Self {
+        Self {
+            requirements: install.requirements.into(),
+            components: install.components.into(),
+            environment: install.environment,
+        }
+    }
+}
+
+impl<Request> From<RawEmbeddedInstallSpec<Request>> for EmbeddedInstallSpec<Request>
+where
+    Request: DeserializeOwned + Named<OptName> + PartialEq + Serialize,
+{
+    fn from(raw: RawEmbeddedInstallSpec<Request>) -> Self {
         Self {
             requirements: raw.requirements,
             components: raw.components,
@@ -70,11 +105,12 @@ impl From<RawEmbeddedInstallSpec> for EmbeddedInstallSpec {
 
 /// A raw, unvalidated install spec.
 #[derive(Deserialize)]
-struct RawEmbeddedInstallSpec {
+#[serde(bound = "Request: DeserializeOwned + Named<OptName> + Serialize")]
+struct RawEmbeddedInstallSpec<Request> {
     #[serde(default)]
-    requirements: RequirementsList,
+    requirements: RequirementsList<Request>,
     #[serde(default)]
-    components: ComponentSpecList,
+    components: ComponentSpecList<Request>,
     #[serde(default, deserialize_with = "deserialize_env_conf")]
     environment: EnvOpList,
 }

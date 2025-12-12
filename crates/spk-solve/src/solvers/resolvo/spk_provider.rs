@@ -26,7 +26,8 @@ use resolvo::{
 };
 use spk_schema::ident::{
     LocatedBuildIdent,
-    PinnableValue,
+    PinnedRequest,
+    PinnedValue,
     PkgRequest,
     PreReleasePolicy,
     RangeIdent,
@@ -39,17 +40,7 @@ use spk_schema::ident_component::Component;
 use spk_schema::name::{OptNameBuf, PkgNameBuf};
 use spk_schema::prelude::{HasVersion, Named};
 use spk_schema::version_range::{DoubleEqualsVersion, Ranged, VersionFilter, parse_version_range};
-use spk_schema::{
-    BuildIdent,
-    Components,
-    Deprecate,
-    Opt,
-    Package,
-    Recipe,
-    Request,
-    Spec,
-    VersionIdent,
-};
+use spk_schema::{BuildIdent, Components, Deprecate, Opt, Package, Recipe, Spec, VersionIdent};
 use spk_solve_package_iterator::{BuildKey, BuildToSortedOptName, SortedBuildIterator};
 use spk_storage::RepositoryHandle;
 use tracing::{Instrument, debug_span};
@@ -318,8 +309,8 @@ impl ResolvoPackageName {
                     match repo.read_package(ident.target()).await {
                         Ok(package) => {
                             // Filter builds that don't satisfy global var requests
-                            if let Some(VarRequest {
-                                value: PinnableValue::Pinned(expected_version),
+                            if let Some(VarRequest::<PinnedValue> {
+                                value: expected_version,
                                 ..
                             }) = provider.global_var_requests.get(ident.name().as_opt_name())
                                 && let Ok(expected_version) = parse_version_range(expected_version)
@@ -440,7 +431,7 @@ pub(crate) struct SpkProvider {
     /// Global options, like what might be specified with `--opt` to `spk env`.
     /// Indexed by name. If multiple requests happen to exist with the same
     /// name, the last one is kept.
-    global_var_requests: HashMap<OptNameBuf, VarRequest<PinnableValue>>,
+    global_var_requests: HashMap<OptNameBuf, VarRequest<PinnedValue>>,
     interned_solvables: RefCell<HashMap<SpkSolvable, SolvableId>>,
     /// Track all the global var keys and values that have been witnessed while
     /// solving.
@@ -525,13 +516,13 @@ impl SpkProvider {
                 }
             };
 
-            for request in build_requirements.iter() {
-                solver.add_request(request.clone());
+            for request in build_requirements.iter().cloned() {
+                solver.add_request(request);
             }
 
             // These are last to take priority over the requests in the recipe.
             for request in self.global_var_requests.values() {
-                solver.add_request(Request::Var(request.clone()));
+                solver.add_request(PinnedRequest::Var(request.clone()));
             }
 
             match solver
@@ -624,7 +615,7 @@ impl SpkProvider {
             pkg_request_with_component.pkg.components = BTreeSet::from_iter([component]);
             let dep_vs = self.pool.intern_version_set(
                 dep_name,
-                RequestVS::SpkRequest(Request::Pkg(pkg_request_with_component)),
+                RequestVS::SpkRequest(PinnedRequest::Pkg(pkg_request_with_component)),
             );
             match pkg_request.inclusion_policy {
                 spk_schema::ident::InclusionPolicy::Always => {
@@ -640,12 +631,12 @@ impl SpkProvider {
 
     /// Add any package requests found in the given requests to the global
     /// package requests, returning a list of Requirement.
-    pub(crate) fn root_pkg_requirements(&mut self, requests: &[Request]) -> Vec<Requirement> {
+    pub(crate) fn root_pkg_requirements(&mut self, requests: &[PinnedRequest]) -> Vec<Requirement> {
         self.global_pkg_requests.reserve(requests.len());
         requests
             .iter()
             .filter_map(|req| match req {
-                Request::Pkg(pkg) => Some(pkg),
+                PinnedRequest::Pkg(pkg) => Some(pkg),
                 _ => None,
             })
             .flat_map(|req| {
@@ -658,11 +649,11 @@ impl SpkProvider {
 
     /// Return a list of requirements for all the package requests found in the
     /// given requests.
-    fn dep_pkg_requirements(&self, requests: &[Request]) -> Vec<Requirement> {
+    fn dep_pkg_requirements(&self, requests: &[PinnedRequest]) -> Vec<Requirement> {
         requests
             .iter()
             .filter_map(|req| match req {
-                Request::Pkg(pkg) => Some(pkg),
+                PinnedRequest::Pkg(pkg) => Some(pkg),
                 _ => None,
             })
             .flat_map(|req| self.pkg_request_to_known_dependencies(req).requirements)
@@ -688,77 +679,71 @@ impl SpkProvider {
         })
     }
 
-    fn request_to_known_dependencies(&self, requirement: &Request) -> KnownDependencies {
+    fn request_to_known_dependencies(&self, requirement: &PinnedRequest) -> KnownDependencies {
         let mut known_deps = KnownDependencies::default();
         match requirement {
-            Request::Pkg(pkg_request) => {
+            PinnedRequest::Pkg(pkg_request) => {
                 let kd = self.pkg_request_to_known_dependencies(pkg_request);
                 known_deps.requirements.extend(kd.requirements);
                 known_deps.constrains.extend(kd.constrains);
             }
-            Request::Var(var_request) => {
-                match &var_request.value {
-                    spk_schema::ident::PinnableValue::FromBuildEnv => todo!(),
-                    spk_schema::ident::PinnableValue::FromBuildEnvIfPresent => todo!(),
-                    spk_schema::ident::PinnableValue::Pinned(value) => {
-                        let dep_name = match var_request.var.namespace() {
-                            Some(pkg_name) => self.pool.intern_package_name(
-                                ResolvoPackageName::PkgNameBufWithComponent(
-                                    PkgNameBufWithComponent {
-                                        name: pkg_name.to_owned(),
-                                        component: SyntheticComponent::Base,
-                                    },
-                                ),
-                            ),
-                            None => {
-                                // Since we will be adding constraints for
-                                // global vars we need to add the pseudo-package
-                                // to the dependency list so it will influence
-                                // decisions.
-                                if self
-                                    .known_global_var_values
-                                    .borrow_mut()
-                                    .entry(var_request.var.without_namespace().to_owned())
-                                    .or_default()
-                                    .insert(VarValue::ArcStr(Arc::clone(value)))
-                                    && self
-                                        .queried_global_var_values
-                                        .borrow()
-                                        .contains(var_request.var.without_namespace())
-                                {
-                                    // Seeing a new value for a var that has
-                                    // already locked in the list of candidates.
-                                    *self.cancel_solving.borrow_mut() = Some(format!(
-                                        "Saw new value for global var: {}/{value}",
-                                        var_request.var.without_namespace()
-                                    ));
-                                }
-                                let dep_name =
-                                    self.pool.intern_package_name(ResolvoPackageName::GlobalVar(
-                                        var_request.var.without_namespace().to_owned(),
-                                    ));
-                                known_deps.requirements.push(
-                                    self.pool
-                                        .intern_version_set(
-                                            dep_name,
-                                            RequestVS::GlobalVar {
-                                                key: var_request.var.without_namespace().to_owned(),
-                                                value: VarValue::ArcStr(Arc::clone(value)),
-                                            },
-                                        )
-                                        .into(),
-                                );
-                                dep_name
+            PinnedRequest::Var(var_request) => {
+                let dep_name =
+                    match var_request.var.namespace() {
+                        Some(pkg_name) => self.pool.intern_package_name(
+                            ResolvoPackageName::PkgNameBufWithComponent(PkgNameBufWithComponent {
+                                name: pkg_name.to_owned(),
+                                component: SyntheticComponent::Base,
+                            }),
+                        ),
+                        None => {
+                            // Since we will be adding constraints for
+                            // global vars we need to add the pseudo-package
+                            // to the dependency list so it will influence
+                            // decisions.
+                            if self
+                                .known_global_var_values
+                                .borrow_mut()
+                                .entry(var_request.var.without_namespace().to_owned())
+                                .or_default()
+                                .insert(VarValue::ArcStr(Arc::clone(&var_request.value)))
+                                && self
+                                    .queried_global_var_values
+                                    .borrow()
+                                    .contains(var_request.var.without_namespace())
+                            {
+                                // Seeing a new value for a var that has
+                                // already locked in the list of candidates.
+                                *self.cancel_solving.borrow_mut() = Some(format!(
+                                    "Saw new value for global var: {}/{}",
+                                    var_request.var.without_namespace(),
+                                    var_request.value
+                                ));
                             }
-                        };
-                        // If we end up adding pkg_name to the solve, it needs
-                        // to satisfy this var request.
-                        known_deps.constrains.push(self.pool.intern_version_set(
-                            dep_name,
-                            RequestVS::SpkRequest(requirement.clone()),
-                        ));
-                    }
-                }
+                            let dep_name =
+                                self.pool.intern_package_name(ResolvoPackageName::GlobalVar(
+                                    var_request.var.without_namespace().to_owned(),
+                                ));
+                            known_deps.requirements.push(
+                                self.pool
+                                    .intern_version_set(
+                                        dep_name,
+                                        RequestVS::GlobalVar {
+                                            key: var_request.var.without_namespace().to_owned(),
+                                            value: VarValue::ArcStr(Arc::clone(&var_request.value)),
+                                        },
+                                    )
+                                    .into(),
+                            );
+                            dep_name
+                        }
+                    };
+                // If we end up adding pkg_name to the solve, it needs
+                // to satisfy this var request.
+                known_deps.constrains.push(
+                    self.pool
+                        .intern_version_set(dep_name, RequestVS::SpkRequest(requirement.clone())),
+                );
             }
         }
         known_deps
@@ -819,12 +804,12 @@ impl SpkProvider {
         a.1.ident.cmp(&b.1.ident)
     }
 
-    pub fn var_requirements(&mut self, requests: &[Request]) -> Vec<VersionSetId> {
+    pub fn var_requirements(&mut self, requests: &[PinnedRequest]) -> Vec<VersionSetId> {
         self.global_var_requests.reserve(requests.len());
         requests
             .iter()
             .filter_map(|req| match req {
-                Request::Var(var) => Some(var),
+                PinnedRequest::Var(var) => Some(var),
                 _ => None,
             })
             .filter_map(|req| match req.var.namespace() {
@@ -840,24 +825,18 @@ impl SpkProvider {
                             ));
                     Some(self.pool.intern_version_set(
                         dep_name,
-                        RequestVS::SpkRequest(Request::Var(req.clone())),
+                        RequestVS::SpkRequest(PinnedRequest::Var(req.clone())),
                     ))
                 }
                 None => {
                     // A global request affecting all packages.
                     self.global_var_requests
                         .insert(req.var.without_namespace().to_owned(), req.clone());
-                    match &req.value {
-                        PinnableValue::FromBuildEnv => {}
-                        PinnableValue::FromBuildEnvIfPresent => {}
-                        PinnableValue::Pinned(arc) => {
-                            self.known_global_var_values
-                                .borrow_mut()
-                                .entry(req.var.without_namespace().to_owned())
-                                .or_default()
-                                .insert(VarValue::ArcStr(Arc::clone(arc)));
-                        }
-                    };
+                    self.known_global_var_values
+                        .borrow_mut()
+                        .entry(req.var.without_namespace().to_owned())
+                        .or_default()
+                        .insert(VarValue::ArcStr(Arc::clone(&req.value)));
                     None
                 }
             })
@@ -877,7 +856,7 @@ impl DependencyProvider for SpkProvider {
         for candidate in candidates {
             let solvable = self.pool.resolve_solvable(*candidate);
             match &request_vs {
-                RequestVS::SpkRequest(Request::Pkg(pkg_request)) => {
+                RequestVS::SpkRequest(PinnedRequest::Pkg(pkg_request)) => {
                     let SpkSolvable::LocatedBuildIdentWithComponent(
                         located_build_ident_with_component,
                     ) = &solvable.record
@@ -1018,7 +997,7 @@ impl DependencyProvider for SpkProvider {
                         selected.push(*candidate);
                     }
                 }
-                RequestVS::SpkRequest(Request::Var(var_request)) => {
+                RequestVS::SpkRequest(PinnedRequest::Var(var_request)) => {
                     match var_request.var.namespace() {
                         Some(pkg_name) => {
                             let SpkSolvable::LocatedBuildIdentWithComponent(
@@ -1059,28 +1038,24 @@ impl DependencyProvider for SpkProvider {
                                 selected.push(*candidate);
                             }
                         }
-                        None => match &var_request.value {
-                            spk_schema::ident::PinnableValue::FromBuildEnv => todo!(),
-                            spk_schema::ident::PinnableValue::FromBuildEnvIfPresent => todo!(),
-                            spk_schema::ident::PinnableValue::Pinned(value) => {
-                                let SpkSolvable::GlobalVar {
-                                    key: record_key,
-                                    value: record_value,
-                                } = &solvable.record
-                                else {
-                                    if inverse {
-                                        selected.push(*candidate);
-                                    }
-                                    continue;
-                                };
-                                if (var_request.var.without_namespace() == record_key
-                                    && value == record_value)
-                                    ^ inverse
-                                {
+                        None => {
+                            let SpkSolvable::GlobalVar {
+                                key: record_key,
+                                value: record_value,
+                            } = &solvable.record
+                            else {
+                                if inverse {
                                     selected.push(*candidate);
                                 }
+                                continue;
+                            };
+                            if (var_request.var.without_namespace() == record_key
+                                && var_request.value == *record_value)
+                                ^ inverse
+                            {
+                                selected.push(*candidate);
                             }
-                        },
+                        }
                     }
                 }
                 RequestVS::GlobalVar { key, value } => {
@@ -1427,7 +1402,7 @@ impl DependencyProvider for SpkProvider {
                             self.pool
                                 .intern_version_set(
                                     dep_name,
-                                    RequestVS::SpkRequest(Request::Pkg(PkgRequest::new(
+                                    RequestVS::SpkRequest(PinnedRequest::Pkg(PkgRequest::new(
                                         RangeIdent {
                                             repository_name: Some(
                                                 located_build_ident_with_component
@@ -1549,32 +1524,34 @@ impl DependencyProvider for SpkProvider {
                                     self.pool
                                         .intern_version_set(
                                             dep_name,
-                                            RequestVS::SpkRequest(Request::Pkg(PkgRequest::new(
-                                                RangeIdent {
-                                                    repository_name: Some(
+                                            RequestVS::SpkRequest(PinnedRequest::Pkg(
+                                                PkgRequest::new(
+                                                    RangeIdent {
+                                                        repository_name: Some(
+                                                            located_build_ident_with_component
+                                                                .ident
+                                                                .repository_name()
+                                                                .to_owned(),
+                                                        ),
+                                                        name: parent_ident.name().to_owned(),
+                                                        components: BTreeSet::from_iter([
+                                                            parent_component.name.clone(),
+                                                        ]),
+                                                        version: VersionFilter::single(
+                                                            DoubleEqualsVersion::version_range(
+                                                                parent_ident.version().clone(),
+                                                            ),
+                                                        ),
+                                                        build: Some(parent_ident.build().clone()),
+                                                    },
+                                                    RequestedBy::Embedded(
                                                         located_build_ident_with_component
                                                             .ident
-                                                            .repository_name()
-                                                            .to_owned(),
+                                                            .target()
+                                                            .clone(),
                                                     ),
-                                                    name: parent_ident.name().to_owned(),
-                                                    components: BTreeSet::from_iter([
-                                                        parent_component.name.clone(),
-                                                    ]),
-                                                    version: VersionFilter::single(
-                                                        DoubleEqualsVersion::version_range(
-                                                            parent_ident.version().clone(),
-                                                        ),
-                                                    ),
-                                                    build: Some(parent_ident.build().clone()),
-                                                },
-                                                RequestedBy::Embedded(
-                                                    located_build_ident_with_component
-                                                        .ident
-                                                        .target()
-                                                        .clone(),
                                                 ),
-                                            ))),
+                                            )),
                                         )
                                         .into(),
                                 );

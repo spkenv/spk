@@ -7,7 +7,7 @@ use std::sync::Arc;
 use rstest::rstest;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::{build_ident, opt_name, version_ident};
-use spk_schema::ident::{PkgRequest, Request, RequestedBy};
+use spk_schema::ident::{PinnedRequest, PkgRequest, RequestedBy};
 use spk_schema::{FromYaml, spec};
 use spk_solve_graph::State;
 use spk_solve_macros::recipe;
@@ -101,11 +101,11 @@ fn test_qualified_var_supersedes_unqualified() {
     let state = State::new(
         vec![],
         vec![
-            Request::from_yaml("{var: debug/off}")
+            PinnedRequest::from_yaml("{var: debug/off}")
                 .unwrap()
                 .var()
                 .unwrap(),
-            Request::from_yaml("{var: my-package.debug/on}")
+            PinnedRequest::from_yaml("{var: my-package.debug/on}")
                 .unwrap()
                 .var()
                 .unwrap(),

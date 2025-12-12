@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
-use spk_schema_foundation::ident::{BuildIdent, OptVersionIdent};
+use spk_schema_foundation::ident::{OptVersionIdent, PinnableRequest, PinnedRequest};
 use spk_schema_foundation::ident_component::Component;
-use spk_schema_foundation::spec_ops::Named;
+use spk_schema_foundation::name::{OptName, PkgName};
+use spk_schema_foundation::spec_ops::{HasBuildIdent, Named, Versioned};
 
 use crate::component_embedded_packages::ComponentEmbeddedPackage;
 use crate::foundation::option_map::OptionMap;
@@ -47,40 +49,58 @@ mod recipe_install_spec_test;
 #[serde(from = "RawRecipeInstallSpec")]
 pub struct RecipeInstallSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub requirements: RequirementsList,
+    pub requirements: RequirementsList<PinnableRequest>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub embedded: EmbeddedPackagesList<EmbeddedRecipeSpec>,
     #[serde(default)]
-    pub components: ComponentSpecList,
+    pub components: ComponentSpecList<PinnableRequest>,
     #[serde(default, skip_serializing_if = "IsDefault::is_default")]
     pub environment: EnvOpList,
 }
 
 impl RecipeInstallSpec {
     /// Render all requests with a package pin using the given resolved packages.
-    pub fn render_all_pins<'a>(
-        &mut self,
+    pub fn render_all_pins<K, R>(
+        self,
         options: &OptionMap,
-        resolved: impl Iterator<Item = &'a BuildIdent>,
-    ) -> Result<()> {
-        let resolved_by_name = resolved.map(|x| (x.name(), x)).collect();
-        self.requirements
-            .render_all_pins(options, &resolved_by_name)?;
-        for component in self.components.iter_mut() {
-            component
-                .requirements
-                .render_all_pins(options, &resolved_by_name)?;
-        }
-        Ok(())
+        resolved_by_name: &std::collections::HashMap<K, R>,
+    ) -> Result<InstallSpec<PinnedRequest>>
+    where
+        K: Eq + std::hash::Hash,
+        K: std::borrow::Borrow<PkgName>,
+        R: HasBuildIdent + Versioned,
+    {
+        let RecipeInstallSpec {
+            requirements,
+            embedded,
+            components,
+            environment,
+        } = self;
+
+        let requirements = requirements.render_all_pins(options, resolved_by_name)?;
+        let embedded = embedded.render_all_pins(options, resolved_by_name)?;
+        let components = components.render_all_pins(options, resolved_by_name)?;
+
+        Ok(InstallSpec {
+            requirements,
+            embedded,
+            components,
+            environment,
+        })
     }
 }
 
-impl From<InstallSpec> for RecipeInstallSpec {
-    fn from(install: InstallSpec) -> Self {
+impl<Request> From<InstallSpec<Request>> for RecipeInstallSpec
+where
+    Request: DeserializeOwned + Named<OptName> + PartialEq + Serialize,
+    RequirementsList: From<RequirementsList<Request>>,
+    ComponentSpecList<PinnableRequest>: From<ComponentSpecList<Request>>,
+{
+    fn from(install: InstallSpec<Request>) -> Self {
         Self {
-            requirements: install.requirements,
+            requirements: install.requirements.into(),
             embedded: install.embedded.into(),
-            components: install.components,
+            components: install.components.into(),
             environment: install.environment,
         }
     }
@@ -182,11 +202,11 @@ impl From<RawRecipeInstallSpec> for RecipeInstallSpec {
 #[derive(Deserialize)]
 struct RawRecipeInstallSpec {
     #[serde(default)]
-    requirements: RequirementsList,
+    requirements: RequirementsList<PinnableRequest>,
     #[serde(default)]
     embedded: EmbeddedPackagesList<EmbeddedRecipeSpec>,
     #[serde(default)]
-    components: ComponentSpecList,
+    components: ComponentSpecList<PinnableRequest>,
     #[serde(default, deserialize_with = "deserialize_env_conf")]
     environment: EnvOpList,
 }

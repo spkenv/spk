@@ -2,15 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
-use spk_schema_foundation::ident::{BuildIdent, OptVersionIdent};
+use spk_schema_foundation::ident::OptVersionIdent;
 use spk_schema_foundation::ident_component::Component;
+use spk_schema_foundation::name::OptName;
 use spk_schema_foundation::spec_ops::Named;
 
 use crate::component_embedded_packages::ComponentEmbeddedPackage;
-use crate::foundation::option_map::OptionMap;
-use crate::v0::{self, EmbeddedInstallSpec, EmbeddedPackageSpec};
+use crate::v0::{EmbeddedInstallSpec, EmbeddedPackageSpec};
 use crate::{
     ComponentSpecList,
     Components,
@@ -19,7 +20,6 @@ use crate::{
     EnvOpList,
     OpKind,
     RequirementsList,
-    Result,
 };
 
 #[cfg(test)]
@@ -29,11 +29,10 @@ mod install_spec_test;
 /// A set of structured installation parameters for a package.
 ///
 /// This represents the `install` section of a built package. See
-/// [`v0::RecipeInstallSpec`] for the type used by recipes.
+/// [`crate::v0::RecipeInstallSpec`] for the type used by recipes.
 #[derive(
     Clone,
     Debug,
-    Default,
     Deserialize,
     Eq,
     Hash,
@@ -43,39 +42,40 @@ mod install_spec_test;
     PartialOrd,
     Serialize,
 )]
-#[serde(from = "RawInstallSpec")]
-pub struct InstallSpec {
+#[serde(
+    from = "RawInstallSpec<Request>",
+    bound = "Request: DeserializeOwned + Named<OptName>"
+)]
+pub struct InstallSpec<Request: DeserializeOwned + Named<OptName> + PartialEq + Serialize> {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub requirements: RequirementsList,
+    pub requirements: RequirementsList<Request>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub embedded: EmbeddedPackagesList<EmbeddedPackageSpec>,
     #[serde(default)]
-    pub components: ComponentSpecList,
+    pub components: ComponentSpecList<Request>,
     #[serde(default, skip_serializing_if = "IsDefault::is_default")]
     pub environment: EnvOpList,
 }
 
-impl InstallSpec {
-    /// Render all requests with a package pin using the given resolved packages.
-    pub fn render_all_pins<'a>(
-        &mut self,
-        options: &OptionMap,
-        resolved: impl Iterator<Item = &'a BuildIdent>,
-    ) -> Result<()> {
-        let resolved_by_name = resolved.map(|x| (x.name(), x)).collect();
-        self.requirements
-            .render_all_pins(options, &resolved_by_name)?;
-        for component in self.components.iter_mut() {
-            component
-                .requirements
-                .render_all_pins(options, &resolved_by_name)?;
+impl<Request> Default for InstallSpec<Request>
+where
+    Request: DeserializeOwned + Named<OptName> + PartialEq + Serialize,
+{
+    fn default() -> Self {
+        Self {
+            requirements: RequirementsList::default(),
+            embedded: EmbeddedPackagesList::default(),
+            components: ComponentSpecList::default(),
+            environment: EnvOpList::default(),
         }
-        Ok(())
     }
 }
 
-impl From<EmbeddedInstallSpec> for InstallSpec {
-    fn from(embedded: EmbeddedInstallSpec) -> Self {
+impl<Request> From<EmbeddedInstallSpec<Request>> for InstallSpec<Request>
+where
+    Request: DeserializeOwned + Named<OptName> + PartialEq + Serialize,
+{
+    fn from(embedded: EmbeddedInstallSpec<Request>) -> Self {
         Self {
             requirements: embedded.requirements,
             embedded: EmbeddedPackagesList::default(),
@@ -85,8 +85,11 @@ impl From<EmbeddedInstallSpec> for InstallSpec {
     }
 }
 
-impl From<RawInstallSpec> for InstallSpec {
-    fn from(raw: RawInstallSpec) -> Self {
+impl<Request> From<RawInstallSpec<Request>> for InstallSpec<Request>
+where
+    Request: DeserializeOwned + Named<OptName> + PartialEq + Serialize,
+{
+    fn from(raw: RawInstallSpec<Request>) -> Self {
         let mut install = Self {
             requirements: raw.requirements,
             embedded: raw.embedded,
@@ -177,26 +180,16 @@ impl From<RawInstallSpec> for InstallSpec {
     }
 }
 
-impl From<v0::RecipeInstallSpec> for InstallSpec {
-    fn from(recipe_install_spec: v0::RecipeInstallSpec) -> Self {
-        Self {
-            requirements: recipe_install_spec.requirements,
-            embedded: recipe_install_spec.embedded.into(),
-            components: recipe_install_spec.components,
-            environment: recipe_install_spec.environment,
-        }
-    }
-}
-
 /// A raw, unvalidated install spec.
 #[derive(Deserialize)]
-struct RawInstallSpec {
+#[serde(bound = "Request: DeserializeOwned + Named<OptName> + Serialize")]
+struct RawInstallSpec<Request> {
     #[serde(default)]
-    requirements: RequirementsList,
+    requirements: RequirementsList<Request>,
     #[serde(default)]
     embedded: EmbeddedPackagesList<EmbeddedPackageSpec>,
     #[serde(default)]
-    components: ComponentSpecList,
+    components: ComponentSpecList<Request>,
     #[serde(default, deserialize_with = "deserialize_env_conf")]
     environment: EnvOpList,
 }
