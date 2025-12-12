@@ -19,11 +19,20 @@ use spk_schema::foundation::format::{
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::foundation::version::VERSION_SEP;
-use spk_schema::ident::{InitialRawRequest, PkgRequest, RequestedBy};
+use spk_schema::ident::{InitialRawRequest, PkgRequest, PkgRequestWithOptions, RequestedBy};
 use spk_schema::name::{PkgNameBuf, RepositoryNameBuf};
 use spk_schema::prelude::*;
 use spk_schema::version::Version;
-use spk_schema::{BuildEnv, BuildIdent, Components, Package, Spec, SpecRecipe, VersionIdent};
+use spk_schema::{
+    BuildEnv,
+    BuildIdent,
+    Components,
+    OptionValues,
+    Package,
+    Spec,
+    SpecRecipe,
+    VersionIdent,
+};
 use spk_storage::RepositoryHandle;
 
 use crate::{Error, PackageSolveData, PackagesToSolveData, Result};
@@ -115,7 +124,7 @@ impl PartialOrd for PackageSource {
 /// Represents a package request that has been resolved.
 #[derive(Clone)]
 pub struct SolvedRequest {
-    pub request: PkgRequest,
+    pub request: PkgRequestWithOptions,
     pub spec: Arc<Spec>,
     pub source: PackageSource,
 }
@@ -259,7 +268,7 @@ impl SolvedRequest {
 impl std::fmt::Debug for SolvedRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SolvedRequest")
-            .field("request", &self.request.to_string())
+            .field("request", &self.request.pkg_request.to_string())
             .field("spec", &format!("{}", self.spec.ident()))
             .field(
                 "source",
@@ -351,7 +360,7 @@ impl Solution {
     }
 
     /// Add a resolved request to this solution
-    pub fn add(&mut self, request: PkgRequest, spec: Arc<Spec>, source: PackageSource) {
+    pub fn add(&mut self, request: PkgRequestWithOptions, spec: Arc<Spec>, source: PackageSource) {
         let existing = self.resolved.iter_mut().find(|r| r.request == request);
         let new = SolvedRequest {
             request,

@@ -12,7 +12,7 @@ mod has_location;
 mod named;
 mod versioned;
 
-pub use component_ops::ComponentOps;
+pub use component_ops::{ComponentFileMatchMode, ComponentOps};
 pub use env_name::EnvName;
 pub use error::{Error, Result};
 pub use file_matcher::FileMatcher;

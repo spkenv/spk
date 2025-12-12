@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use miette::{Context, IntoDiagnostic, Result};
 use once_cell::sync::Lazy;
-use spk_schema::ident::{PkgRequest, PreReleasePolicy, RangeIdent, RequestedBy};
+use spk_schema::ident::{PkgRequestWithOptions, PreReleasePolicy, RangeIdent, RequestedBy};
 use spk_schema::{Package, VersionIdent};
 use spk_solve::package_iterator::BUILD_SORT_TARGET;
 use spk_solve::solution::{
@@ -125,7 +125,7 @@ pub async fn current_env() -> crate::Result<Solution> {
             None => RequestedBy::CurrentEnvironment,
         };
 
-        let mut request = PkgRequest::new(range_ident, first_requester);
+        let mut request = PkgRequestWithOptions::new(range_ident, first_requester);
         for requester in package_solve_data.requested_by.iter().skip(1) {
             request.add_requester(requester.clone());
         }

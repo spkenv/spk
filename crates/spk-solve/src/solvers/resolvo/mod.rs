@@ -30,7 +30,9 @@ use spk_schema::ident::{
     PinnedRequest,
     PinnedValue,
     PkgRequest,
+    PkgRequestWithOptions,
     RangeIdent,
+    RequestWithOptions,
     RequestedBy,
     VarRequest,
 };
@@ -54,7 +56,7 @@ mod resolvo_tests;
 #[derive(Clone, Default)]
 pub struct Solver {
     repos: Vec<Arc<RepositoryHandle>>,
-    requests: Vec<PinnedRequest>,
+    requests: Vec<RequestWithOptions>,
     options: OptionMap,
     binary_only: bool,
     _validators: Cow<'static, [Validators]>,
@@ -76,8 +78,8 @@ impl Solver {
     /// Populate the requested_by field of each PkgRequest in the solution.
     fn populate_requested_by(
         &self,
-        solution_adds: Vec<(PkgRequest, Arc<Spec>, PackageSource)>,
-    ) -> Vec<(PkgRequest, Arc<Spec>, PackageSource)> {
+        solution_adds: Vec<(PkgRequestWithOptions, Arc<Spec>, PackageSource)>,
+    ) -> Vec<(PkgRequestWithOptions, Arc<Spec>, PackageSource)> {
         // At this point, almost all the pieces of the solution are in
         // place, but the pkg_requests have the wrong requested by
         // data. This is updated in two passes.
@@ -124,7 +126,7 @@ impl Solver {
                     // Try to find the original command line request
                     // based on the solved request's package name.
                     for r in &self.requests {
-                        if let PinnedRequest::Pkg(pkg_req) = r
+                        if let RequestWithOptions::Pkg(pkg_req) = r
                             && *pkg_req.pkg.name == *name
                         {
                             for (_, requesters) in pkg_req.requested_by.iter() {
@@ -233,8 +235,12 @@ impl Solver {
 
             if let Some(existing_index) = seen_packages.get(ident.name()) {
                 if let Some((
-                    PkgRequest {
-                        pkg: RangeIdent { components, .. },
+                    PkgRequestWithOptions {
+                        pkg_request:
+                            PkgRequest {
+                                pkg: RangeIdent { components, .. },
+                                ..
+                            },
                         ..
                     },
                     _,
@@ -252,20 +258,24 @@ impl Solver {
                 continue;
             }
 
-            let pkg_request = PkgRequest {
-                pkg: RangeIdent {
-                    repository_name: None,
-                    name: ident.name().to_owned(),
-                    components: BTreeSet::from_iter([solvable_component.clone()]),
-                    version: VersionFilter::default(),
-                    build: None,
+            let pkg_request = PkgRequestWithOptions {
+                pkg_request: PkgRequest {
+                    pkg: RangeIdent {
+                        repository_name: None,
+                        name: ident.name().to_owned(),
+                        components: BTreeSet::from_iter([solvable_component.clone()]),
+                        version: VersionFilter::default(),
+                        build: None,
+                    },
+                    prerelease_policy: None,
+                    inclusion_policy: InclusionPolicy::default(),
+                    pin: None,
+                    pin_policy: PinPolicy::default(),
+                    required_compat: None,
+                    requested_by: BTreeMap::new(),
                 },
-                prerelease_policy: None,
-                inclusion_policy: InclusionPolicy::default(),
-                pin: None,
-                pin_policy: PinPolicy::default(),
-                required_compat: None,
-                requested_by: BTreeMap::new(),
+                // Does it matter to populate options here?
+                options: Default::default(),
             };
             let repo = self
                 .repos
@@ -367,7 +377,7 @@ impl SolverTrait for Solver {
         Cow::Borrowed(&self.options)
     }
 
-    fn get_pkg_requests(&self) -> Vec<PkgRequest> {
+    fn get_pkg_requests(&self) -> Vec<PkgRequestWithOptions> {
         self.requests
             .iter()
             .filter_map(|r| r.pkg_ref())
@@ -390,8 +400,8 @@ impl SolverTrait for Solver {
 
 #[async_trait::async_trait]
 impl SolverMut for Solver {
-    fn add_request(&mut self, mut request: PinnedRequest) {
-        if let PinnedRequest::Pkg(request) = &mut request
+    fn add_request(&mut self, mut request: RequestWithOptions) {
+        if let RequestWithOptions::Pkg(request) = &mut request
             && request.pkg.components.is_empty()
         {
             if request.pkg.is_source() {
