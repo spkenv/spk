@@ -335,6 +335,7 @@ impl<'de> Deserialize<'de> for Opt {
 pub struct VarOpt {
     pub var: OptNameBuf,
     pub default: String,
+    // This field does not implement `Ord` so this struct can't derive it.
     pub choices: IndexSet<String>,
     pub inheritance: Inheritance,
     pub description: Option<String>,
@@ -346,39 +347,67 @@ pub struct VarOpt {
 // `choices` has a deterministic iteration order.
 impl std::hash::Hash for VarOpt {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.var.hash(state);
-        self.default.hash(state);
-        for (i, choice) in self.choices.iter().enumerate() {
+        let Self {
+            var,
+            default,
+            choices,
+            inheritance,
+            description,
+            compat,
+            value,
+        } = self;
+
+        var.hash(state);
+        default.hash(state);
+        for (i, choice) in choices.iter().enumerate() {
             i.hash(state);
 
             choice.hash(state);
         }
-        self.inheritance.hash(state);
-        self.description.hash(state);
-        self.value.hash(state)
+        inheritance.hash(state);
+        description.hash(state);
+        compat.hash(state);
+        value.hash(state)
     }
 }
 
 impl Ord for VarOpt {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        match self.var.cmp(&other.var) {
+        let Self {
+            var: other_var,
+            default: other_default,
+            choices: other_choices,
+            inheritance: other_inheritance,
+            description: other_description,
+            compat: other_compat,
+            value: other_value,
+        } = other;
+
+        match self.var.cmp(other_var) {
             std::cmp::Ordering::Equal => {}
             ord => return ord,
         }
-        match self.default.cmp(&other.default) {
+        match self.default.cmp(other_default) {
             std::cmp::Ordering::Equal => {}
             ord => return ord,
         }
-        match self.choices.iter().cmp(other.choices.iter()) {
+        match self.choices.iter().cmp(other_choices.iter()) {
             std::cmp::Ordering::Equal => {}
             ord => return ord,
         }
-        match self.inheritance.cmp(&other.inheritance) {
+        match self.inheritance.cmp(other_inheritance) {
             std::cmp::Ordering::Equal => {}
             ord => return ord,
         }
-        let _ = self.description.cmp(&other.value);
-        self.value.cmp(&other.value)
+        match self.description.cmp(other_description) {
+            std::cmp::Ordering::Equal => {}
+            ord => return ord,
+        }
+        match self.compat.cmp(other_compat) {
+            std::cmp::Ordering::Equal => {}
+            ord => return ord,
+        }
+        self.value.cmp(other_value)
     }
 }
 
