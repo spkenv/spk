@@ -7,6 +7,7 @@
 //! Delegates fuser filesystem requests to per-process Mount instances by
 //! walking the caller's process tree via sysctl.
 
+use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -31,7 +32,15 @@ use super::process::{ProcessWatcher, get_parent_pids_macos};
 #[derive(Clone)]
 pub struct Router {
     repos: Vec<Arc<spfs::storage::RepositoryHandle>>,
+
+    // NEW: Runtime-indexed architecture
+    runtime_mounts: Arc<DashMap<String, Arc<Mount>>>,
+    pid_to_runtime: Arc<DashMap<u32, String>>,
+    runtime_pids: Arc<DashMap<String, HashSet<u32>>>,
+
+    // OLD: Will be removed in Phase 6
     routes: Arc<DashMap<u32, Arc<Mount>>>,
+
     default: Arc<Mount>,
     // Process watcher for cleanup
     process_watcher: Arc<tokio::sync::Mutex<ProcessWatcher>>,
@@ -48,6 +57,11 @@ impl Router {
 
         Ok(Self {
             repos,
+            // NEW: Initialize runtime-indexed data structures
+            runtime_mounts: Arc::new(DashMap::new()),
+            pid_to_runtime: Arc::new(DashMap::new()),
+            runtime_pids: Arc::new(DashMap::new()),
+            // OLD: Keep existing for now
             routes: Arc::new(DashMap::new()),
             default,
             process_watcher: Arc::new(tokio::sync::Mutex::new(process_watcher)),
@@ -95,27 +109,137 @@ impl Router {
         tracing::debug!("cleanup loop exiting");
     }
 
-    async fn cleanup_mount(&self, root_pid: u32) {
-        if let Some((_, mount)) = self.routes.remove(&root_pid) {
-            tracing::info!(%root_pid, "cleaning up mount for exited process");
+    async fn cleanup_mount(&self, exited_pid: u32) {
+        let current_pid = std::process::id();
 
-            // Clean up scratch directory if editable
-            if mount.is_editable()
-                && let Some(scratch) = mount.scratch()
-                && let Err(e) = scratch.cleanup()
-            {
-                tracing::warn!(%root_pid, error = %e, "failed to cleanup scratch directory");
+        // NEW PATH: Unregister PID from runtime (decrement refcount)
+        let (runtime_name, is_last) = match self.unregister_pid(exited_pid) {
+            Some(result) => result,
+            None => {
+                tracing::info!(
+                    %exited_pid,
+                    current_pid,
+                    "cleanup_mount: PID not registered in runtime index, checking legacy"
+                );
+                // OLD PATH: Try legacy cleanup
+                if let Some((_, mount)) = self.routes.remove(&exited_pid) {
+                    tracing::info!(%exited_pid, "Cleaning up legacy mount");
+                    if mount.is_editable() {
+                        if let Some(scratch) = mount.take_scratch() {
+                            if let Err(e) = scratch.cleanup() {
+                                tracing::warn!(%exited_pid, error = %e, "Failed to cleanup scratch");
+                            }
+                        }
+                    }
+                }
+                return;
+            }
+        };
+
+        let remaining_pids: Vec<u32> = self
+            .runtime_pids
+            .get(&runtime_name)
+            .map(|set| set.iter().copied().collect())
+            .unwrap_or_default();
+
+        tracing::info!(
+            %exited_pid,
+            current_pid,
+            %runtime_name,
+            is_last,
+            ?remaining_pids,
+            "cleanup_mount: PID exited"
+        );
+
+        // If not the last PID, runtime is still in use
+        if !is_last {
+            tracing::debug!(%runtime_name, "Runtime still has active PIDs, keeping mount");
+            // OLD PATH: Also cleanup from routes if present
+            self.routes.remove(&exited_pid);
+            return;
+        }
+
+        // Refcount reached 0 - check for descendants before cleanup
+        tracing::info!(%runtime_name, "Refcount reached 0, checking for descendants");
+
+        // Give recently-spawned children a moment to appear in the process table
+        // This handles the case where a process exits immediately after spawning children
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        let last_known_pids = vec![exited_pid];
+        let descendants = self.check_descendant_pids(&last_known_pids);
+
+        tracing::info!(
+            %runtime_name,
+            ?descendants,
+            ?last_known_pids,
+            "Descendant check complete (after 100ms delay)"
+        );
+
+        if !descendants.is_empty() {
+            tracing::warn!(
+                %runtime_name,
+                ?descendants,
+                "Descendants still alive at refcount 0, registering them"
+            );
+
+            // Register descendants to prevent premature cleanup
+            for desc_pid in descendants {
+                if let Err(e) = self.register_pid(desc_pid, runtime_name.clone()).await {
+                    tracing::warn!(%desc_pid, %e, "Failed to register descendant");
+                }
+            }
+            return; // Don't cleanup - descendants now registered
+        }
+
+        // Check if runtime is durable (TODO: implement in Phase 7)
+        // For now, assume non-durable
+        let is_durable = false;
+
+        if is_durable {
+            tracing::info!(%runtime_name, "Durable runtime at refcount 0, keeping mount");
+            return;
+        }
+
+        // Safe to cleanup - non-durable runtime with no PIDs
+        tracing::info!(%runtime_name, "Non-durable runtime at refcount 0, cleaning up");
+
+        if let Some((_, mount)) = self.runtime_mounts.remove(&runtime_name) {
+            if mount.is_editable() {
+                if let Some(scratch) = mount.take_scratch() {
+                    if let Err(e) = scratch.cleanup() {
+                        tracing::warn!(%runtime_name, error = %e, "Failed to cleanup scratch");
+                    }
+                }
             }
         }
+
+        self.runtime_pids.remove(&runtime_name);
+
+        // OLD PATH: Also cleanup from routes
+        self.routes.remove(&exited_pid);
+
+        tracing::info!(%runtime_name, "Cleanup complete - mount and scratch removed");
     }
 
     async fn garbage_collect_dead_mounts(&self) {
-        // Collect PIDs to check (avoid holding lock during check)
-        let pids: Vec<u32> = self.routes.iter().map(|r| *r.key()).collect();
+        // NEW PATH: Collect all registered PIDs from runtime index
+        let runtime_pids: Vec<u32> = self.pid_to_runtime.iter().map(|e| *e.key()).collect();
 
-        for pid in pids {
+        for pid in runtime_pids {
             if !ProcessWatcher::is_process_alive(pid) {
-                tracing::debug!(%pid, "found dead process in routes, cleaning up");
+                tracing::debug!(%pid, "Found dead PID during GC (runtime index)");
+                self.cleanup_mount(pid).await;
+            }
+        }
+
+        // OLD PATH: Also check legacy routes
+        let legacy_pids: Vec<u32> = self.routes.iter().map(|r| *r.key()).collect();
+
+        for pid in legacy_pids {
+            if !ProcessWatcher::is_process_alive(pid) {
+                tracing::debug!(%pid, "Found dead PID during GC (legacy routes)");
+                // cleanup_mount will handle removal from routes
                 self.cleanup_mount(pid).await;
             }
         }
@@ -175,9 +299,179 @@ impl Router {
         runtime_name: Option<&str>,
         repos: Option<Vec<Arc<spfs::storage::RepositoryHandle>>>,
     ) -> spfs::Result<()> {
-        tracing::debug!(%root_pid, %env_spec, %editable, "mount request");
-        let repos = repos.unwrap_or_else(|| self.repos.clone());
+        let current_pid = std::process::id();
+        tracing::info!(
+            %root_pid,
+            current_pid,
+            %env_spec,
+            %editable,
+            ?runtime_name,
+            "mount_internal: called"
+        );
 
+        // Determine runtime name
+        let runtime_name = if editable {
+            runtime_name
+                .map(String::from)
+                .unwrap_or_else(|| format!("runtime-{}", root_pid))
+        } else {
+            // Non-editable mounts still use PID-based naming for now
+            format!("readonly-{}", root_pid)
+        };
+
+        // Check if runtime already has a mount (NEW PATH)
+        let mount_exists = self.runtime_mounts.contains_key(&runtime_name);
+        let current_pids: Vec<u32> = self
+            .runtime_pids
+            .get(&runtime_name)
+            .map(|set| set.iter().copied().collect())
+            .unwrap_or_default();
+
+        tracing::info!(
+            %root_pid,
+            %runtime_name,
+            mount_exists,
+            ?current_pids,
+            "mount_internal: checking existing mount"
+        );
+
+        if let Some(existing_mount) = self.runtime_mounts.get(&runtime_name) {
+            // Check if the env_spec matches
+            let existing_env_spec = existing_mount.env_spec();
+            let new_env_spec_str = env_spec.to_string();
+
+            if existing_env_spec == new_env_spec_str {
+                tracing::info!(
+                    %root_pid,
+                    %runtime_name,
+                    ?current_pids,
+                    "Runtime already mounted with same env_spec"
+                );
+
+                // Check if this PID is already registered
+                let already_registered = current_pids.contains(&root_pid);
+
+                if !already_registered {
+                    tracing::info!(%root_pid, %runtime_name, "Registering additional PID");
+                    self.register_pid(root_pid, runtime_name.clone()).await?;
+
+                    // Also populate OLD path for compatibility
+                    self.routes
+                        .insert(root_pid, Arc::clone(existing_mount.value()));
+                    let mut watcher = self.process_watcher.lock().await;
+                    if let Err(e) = watcher.watch(root_pid) {
+                        tracing::warn!(%root_pid, error = %e, "failed to watch process");
+                    }
+                } else {
+                    tracing::info!(%root_pid, %runtime_name, "PID already registered - this is a re-mount, no action needed");
+                }
+
+                return Ok(());
+            } else {
+                // env_spec changed - need to update mount with new manifest while preserving scratch
+                tracing::info!(
+                    %root_pid,
+                    %runtime_name,
+                    ?current_pids,
+                    existing_env_spec,
+                    new_env_spec = %new_env_spec_str,
+                    "Runtime already mounted but env_spec changed - updating mount with new manifest"
+                );
+
+                // Step 1: Extract scratch from existing mount
+                let old_mount = existing_mount.clone(); // Clone the Arc
+                drop(existing_mount); // Drop the reference to allow mutation later
+
+                let extracted_scratch = old_mount.take_scratch();
+
+                tracing::debug!(
+                    %runtime_name,
+                    has_scratch = extracted_scratch.is_some(),
+                    "Extracted scratch directory from existing mount"
+                );
+
+                // Step 2: Compute new manifest from updated env_spec
+                let repos = repos.unwrap_or_else(|| self.repos.clone());
+                let mut manifest = Err(spfs::Error::UnknownReference(env_spec.to_string()));
+                for repo in &repos {
+                    manifest = spfs::compute_environment_manifest(&env_spec, repo).await;
+                    if manifest.is_ok() {
+                        break;
+                    }
+                }
+                let manifest = manifest?;
+
+                tracing::debug!(
+                    %runtime_name,
+                    "Computed new manifest from updated env_spec"
+                );
+
+                // Step 3: Create new mount with new manifest + reused scratch
+                let env_spec_str = env_spec.to_string();
+                let new_mount = if editable {
+                    if let Some(scratch) = extracted_scratch {
+                        // Reuse existing scratch - create editable mount without scratch first
+                        let mount = Arc::new(Mount::new_editable_without_scratch(
+                            tokio::runtime::Handle::current(),
+                            repos.clone(),
+                            manifest,
+                            &runtime_name,
+                            env_spec_str,
+                        )?);
+
+                        // Install the extracted scratch
+                        mount.set_scratch(scratch)?;
+
+                        tracing::debug!(
+                            %runtime_name,
+                            "Created new mount with reused scratch directory"
+                        );
+
+                        mount
+                    } else {
+                        // No scratch to reuse, create fresh editable mount
+                        Arc::new(Mount::new_editable_with_env_spec(
+                            tokio::runtime::Handle::current(),
+                            repos.clone(),
+                            manifest,
+                            &runtime_name,
+                            env_spec_str,
+                        )?)
+                    }
+                } else {
+                    // Read-only mount
+                    Arc::new(Mount::new_with_env_spec(
+                        tokio::runtime::Handle::current(),
+                        repos.clone(),
+                        manifest,
+                        env_spec_str,
+                    )?)
+                };
+
+                // Step 4: Replace mount in registry
+                self.runtime_mounts
+                    .insert(runtime_name.clone(), Arc::clone(&new_mount));
+
+                tracing::info!(
+                    %runtime_name,
+                    %root_pid,
+                    "Mount updated with new manifest and scratch preserved"
+                );
+
+                // Register PID if needed
+                if !current_pids.contains(&root_pid) {
+                    self.register_pid(root_pid, runtime_name.clone()).await?;
+                }
+
+                // Update OLD path for compatibility
+                self.routes.insert(root_pid, Arc::clone(&new_mount));
+
+                return Ok(());
+            }
+        }
+
+        // Create new mount (no change)
+        let repos = repos.unwrap_or_else(|| self.repos.clone());
         let mut manifest = Err(spfs::Error::UnknownReference(env_spec.to_string()));
         for repo in &repos {
             manifest = spfs::compute_environment_manifest(&env_spec, repo).await;
@@ -189,13 +483,11 @@ impl Router {
 
         let env_spec_str = env_spec.to_string();
         let mount = if editable {
-            let default_name = format!("runtime-{}", root_pid);
-            let name = runtime_name.unwrap_or(&default_name);
             Arc::new(Mount::new_editable_with_env_spec(
                 tokio::runtime::Handle::current(),
                 repos,
                 manifest,
-                name,
+                &runtime_name,
                 env_spec_str,
             )?)
         } else {
@@ -207,51 +499,213 @@ impl Router {
             )?)
         };
 
-        // Watch the root PID for exit
-        {
-            let mut watcher = self.process_watcher.lock().await;
-            if let Err(e) = watcher.watch(root_pid) {
-                tracing::warn!(%root_pid, error = %e, "failed to watch process for cleanup");
-                // Continue anyway - GC will catch it
-            }
-        }
+        // NEW PATH: Insert into runtime_mounts
+        self.runtime_mounts
+            .insert(runtime_name.clone(), Arc::clone(&mount));
+        self.register_pid(root_pid, runtime_name.clone()).await?;
 
-        // Insert into routes
+        // OLD PATH: Also insert into routes for compatibility
         match self.routes.entry(root_pid) {
             dashmap::mapref::entry::Entry::Occupied(_) => {
+                // Should not happen since we checked runtime_mounts above
                 return Err(spfs::Error::RuntimeExists(root_pid.to_string()));
             }
             dashmap::mapref::entry::Entry::Vacant(entry) => {
-                entry.insert(mount);
+                entry.insert(Arc::clone(&mount));
             }
         }
 
+        let mut watcher = self.process_watcher.lock().await;
+        if let Err(e) = watcher.watch(root_pid) {
+            tracing::warn!(%root_pid, error = %e, "failed to watch process for cleanup");
+        }
+
+        tracing::info!(%root_pid, %runtime_name, "Mount created and registered");
         Ok(())
     }
 
     /// Unmount an environment for a specific process tree.
     ///
     /// Returns true if the PID had an active mount.
+    ///
+    /// Note: On macOS, explicit unmount is a NO-OP for the runtime-indexed path.
+    /// The PID stays registered and the mount persists until the process exits.
+    /// This is necessary because:
+    /// 1. Child processes need to find the mount via ancestry lookup
+    /// 2. Unmount/remount patterns need to preserve scratch state
+    /// 3. Only ProcessWatcher cleanup should actually remove mounts
     #[instrument(skip(self))]
     pub fn unmount(&self, root_pid: u32) -> bool {
-        self.routes.remove(&root_pid).is_some()
+        let current_pid = std::process::id();
+
+        // Check if this PID is registered in the runtime index
+        let is_registered = self.pid_to_runtime.contains_key(&root_pid);
+
+        if is_registered {
+            if let Some(runtime_name_ref) = self.pid_to_runtime.get(&root_pid) {
+                let runtime_name = runtime_name_ref.value().clone();
+                tracing::info!(
+                    %root_pid,
+                    current_pid,
+                    %runtime_name,
+                    "Unmount requested (explicit) - keeping PID registered for child process access"
+                );
+            }
+
+            // NEW PATH: Do NOT unregister! Keep PID registered so:
+            // 1. Children can still find the mount via ancestry
+            // 2. Mount persists for remount
+            // Actual cleanup happens when process exits (ProcessWatcher)
+
+            // OLD PATH: Remove from legacy routes for consistency
+            self.routes.remove(&root_pid);
+
+            true
+        } else {
+            // OLD PATH: Fallback to legacy unmount
+            tracing::debug!(
+                %root_pid,
+                current_pid,
+                "Unmount requested but PID not registered in runtime index (legacy path)"
+            );
+            self.routes.remove(&root_pid).is_some()
+        }
+    }
+
+    /// Register a PID for a runtime.
+    ///
+    /// Adds the PID to runtime_pids (refcount++) and creates bidirectional mapping.
+    /// Starts watching the PID for exit via ProcessWatcher.
+    async fn register_pid(&self, pid: u32, runtime_name: String) -> spfs::Result<()> {
+        tracing::debug!(%pid, %runtime_name, "Registering PID for runtime");
+
+        // Add to both mappings atomically
+        self.pid_to_runtime.insert(pid, runtime_name.clone());
+        self.runtime_pids
+            .entry(runtime_name.clone())
+            .or_insert_with(HashSet::new)
+            .insert(pid);
+
+        // Watch this PID for exit
+        let mut watcher = self.process_watcher.lock().await;
+        if let Err(e) = watcher.watch(pid) {
+            tracing::warn!(%pid, %e, "Failed to watch PID - will rely on GC");
+        }
+
+        let refcount = self
+            .runtime_pids
+            .get(&runtime_name)
+            .map_or(0, |pids| pids.len());
+        tracing::debug!(%pid, %runtime_name, %refcount, "PID registered");
+
+        Ok(())
+    }
+
+    /// Unregister a PID from a runtime.
+    ///
+    /// Removes the PID from runtime_pids (refcount--) and removes mappings.
+    /// Returns the runtime name and whether this was the last PID.
+    fn unregister_pid(&self, pid: u32) -> Option<(String, bool)> {
+        // Remove from pid_to_runtime mapping
+        let runtime_name = self.pid_to_runtime.remove(&pid)?;
+        let runtime_name = runtime_name.1; // Extract value from (key, value) tuple
+
+        // Remove from runtime_pids mapping (refcount--)
+        let is_last = if let Some(mut pids) = self.runtime_pids.get_mut(&runtime_name) {
+            pids.remove(&pid);
+            let refcount = pids.len();
+            tracing::debug!(%pid, %runtime_name, %refcount, "PID unregistered");
+            refcount == 0
+        } else {
+            true // Runtime not found, treat as last
+        };
+
+        Some((runtime_name, is_last))
+    }
+
+    /// Get the mount for a runtime by name.
+    ///
+    /// Returns None if the runtime is not mounted.
+    fn get_mount_for_runtime(&self, runtime_name: &str) -> Option<Arc<Mount>> {
+        self.runtime_mounts
+            .get(runtime_name)
+            .map(|m| Arc::clone(m.value()))
+    }
+
+    /// Check for descendant processes of the given PIDs.
+    ///
+    /// Returns a HashSet of all living descendant PIDs found.
+    fn check_descendant_pids(&self, parent_pids: &[u32]) -> HashSet<u32> {
+        let mut descendants = HashSet::new();
+
+        for &pid in parent_pids {
+            // Use the process module to find descendants
+            match super::process::get_descendant_pids(pid as i32) {
+                Ok(desc_pids) => {
+                    tracing::debug!(%pid, ?desc_pids, "Found descendants");
+                    descendants.extend(desc_pids.into_iter().map(|p| p as u32));
+                }
+                Err(e) => {
+                    tracing::debug!(%pid, error = %e, "Failed to get descendants");
+                }
+            }
+        }
+
+        tracing::debug!(?parent_pids, ?descendants, "Descendant scan complete");
+        descendants
     }
 
     fn get_mount_for_pid(&self, caller_pid: u32) -> Arc<Mount> {
-        let ancestry_result = get_parent_pids_macos(Some(caller_pid as i32));
-        let ancestry = match ancestry_result {
+        // Get process ancestry
+        let ancestry = match get_parent_pids_macos(Some(caller_pid as i32)) {
             Ok(ancestry) => ancestry,
             Err(e) => {
                 tracing::error!("get_parent_pids_macos failed for PID {}: {}", caller_pid, e);
-                vec![caller_pid as i32]
+                return Arc::clone(&self.default);
             }
         };
-        for pid in ancestry {
-            if let Some(mount) = self.routes.get(&(pid as u32)) {
+
+        // NEW PATH: Check each ancestor in pid_to_runtime (O(1) per ancestor)
+        for ancestor_pid in &ancestry {
+            let pid_u32 = *ancestor_pid as u32;
+
+            // Try new runtime-indexed lookup
+            if let Some(runtime_name_ref) = self.pid_to_runtime.get(&pid_u32) {
+                let runtime_name = runtime_name_ref.value().clone();
+                drop(runtime_name_ref); // Release lock
+
+                if let Some(mount) = self.runtime_mounts.get(&runtime_name) {
+                    tracing::trace!(
+                        caller_pid,
+                        ancestor_pid = pid_u32,
+                        %runtime_name,
+                        "Found mount via runtime index"
+                    );
+                    return Arc::clone(mount.value());
+                }
+            }
+        }
+
+        // OLD PATH: Fallback to PID-indexed lookup for backward compatibility
+        for ancestor_pid in &ancestry {
+            let pid_u32 = *ancestor_pid as u32;
+            if let Some(mount) = self.routes.get(&pid_u32) {
+                tracing::debug!(
+                    caller_pid,
+                    ancestor_pid = pid_u32,
+                    "Found mount via legacy PID index (compatibility mode)"
+                );
                 return Arc::clone(mount.value());
             }
         }
-        tracing::warn!("No mount found for PID {}, using default mount", caller_pid);
+
+        // No mount found - log debug and use default
+        tracing::debug!(
+            caller_pid,
+            ?ancestry,
+            registered_runtimes = ?self.runtime_mounts.iter().map(|e| e.key().clone()).collect::<Vec<_>>(),
+            "No mount found for PID or its ancestors"
+        );
         Arc::clone(&self.default)
     }
 }
@@ -522,5 +976,57 @@ mod tests {
         // An unknown PID should get the default mount
         let mount = router.get_mount_for_pid(99999);
         assert!(!mount.is_editable());
+    }
+
+    #[tokio::test]
+    async fn test_mount_internal_updates_on_env_spec_change() {
+        use spfs::tracking::{EnvSpec, EnvSpecItem};
+
+        let router = Router::new(vec![]).await.expect("create router");
+        let runtime_name = "test-runtime";
+        let root_pid = std::process::id();
+
+        // Create initial env_spec with one layer
+        let digest1 = spfs::encoding::Digest::new(b"layer1");
+        let env_spec1 = EnvSpec::from(vec![EnvSpecItem::Digest(digest1)]);
+
+        // Mount with initial env_spec
+        router
+            .mount_internal(
+                root_pid,
+                env_spec1.clone(),
+                true, // editable
+                Some(runtime_name),
+                None,
+            )
+            .await
+            .expect("initial mount");
+
+        // Verify mount exists
+        assert!(router.runtime_mounts.contains_key(runtime_name));
+        let mount1 = router.runtime_mounts.get(runtime_name).expect("get mount1");
+        assert_eq!(mount1.env_spec(), env_spec1.to_string());
+
+        // Create updated env_spec with additional layer
+        let digest2 = spfs::encoding::Digest::new(b"layer2");
+        let env_spec2 = EnvSpec::from(vec![
+            EnvSpecItem::Digest(digest1),
+            EnvSpecItem::Digest(digest2),
+        ]);
+
+        // Remount with updated env_spec (simulates commit adding layer)
+        router
+            .mount_internal(root_pid, env_spec2.clone(), true, Some(runtime_name), None)
+            .await
+            .expect("update mount");
+
+        // Verify mount was updated
+        let mount2 = router.runtime_mounts.get(runtime_name).expect("get mount2");
+        assert_eq!(
+            mount2.env_spec(),
+            env_spec2.to_string(),
+            "env_spec should be updated"
+        );
+        assert!(mount2.is_editable(), "mount should still be editable");
     }
 }

@@ -14,19 +14,13 @@ use std::os::fd::{AsRawFd, FromRawFd};
 use std::os::unix::prelude::{FileExt, PermissionsExt};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 use std::time::{Duration, SystemTime};
 
 use dashmap::DashMap;
 use fuser::consts::{FOPEN_KEEP_CACHE, FOPEN_NONSEEKABLE};
 use fuser::{
-    FileAttr,
-    FileType,
-    ReplyAttr,
-    ReplyData,
-    ReplyDirectory,
-    ReplyEntry,
-    ReplyLseek,
-    ReplyOpen,
+    FileAttr, FileType, ReplyAttr, ReplyData, ReplyDirectory, ReplyEntry, ReplyLseek, ReplyOpen,
     ReplyStatfs,
 };
 use spfs::prelude::*;
@@ -93,7 +87,8 @@ pub struct Mount {
     uid: u32,
     gid: u32,
     /// Scratch directory for editable mounts (None for read-only)
-    scratch: Option<ScratchDir>,
+    /// Wrapped in Mutex to allow safe extraction during mount updates
+    scratch: Mutex<Option<ScratchDir>>,
     /// The environment spec string for this mount (for status reporting)
     env_spec: String,
     /// Runtime name for editable mounts (None for read-only)
@@ -153,6 +148,27 @@ impl Mount {
         )
     }
 
+    /// Create a new editable Mount with env_spec but no scratch directory yet.
+    ///
+    /// This is used when reusing an existing scratch directory from another mount.
+    /// The scratch directory must be installed separately using `set_scratch()`.
+    pub fn new_editable_without_scratch(
+        rt: tokio::runtime::Handle,
+        repos: Vec<Arc<RepositoryHandle>>,
+        manifest: Manifest,
+        runtime_name: &str,
+        env_spec: String,
+    ) -> spfs::Result<Self> {
+        Self::new_internal(
+            rt,
+            repos,
+            manifest,
+            None,
+            env_spec,
+            Some(runtime_name.to_string()),
+        )
+    }
+
     fn new_internal(
         rt: tokio::runtime::Handle,
         repos: Vec<Arc<RepositoryHandle>>,
@@ -177,7 +193,7 @@ impl Mount {
             fs_creation_time: SystemTime::now(),
             uid,
             gid,
-            scratch,
+            scratch: Mutex::new(scratch),
             env_spec,
             runtime_name,
         };
@@ -203,7 +219,7 @@ impl Mount {
 
     /// Returns true if this mount is editable (has a scratch directory).
     pub fn is_editable(&self) -> bool {
-        self.scratch.is_some()
+        self.scratch.lock().expect("scratch mutex poisoned").is_some()
     }
 
     /// Get the environment spec string for this mount.
@@ -216,11 +232,33 @@ impl Mount {
         self.runtime_name.as_deref()
     }
 
-    /// Get the scratch directory, if this is an editable mount.
-    pub fn scratch(&self) -> Option<&ScratchDir> {
-        self.scratch.as_ref()
+    /// Take ownership of the scratch directory, leaving None in its place.
+    ///
+    /// This is used when updating a mount with a new manifest while preserving
+    /// the scratch state. Returns None if this is a read-only mount or if
+    /// scratch was already taken.
+    pub fn take_scratch(&self) -> Option<ScratchDir> {
+        let mut scratch_guard = self.scratch.lock().expect("scratch mutex poisoned");
+        scratch_guard.take()
     }
 
+    /// Install a scratch directory into this mount.
+    ///
+    /// This is used when creating a new mount that should reuse an existing
+    /// scratch directory. If the mount already has a scratch directory, this
+    /// will replace it (the old one will be dropped and cleaned up).
+    ///
+    /// Returns an error if this mount was not created as editable (runtime_name is None).
+    pub fn set_scratch(&self, new_scratch: ScratchDir) -> spfs::Result<()> {
+        if self.runtime_name.is_none() {
+            return Err(spfs::Error::String(
+                "Cannot set scratch on non-editable mount".to_string(),
+            ));
+        }
+        let mut scratch_guard = self.scratch.lock().expect("scratch mutex poisoned");
+        *scratch_guard = Some(new_scratch);
+        Ok(())
+    }
     /// Look up a directory entry by name.
     pub fn lookup(&self, parent: u64, name: &OsStr, reply: ReplyEntry) {
         let Some(name_str) = name.to_str() else {
@@ -235,18 +273,22 @@ impl Mount {
         let virtual_path = parent_path.join(name_str);
 
         // Check for whiteout first
-        if let Some(scratch) = &self.scratch
-            && scratch.is_deleted(&virtual_path)
         {
-            reply.error(libc::ENOENT);
-            return;
+            let scratch_guard = self.scratch.lock().expect("scratch mutex poisoned");
+            if let Some(scratch) = scratch_guard.as_ref() {
+                if scratch.is_deleted(&virtual_path) {
+                    reply.error(libc::ENOENT);
+                    return;
+                }
+            }
         }
 
         // Check scratch for this path
         if let Some(scratch_ino) = self.scratch_inodes.get(&virtual_path) {
             let scratch_ino = *scratch_ino;
             // Get attributes from scratch file
-            if let Some(scratch) = &self.scratch {
+            let scratch_guard = self.scratch.lock().expect("scratch mutex poisoned");
+            if let Some(scratch) = scratch_guard.as_ref() {
                 let scratch_path = scratch.scratch_path(&virtual_path);
                 match std::fs::metadata(&scratch_path) {
                     Ok(meta) => {
@@ -287,30 +329,31 @@ impl Mount {
     /// Get file attributes for an inode.
     pub fn getattr(&self, ino: u64, reply: ReplyAttr) {
         // Check if this is a scratch inode
-        if let Some(virtual_path) = self.inode_to_path.get(&ino)
-            && let Some(scratch) = &self.scratch
-        {
-            // Check for whiteout
-            if scratch.is_deleted(&virtual_path) {
-                reply.error(libc::ENOENT);
-                return;
-            }
-
-            let scratch_path = scratch.scratch_path(&virtual_path);
-            match std::fs::metadata(&scratch_path) {
-                Ok(meta) => {
-                    let attr = self.attr_from_metadata(ino, &meta);
-                    reply.attr(&self.ttl, &attr);
+        if let Some(virtual_path) = self.inode_to_path.get(&ino) {
+            let scratch_guard = self.scratch.lock().expect("scratch mutex poisoned");
+            if let Some(scratch) = scratch_guard.as_ref() {
+                // Check for whiteout
+                if scratch.is_deleted(&virtual_path) {
+                    reply.error(libc::ENOENT);
                     return;
                 }
-                Err(e) => {
-                    tracing::warn!(
-                        path = %scratch_path.display(),
-                        error = %e,
-                        "scratch file stat failed"
-                    );
-                    reply.error(libc::EIO);
-                    return;
+
+                let scratch_path = scratch.scratch_path(&virtual_path);
+                match std::fs::metadata(&scratch_path) {
+                    Ok(meta) => {
+                        let attr = self.attr_from_metadata(ino, &meta);
+                        reply.attr(&self.ttl, &attr);
+                        return;
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            path = %scratch_path.display(),
+                            error = %e,
+                            "scratch file stat failed"
+                        );
+                        reply.error(libc::EIO);
+                        return;
+                    }
                 }
             }
         }
@@ -388,7 +431,9 @@ impl Mount {
 
         if write_requested {
             // Need copy-up
-            if let Some(_scratch) = &self.scratch {
+            let scratch_guard = self.scratch.lock().expect("scratch mutex poisoned");
+            if scratch_guard.is_some() {
+                drop(scratch_guard); // Release lock before performing copy-up
                 // Get virtual path for this inode
                 let Some(virtual_path) = self.base_inode_to_path.get(&ino) else {
                     tracing::error!(ino, "inode has no path mapping");
@@ -564,14 +609,14 @@ impl Mount {
         }
 
         // Collect whiteouts if editable
-        let whiteouts: std::collections::HashSet<std::path::PathBuf> = self
-            .scratch
+        let scratch_guard = self.scratch.lock().expect("scratch mutex poisoned");
+        let whiteouts: std::collections::HashSet<std::path::PathBuf> = scratch_guard
             .as_ref()
             .map(|s| s.deleted_paths().into_iter().collect())
             .unwrap_or_default();
 
         // Add scratch directory entries
-        if let Some(scratch) = &self.scratch {
+        if let Some(scratch) = scratch_guard.as_ref() {
             let scratch_parent = scratch.scratch_path(&parent_path);
             if let Ok(read_dir) = std::fs::read_dir(&scratch_parent) {
                 for entry in read_dir.flatten() {
@@ -603,6 +648,7 @@ impl Mount {
                 }
             }
         }
+        drop(scratch_guard); // Release lock before calling reply
 
         // Add base layer entries (not whiteout'd and not already in scratch)
         let Some(parent_entry) = self.inodes.get(&ino) else {
@@ -914,8 +960,8 @@ impl Mount {
         entry: &Entry<u64>,
         virtual_path: &std::path::Path,
     ) -> spfs::Result<u64> {
-        let scratch = self
-            .scratch
+        let scratch_guard = self.scratch.lock().expect("scratch mutex poisoned");
+        let scratch = scratch_guard
             .as_ref()
             .ok_or_else(|| spfs::Error::String("Cannot copy-up on read-only mount".to_string()))?;
 
@@ -1021,7 +1067,8 @@ impl Mount {
         flags: i32,
         reply: ReplyOpen,
     ) {
-        let Some(scratch) = &self.scratch else {
+        let scratch_guard = self.scratch.lock().expect("scratch mutex poisoned");
+        let Some(scratch) = scratch_guard.as_ref() else {
             tracing::error!("open_scratch_file called but scratch is None!");
             reply.error(libc::EROFS);
             return;
@@ -1091,9 +1138,12 @@ impl Mount {
         reply: fuser::ReplyWrite,
     ) {
         // Editable check
-        if self.scratch.is_none() {
-            reply.error(libc::EROFS);
-            return;
+        {
+            let scratch_guard = self.scratch.lock().expect("scratch mutex poisoned");
+            if scratch_guard.is_none() {
+                reply.error(libc::EROFS);
+                return;
+            }
         }
 
         let Some(handle) = self.handles.get(&fh) else {
@@ -1142,7 +1192,8 @@ impl Mount {
         if let Some(path_ref) = self.inode_to_path.get(&parent) {
             let path = path_ref.clone();
             // Verify it exists in scratch and check if it's a directory
-            if let Some(scratch) = &self.scratch {
+            let scratch_guard = self.scratch.lock().expect("scratch mutex poisoned");
+            if let Some(scratch) = scratch_guard.as_ref() {
                 let scratch_path = scratch.scratch_path(&path);
                 if scratch_path.exists() {
                     return Some((scratch_path.is_dir(), path));
@@ -1164,7 +1215,8 @@ impl Mount {
         flags: i32,
         reply: fuser::ReplyCreate,
     ) {
-        let Some(scratch) = &self.scratch else {
+        let scratch_guard = self.scratch.lock().expect("scratch mutex poisoned");
+        let Some(scratch) = scratch_guard.as_ref() else {
             reply.error(libc::EROFS);
             return;
         };
@@ -1255,7 +1307,8 @@ impl Mount {
 
     /// Delete a file.
     pub fn unlink(&self, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
-        let Some(scratch) = &self.scratch else {
+        let scratch_guard = self.scratch.lock().expect("scratch mutex poisoned");
+        let Some(scratch) = scratch_guard.as_ref() else {
             reply.error(libc::EROFS);
             return;
         };
@@ -1296,7 +1349,8 @@ impl Mount {
 
     /// Create a directory.
     pub fn mkdir(&self, parent: u64, name: &OsStr, mode: u32, _umask: u32, reply: ReplyEntry) {
-        let Some(scratch) = &self.scratch else {
+        let scratch_guard = self.scratch.lock().expect("scratch mutex poisoned");
+        let Some(scratch) = scratch_guard.as_ref() else {
             reply.error(libc::EROFS);
             return;
         };
@@ -1355,7 +1409,8 @@ impl Mount {
 
     /// Remove a directory.
     pub fn rmdir(&self, parent: u64, name: &OsStr, reply: fuser::ReplyEmpty) {
-        let Some(scratch) = &self.scratch else {
+        let scratch_guard = self.scratch.lock().expect("scratch mutex poisoned");
+        let Some(scratch) = scratch_guard.as_ref() else {
             reply.error(libc::EROFS);
             return;
         };
@@ -1419,7 +1474,8 @@ impl Mount {
         _flags: u32,
         reply: fuser::ReplyEmpty,
     ) {
-        let Some(scratch) = &self.scratch else {
+        let scratch_guard = self.scratch.lock().expect("scratch mutex poisoned");
+        let Some(scratch) = scratch_guard.as_ref() else {
             reply.error(libc::EROFS);
             return;
         };
@@ -1486,15 +1542,19 @@ impl Mount {
         reply: ReplyAttr,
     ) {
         // For truncate (size), we need scratch
-        if size.is_some() && self.scratch.is_none() {
-            reply.error(libc::EROFS);
-            return;
+        {
+            let scratch_guard = self.scratch.lock().expect("scratch mutex poisoned");
+            if size.is_some() && scratch_guard.is_none() {
+                reply.error(libc::EROFS);
+                return;
+            }
         }
 
         let Some(entry) = self.inodes.get(&ino) else {
             // Check if it's a scratch inode
             if let Some(virtual_path) = self.inode_to_path.get(&ino) {
-                let scratch = self.scratch.as_ref().unwrap();
+                let scratch_guard = self.scratch.lock().expect("scratch mutex poisoned");
+                let scratch = scratch_guard.as_ref().unwrap();
                 let scratch_path = scratch.scratch_path(&virtual_path);
 
                 // Handle truncate
@@ -1605,7 +1665,6 @@ mod tests {
         )
         .unwrap();
         assert!(!mount.is_editable());
-        assert!(mount.scratch().is_none());
     }
 
     #[tokio::test]
@@ -1618,7 +1677,6 @@ mod tests {
         )
         .unwrap();
         assert!(mount.is_editable());
-        assert!(mount.scratch().is_some());
     }
 
     #[tokio::test]
@@ -1631,7 +1689,8 @@ mod tests {
         )
         .unwrap();
 
-        let scratch = mount.scratch().expect("scratch should exist");
+        let scratch_guard = mount.scratch.lock().expect("scratch mutex poisoned");
+        let scratch = scratch_guard.as_ref().expect("scratch should exist");
         assert!(scratch.root().exists());
     }
 
@@ -1646,7 +1705,8 @@ mod tests {
                 "test-cleanup",
             )
             .unwrap();
-            scratch_root = mount.scratch().unwrap().root().to_path_buf();
+            let scratch_guard = mount.scratch.lock().expect("scratch mutex poisoned");
+            scratch_root = scratch_guard.as_ref().unwrap().root().to_path_buf();
             assert!(scratch_root.exists());
         }
         // After mount is dropped, scratch should be cleaned up
@@ -1798,5 +1858,103 @@ mod tests {
                 ino
             );
         }
+    }
+
+    #[tokio::test]
+    async fn test_take_scratch_extracts_ownership() {
+        // Create editable mount with scratch
+        let repos = vec![];
+        let manifest = Manifest::default();
+        let mount = Mount::new_editable(
+            tokio::runtime::Handle::current(),
+            repos,
+            manifest,
+            "test-runtime-take",
+        )
+        .expect("create mount");
+
+        assert!(mount.is_editable(), "mount should be editable");
+
+        // Extract scratch
+        let scratch = mount.take_scratch();
+        assert!(scratch.is_some(), "should extract scratch");
+
+        // Verify scratch is now None in mount
+        assert!(!mount.is_editable(), "mount should no longer be editable");
+
+        // Second take should return None
+        let scratch2 = mount.take_scratch();
+        assert!(scratch2.is_none(), "second take should return None");
+    }
+
+    #[tokio::test]
+    async fn test_set_scratch_on_read_only_mount_fails() {
+        use super::scratch::ScratchDir;
+
+        // Create read-only mount
+        let repos = vec![];
+        let manifest = Manifest::default();
+        let mount = Mount::new(
+            tokio::runtime::Handle::current(),
+            repos.clone(),
+            manifest.clone(),
+        )
+        .expect("create mount");
+
+        assert!(!mount.is_editable(), "mount should not be editable");
+
+        // Try to set scratch on read-only mount - should fail
+        let scratch = ScratchDir::new("test-scratch-fail").expect("create scratch");
+        let result = mount.set_scratch(scratch);
+        assert!(
+            result.is_err(),
+            "should fail to set scratch on read-only mount"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_scratch_preservation_workflow() {
+        // Simulate the router's scratch preservation flow
+
+        // 1. Create editable mount (simulates initial mount)
+        let repos = vec![];
+        let manifest1 = Manifest::default();
+        let mount1 = Mount::new_editable(
+            tokio::runtime::Handle::current(),
+            repos.clone(),
+            manifest1,
+            "test-runtime-preserve",
+        )
+        .expect("create mount1");
+
+        assert!(mount1.is_editable());
+
+        // 2. Extract scratch (simulates env_spec change)
+        let scratch = mount1.take_scratch().expect("extract scratch");
+
+        // 3. Create new mount with updated manifest (simulates new layers)
+        let manifest2 = Manifest::default(); // In real scenario, this would have new layers
+        let mount2 = Mount::new_editable_without_scratch(
+            tokio::runtime::Handle::current(),
+            repos,
+            manifest2,
+            "test-runtime-preserve",
+            "new-env-spec".to_string(),
+        )
+        .expect("create mount2");
+
+        // Should not be editable yet (no scratch)
+        assert!(
+            !mount2.is_editable(),
+            "mount2 should not be editable before installing scratch"
+        );
+
+        // 4. Install extracted scratch
+        mount2.set_scratch(scratch).expect("install scratch");
+
+        assert!(
+            mount2.is_editable(),
+            "mount2 should be editable after installing scratch"
+        );
     }
 }
