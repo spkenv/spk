@@ -1,0 +1,12 @@
+[package]
+name = "clean-loom"
+authors.workspace = true
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+loom = { version = "0.7", features = ["checkpoint"] }
+rstest = { workspace = true }
+
+[lints]
+workspace = true

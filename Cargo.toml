@@ -22,6 +22,7 @@ members = [
     "crates/spk-solve/crates/*",
     "crates/spk-storage",
     "crates/spk-workspace",
+    "clean-loom",
 ]
 resolver = "2"
 
