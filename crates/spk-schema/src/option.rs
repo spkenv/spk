@@ -335,6 +335,7 @@ impl<'de> Deserialize<'de> for Opt {
 pub struct VarOpt {
     pub var: OptNameBuf,
     pub default: String,
+    // This field does not implement `Ord` so this struct can't derive it.
     pub choices: IndexSet<String>,
     pub inheritance: Inheritance,
     pub description: Option<String>,
