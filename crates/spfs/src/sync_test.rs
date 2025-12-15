@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use rstest::{fixture, rstest};
@@ -10,8 +11,10 @@ use storage::RepositoryHandle;
 use super::Syncer;
 use crate::config::Config;
 use crate::fixtures::*;
+use crate::graph::AnnotationValue;
+use crate::graph::object::EncodingFormat;
 use crate::prelude::*;
-use crate::{Error, encoding, graph, storage, tracking};
+use crate::{Error, encoding, graph, reset_config_async, storage, tracking};
 
 #[rstest]
 #[tokio::test]
@@ -149,76 +152,80 @@ async fn test_sync_ref_including_annotation_blob(
     repo_b: TempRepo,
     tmpdir: tempfile::TempDir,
 ) {
-    use std::borrow::Cow;
-
-    use crate::graph::AnnotationValue;
-
-    init_logging();
     let repo_a = repo_a.await;
     let repo_b = repo_b.await;
 
-    let src_dir = tmpdir.path().join("source");
-    ensure(src_dir.join("dir/file.txt"), "hello");
-    ensure(src_dir.join("dir2/otherfile.txt"), "hello2");
-    ensure(src_dir.join("dir//dir/dir/file.txt"), "hello, world");
+    reset_config_async! {
+        init_logging();
 
-    let manifest = crate::Committer::new(&repo_a)
-        .commit_dir(src_dir.as_path())
-        .await
-        .unwrap();
+        // This test requires not using the legacy encoding format
+        let mut config = Config::default();
+        config.storage.encoding_format = EncodingFormat::FlatBuffers;
+        config.make_current().unwrap();
 
-    // Set up an annotation in a blob for this test
-    let value = "this is a test annotation blob for syncing";
-    let annotation_digest = repo_a
-        .commit_blob(Box::pin(std::io::Cursor::new(
-            value.to_owned().into_bytes(),
-        )))
-        .await
-        .unwrap();
-    let annotation_value = AnnotationValue::Blob(Cow::Owned(annotation_digest));
-    let layer_with_annotation = graph::Layer::new_with_manifest_and_annotation(
-        manifest.to_graph_manifest().digest().unwrap(),
-        "test key",
-        annotation_value,
-    );
-    repo_a.write_object(&layer_with_annotation).await.unwrap();
+        let src_dir = tmpdir.path().join("source");
+        ensure(src_dir.join("dir/file.txt"), "hello");
+        ensure(src_dir.join("dir2/otherfile.txt"), "hello2");
+        ensure(src_dir.join("dir//dir/dir/file.txt"), "hello, world");
 
-    let platform = repo_a
-        .create_platform(layer_with_annotation.digest().unwrap().into())
-        .await
-        .unwrap();
-    let tag = tracking::TagSpec::parse("testing").unwrap();
-    repo_a
-        .push_tag(&tag, &platform.digest().unwrap())
-        .await
-        .unwrap();
-
-    Syncer::new(&repo_a, &repo_b)
-        .sync_ref("testing")
-        .await
-        .expect("failed to sync ref");
-
-    assert!(repo_b.read_ref("testing").await.is_ok());
-    assert!(repo_b.has_object(platform.digest().unwrap()).await);
-    assert!(
-        repo_b
-            .has_object(layer_with_annotation.digest().unwrap())
+        let manifest = crate::Committer::new(&repo_a)
+            .commit_dir(src_dir.as_path())
             .await
-    );
-    assert!(repo_b.has_object(annotation_digest).await);
+            .unwrap();
 
-    Syncer::new(&repo_b, &repo_a)
-        .sync_ref("testing")
-        .await
-        .expect("failed to sync back");
+        // Set up an annotation in a blob for this test
+        let value = "this is a test annotation blob for syncing";
+        let annotation_digest = repo_a
+            .commit_blob(Box::pin(std::io::Cursor::new(
+                value.to_owned().into_bytes(),
+            )))
+            .await
+            .unwrap();
+        let annotation_value = AnnotationValue::Blob(Cow::Owned(annotation_digest));
+        let layer_with_annotation = graph::Layer::new_with_manifest_and_annotation(
+            manifest.to_graph_manifest().digest().unwrap(),
+            "test key",
+            annotation_value,
+        );
+        repo_a.write_object(&layer_with_annotation).await.unwrap();
 
-    assert!(repo_a.read_ref("testing").await.is_ok());
-    assert!(
+        let platform = repo_a
+            .create_platform(layer_with_annotation.digest().unwrap().into())
+            .await
+            .unwrap();
+        let tag = tracking::TagSpec::parse("testing").unwrap();
         repo_a
-            .has_object(layer_with_annotation.digest().unwrap())
+            .push_tag(&tag, &platform.digest().unwrap())
             .await
-    );
-    assert!(repo_a.has_object(annotation_digest).await);
+            .unwrap();
+
+        Syncer::new(&repo_a, &repo_b)
+            .sync_ref("testing")
+            .await
+            .expect("failed to sync ref");
+
+        assert!(repo_b.read_ref("testing").await.is_ok());
+        assert!(repo_b.has_object(platform.digest().unwrap()).await);
+        assert!(
+            repo_b
+                .has_object(layer_with_annotation.digest().unwrap())
+                .await
+        );
+        assert!(repo_b.has_object(annotation_digest).await);
+
+        Syncer::new(&repo_b, &repo_a)
+            .sync_ref("testing")
+            .await
+            .expect("failed to sync back");
+
+        assert!(repo_a.read_ref("testing").await.is_ok());
+        assert!(
+            repo_a
+                .has_object(layer_with_annotation.digest().unwrap())
+                .await
+        );
+        assert!(repo_a.has_object(annotation_digest).await);
+    }
 }
 
 #[rstest]
