@@ -13,8 +13,8 @@ use std::mem::ManuallyDrop;
 use std::os::fd::{AsRawFd, FromRawFd};
 use std::os::unix::prelude::{FileExt, PermissionsExt};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime};
 
 use dashmap::DashMap;
@@ -219,7 +219,10 @@ impl Mount {
 
     /// Returns true if this mount is editable (has a scratch directory).
     pub fn is_editable(&self) -> bool {
-        self.scratch.lock().expect("scratch mutex poisoned").is_some()
+        self.scratch
+            .lock()
+            .expect("scratch mutex poisoned")
+            .is_some()
     }
 
     /// Get the environment spec string for this mount.
@@ -1889,7 +1892,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_scratch_on_read_only_mount_fails() {
-        use super::scratch::ScratchDir;
+        use super::super::scratch::ScratchDir;
 
         // Create read-only mount
         let repos = vec![];

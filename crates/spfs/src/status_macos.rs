@@ -86,8 +86,9 @@ pub async unsafe fn reinitialize_runtime(rt: &mut runtime::Runtime) -> Result<Re
     configurator.ensure_mounts_already_exist().await?;
 
     let with_root = configurator.become_root()?;
-    with_root.unmount_env(rt, true).await?;
 
+    // We don't need to unmount anything on macOS since there are no mount namespaces.
+    // Just remount the FUSE environment to update the routers state.
     mount_env_for_backend(&with_root, rt).await?;
     with_root.become_original_user()?;
     Ok(RenderSummary::default())

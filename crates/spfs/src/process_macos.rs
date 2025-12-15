@@ -4,8 +4,11 @@
 
 //! macOS process ancestry tracking using libproc
 
+use std::collections::HashSet;
 use std::io;
+use std::mem;
 use std::os::fd::{AsRawFd, OwnedFd};
+use std::ptr;
 
 use libproc::bsd_info::BSDInfo;
 use libproc::proc_pid::pidinfo;
@@ -73,6 +76,78 @@ pub fn is_in_process_tree(caller_pid: i32, root_pid: i32) -> bool {
         Ok(ancestry) => ancestry.contains(&root_pid),
         Err(_) => false,
     }
+}
+
+/// Get all descendant PIDs of a given PID.
+///
+/// Uses libproc to walk the process tree and find all children, grandchildren, etc.
+pub fn get_descendant_pids(root_pid: i32) -> Result<Vec<i32>, ProcessError> {
+    let mut descendants = Vec::new();
+    let mut to_check = vec![root_pid];
+    let mut checked = HashSet::new();
+    
+    const MAX_ITERATIONS: usize = 1000; // Prevent infinite loops
+    let mut iterations = 0;
+    
+    while let Some(pid) = to_check.pop() {
+        if iterations >= MAX_ITERATIONS {
+            tracing::warn!("get_descendant_pids hit iteration limit");
+            break;
+        }
+        iterations += 1;
+        
+        if checked.contains(&pid) {
+            continue;
+        }
+        checked.insert(pid);
+        
+        // Find all processes and check if they are children of this PID
+        // Unfortunately libproc doesn't have a "get children" function,
+        // so we need to scan all processes
+        let all_pids = get_all_pids()?;
+        
+        for other_pid in all_pids {
+            if let Ok(parent) = get_parent_pid_for(other_pid) {
+                if parent == pid {
+                    descendants.push(other_pid);
+                    to_check.push(other_pid);
+                }
+            }
+        }
+    }
+    
+    Ok(descendants)
+}
+
+/// Get all process IDs on the system.
+fn get_all_pids() -> Result<Vec<i32>, ProcessError> {
+    // Get the number of PIDs - first call with null buffer to get count
+    let ret = unsafe {
+        libc::proc_listallpids(ptr::null_mut(), 0)
+    };
+    
+    if ret < 0 {
+        return Err(ProcessError::IoError(io::Error::last_os_error()));
+    }
+    
+    let count = ret as usize;
+    
+    // Allocate buffer and get all PIDs
+    let mut pids = vec![0i32; count];
+    let bufsize = (pids.len() * mem::size_of::<i32>()) as i32;
+    let ret = unsafe {
+        libc::proc_listallpids(
+            pids.as_mut_ptr() as *mut libc::c_void,
+            bufsize,
+        )
+    };
+    
+    if ret < 0 {
+        return Err(ProcessError::IoError(io::Error::last_os_error()));
+    }
+    
+    pids.truncate(ret as usize);
+    Ok(pids)
 }
 
 /// Watches PIDs for exit events using kqueue

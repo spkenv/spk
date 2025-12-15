@@ -153,7 +153,6 @@ impl RuntimeConfigurator {
         // Build mount options for macFUSE (currently unused as we delegate to CLI)
         let _opts = get_fuse_args(&rt.config, read_only);
 
-        tracing::debug!(editable, "mounting the FUSE filesystem on macOS...");
         let spfs_fuse = match super::resolve::which_spfs("fuse-macos") {
             None => return Err(Error::MissingBinary("spfs-fuse-macos")),
             Some(exe) => exe,
@@ -172,9 +171,13 @@ impl RuntimeConfigurator {
             cmd.arg("--repository").arg(remote.to_string());
         }
 
+        // Always pass runtime name to enable router to locate existing runtime
+        // and detect env_spec changes (e.g., after commit adds layers).
+        // This ensures runtime continuity across editable→non-editable transitions.
+        cmd.arg("--runtime-name").arg(rt.name());
+
         if editable {
             cmd.arg("--editable");
-            cmd.arg("--runtime-name").arg(rt.name());
         }
         // For editable mounts, use the runtime owner's PID (the shell process that
         // will be writing to the filesystem). For read-only mounts, use the current

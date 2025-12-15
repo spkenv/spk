@@ -7,5 +7,6 @@
 //! Re-exports from spfs::process module
 
 pub use spfs::process::{
-    ProcessError, ProcessWatcher, get_parent_pid, get_parent_pids_macos, is_in_process_tree,
+    ProcessError, ProcessWatcher, get_descendant_pids, get_parent_pid, get_parent_pids_macos,
+    is_in_process_tree,
 };
