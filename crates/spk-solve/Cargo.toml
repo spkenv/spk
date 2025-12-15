@@ -45,6 +45,7 @@ once_cell = { workspace = true }
 priority-queue = "1.2"
 resolvo = { workspace = true, features = ["tokio"] }
 sentry = { workspace = true, optional = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
 signal-hook = "0.3"
 spfs = { workspace = true }

@@ -3,34 +3,19 @@
 // https://github.com/spkenv/spk
 
 use std::borrow::Cow;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::convert::TryInto;
 use std::path::Path;
 use std::str::FromStr;
 
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
-use spk_schema_foundation::ident::{
-    AnyIdent,
-    AsVersionIdent,
-    BuildIdent,
-    Ident,
-    RangeIdent,
-    VersionIdent,
-};
+use spk_schema_foundation::ident::{AsVersionIdent, RangeIdent, VersionIdent};
 use spk_schema_foundation::ident_build::BuildId;
 use spk_schema_foundation::ident_component::ComponentBTreeSet;
-use spk_schema_foundation::name::PkgNameBuf;
-use spk_schema_foundation::option_map::{OptFilter, Stringified};
-use spk_schema_foundation::version::{
-    BuildIdProblem,
-    CommaSeparated,
-    ComponentsMissingProblem,
-    IncompatibleReason,
-    PackageNameProblem,
-    VarOptionProblem,
-};
+use spk_schema_foundation::option_map::Stringified;
+use spk_schema_foundation::version::{IncompatibleReason, VarOptionProblem};
+use variantly::Variantly;
 
 use super::TestSpec;
 use super::variant_spec::VariantSpecEntryKey;
@@ -40,54 +25,43 @@ use crate::foundation::ident_component::Component;
 use crate::foundation::name::{OptNameBuf, PkgName};
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::prelude::*;
-use crate::foundation::version::{Compat, CompatRule, Compatibility, Version};
-use crate::foundation::version_range::Ranged;
-use crate::ident::{
-    PkgRequest,
-    PreReleasePolicy,
-    Request,
-    RequestedBy,
-    Satisfy,
-    VarRequest,
-    is_false,
-};
+use crate::foundation::version::{Compat, Compatibility, Version};
+use crate::ident::{PkgRequest, Request, RequestedBy, Satisfy, VarRequest, is_false};
 use crate::metadata::Meta;
 use crate::option::VarOpt;
+use crate::v0::{PackageSpec, RecipeInstallSpec};
 use crate::{
     BuildEnv,
     BuildSpec,
-    ComponentSpec,
-    ComponentSpecList,
     Deprecate,
     DeprecateMut,
-    EmbeddedPackagesList,
     EnvOp,
     EnvOpList,
     Error,
-    Inheritance,
     InputVariant,
-    InstallSpec,
     LocalSource,
     Opt,
     Package,
-    PackageMut,
     Recipe,
     RequirementsList,
     Result,
     RuntimeEnvironment,
     SourceSpec,
     TestStage,
-    ValidationSpec,
     Variant,
 };
 
 #[cfg(test)]
-#[path = "./spec_test.rs"]
-mod spec_test;
+#[path = "./recipe_spec_test.rs"]
+mod recipe_spec_test;
 
+/// A package recipe specification.
+///
+/// This roughly maps to the expected contents of a package recipe that a user
+/// creates, but after any template processing has been applied.
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Serialize)]
-pub struct Spec<Ident> {
-    pub pkg: Ident,
+pub struct RecipeSpec {
+    pub pkg: VersionIdent,
     #[serde(default, skip_serializing_if = "Meta::is_default")]
     pub meta: Meta,
     #[serde(default, skip_serializing_if = "Compat::is_default")]
@@ -101,12 +75,12 @@ pub struct Spec<Ident> {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tests: Vec<TestSpec>,
     #[serde(default, skip_serializing_if = "IsDefault::is_default")]
-    pub install: InstallSpec,
+    pub install: RecipeInstallSpec,
 }
 
-impl<Ident> Spec<Ident> {
+impl RecipeSpec {
     /// Create an empty spec for the identified package
-    pub fn new(ident: Ident) -> Self {
+    pub fn new(ident: VersionIdent) -> Self {
         Self {
             pkg: ident,
             meta: Meta::default(),
@@ -115,96 +89,22 @@ impl<Ident> Spec<Ident> {
             sources: Vec::new(),
             build: BuildSpec::default(),
             tests: Vec::new(),
-            install: InstallSpec::default(),
+            install: RecipeInstallSpec::default(),
         }
     }
 
     pub fn build_options(&self) -> Cow<'_, [Opt]> {
         Cow::Borrowed(self.build.options.as_slice())
     }
-
-    /// Convert the ident type associated to this package
-    pub fn map_ident<F, ToIdent>(self, map: F) -> Spec<ToIdent>
-    where
-        F: FnOnce(Ident) -> ToIdent,
-    {
-        Spec {
-            pkg: map(self.pkg),
-            meta: self.meta,
-            compat: self.compat,
-            deprecated: self.deprecated,
-            sources: self.sources,
-            build: self.build,
-            tests: self.tests,
-            install: self.install,
-        }
-    }
-
-    /// Remove requirements and other package data that
-    /// is not relevant for a source package build.
-    fn prune_for_source_build(&mut self) {
-        self.install.requirements.clear();
-        self.build = Default::default();
-        self.tests.clear();
-        self.install.components.clear();
-        self.install.components.push(ComponentSpec {
-            name: Component::Source,
-            files: Default::default(),
-            uses: Default::default(),
-            requirements: Default::default(),
-            embedded: Default::default(),
-            file_match_mode: Default::default(),
-        });
-    }
 }
 
-impl Spec<BuildIdent> {
-    /// Check if this package spec satisfies the given request.
-    pub fn satisfies_request(&self, request: Request) -> Compatibility {
-        match request {
-            Request::Pkg(request) => Satisfy::check_satisfies_request(self, &request),
-            Request::Var(request) => Satisfy::check_satisfies_request(self, &request),
-        }
-    }
-
-    /// Return downstream var requirements that match the given filter.
-    fn downstream_requirements<F>(&self, filter: F) -> Cow<'_, RequirementsList>
-    where
-        F: FnMut(&&VarOpt) -> bool,
-    {
-        let requests = self
-            .build
-            .options
-            .iter()
-            .filter_map(|opt| match opt {
-                Opt::Var(v) => Some(v),
-                Opt::Pkg(_) => None,
-            })
-            .filter(filter)
-            .map(|o| {
-                let var = o.var.with_default_namespace(self.name());
-                VarRequest {
-                    var,
-                    // we are assuming that the var here will have a value because
-                    // this is a built binary package
-                    value: o.get_value(None).unwrap_or_default().into(),
-                    description: o.description.clone(),
-                }
-            })
-            .map(Request::Var);
-        RequirementsList::try_from_iter(requests)
-            .map(Cow::Owned)
-            .expect("build opts do not contain duplicates")
-    }
-}
-
-impl<Ident> Deprecate for Spec<Ident> {
+impl Deprecate for RecipeSpec {
     fn is_deprecated(&self) -> bool {
         self.deprecated
     }
 }
 
-impl<Ident> DeprecateMut for Spec<Ident> {
+impl DeprecateMut for RecipeSpec {
     fn deprecate(&mut self) -> Result<()> {
         self.deprecated = true;
         Ok(())
@@ -216,164 +116,32 @@ impl<Ident> DeprecateMut for Spec<Ident> {
     }
 }
 
-impl<Ident: HasVersion> HasVersion for Spec<Ident> {
+impl HasVersion for RecipeSpec {
     fn version(&self) -> &Version {
         self.pkg.version()
     }
 }
 
-impl<Ident: Named> Named for Spec<Ident> {
+impl Named for RecipeSpec {
     fn name(&self) -> &PkgName {
         self.pkg.name()
     }
 }
 
-impl<Ident> RuntimeEnvironment for Spec<Ident> {
+impl RuntimeEnvironment for RecipeSpec {
     fn runtime_environment(&self) -> &[EnvOp] {
         &self.install.environment
     }
 }
 
-impl<Ident: HasVersion> Versioned for Spec<Ident> {
+impl Versioned for RecipeSpec {
     fn compat(&self) -> &Compat {
         &self.compat
     }
 }
 
-impl Package for Spec<BuildIdent> {
-    type Package = Self;
-
-    fn ident(&self) -> &BuildIdent {
-        &self.pkg
-    }
-
-    fn metadata(&self) -> &crate::metadata::Meta {
-        &self.meta
-    }
-
-    fn option_values(&self) -> OptionMap {
-        let mut opts = OptionMap::default();
-        for opt in self.build.options.iter() {
-            // we are assuming that this spec has been updated to represent
-            // a build and had all of the options pinned/resolved.
-            opts.insert(opt.full_name().to_owned(), opt.get_value(None));
-        }
-        opts
-    }
-
-    fn matches_all_filters(&self, filter_by: &Option<Vec<OptFilter>>) -> bool {
-        if let Some(filters) = filter_by {
-            let settings = self.option_values();
-
-            for filter in filters {
-                if !settings.contains_key(&filter.name) {
-                    // Not having an option with the filter's name is
-                    // considered a match.
-                    continue;
-                }
-
-                let var_request =
-                    VarRequest::new_with_value(filter.name.clone(), filter.value.clone());
-
-                let compat = self.check_satisfies_request(&var_request);
-                if !compat.is_ok() {
-                    return false;
-                }
-            }
-        }
-        // All the filters match, or there were no filters
-        true
-    }
-
-    fn sources(&self) -> &Vec<SourceSpec> {
-        &self.sources
-    }
-
-    fn embedded(&self) -> &EmbeddedPackagesList {
-        &self.install.embedded
-    }
-
-    fn embedded_as_packages(
-        &self,
-    ) -> std::result::Result<Vec<(Self::Package, Option<Component>)>, &str> {
-        self.install
-            .embedded
-            .iter()
-            .map(|embed| embed.clone().try_into().map(|r| (r, None)))
-            .collect()
-    }
-
-    fn components(&self) -> &ComponentSpecList {
-        &self.install.components
-    }
-
-    fn get_build_options(&self) -> &Vec<Opt> {
-        &self.build.options
-    }
-
-    fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList>> {
-        let mut requests = RequirementsList::default();
-        for opt in self.build.options.iter() {
-            match opt {
-                Opt::Pkg(opt) => {
-                    let mut req =
-                        opt.to_request(None, RequestedBy::BinaryBuild(self.ident().clone()))?;
-                    if req.pkg.components.is_empty() {
-                        // inject the default component for this context if needed
-                        req.pkg.components.insert(Component::default_for_build());
-                    }
-                    requests.insert_or_merge(req.into())?;
-                }
-                Opt::Var(opt) => {
-                    // If no value was specified in the spec, there's
-                    // no need to turn that into a requirement to
-                    // find a var with an empty value.
-                    if let Some(value) = opt.get_value(None)
-                        && !value.is_empty()
-                    {
-                        requests.insert_or_merge(opt.to_request(Some(value.as_str())).into())?;
-                    }
-                }
-            }
-        }
-        Ok(Cow::Owned(requests))
-    }
-
-    fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
-        Cow::Borrowed(&self.install.requirements)
-    }
-
-    fn downstream_build_requirements<'a>(
-        &self,
-        _components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, RequirementsList> {
-        self.downstream_requirements(|o| o.inheritance != Inheritance::Weak)
-    }
-
-    fn downstream_runtime_requirements<'a>(
-        &self,
-        _components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, RequirementsList> {
-        self.downstream_requirements(|o| o.inheritance == Inheritance::Strong)
-    }
-
-    fn validation(&self) -> &ValidationSpec {
-        &self.build.validation
-    }
-
-    fn build_script(&self) -> String {
-        self.build.script.join("\n")
-    }
-}
-
-impl PackageMut for Spec<BuildIdent> {
-    fn set_build(&mut self, build: Build) {
-        self.pkg.set_target(build);
-    }
-}
-
-impl Recipe for Spec<VersionIdent> {
-    type Output = Spec<BuildIdent>;
+impl Recipe for RecipeSpec {
+    type Output = PackageSpec;
     type Variant = super::Variant;
     type Test = TestSpec;
 
@@ -523,10 +291,17 @@ impl Recipe for Spec<VersionIdent> {
             .collect())
     }
 
-    fn generate_source_build(&self, root: &Path) -> Result<Spec<BuildIdent>> {
-        let mut source = self
-            .clone()
-            .map_ident(|i| i.into_build_ident(Build::Source));
+    fn generate_source_build(&self, root: &Path) -> Result<PackageSpec> {
+        let mut source = PackageSpec {
+            pkg: self.pkg.clone().into_build_ident(Build::Source),
+            meta: self.meta.clone(),
+            compat: self.compat.clone(),
+            deprecated: self.deprecated,
+            build: self.build.clone(),
+            install: self.install.clone().into(),
+            sources: self.sources.clone(),
+            tests: self.tests.clone(),
+        };
         source.prune_for_source_build();
         for source in source.sources.iter_mut() {
             if let SourceSpec::Local(source) = source {
@@ -554,35 +329,61 @@ impl Recipe for Spec<VersionIdent> {
             .map(|p| (p.name().to_owned(), p))
             .collect();
 
-        for opt in updated.build.options.iter_mut() {
-            match opt {
-                Opt::Var(opt) => {
-                    opt.set_value(
-                        build_options
-                            .get(&opt.var)
-                            .or_else(|| build_options.get(opt.var.without_namespace()))
-                            .map(String::to_owned)
-                            .or_else(|| opt.get_value(None))
-                            .unwrap_or_default(),
-                    )?;
-                    continue;
-                }
-                Opt::Pkg(opt) => {
-                    let spec = specs.get(&opt.pkg);
-                    match spec {
-                        None => {
-                            return Err(Error::String(format!(
-                                "PkgOpt missing in resolved: {}",
-                                opt.pkg
-                            )));
-                        }
-                        Some(spec) => {
-                            let rendered = spec.compat().render(HasVersion::version(spec));
-                            opt.set_value(rendered)?;
+        #[derive(Clone, Copy, Variantly)]
+        enum RequirePkgInBuildEnv {
+            Yes,
+            No,
+        }
+
+        let pin_options = |options: &mut [Opt], require_pkg_in_build_env: RequirePkgInBuildEnv| {
+            for opt in options.iter_mut() {
+                match opt {
+                    Opt::Var(opt) => {
+                        opt.set_value(
+                            build_options
+                                .get(&opt.var)
+                                .or_else(|| build_options.get(opt.var.without_namespace()))
+                                .map(String::to_owned)
+                                .or_else(|| opt.get_value(None))
+                                .unwrap_or_default(),
+                        )?;
+                    }
+                    Opt::Pkg(opt) => {
+                        let spec = specs.get(&opt.pkg);
+                        match spec {
+                            None if require_pkg_in_build_env.is_yes() => {
+                                return Err(Error::String(format!(
+                                    "PkgOpt missing in resolved: {}",
+                                    opt.pkg
+                                )));
+                            }
+                            None => {}
+                            Some(spec) => {
+                                let rendered = spec.compat().render(HasVersion::version(spec));
+                                opt.set_value(rendered)?;
+                            }
                         }
                     }
                 }
             }
+            Ok(())
+        };
+
+        pin_options(&mut updated.build.options, RequirePkgInBuildEnv::Yes)?;
+        for embedded in updated.install.embedded.iter_mut() {
+            pin_options(
+                &mut embedded.build.options,
+                // An embedded package that says it depends on a package
+                // "foo" that the parent package doesn't have in its build
+                // requirements means that "foo" will not necessarily be in
+                // the build env. That shouldn't prevent the parent package
+                // from building, but also the embedded stub will not get
+                // its build requirement for "foo" pinned. It is impossible
+                // to "build" an embedded package anyway; build pkg
+                // requirements in an embedded package are basically
+                // meaningless.
+                RequirePkgInBuildEnv::No,
+            )?;
         }
 
         updated
@@ -679,7 +480,16 @@ impl Recipe for Spec<VersionIdent> {
         // by `build_env`. The digest is expected to be based solely on the
         // input options and recipe.
         let digest = self.build_digest(variant.input_variant())?;
-        let mut build = updated.map_ident(|i| i.into_build_ident(Build::BuildId(digest)));
+        let mut build = PackageSpec {
+            pkg: updated.pkg.into_build_ident(Build::BuildId(digest)),
+            meta: updated.meta,
+            compat: updated.compat,
+            deprecated: updated.deprecated,
+            build: updated.build,
+            install: updated.install.into(),
+            sources: updated.sources,
+            tests: updated.tests,
+        };
 
         // Expand env variables from EnvOp.
         let mut updated_ops = EnvOpList::default();
@@ -698,92 +508,7 @@ impl Recipe for Spec<VersionIdent> {
     }
 }
 
-impl Satisfy<PkgRequest> for Spec<BuildIdent> {
-    fn check_satisfies_request(&self, pkg_request: &PkgRequest) -> Compatibility {
-        if pkg_request.pkg.name != *self.pkg.name() {
-            return Compatibility::Incompatible(IncompatibleReason::PackageNameMismatch(
-                PackageNameProblem::PkgRequest {
-                    self_name: self.pkg.name().to_owned(),
-                    other_name: pkg_request.pkg.name.clone(),
-                },
-            ));
-        }
-
-        if self.is_deprecated() {
-            // deprecated builds are only okay if their build
-            // was specifically requested
-            if pkg_request.pkg.build.as_ref() != Some(self.pkg.build()) {
-                return Compatibility::Incompatible(IncompatibleReason::BuildDeprecated);
-            }
-        }
-
-        if (pkg_request.prerelease_policy.is_none()
-            || pkg_request.prerelease_policy == Some(PreReleasePolicy::ExcludeAll))
-            && !self.version().pre.is_empty()
-        {
-            return Compatibility::Incompatible(IncompatibleReason::PrereleasesNotAllowed);
-        }
-
-        let source_package_requested = pkg_request.pkg.build == Some(Build::Source);
-        let is_source_build = Package::ident(self).is_source() && !source_package_requested;
-        if !pkg_request.pkg.components.is_empty() && !is_source_build {
-            let required_components = self
-                .components()
-                .resolve_uses(pkg_request.pkg.components.iter());
-            let available_components: BTreeSet<_> = self
-                .install
-                .components
-                .iter()
-                .map(|c| c.name.clone())
-                .collect();
-            let missing_components = required_components
-                .difference(&available_components)
-                .sorted()
-                .collect_vec();
-            if !missing_components.is_empty() {
-                return Compatibility::Incompatible(IncompatibleReason::ComponentsMissing(
-                    ComponentsMissingProblem::ComponentsNotDefined {
-                        missing: CommaSeparated(
-                            missing_components
-                                .into_iter()
-                                .map(Component::to_string)
-                                .collect(),
-                        ),
-                        available: CommaSeparated(
-                            available_components
-                                .into_iter()
-                                .map(|c| c.to_string())
-                                .collect(),
-                        ),
-                    },
-                ));
-            }
-        }
-
-        let c = pkg_request
-            .pkg
-            .version
-            .is_satisfied_by(self, CompatRule::Binary);
-        if !c.is_ok() {
-            return c;
-        }
-
-        if pkg_request.pkg.build.is_none()
-            || pkg_request.pkg.build.as_ref() == Some(self.pkg.build())
-        {
-            return Compatibility::Compatible;
-        }
-
-        Compatibility::Incompatible(IncompatibleReason::BuildIdMismatch(
-            BuildIdProblem::PkgRequest {
-                self_build: self.pkg.build().clone(),
-                requested: pkg_request.pkg.build.clone(),
-            },
-        ))
-    }
-}
-
-impl<Ident> Satisfy<VarRequest> for Spec<Ident>
+impl Satisfy<VarRequest> for RecipeSpec
 where
     Self: Named,
 {
@@ -872,10 +597,7 @@ where
     }
 }
 
-impl<'de> Deserialize<'de> for Spec<VersionIdent>
-where
-    VersionIdent: serde::de::DeserializeOwned,
-{
+impl<'de> Deserialize<'de> for RecipeSpec {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::de::Deserializer<'de>,
@@ -884,58 +606,19 @@ where
     }
 }
 
-impl<'de> Deserialize<'de> for Spec<AnyIdent>
-where
-    AnyIdent: serde::de::DeserializeOwned,
-{
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::de::Deserializer<'de>,
-    {
-        let mut spec = deserializer.deserialize_map(SpecVisitor::default())?;
-        if spec.pkg.is_source() {
-            // for backward-compatibility with older publishes, prune out anything
-            // that is not relevant to a source package, since now source packages
-            // can technically have their own requirements, etc.
-            spec.prune_for_source_build();
-        }
-        Ok(spec)
-    }
-}
-
-impl<'de> Deserialize<'de> for Spec<BuildIdent>
-where
-    BuildIdent: serde::de::DeserializeOwned,
-{
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::de::Deserializer<'de>,
-    {
-        let mut spec = deserializer.deserialize_map(SpecVisitor::package())?;
-        if spec.pkg.is_source() {
-            // for backward-compatibility with older publishes, prune out anything
-            // that is not relevant to a source package, since now source packages
-            // can technically have their own requirements, etc.
-            spec.prune_for_source_build();
-        }
-
-        Ok(spec)
-    }
-}
-
-struct SpecVisitor<B, T> {
-    pkg: Option<Ident<B, T>>,
+struct SpecVisitor {
+    pkg: Option<VersionIdent>,
     meta: Option<Meta>,
     compat: Option<Compat>,
     deprecated: Option<bool>,
     sources: Option<Vec<SourceSpec>>,
     build: Option<UncheckedBuildSpec>,
     tests: Option<Vec<TestSpec>>,
-    install: Option<InstallSpec>,
+    install: Option<RecipeInstallSpec>,
     check_build_spec: bool,
 }
 
-impl<B, T> SpecVisitor<B, T> {
+impl SpecVisitor {
     #[inline]
     pub fn with_check_build_spec(check_build_spec: bool) -> Self {
         Self {
@@ -952,36 +635,24 @@ impl<B, T> SpecVisitor<B, T> {
     }
 }
 
-impl<B, T> Default for SpecVisitor<B, T> {
+impl Default for SpecVisitor {
     #[inline]
     fn default() -> Self {
         Self::with_check_build_spec(true)
     }
 }
 
-impl SpecVisitor<PkgNameBuf, Version> {
+impl SpecVisitor {
     pub fn recipe() -> Self {
         Self::default()
     }
 }
 
-impl SpecVisitor<VersionIdent, Build> {
-    #[allow(clippy::field_reassign_with_default)]
-    pub fn package() -> Self {
-        // if the build is set, we assume that this is a rendered spec and we do
-        // not want to make an existing rendered build spec unloadable
-        Self::with_check_build_spec(false)
-    }
-}
-
-impl<'de, B, T> serde::de::Visitor<'de> for SpecVisitor<B, T>
-where
-    Ident<B, T>: spk_schema_foundation::ident::AsVersionIdent + Named + serde::de::DeserializeOwned,
-{
-    type Value = Spec<Ident<B, T>>;
+impl<'de> serde::de::Visitor<'de> for SpecVisitor {
+    type Value = RecipeSpec;
 
     fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_str("a package specification")
+        f.write_str("a package recipe specification")
     }
 
     fn visit_map<A>(mut self, mut map: A) -> std::result::Result<Self::Value, A::Error>
@@ -990,14 +661,14 @@ where
     {
         while let Some(key) = map.next_key::<Stringified>()? {
             match key.as_str() {
-                "pkg" => self.pkg = Some(map.next_value::<Ident<B, T>>()?),
+                "pkg" => self.pkg = Some(map.next_value::<VersionIdent>()?),
                 "meta" => self.meta = Some(map.next_value::<Meta>()?),
                 "compat" => self.compat = Some(map.next_value::<Compat>()?),
                 "deprecated" => self.deprecated = Some(map.next_value::<bool>()?),
                 "sources" => self.sources = Some(map.next_value::<Vec<SourceSpec>>()?),
                 "build" => self.build = Some(map.next_value::<UncheckedBuildSpec>()?),
                 "tests" => self.tests = Some(map.next_value::<Vec<TestSpec>>()?),
-                "install" => self.install = Some(map.next_value::<InstallSpec>()?),
+                "install" => self.install = Some(map.next_value::<RecipeInstallSpec>()?),
                 _ => {
                     // ignore any unrecognized field, but consume the value anyway
                     // TODO: could we warn about fields that look like typos?
@@ -1017,7 +688,7 @@ where
             test.add_requester(pkg.as_version_ident());
         }
 
-        Ok(Spec {
+        Ok(RecipeSpec {
             meta: self.meta.take().unwrap_or_default(),
             compat: self.compat.take().unwrap_or_default(),
             deprecated: self.deprecated.take().unwrap_or_default(),
@@ -1037,5 +708,26 @@ where
             install: self.install.take().unwrap_or_default(),
             pkg,
         })
+    }
+}
+
+/// Convert from a PackageSpec to a RecipeSpec.
+///
+/// This conversion direction does not make sense in general but tests make use
+/// of `make_repo!` to create source packages, and a recipe must be derived from
+/// the package spec. The lossy nature of this conversion is acceptable for
+/// tests.
+impl From<PackageSpec> for RecipeSpec {
+    fn from(pkg: PackageSpec) -> Self {
+        Self {
+            pkg: pkg.pkg.as_version_ident().clone(),
+            meta: pkg.meta,
+            compat: pkg.compat,
+            deprecated: pkg.deprecated,
+            sources: pkg.sources,
+            build: pkg.build,
+            tests: pkg.tests,
+            install: pkg.install.into(),
+        }
     }
 }

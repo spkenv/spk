@@ -39,7 +39,17 @@ use spk_schema::ident_component::Component;
 use spk_schema::name::{OptNameBuf, PkgNameBuf};
 use spk_schema::prelude::{HasVersion, Named};
 use spk_schema::version_range::{DoubleEqualsVersion, Ranged, VersionFilter, parse_version_range};
-use spk_schema::{BuildIdent, Deprecate, Opt, Package, Recipe, Request, Spec, VersionIdent};
+use spk_schema::{
+    BuildIdent,
+    Components,
+    Deprecate,
+    Opt,
+    Package,
+    Recipe,
+    Request,
+    Spec,
+    VersionIdent,
+};
 use spk_solve_package_iterator::{BuildKey, BuildToSortedOptName, SortedBuildIterator};
 use spk_storage::RepositoryHandle;
 use tracing::{Instrument, debug_span};
@@ -1037,7 +1047,10 @@ impl DependencyProvider for SpkProvider {
                                 .read_package(located_build_ident_with_component.ident.target())
                                 .await
                             {
-                                if var_request.is_satisfied_by(&package).is_ok() ^ inverse {
+                                let satisfied = var_request.is_satisfied_by(&package);
+                                tracing::trace!(%var_request, package = %package.ident(), %satisfied, %inverse, "is_satisfied_by");
+
+                                if satisfied.is_ok() ^ inverse {
                                     selected.push(*candidate);
                                 }
                             } else if inverse {

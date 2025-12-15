@@ -16,6 +16,8 @@ workspace = true
 migration-to-components = []
 
 [dependencies]
+serde = { workspace = true }
 serde_json = { workspace = true }
 spfs = { workspace = true }
 spk-schema = { workspace = true }
+spk-solve-solution = { workspace = true }

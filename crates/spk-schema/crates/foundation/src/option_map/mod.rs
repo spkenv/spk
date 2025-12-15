@@ -253,8 +253,22 @@ impl OptionMap {
     pub fn to_environment(&self) -> HashMap<String, String> {
         let mut out = HashMap::default();
         for (name, value) in self.iter() {
-            let var_name = format!("SPK_OPT_{}", name.env_name());
-            out.insert(var_name, value.into());
+            if let Some(namespace) = name.namespace() {
+                let var_name = format!(
+                    "SPK_PKG_{}_OPT_{}",
+                    namespace.env_name(),
+                    name.without_namespace().env_name()
+                );
+                out.insert(var_name, value.into());
+
+                // Also insert in the original format for compatibility,
+                // to be removed in a future release.
+                let var_name = format!("SPK_OPT_{}", name.env_name());
+                out.insert(var_name, value.into());
+            } else {
+                let var_name = format!("SPK_OPT_{}", name.env_name());
+                out.insert(var_name, value.into());
+            }
         }
         out
     }
@@ -290,7 +304,10 @@ impl OptionMap {
     pub fn clean_environment(env: &mut HashMap<String, String>) {
         let to_remove = env
             .keys()
-            .filter(|name| name.starts_with("SPK_OPT_"))
+            .filter(|name| {
+                name.starts_with("SPK_OPT_")
+                    || (name.starts_with("SPK_PKG_") && name.contains("_OPT_"))
+            })
             .map(|k| k.to_owned())
             .collect_vec();
         for name in to_remove.into_iter() {
