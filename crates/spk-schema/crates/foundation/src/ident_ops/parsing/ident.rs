@@ -21,8 +21,11 @@ use crate::ident_build::parsing::build;
 use crate::ident_component::Component;
 use crate::name::RepositoryName;
 use crate::name::parsing::package_name;
+use crate::version::Version;
 use crate::version::parsing::version_str;
 
+// This type should _not_ derive Eq because `version_str` is not guaranteed to
+// be normalized.
 #[derive(Debug)]
 pub struct IdentParts<'s> {
     pub repository_name: Option<&'s str>,
@@ -31,22 +34,49 @@ pub struct IdentParts<'s> {
     pub build_str: Option<&'s str>,
 }
 
+/// A version string that is normalized.
+///
+/// A normalized version string is required for equality comparisons.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct NormalizedVersionString(String);
+
+impl NormalizedVersionString {
+    /// Access to the inner string.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for NormalizedVersionString {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl From<&Version> for NormalizedVersionString {
+    fn from(version: &Version) -> Self {
+        NormalizedVersionString(version.to_storage_string())
+    }
+}
+
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct IdentPartsBuf {
     pub repository_name: Option<String>,
     pub pkg_name: String,
-    pub version_str: Option<String>,
+    pub version_str: Option<NormalizedVersionString>,
     pub build_str: Option<String>,
 }
 
 impl IdentParts<'_> {
-    pub fn to_owned(&self) -> IdentPartsBuf {
-        IdentPartsBuf {
+    pub fn to_owned(&self) -> crate::version::Result<IdentPartsBuf> {
+        let version: Option<Version> = self.version_str.map(|s| s.parse()).transpose()?;
+
+        Ok(IdentPartsBuf {
             repository_name: self.repository_name.map(|o| o.to_owned()),
             pkg_name: self.pkg_name.to_owned(),
-            version_str: self.version_str.map(|o| o.to_owned()),
+            version_str: version.as_ref().map(Into::into),
             build_str: self.build_str.map(|o| o.to_owned()),
-        }
+        })
     }
 }
 

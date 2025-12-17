@@ -203,7 +203,7 @@ impl TryFrom<&IdentPartsBuf> for AnyIdent {
         let version = parts
             .version_str
             .as_ref()
-            .map(|v| v.parse::<Version>())
+            .map(|v| v.as_str().parse::<Version>())
             .transpose()?
             .unwrap_or_default();
         let build = parts
@@ -221,7 +221,7 @@ impl From<&AnyIdent> for IdentPartsBuf {
         IdentPartsBuf {
             repository_name: None,
             pkg_name: ident.name().to_string(),
-            version_str: Some(ident.version().to_string()),
+            version_str: Some(ident.version().into()),
             build_str: ident.build().map(|b| b.to_string()),
         }
     }
@@ -244,7 +244,10 @@ impl PartialEq<&AnyIdent> for IdentPartsBuf {
     fn eq(&self, other: &&AnyIdent) -> bool {
         self.repository_name.is_none()
             && self.pkg_name == other.name().as_str()
-            && self.version_str == Some(other.version().to_string())
+            && self
+                .version_str
+                .as_ref()
+                .is_some_and(|s| *s == other.version().into())
             && self.build_str == other.build().map(|b| b.to_string())
     }
 }

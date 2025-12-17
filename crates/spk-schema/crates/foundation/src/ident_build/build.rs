@@ -63,7 +63,7 @@ impl EmbeddedSourcePackage {
             repository_name: None,
             name: self.ident.pkg_name.parse()?,
             version: VersionFilter::single(VersionRange::DoubleEquals(DoubleEqualsVersion::from(
-                version_str.parse::<Version>()?,
+                version_str.as_str().parse::<Version>()?,
             ))),
             components: self.components.clone(),
             build: Some(build_str.parse()?),

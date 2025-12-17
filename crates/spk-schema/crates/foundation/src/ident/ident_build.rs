@@ -59,7 +59,7 @@ impl TryFrom<EmbeddedSourcePackage> for BuildIdent {
             };
         };
         Ok(Self::new(
-            VersionIdent::new(pkg_name.try_into()?, version.try_into()?),
+            VersionIdent::new(pkg_name.try_into()?, version.as_str().try_into()?),
             build.try_into()?,
         ))
     }
@@ -198,7 +198,7 @@ impl TryFrom<&IdentPartsBuf> for BuildIdent {
         let version = parts
             .version_str
             .as_ref()
-            .map(|v| v.parse::<Version>())
+            .map(|v| v.as_str().parse::<Version>())
             .transpose()?
             .unwrap_or_default();
         let build = parts
@@ -238,7 +238,7 @@ impl From<&BuildIdent> for IdentPartsBuf {
         IdentPartsBuf {
             repository_name: None,
             pkg_name: ident.name().to_string(),
-            version_str: Some(ident.version().to_string()),
+            version_str: Some(ident.version().into()),
             build_str: Some(ident.build().to_string()),
         }
     }
@@ -248,7 +248,10 @@ impl PartialEq<&BuildIdent> for IdentPartsBuf {
     fn eq(&self, other: &&BuildIdent) -> bool {
         self.repository_name.is_none()
             && self.pkg_name == other.name().as_str()
-            && self.version_str == Some(other.version().to_string())
+            && self
+                .version_str
+                .as_ref()
+                .is_some_and(|s| *s == other.version().into())
             && self.build_str == Some(other.build().to_string())
     }
 }
