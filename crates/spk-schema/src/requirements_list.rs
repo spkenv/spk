@@ -2,20 +2,29 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet, btree_map};
 use std::fmt::Write;
 use std::marker::PhantomData;
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
-use spk_schema_foundation::ident::{PinPolicy, PinnableValue, PinnedRequest, VarRequest};
-use spk_schema_foundation::name::{OptName, PkgName};
+use spk_schema_foundation::ident::{
+    PinPolicy,
+    PinnableValue,
+    PinnedRequest,
+    PkgRequestOptionValue,
+    PkgRequestOptions,
+    PkgRequestWithOptions,
+    RequestWithOptions,
+    VarRequest,
+};
+use spk_schema_foundation::name::{OptName, OptNameBuf, PkgName};
 use spk_schema_foundation::spec_ops::{HasBuildIdent, Named};
 use spk_schema_foundation::version::{Compatibility, IncompatibleReason};
 
 use crate::foundation::option_map::OptionMap;
 use crate::ident::PinnableRequest;
-use crate::{Error, Result};
+use crate::{Error, Opt, Result};
 
 #[cfg(test)]
 #[path = "./requirements_list_test.rs"]
@@ -53,6 +62,20 @@ impl<R> RequirementsList<R> {
     /// Remove all requests from this list
     pub fn clear(&mut self) {
         self.0.clear()
+    }
+
+    /// Build a requirements list from a set of requests.
+    ///
+    /// # Safety
+    ///
+    /// This function does not deduplicate or validate the provided requests.
+    /// The caller must ensure that there are no duplicate requests with
+    /// the same name, or any incompatible requests.
+    unsafe fn from_iter_unchecked<I>(value: I) -> Self
+    where
+        I: IntoIterator<Item = R>,
+    {
+        Self(value.into_iter().collect())
     }
 }
 
@@ -342,6 +365,41 @@ impl RequirementsList<PinnedRequest> {
     }
 }
 
+impl RequirementsList<RequestWithOptions> {
+    /// Add a requirement in this list, or merge it in.
+    ///
+    /// If a request exists for the same name, it is updated with the
+    /// restrictions of this one. Otherwise the new request is
+    /// appended to the list. Returns the newly inserted or updated request.
+    pub fn insert_or_merge_with_options(&mut self, request: RequestWithOptions) -> Result<()> {
+        let name = request.name();
+        for existing in self.0.iter_mut() {
+            if existing.name() != name {
+                continue;
+            }
+            match (existing, &request) {
+                (RequestWithOptions::Pkg(existing), RequestWithOptions::Pkg(request)) => {
+                    if let incompatible @ Compatibility::Incompatible(_) =
+                        existing.restrict(request)
+                    {
+                        return Err(Error::String(format!(
+                            "Cannot insert requirement: {incompatible}"
+                        )));
+                    }
+                }
+                (existing, _) => {
+                    return Err(Error::String(format!(
+                        "Cannot insert requirement: one already exists and only pkg requests can be merged: {existing} + {request}"
+                    )));
+                }
+            }
+            return Ok(());
+        }
+        self.0.push(request);
+        Ok(())
+    }
+}
+
 impl<R> std::fmt::Display for RequirementsList<R>
 where
     R: std::fmt::Display,
@@ -416,4 +474,152 @@ impl From<RequirementsList<PinnedRequest>> for RequirementsList<PinnableRequest>
     fn from(value: RequirementsList<PinnedRequest>) -> Self {
         RequirementsList(value.0.into_iter().map(Into::into).collect())
     }
+}
+
+/// Helper trait when converting request types to provide the options in scope
+/// via different possible representations.
+pub trait AsOptNameAndValue {
+    /// If self can be converted into an option name and value, do so.
+    fn as_opt_name_and_value(&self) -> Option<(&OptName, String)>;
+}
+
+impl AsOptNameAndValue for &Opt {
+    fn as_opt_name_and_value(&self) -> Option<(&OptName, String)> {
+        let Opt::Var(var_opt) = self else {
+            return None;
+        };
+        let Some(value) = &var_opt.get_value(None) else {
+            return None;
+        };
+        Some((&var_opt.var, value.to_owned()))
+    }
+}
+
+impl AsOptNameAndValue for (&OptNameBuf, &String) {
+    fn as_opt_name_and_value(&self) -> Option<(&OptName, String)> {
+        Some((self.0.as_ref(), self.1.clone()))
+    }
+}
+
+impl AsOptNameAndValue for () {
+    fn as_opt_name_and_value(&self) -> Option<(&OptName, String)> {
+        None
+    }
+}
+
+/// Convert requirements list types.
+///
+/// This conversion is only valid if there are no additional options in scope.
+impl From<&RequirementsList<PinnedRequest>> for RequirementsList<RequestWithOptions> {
+    fn from(requirements: &RequirementsList<PinnedRequest>) -> Self {
+        (std::iter::empty::<()>(), requirements).into()
+    }
+}
+
+/// Convert requirements list types.
+///
+/// An additional iterable of options in scope is also considered.
+impl<I, OV> From<(I, &RequirementsList<PinnedRequest>)> for RequirementsList<RequestWithOptions>
+where
+    I: IntoIterator<Item = OV>,
+    OV: AsOptNameAndValue,
+{
+    fn from((options, requirements): (I, &RequirementsList<PinnedRequest>)) -> Self {
+        // Safety: `requirements` already upholds the invariants required,
+        // and this conversion will not introduce any invalid data.
+        unsafe {
+            RequirementsList::<RequestWithOptions>::from_iter_unchecked(
+                convert_requests_to_requests_with_options(
+                    options.into_iter().filter_map(|opt| {
+                        opt.as_opt_name_and_value()
+                            .map(|(name, value)| (name.to_owned(), value))
+                    }),
+                    || requirements.iter(),
+                ),
+            )
+        }
+    }
+}
+
+/// Convert an iterable of [`PinnedRequest`] into an iterator of
+/// [`RequestWithOptions`], considering the provided options in scope.
+///
+/// Since the iterable of [`PinnedRequest`] must be re-iterable, it is provided
+/// as a closure that returns an iterator each time it is called.
+pub fn convert_requests_to_requests_with_options<'i, O, ON, V, F, R>(
+    options: O,
+    requirements: F,
+) -> impl Iterator<Item = RequestWithOptions> + 'i
+where
+    O: IntoIterator<Item = (ON, V)>,
+    ON: AsRef<OptName> + 'i,
+    V: AsRef<str> + ToString + 'i,
+    F: Fn() -> R,
+    R: IntoIterator<Item = &'i PinnedRequest>,
+    <R as IntoIterator>::IntoIter: 'i,
+{
+    // Index the namespaced var requests.
+    let mut index = HashMap::<_, PkgRequestOptions>::new();
+
+    for (opt_name, value) in options.into_iter() {
+        let opt_name = opt_name.as_ref();
+        let Some(ns) = opt_name.namespace() else {
+            continue;
+        };
+        match index
+            .entry(ns.to_owned())
+            .or_default()
+            .entry(opt_name.to_owned())
+        {
+            btree_map::Entry::Vacant(e) => {
+                e.insert(PkgRequestOptionValue::Complete(value.to_string()));
+            }
+            btree_map::Entry::Occupied(e) => {
+                if e.get().value() != value.as_ref() {
+                    todo!(
+                        "conflicting var options for option namespace {}: {:?} vs {:?}",
+                        ns,
+                        e.get().value(),
+                        value.as_ref()
+                    );
+                }
+            }
+        }
+    }
+
+    for req in requirements().into_iter() {
+        let PinnedRequest::Var(var_req) = req else {
+            continue;
+        };
+        let Some(ns) = var_req.var.namespace() else {
+            continue;
+        };
+        match index
+            .entry(ns.to_owned())
+            .or_default()
+            .entry(var_req.var.clone())
+        {
+            btree_map::Entry::Vacant(e) => {
+                e.insert(PkgRequestOptionValue::Complete(var_req.value.to_string()));
+            }
+            btree_map::Entry::Occupied(e) => {
+                if e.get().value() != &*var_req.value {
+                    todo!(
+                        "conflicting var requirements for option namespace {}: {:?} vs {:?}",
+                        ns,
+                        e.get().value(),
+                        var_req.value
+                    );
+                }
+            }
+        }
+    }
+
+    requirements().into_iter().map(move |req| match req {
+        PinnedRequest::Pkg(pkg_req) => RequestWithOptions::Pkg(PkgRequestWithOptions {
+            pkg_request: pkg_req.clone(),
+            options: index.get(pkg_req.pkg.name()).cloned().unwrap_or_default(),
+        }),
+        PinnedRequest::Var(var_req) => RequestWithOptions::Var(var_req.clone()),
+    })
 }

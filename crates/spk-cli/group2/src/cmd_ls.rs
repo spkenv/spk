@@ -17,7 +17,7 @@ use spk_schema::foundation::ident_component::ComponentSet;
 use spk_schema::ident_component::Component;
 use spk_schema::name::OptNameBuf;
 use spk_schema::option_map::get_host_options_filters;
-use spk_schema::{Deprecate, OptionMap, Package, Spec, VersionIdent};
+use spk_schema::{Deprecate, OptionMap, OptionValues, Package, Spec, VersionIdent};
 use spk_storage::RepoWalker;
 use spk_storage::walker::{DeprecationState, RepoWalkerBuilder, RepoWalkerItem, WalkedBuild};
 use {spk_config, spk_storage as storage};

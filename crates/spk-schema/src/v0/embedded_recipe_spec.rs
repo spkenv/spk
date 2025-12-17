@@ -4,8 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
-use spk_schema_foundation::ident::{AsVersionIdent, PinnableRequest, VersionIdent};
-use spk_schema_foundation::ident_build::{Build, EmbeddedSource};
+use spk_schema_foundation::ident::{AsVersionIdent, VersionIdent};
 use spk_schema_foundation::option_map::OptionMap;
 use spk_schema_foundation::spec_ops::HasBuildIdent;
 
@@ -15,15 +14,14 @@ use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Version};
 use crate::ident::is_false;
 use crate::metadata::Meta;
-use crate::v0::{EmbeddedBuildSpec, EmbeddedInstallSpec, EmbeddedPackageSpec};
+use crate::v0::{EmbeddedBuildSpec, EmbeddedPackageSpec, EmbeddedRecipeInstallSpec};
 use crate::{
     ComponentSpecList,
     Components,
     Deprecate,
     DeprecateMut,
-    EnvOp,
+    RecipeComponentSpec,
     Result,
-    RuntimeEnvironment,
     SourceSpec,
 };
 
@@ -52,10 +50,22 @@ pub struct EmbeddedRecipeSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tests: Vec<TestSpec>,
     #[serde(default, skip_serializing_if = "IsDefault::is_default")]
-    pub install: EmbeddedInstallSpec<PinnableRequest>,
+    pub install: EmbeddedRecipeInstallSpec,
 }
 
 impl EmbeddedRecipeSpec {
+    /// Read-only access to the build spec
+    #[inline]
+    pub fn build(&self) -> &EmbeddedBuildSpec {
+        &self.build
+    }
+
+    /// Read-only access to the install spec
+    #[inline]
+    pub fn install(&self) -> &EmbeddedRecipeInstallSpec {
+        &self.install
+    }
+
     pub fn render_all_pins<K, R>(
         self,
         options: &OptionMap,
@@ -66,18 +76,7 @@ impl EmbeddedRecipeSpec {
         K: std::borrow::Borrow<PkgName>,
         R: HasBuildIdent + Versioned,
     {
-        Ok(EmbeddedPackageSpec {
-            pkg: self
-                .pkg
-                .into_build_ident(Build::Embedded(EmbeddedSource::Unknown)),
-            meta: self.meta,
-            compat: self.compat,
-            deprecated: self.deprecated,
-            sources: self.sources,
-            build: self.build.render_all_pins(options, resolved_by_name)?,
-            tests: self.tests,
-            install: self.install.render_all_pins(options, resolved_by_name)?,
-        })
+        EmbeddedPackageSpec::new_binary_package_from_recipe(self, options, resolved_by_name)
     }
 }
 
@@ -88,9 +87,9 @@ impl AsVersionIdent for EmbeddedRecipeSpec {
 }
 
 impl Components for EmbeddedRecipeSpec {
-    type Request = PinnableRequest;
+    type ComponentSpecT = RecipeComponentSpec;
 
-    fn components(&self) -> &ComponentSpecList<Self::Request> {
+    fn components(&self) -> &ComponentSpecList<Self::ComponentSpecT> {
         &self.install.components
     }
 }
@@ -125,12 +124,6 @@ impl Named for EmbeddedRecipeSpec {
     }
 }
 
-impl RuntimeEnvironment for EmbeddedRecipeSpec {
-    fn runtime_environment(&self) -> &[EnvOp] {
-        &self.install.environment
-    }
-}
-
 impl Versioned for EmbeddedRecipeSpec {
     fn compat(&self) -> &Compat {
         &self.compat
@@ -140,14 +133,14 @@ impl Versioned for EmbeddedRecipeSpec {
 impl From<EmbeddedPackageSpec> for EmbeddedRecipeSpec {
     fn from(pkg_spec: EmbeddedPackageSpec) -> Self {
         Self {
+            build: pkg_spec.build().clone(),
+            install: pkg_spec.install().clone().into(),
             pkg: pkg_spec.pkg.as_version_ident().clone(),
             meta: pkg_spec.meta,
             compat: pkg_spec.compat,
             deprecated: pkg_spec.deprecated,
             sources: pkg_spec.sources,
-            build: pkg_spec.build,
             tests: pkg_spec.tests,
-            install: pkg_spec.install.into(),
         }
     }
 }

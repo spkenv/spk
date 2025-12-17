@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use std::fmt::Write;
 
 use spk_schema_foundation::format::FormatOptionMap;
-use spk_schema_foundation::ident::PinnedRequest;
+use spk_schema_foundation::ident::{PinnedRequest, RequestWithOptions};
 use spk_schema_foundation::option_map::{HOST_OPTIONS, OptionMap};
 
 use crate::{RequirementsList, Result};
@@ -23,6 +23,10 @@ pub trait Variant {
 
     /// Additional requirements for this variant
     fn additional_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>>;
+
+    /// Additional requirements with options for this variant
+    fn additional_requirements_with_options(&self)
+    -> Cow<'_, RequirementsList<RequestWithOptions>>;
 }
 
 impl Variant for OptionMap {
@@ -32,6 +36,12 @@ impl Variant for OptionMap {
 
     fn additional_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>> {
         Cow::Owned(RequirementsList::default())
+    }
+
+    fn additional_requirements_with_options(
+        &self,
+    ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
+        Cow::Owned(RequirementsList::<RequestWithOptions>::default())
     }
 }
 
@@ -49,6 +59,12 @@ where
 
     fn additional_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>> {
         (**self).additional_requirements()
+    }
+
+    fn additional_requirements_with_options(
+        &self,
+    ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
+        (**self).additional_requirements_with_options()
     }
 }
 
@@ -108,6 +124,12 @@ where
 
     fn additional_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>> {
         self.inner.additional_requirements()
+    }
+
+    fn additional_requirements_with_options(
+        &self,
+    ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
+        self.inner.additional_requirements_with_options()
     }
 }
 

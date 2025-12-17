@@ -518,20 +518,26 @@ impl Storage for SpfsRepository {
             Spec::from_yaml(&yaml)
                 .map(|spec| match spec {
                     Spec::V0Package(mut spec) => {
-                        for opt in spec.build.options.iter_mut() {
-                            let Opt::Var(var_opt) = opt else {
-                                continue;
-                            };
-                            var_opt.pin_with_default()
-                        }
-                        for embedded in spec.install.embedded.iter_mut() {
-                            for opt in embedded.build.options.iter_mut() {
+                        spec.build_mut(|build| {
+                            for opt in build.options.iter_mut() {
                                 let Opt::Var(var_opt) = opt else {
                                     continue;
                                 };
                                 var_opt.pin_with_default()
                             }
-                        }
+                        });
+                        spec.install_mut(|install| {
+                            for embedded in install.embedded.iter_mut() {
+                                embedded.build_mut(|build| {
+                                    for opt in build.options.iter_mut() {
+                                        let Opt::Var(var_opt) = opt else {
+                                            continue;
+                                        };
+                                        var_opt.pin_with_default()
+                                    }
+                                });
+                            }
+                        });
                         Spec::V0Package(spec)
                     }
                 })
@@ -788,12 +794,14 @@ impl crate::Repository for SpfsRepository {
             Spec::from_yaml(yaml)
                 .map(|spec| match spec {
                     Spec::V0Package(mut spec) => {
-                        for opt in spec.build.options.iter_mut() {
-                            let Opt::Var(var_opt) = opt else {
-                                continue;
-                            };
-                            var_opt.pin_with_default()
-                        }
+                        spec.build_mut(|build| {
+                            for opt in build.options.iter_mut() {
+                                let Opt::Var(var_opt) = opt else {
+                                    continue;
+                                };
+                                var_opt.pin_with_default()
+                            }
+                        });
                         Spec::V0Package(spec)
                     }
                 })

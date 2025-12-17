@@ -250,6 +250,8 @@ pub enum VarOptionProblem {
         request_value: String,
         context: Box<IncompatibleReason>,
     },
+    #[strum(to_string = "required build option is missing: '{opt_name}'")]
+    RequiredButMissing { opt_name: OptNameBuf },
 }
 
 impl IsSameReasonAs for VarOptionProblem {

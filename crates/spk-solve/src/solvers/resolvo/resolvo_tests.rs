@@ -6,7 +6,7 @@ use std::borrow::Cow;
 
 use rstest::rstest;
 use spk_schema::prelude::HasVersion;
-use spk_schema::{Package, opt_name};
+use spk_schema::{OptionValues, opt_name};
 use spk_solve_macros::{make_repo, pinned_request};
 use tap::TapFallible;
 

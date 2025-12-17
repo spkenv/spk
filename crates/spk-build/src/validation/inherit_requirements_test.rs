@@ -7,7 +7,7 @@ use std::sync::Arc;
 use spfs::tracking::Manifest;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::option_map;
-use spk_schema::ident::PkgRequest;
+use spk_schema::ident::PkgRequestWithOptions;
 use spk_schema::validation::ValidationMatcher;
 use spk_schema::{Package, PinnableRequest, ValidationRule, spec};
 use spk_solve::{RequestedBy, Solution};
@@ -39,7 +39,10 @@ async fn test_build_package_downstream_build_requests() {
 
     let mut environment = Solution::default();
     environment.add(
-        PkgRequest::from_ident(base_spec.ident().to_any_ident(), RequestedBy::DoesNotMatter),
+        PkgRequestWithOptions::from_ident(
+            base_spec.ident().to_any_ident(),
+            RequestedBy::DoesNotMatter,
+        ),
         base_spec.clone(),
         spk_solve::PackageSource::SpkInternalTest,
     );
@@ -107,7 +110,10 @@ async fn test_build_package_downstream_runtime_request() {
 
     let mut environment = Solution::default();
     environment.add(
-        PkgRequest::from_ident(base_spec.ident().to_any_ident(), RequestedBy::DoesNotMatter),
+        PkgRequestWithOptions::from_ident(
+            base_spec.ident().to_any_ident(),
+            RequestedBy::DoesNotMatter,
+        ),
         base_spec.clone(),
         spk_solve::PackageSource::SpkInternalTest,
     );

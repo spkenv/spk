@@ -6,25 +6,43 @@ use std::borrow::Cow;
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
-use spk_schema_foundation::ident::{AsVersionIdent, BuildIdent, PinnedRequest, VersionIdent};
+use spk_schema_foundation::ident::{
+    AsVersionIdent,
+    BuildIdent,
+    PkgRequestWithOptions,
+    RequestWithOptions,
+    Satisfy,
+    VersionIdent,
+    is_false,
+};
+use spk_schema_foundation::ident_build::EmbeddedSource;
+use spk_schema_foundation::name::{OptName, OptNameBuf};
+use spk_schema_foundation::option_map::OptionMap;
+use spk_schema_foundation::spec_ops::HasBuildIdent;
+use spk_schema_foundation::version::{Compat, Compatibility, Version};
 
 use super::TestSpec;
 use crate::foundation::ident_build::Build;
 use crate::foundation::name::PkgName;
 use crate::foundation::spec_ops::prelude::*;
-use crate::foundation::version::{Compat, Compatibility, Version};
-use crate::ident::{PkgRequest, Satisfy, is_false};
 use crate::metadata::Meta;
-use crate::v0::{EmbeddedBuildSpec, EmbeddedInstallSpec, check_package_spec_satisfies_pkg_request};
+use crate::package::{BuildOptions, OptionValues};
+use crate::requirements_list::AsOptNameAndValue;
+use crate::v0::{
+    EmbeddedBuildSpec,
+    EmbeddedInstallSpec,
+    EmbeddedRecipeSpec,
+    check_package_spec_satisfies_pkg_request,
+};
 use crate::{
+    ComponentSpec,
     ComponentSpecList,
     Components,
     Deprecate,
     DeprecateMut,
-    EnvOp,
     Opt,
+    RequirementsList,
     Result,
-    RuntimeEnvironment,
     SourceSpec,
 };
 
@@ -47,12 +65,22 @@ pub struct EmbeddedPackageSpec {
     pub deprecated: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sources: Vec<SourceSpec>,
+    // This field is private to update `install_requirements_with_options`
+    // when it is modified.
     #[serde(default, skip_serializing_if = "EmbeddedBuildSpec::is_default")]
-    pub build: EmbeddedBuildSpec,
+    build: EmbeddedBuildSpec,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tests: Vec<TestSpec>,
+    // This field is private to update `install_requirements_with_options`
+    // when it is modified.
     #[serde(default, skip_serializing_if = "IsDefault::is_default")]
-    pub install: EmbeddedInstallSpec<PinnedRequest>,
+    install: EmbeddedInstallSpec,
+    /// Install requirements with options included.
+    ///
+    /// This value is not serialized; it is populated when loading or when build
+    /// or install are modified.
+    #[serde(skip)]
+    install_requirements_with_options: RequirementsList<RequestWithOptions>,
 }
 
 impl EmbeddedPackageSpec {
@@ -67,11 +95,96 @@ impl EmbeddedPackageSpec {
             build: EmbeddedBuildSpec::default(),
             tests: Vec::new(),
             install: EmbeddedInstallSpec::default(),
+            install_requirements_with_options: RequirementsList::default(),
         }
     }
 
-    pub fn build_options(&self) -> Cow<'_, [Opt]> {
-        Cow::Borrowed(self.build.options.as_slice())
+    /// Read-only access to the build spec
+    #[inline]
+    pub fn build(&self) -> &EmbeddedBuildSpec {
+        &self.build
+    }
+
+    /// Read-write access to the build spec
+    pub fn build_mut<F, R>(&mut self, f: F) -> R
+    where
+        F: FnOnce(&mut EmbeddedBuildSpec) -> R,
+    {
+        let r = f(&mut self.build);
+        self.install_requirements_with_options =
+            Self::calculate_install_requirements_with_options(&self.build, &self.install);
+        r
+    }
+
+    fn calculate_install_requirements_with_options(
+        build: &EmbeddedBuildSpec,
+        install: &EmbeddedInstallSpec,
+    ) -> RequirementsList<RequestWithOptions> {
+        (build.options.iter(), &install.requirements).into()
+    }
+
+    /// Read-only access to the install spec
+    #[inline]
+    pub fn install(&self) -> &EmbeddedInstallSpec {
+        &self.install
+    }
+
+    /// Read-only access to install requirements with options
+    #[inline]
+    pub fn install_requirements_with_options(&self) -> &RequirementsList<RequestWithOptions> {
+        &self.install_requirements_with_options
+    }
+
+    /// Create a binary package from the given recipe.
+    pub fn new_binary_package_from_recipe<K, R>(
+        recipe: EmbeddedRecipeSpec,
+        options: &OptionMap,
+        resolved_by_name: &std::collections::HashMap<K, R>,
+    ) -> Result<Self>
+    where
+        K: Eq + std::hash::Hash,
+        K: std::borrow::Borrow<PkgName>,
+        R: HasBuildIdent + Versioned,
+    {
+        let install = recipe.install.render_all_pins(options, resolved_by_name)?;
+
+        enum OptOrPair<'a> {
+            Opt(&'a Opt),
+            Pair((&'a OptNameBuf, &'a String)),
+        }
+
+        impl<'a> AsOptNameAndValue for OptOrPair<'a> {
+            fn as_opt_name_and_value(&self) -> Option<(&OptName, String)> {
+                match self {
+                    OptOrPair::Opt(opt) => (*opt).as_opt_name_and_value(),
+                    OptOrPair::Pair((name, value)) => Some((name, (*value).clone())),
+                }
+            }
+        }
+
+        Ok(Self {
+            pkg: recipe
+                .pkg
+                .into_build_ident(Build::Embedded(EmbeddedSource::Unknown)),
+            meta: recipe.meta,
+            compat: recipe.compat,
+            deprecated: recipe.deprecated,
+            sources: recipe.sources,
+            tests: recipe.tests,
+            install_requirements_with_options: (
+                // Override the recipe options with the context options
+                recipe
+                    .build
+                    .options
+                    .iter()
+                    .map(OptOrPair::Opt)
+                    .chain(options.iter().map(OptOrPair::Pair)),
+                &install.requirements,
+            )
+                .into(),
+            build: recipe.build.render_all_pins(options, resolved_by_name)?,
+            install,
+        })
     }
 }
 
@@ -87,10 +200,16 @@ impl AsVersionIdent for EmbeddedPackageSpec {
     }
 }
 
-impl Components for EmbeddedPackageSpec {
-    type Request = PinnedRequest;
+impl BuildOptions for EmbeddedPackageSpec {
+    fn build_options(&self) -> Cow<'_, [Opt]> {
+        Cow::Borrowed(&self.build.options)
+    }
+}
 
-    fn components(&self) -> &ComponentSpecList<Self::Request> {
+impl Components for EmbeddedPackageSpec {
+    type ComponentSpecT = ComponentSpec;
+
+    fn components(&self) -> &ComponentSpecList<Self::ComponentSpecT> {
         &self.install.components
     }
 }
@@ -131,9 +250,15 @@ impl Named for EmbeddedPackageSpec {
     }
 }
 
-impl RuntimeEnvironment for EmbeddedPackageSpec {
-    fn runtime_environment(&self) -> &[EnvOp] {
-        &self.install.environment
+impl OptionValues for EmbeddedPackageSpec {
+    fn option_values(&self) -> OptionMap {
+        let mut opts = OptionMap::default();
+        for opt in self.build.options.iter() {
+            // since this is an [Embedded]PackageSpec we can assume that this
+            // spec has had all of the options pinned/resolved.
+            opts.insert(opt.full_name().to_owned(), opt.get_value(None));
+        }
+        opts
     }
 }
 
@@ -143,8 +268,8 @@ impl Versioned for EmbeddedPackageSpec {
     }
 }
 
-impl Satisfy<PkgRequest> for EmbeddedPackageSpec {
-    fn check_satisfies_request(&self, pkg_request: &PkgRequest) -> Compatibility {
+impl Satisfy<PkgRequestWithOptions> for EmbeddedPackageSpec {
+    fn check_satisfies_request(&self, pkg_request: &PkgRequestWithOptions) -> Compatibility {
         check_package_spec_satisfies_pkg_request(self, pkg_request)
     }
 }

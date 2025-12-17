@@ -16,7 +16,7 @@ use spfs::tracking::{Entry, EntryKind};
 use spk_schema::foundation::format::{FormatIdent, FormatOptionMap};
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::prelude::*;
-use spk_schema::{Components, Spec};
+use spk_schema::{Components, OptionValues, Spec};
 use spk_solve::solution::{PackageSource, SPK_SOLVE_EXTRA_DATA_KEY, Solution};
 use spk_solve::{BuildIdent, RepositoryHandle};
 use spk_storage as storage;

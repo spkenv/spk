@@ -28,13 +28,15 @@ use spk_schema::ident::{
     PkgRequest,
     PreReleasePolicy,
     RangeIdent,
+    RequestWithOptions,
     RequestedBy,
     VersionIdent,
 };
+use spk_schema::spec_ops::ComponentFileMatchMode;
 use spk_schema::variant::Override;
 use spk_schema::{
     BuildIdent,
-    ComponentFileMatchMode,
+    ComponentSpec,
     ComponentSpecList,
     Components,
     InputVariant,
@@ -107,6 +109,13 @@ where
         &self,
     ) -> std::borrow::Cow<'_, spk_schema::RequirementsList<PinnedRequest>> {
         self.resolved_variant.additional_requirements()
+    }
+
+    #[inline]
+    fn additional_requirements_with_options(
+        &self,
+    ) -> std::borrow::Cow<'_, spk_schema::RequirementsList<RequestWithOptions>> {
+        self.resolved_variant.additional_requirements_with_options()
     }
 }
 
@@ -479,7 +488,10 @@ where
             self.solver.add_repository(repo);
         }
 
-        let build_requirements = self.recipe.get_build_requirements(variant)?.into_owned();
+        let build_requirements = self
+            .recipe
+            .get_build_requirements_with_options(variant)?
+            .into_owned();
         for request in build_requirements.iter().cloned() {
             self.solver.add_request(request);
         }
@@ -805,7 +817,7 @@ where
 fn split_manifest_by_component(
     pkg: &BuildIdent,
     manifest: &spfs::tracking::Manifest,
-    components: &ComponentSpecList<PinnedRequest>,
+    components: &ComponentSpecList<ComponentSpec>,
 ) -> Result<HashMap<Component, spfs::tracking::Manifest>> {
     let mut seen = HashSet::new();
     let mut manifests = HashMap::with_capacity(components.len());

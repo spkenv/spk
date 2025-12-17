@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use num_bigint::BigUint;
-use spk_schema::ident::PkgRequest;
+use spk_schema::ident::PkgRequestWithOptions;
 use spk_schema::name::PkgNameBuf;
 use spk_schema::{BuildIdent, Deprecate, Package, Spec, VersionIdent};
 use spk_solve_solution::Solution;
@@ -53,7 +53,7 @@ pub async fn show_search_space_stats(
     let solution_requests = solution
         .items()
         .map(|sr| (sr.request.pkg.name.clone(), sr.request.clone()))
-        .collect::<HashMap<PkgNameBuf, PkgRequest>>();
+        .collect::<HashMap<PkgNameBuf, PkgRequestWithOptions>>();
 
     display_search_space_stats(
         initial_requests,
@@ -122,7 +122,7 @@ fn display_search_space_stats(
     packages: &Vec<BuildIdent>,
     extracted_data: &Vec<Arc<Spec>>,
     verbosity: u8,
-    requests: &HashMap<PkgNameBuf, PkgRequest>,
+    requests: &HashMap<PkgNameBuf, PkgRequestWithOptions>,
 ) {
     let mut total_counters: HashMap<PkgNameBuf, u64> = HashMap::new();
     let mut counters: HashMap<PkgNameBuf, u64> = HashMap::new();
