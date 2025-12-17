@@ -22,11 +22,18 @@ use crate::ident_build::{Build, EmbeddedSourcePackage};
 use crate::ident_ops::parsing::IdentPartsBuf;
 use crate::ident_ops::{MetadataPath, TagPath};
 use crate::name::{PkgName, PkgNameBuf, RepositoryNameBuf};
+use crate::spec_ops::HasBuildIdent;
 use crate::spec_ops::prelude::*;
 use crate::version::Version;
 
 /// Identifies a specific package name, version and build
 pub type BuildIdent = Ident<VersionIdent, Build>;
+
+impl HasBuildIdent for BuildIdent {
+    fn build_ident(&self) -> &BuildIdent {
+        self
+    }
+}
 
 crate::ident::ident_version::version_ident_methods!(BuildIdent, .base);
 

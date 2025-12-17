@@ -5,7 +5,7 @@
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::ident::Request;
+use spk_schema_foundation::ident::PinnedRequest;
 
 const BUILD_NAME: &str = "build";
 const INSTALL_NAME: &str = "install";
@@ -17,7 +17,7 @@ const TEST_STAGES: &[&str] = &[BUILD_NAME, INSTALL_NAME, SOURCES_NAME];
 pub trait Test {
     fn script(&self) -> String;
 
-    fn additional_requirements(&self) -> Vec<Request> {
+    fn additional_requirements(&self) -> Vec<PinnedRequest> {
         Vec::new()
     }
 }

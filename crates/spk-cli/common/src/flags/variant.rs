@@ -11,7 +11,7 @@ use miette::{Result, miette};
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::name::OptNameBuf;
-use spk_schema::{Recipe, RequirementsList, SpecVariant, Variant as _, VariantExt};
+use spk_schema::{PinnedRequest, Recipe, RequirementsList, SpecVariant, Variant as _, VariantExt};
 
 use crate::Error;
 
@@ -115,6 +115,8 @@ enum VariantInfoIterState<'v, 'r> {
     Invalid,
 }
 
+type Enabled = HashMap<(OptionMap, RequirementsList<PinnedRequest>), VariantLocation>;
+
 struct VariantInfoIter<'v, 'r, 'o> {
     variant: &'v Variant,
     recipe: &'r spk_schema::SpecRecipe,
@@ -122,7 +124,7 @@ struct VariantInfoIter<'v, 'r, 'o> {
     options: &'o OptionMap,
     host_options: Option<&'o OptionMap>,
     host_option_keys: HashSet<&'o OptNameBuf>,
-    enabled: HashMap<(OptionMap, RequirementsList), VariantLocation>,
+    enabled: Enabled,
     state: VariantInfoIterState<'v, 'r>,
 }
 
@@ -130,33 +132,32 @@ impl<'r> Iterator for VariantInfoIter<'_, 'r, '_> {
     type Item = Result<VariantInfo<'r>>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let enabled_or_duplicate =
-            |v: Cow<'r, SpecVariant>,
-             enabled: &mut HashMap<(OptionMap, RequirementsList), VariantLocation>,
-             this_location: VariantLocation|
-             -> Result<VariantInfo<'r>> {
-                let variant_options = (*v)
-                    .clone()
-                    .with_overrides(self.options.clone())
-                    .options()
-                    .into_owned();
-                // Different additional requirements will make variants with
-                // the same options distinct.
-                let variant_additional_requirements = (*v).additional_requirements().into_owned();
-                match enabled.entry((variant_options, variant_additional_requirements)) {
-                    std::collections::hash_map::Entry::Occupied(entry) => Ok(VariantInfo {
+        let enabled_or_duplicate = |v: Cow<'r, SpecVariant>,
+                                    enabled: &mut Enabled,
+                                    this_location: VariantLocation|
+         -> Result<VariantInfo<'r>> {
+            let variant_options = (*v)
+                .clone()
+                .with_overrides(self.options.clone())
+                .options()
+                .into_owned();
+            // Different additional requirements will make variants with
+            // the same options distinct.
+            let variant_additional_requirements = (*v).additional_requirements().into_owned();
+            match enabled.entry((variant_options, variant_additional_requirements)) {
+                std::collections::hash_map::Entry::Occupied(entry) => Ok(VariantInfo {
+                    location: this_location,
+                    build_status: VariantBuildStatus::Duplicate(*entry.get()),
+                }),
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    entry.insert(this_location);
+                    Ok(VariantInfo {
                         location: this_location,
-                        build_status: VariantBuildStatus::Duplicate(*entry.get()),
-                    }),
-                    std::collections::hash_map::Entry::Vacant(entry) => {
-                        entry.insert(this_location);
-                        Ok(VariantInfo {
-                            location: this_location,
-                            build_status: VariantBuildStatus::Enabled(v),
-                        })
-                    }
+                        build_status: VariantBuildStatus::Enabled(v),
+                    })
                 }
-            };
+            }
+        };
 
         loop {
             match std::mem::take(&mut self.state) {

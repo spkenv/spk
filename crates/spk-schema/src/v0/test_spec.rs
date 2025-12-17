@@ -3,9 +3,8 @@
 // https://github.com/spkenv/spk
 
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::ident::{RequestedBy, VersionIdent};
+use spk_schema_foundation::ident::{PinnedRequest, RequestedBy, VersionIdent};
 
-use crate::ident::Request;
 use crate::{Script, TestStage};
 
 #[cfg(test)]
@@ -21,7 +20,7 @@ pub struct TestSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub selectors: Vec<super::VariantSpec>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub requirements: Vec<Request>,
+    pub requirements: Vec<PinnedRequest>,
 }
 
 impl TestSpec {
@@ -29,7 +28,7 @@ impl TestSpec {
     /// test spec.
     pub fn add_requester(&mut self, requester: &VersionIdent) {
         for requirement in self.requirements.iter_mut() {
-            if let Request::Pkg(pkg_request) = requirement {
+            if let PinnedRequest::Pkg(pkg_request) = requirement {
                 match self.stage {
                     TestStage::Sources => pkg_request
                         .add_requester(RequestedBy::SourceTest(requester.to_any_ident(None))),
@@ -49,7 +48,7 @@ impl crate::Test for TestSpec {
         self.script.join("\n")
     }
 
-    fn additional_requirements(&self) -> Vec<Request> {
+    fn additional_requirements(&self) -> Vec<PinnedRequest> {
         self.requirements.clone()
     }
 }

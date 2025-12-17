@@ -58,7 +58,8 @@ pub use spk_schema_foundation::ident::{
     self as ident,
     AnyIdent,
     BuildIdent,
-    Request,
+    PinnableRequest,
+    PinnedRequest,
     VersionIdent,
 };
 pub use spk_schema_foundation::option_map::{self, OptionMap};

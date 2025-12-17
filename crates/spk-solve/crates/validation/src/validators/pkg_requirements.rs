@@ -3,6 +3,7 @@
 // https://github.com/spkenv/spk
 
 use spk_schema::Components;
+use spk_schema::ident::PinnedRequest;
 use spk_schema::version::{
     CommaSeparated,
     ComponentsMissingProblem,
@@ -50,11 +51,11 @@ impl PkgRequirementsValidator {
     fn validate_request_against_existing_state(
         &self,
         state: &State,
-        request: &Request,
+        request: &PinnedRequest,
     ) -> crate::Result<Compatibility> {
         use Compatibility::Compatible;
         let request = match request {
-            Request::Pkg(request) => request,
+            PinnedRequest::Pkg(request) => request,
             _ => return Ok(Compatible),
         };
 

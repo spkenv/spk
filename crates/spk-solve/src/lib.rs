@@ -43,8 +43,8 @@ pub use spk_schema::foundation::spec_ops::{Named, Versioned};
 pub use spk_schema::ident::{
     AnyIdent,
     BuildIdent,
+    PinnableRequest,
     PkgRequest,
-    Request,
     RequestedBy,
     parse_ident_range,
 };

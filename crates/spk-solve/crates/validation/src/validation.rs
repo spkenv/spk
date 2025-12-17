@@ -4,7 +4,7 @@
 
 use enum_dispatch::enum_dispatch;
 use spk_schema::foundation::version::Compatibility;
-use spk_schema::ident::{AsVersionIdent, PkgRequest, Satisfy, VarRequest};
+use spk_schema::ident::{AsVersionIdent, PinnedValue, PkgRequest, Satisfy, VarRequest};
 use spk_schema::name::PkgName;
 use spk_schema::prelude::Named;
 use spk_schema::{Package, Recipe};
@@ -56,7 +56,7 @@ pub trait ValidatorT {
         source: &PackageSource,
     ) -> crate::Result<Compatibility>
     where
-        P: Satisfy<PkgRequest> + Satisfy<VarRequest> + Package,
+        P: Satisfy<PkgRequest> + Satisfy<VarRequest<PinnedValue>> + Package,
         <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequest>;
 
     /// Check if the given package is appropriate for the packages request data.

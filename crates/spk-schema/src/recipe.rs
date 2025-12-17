@@ -5,8 +5,9 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Arc;
 
-use spk_schema_foundation::ident::VersionIdent;
+use spk_schema_foundation::ident::{PinnedRequest, VersionIdent};
 
 use crate::foundation::ident_build::BuildId;
 use crate::foundation::option_map::OptionMap;
@@ -83,7 +84,12 @@ pub trait Recipe:
     ///
     /// This should also validate and include the items specified
     /// by [`Variant::additional_requirements`].
-    fn get_build_requirements<V>(&self, variant: &V) -> Result<Cow<'_, RequirementsList>>
+    ///
+    /// Any var requirements without a value are skipped.
+    fn get_build_requirements<V>(
+        &self,
+        variant: &V,
+    ) -> Result<Cow<'_, RequirementsList<PinnedRequest>>>
     where
         V: Variant;
 
@@ -96,7 +102,7 @@ pub trait Recipe:
     fn generate_source_build(&self, root: &Path) -> Result<Self::Output>;
 
     /// Create a new binary package from this recipe and the given parameters.
-    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
+    fn generate_binary_build<V, E, P>(self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
         V: InputVariant,
         E: BuildEnv<Package = P>,
@@ -136,7 +142,10 @@ where
         (**self).resolve_options(variant)
     }
 
-    fn get_build_requirements<V>(&self, variant: &V) -> Result<Cow<'_, RequirementsList>>
+    fn get_build_requirements<V>(
+        &self,
+        variant: &V,
+    ) -> Result<Cow<'_, RequirementsList<PinnedRequest>>>
     where
         V: Variant,
     {
@@ -154,13 +163,13 @@ where
         (**self).generate_source_build(root)
     }
 
-    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
+    fn generate_binary_build<V, E, P>(self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
         V: InputVariant,
         E: BuildEnv<Package = P>,
         P: Package,
     {
-        (**self).generate_binary_build(variant, build_env)
+        Arc::unwrap_or_clone(self).generate_binary_build(variant, build_env)
     }
 
     fn metadata(&self) -> &Meta {
@@ -198,7 +207,10 @@ where
         (**self).resolve_options(variant)
     }
 
-    fn get_build_requirements<V>(&self, variant: &V) -> Result<Cow<'_, RequirementsList>>
+    fn get_build_requirements<V>(
+        &self,
+        variant: &V,
+    ) -> Result<Cow<'_, RequirementsList<PinnedRequest>>>
     where
         V: Variant,
     {
@@ -216,13 +228,13 @@ where
         (**self).generate_source_build(root)
     }
 
-    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
+    fn generate_binary_build<V, E, P>(self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
         V: InputVariant,
         E: BuildEnv<Package = P>,
         P: Package,
     {
-        (**self).generate_binary_build(variant, build_env)
+        self.clone().generate_binary_build(variant, build_env)
     }
 
     fn metadata(&self) -> &Meta {

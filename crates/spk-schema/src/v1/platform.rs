@@ -11,9 +11,10 @@ use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::{
     InclusionPolicy,
     NameAndValue,
+    PinnableRequest,
+    PinnedRequest,
     PkgRequest,
     RangeIdent,
-    Request,
     RequestedBy,
     VarRequest,
     VersionIdent,
@@ -147,7 +148,10 @@ impl Recipe for Platform {
         Ok(OptionMap::default())
     }
 
-    fn get_build_requirements<V>(&self, variant: &V) -> Result<Cow<'_, RequirementsList>>
+    fn get_build_requirements<V>(
+        &self,
+        variant: &V,
+    ) -> Result<Cow<'_, RequirementsList<PinnedRequest>>>
     where
         V: Variant,
     {
@@ -155,7 +159,7 @@ impl Recipe for Platform {
         for base in self.base.iter() {
             let build_digest = self.build_digest(variant)?;
 
-            requirements.insert_or_replace(Request::Pkg(PkgRequest::from_ident(
+            requirements.insert_or_replace(PinnedRequest::Pkg(PkgRequest::from_ident(
                 base.clone().into_any_ident(None),
                 RequestedBy::BinaryBuild(self.ident().to_build_ident(Build::BuildId(build_digest))),
             )));
@@ -177,7 +181,7 @@ impl Recipe for Platform {
         ))
     }
 
-    fn generate_binary_build<V, E, P>(&self, variant: &V, build_env: &E) -> Result<Self::Output>
+    fn generate_binary_build<V, E, P>(self, variant: &V, build_env: &E) -> Result<Self::Output>
     where
         V: InputVariant,
         E: BuildEnv<Package = P>,
@@ -194,9 +198,9 @@ impl Recipe for Platform {
 
         // Translate the platform spec into a "normal" recipe and delegate to
         // that recipe's generate_binary_build method.
-        let mut spec = crate::v0::RecipeSpec::new(platform.clone());
-        spec.compat = compat.clone();
-        spec.meta = meta.clone();
+        let mut spec = crate::v0::RecipeSpec::new(platform);
+        spec.compat = compat;
+        spec.meta = meta;
 
         // Platforms have no sources
         spec.sources = Vec::new();
@@ -248,7 +252,7 @@ impl Recipe for Platform {
 }
 
 fn apply_inherit_from_base_component(
-    cmpt: &mut ComponentSpec,
+    cmpt: &mut ComponentSpec<PinnableRequest>,
     inherit: Component,
     base: impl Package,
 ) {
@@ -342,7 +346,7 @@ impl PlatformPkgRequirement {
             Some(Override::Replace(v)) => {
                 build_component
                     .requirements
-                    .insert_or_replace(Request::Pkg(PkgRequest {
+                    .insert_or_replace(PinnableRequest::Pkg(PkgRequest {
                         pkg: RangeIdent {
                             repository_name: None,
                             name: self.pkg.name().to_owned(),
@@ -370,7 +374,7 @@ impl PlatformPkgRequirement {
             Some(Override::Replace(v)) => {
                 runtime_component
                     .requirements
-                    .insert_or_replace(Request::Pkg(PkgRequest {
+                    .insert_or_replace(PinnableRequest::Pkg(PkgRequest {
                         pkg: RangeIdent {
                             repository_name: None,
                             name: self.pkg.name().to_owned(),
@@ -441,7 +445,7 @@ impl PlatformVarRequirement {
             Some(Override::Replace(v)) => {
                 build_component
                     .requirements
-                    .insert_or_replace(Request::Var(VarRequest {
+                    .insert_or_replace(PinnableRequest::Var(VarRequest {
                         var: self.var.0.clone(),
                         value: spk_schema_foundation::ident::PinnableValue::Pinned(Arc::from(
                             v.as_str(),
@@ -461,7 +465,7 @@ impl PlatformVarRequirement {
             Some(Override::Replace(v)) => {
                 runtime_component
                     .requirements
-                    .insert_or_replace(Request::Var(VarRequest {
+                    .insert_or_replace(PinnableRequest::Var(VarRequest {
                         var: self.var.0.clone(),
                         value: spk_schema_foundation::ident::PinnableValue::Pinned(Arc::from(
                             v.as_str(),

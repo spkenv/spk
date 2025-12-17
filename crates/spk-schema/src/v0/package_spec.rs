@@ -10,8 +10,9 @@ use std::str::FromStr;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
-use spk_schema_foundation::ident::{AsVersionIdent, BuildIdent};
+use spk_schema_foundation::ident::{AsVersionIdent, BuildIdent, PinnedRequest, PinnedValue};
 use spk_schema_foundation::option_map::{OptFilter, Stringified};
+use spk_schema_foundation::spec_ops::HasBuildIdent;
 use spk_schema_foundation::version::{
     BuildIdProblem,
     CommaSeparated,
@@ -31,9 +32,9 @@ use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, CompatRule, Compatibility, Version};
 use crate::foundation::version_range::Ranged;
 use crate::ident::{
+    PinnableRequest,
     PkgRequest,
     PreReleasePolicy,
-    Request,
     RequestedBy,
     Satisfy,
     VarRequest,
@@ -90,7 +91,7 @@ pub struct PackageSpec {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tests: Vec<TestSpec>,
     #[serde(default, skip_serializing_if = "IsDefault::is_default")]
-    pub install: InstallSpec,
+    pub install: InstallSpec<PinnedRequest>,
 }
 
 impl PackageSpec {
@@ -131,14 +132,6 @@ impl PackageSpec {
 }
 
 impl PackageSpec {
-    /// Check if this package spec satisfies the given request.
-    pub fn satisfies_request(&self, request: Request) -> Compatibility {
-        match request {
-            Request::Pkg(request) => Satisfy::check_satisfies_request(self, &request),
-            Request::Var(request) => Satisfy::check_satisfies_request(self, &request),
-        }
-    }
-
     /// Return downstream var requirements that match the given filter.
     fn downstream_requirements<F>(&self, filter: F) -> Cow<'_, RequirementsList>
     where
@@ -163,7 +156,7 @@ impl PackageSpec {
                     description: o.description.clone(),
                 }
             })
-            .map(Request::Var);
+            .map(PinnableRequest::Var);
         RequirementsList::try_from_iter(requests)
             .map(Cow::Owned)
             .expect("build opts do not contain duplicates")
@@ -171,7 +164,9 @@ impl PackageSpec {
 }
 
 impl Components for PackageSpec {
-    fn components(&self) -> &ComponentSpecList {
+    type Request = PinnedRequest;
+
+    fn components(&self) -> &ComponentSpecList<Self::Request> {
         &self.install.components
     }
 }
@@ -197,6 +192,12 @@ impl DeprecateMut for PackageSpec {
 impl HasBuild for PackageSpec {
     fn build(&self) -> &Build {
         self.pkg.build()
+    }
+}
+
+impl HasBuildIdent for PackageSpec {
+    fn build_ident(&self) -> &BuildIdent {
+        &self.pkg
     }
 }
 
@@ -293,7 +294,7 @@ impl Package for PackageSpec {
         &self.build.options
     }
 
-    fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList>> {
+    fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList<PinnedRequest>>> {
         let mut requests = RequirementsList::default();
         for opt in self.build.options.iter() {
             match opt {
@@ -304,7 +305,7 @@ impl Package for PackageSpec {
                         // inject the default component for this context if needed
                         req.pkg.components.insert(Component::default_for_build());
                     }
-                    requests.insert_or_merge(req.into())?;
+                    requests.insert_or_merge_pinned(PinnedRequest::Pkg(req))?;
                 }
                 Opt::Var(opt) => {
                     // If no value was specified in the spec, there's
@@ -313,7 +314,9 @@ impl Package for PackageSpec {
                     if let Some(value) = opt.get_value(None)
                         && !value.is_empty()
                     {
-                        requests.insert_or_merge(opt.to_request(Some(value.as_str())).into())?;
+                        requests.insert_or_merge_pinned(PinnedRequest::Var(
+                            opt.to_request(Some(value.as_str())),
+                        ))?;
                     }
                 }
             }
@@ -321,7 +324,7 @@ impl Package for PackageSpec {
         Ok(Cow::Owned(requests))
     }
 
-    fn runtime_requirements(&self) -> Cow<'_, RequirementsList> {
+    fn runtime_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>> {
         Cow::Borrowed(&self.install.requirements)
     }
 
@@ -448,11 +451,11 @@ impl Satisfy<PkgRequest> for PackageSpec {
     }
 }
 
-impl Satisfy<VarRequest> for PackageSpec
+impl Satisfy<VarRequest<PinnedValue>> for PackageSpec
 where
     Self: Named,
 {
-    fn check_satisfies_request(&self, var_request: &VarRequest) -> Compatibility {
+    fn check_satisfies_request(&self, var_request: &VarRequest<PinnedValue>) -> Compatibility {
         let opt_required = var_request.var.namespace() == Some(self.name());
         let mut opt: Option<&Opt> = None;
         let request_name = &var_request.var;
@@ -476,11 +479,11 @@ where
                 }
                 Compatibility::Compatible
             }
-            Some(Opt::Pkg(opt)) => opt.validate(var_request.value.as_pinned()),
+            Some(Opt::Pkg(opt)) => opt.validate(Some(&*var_request.value)),
             Some(Opt::Var(opt)) => {
-                let request_value = var_request.value.as_pinned();
-                let exact = opt.get_value(request_value);
-                if exact.as_deref() == request_value {
+                let request_value = &*var_request.value;
+                let exact = opt.get_value(Some(request_value));
+                if exact.as_deref() == Some(request_value) {
                     return Compatibility::Compatible;
                 }
 
@@ -495,18 +498,17 @@ where
                             VarOptionProblem::IncompatibleBuildOptionInvalidVersion {
                                 var_request: var_request.var.clone(),
                                 base: exact.unwrap_or_default(),
-                                request_value: request_value.unwrap_or_default().to_string(),
+                                request_value: request_value.to_string(),
                             },
                         ));
                     };
 
-                    let Ok(request_version) = Version::from_str(request_value.unwrap_or_default())
-                    else {
+                    let Ok(request_version) = Version::from_str(request_value) else {
                         return Compatibility::Incompatible(IncompatibleReason::VarOptionMismatch(
                             VarOptionProblem::IncompatibleBuildOptionInvalidVersion {
                                 var_request: var_request.var.clone(),
                                 base: exact.unwrap_or_default(),
-                                request_value: request_value.unwrap_or_default().to_string(),
+                                request_value: request_value.to_string(),
                             },
                         ));
                     };
@@ -517,7 +519,7 @@ where
                             VarOptionProblem::IncompatibleBuildOptionWithContext {
                                 var_request: var_request.var.clone(),
                                 exact: exact.unwrap_or_else(|| "None".to_string()),
-                                request_value: request_value.unwrap_or_default().to_string(),
+                                request_value: request_value.to_string(),
                                 context: Box::new(incompatible),
                             },
                         ));
@@ -529,7 +531,7 @@ where
                     VarOptionProblem::IncompatibleBuildOption {
                         var_request: var_request.var.clone(),
                         exact: exact.unwrap_or_else(|| "None".to_string()),
-                        request_value: request_value.unwrap_or_default().to_string(),
+                        request_value: request_value.to_string(),
                     },
                 ))
             }
@@ -577,7 +579,7 @@ struct SpecVisitor {
     sources: Option<Vec<SourceSpec>>,
     build: Option<UncheckedBuildSpec>,
     tests: Option<Vec<TestSpec>>,
-    install: Option<InstallSpec>,
+    install: Option<InstallSpec<PinnedRequest>>,
     check_build_spec: bool,
 }
 
@@ -634,7 +636,7 @@ impl<'de> serde::de::Visitor<'de> for SpecVisitor {
                 "sources" => self.sources = Some(map.next_value::<Vec<SourceSpec>>()?),
                 "build" => self.build = Some(map.next_value::<UncheckedBuildSpec>()?),
                 "tests" => self.tests = Some(map.next_value::<Vec<TestSpec>>()?),
-                "install" => self.install = Some(map.next_value::<InstallSpec>()?),
+                "install" => self.install = Some(map.next_value::<InstallSpec<PinnedRequest>>()?),
                 _ => {
                     // ignore any unrecognized field, but consume the value anyway
                     // TODO: could we warn about fields that look like typos?
