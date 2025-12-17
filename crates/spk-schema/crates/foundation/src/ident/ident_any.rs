@@ -191,31 +191,6 @@ impl FromStr for AnyIdent {
     }
 }
 
-impl TryFrom<&IdentPartsBuf> for AnyIdent {
-    type Error = crate::ident::Error;
-
-    fn try_from(parts: &IdentPartsBuf) -> Result<Self> {
-        if parts.repository_name.is_some() {
-            return Err("Ident may not have a repository name".into());
-        }
-
-        let name = parts.pkg_name.parse::<PkgNameBuf>()?;
-        let version = parts
-            .version_str
-            .as_ref()
-            .map(|v| v.as_str().parse::<Version>())
-            .transpose()?
-            .unwrap_or_default();
-        let build = parts
-            .build_str
-            .as_ref()
-            .map(|v| v.parse::<Build>())
-            .transpose()?;
-
-        Ok(VersionIdent::new(name, version).into_any_ident(build))
-    }
-}
-
 impl From<&AnyIdent> for IdentPartsBuf {
     fn from(ident: &AnyIdent) -> Self {
         IdentPartsBuf {
@@ -237,18 +212,6 @@ impl From<PkgNameBuf> for Box<AnyIdent> {
     #[inline]
     fn from(name: PkgNameBuf) -> Self {
         Box::new(name.into())
-    }
-}
-
-impl PartialEq<&AnyIdent> for IdentPartsBuf {
-    fn eq(&self, other: &&AnyIdent) -> bool {
-        self.repository_name.is_none()
-            && self.pkg_name == other.name().as_str()
-            && self
-                .version_str
-                .as_ref()
-                .is_some_and(|s| *s == other.version().into())
-            && self.build_str == other.build().map(|b| b.to_string())
     }
 }
 
