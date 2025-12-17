@@ -17,7 +17,7 @@ mod file_matcher_test;
 #[derive(Clone)]
 pub struct FileMatcher {
     rules: Vec<String>,
-    gitignore: Arc<Mutex<Option<ignore::gitignore::Gitignore>>>,
+    gitignore: Arc<Mutex<Option<Result<ignore::gitignore::Gitignore>>>>,
 }
 
 impl std::fmt::Debug for FileMatcher {
@@ -114,19 +114,24 @@ impl FileMatcher {
             let mut builder = ignore::gitignore::GitignoreBuilder::new("/");
             for rule in self.rules.iter() {
                 builder.add_line(None, rule).map_err(|err| {
-                    Error::String(format!("Invalid file pattern '{rule}': {err:?}"))
+                    let error = format!("Invalid file pattern '{rule}': {err:?}");
+                    *matcher = Some(Err(Error::String(error.clone())));
+                    Error::String(error)
                 })?;
             }
             let gitignore = builder.build().map_err(|err| {
-                Error::String(format!("Failed to compile file patterns: {err:?}"))
+                let error = format!("Failed to compile file patterns: {err:?}");
+                *matcher = Some(Err(Error::String(error.clone())));
+                Error::String(error)
             })?;
-            *matcher = Some(gitignore);
+            *matcher = Some(Ok(gitignore));
         }
 
         if let Some(ref gitignore_matcher) = *matcher {
-            Ok(gitignore_matcher
-                .matched_path_or_any_parents(path, is_dir)
-                .is_ignore())
+            match gitignore_matcher {
+                Ok(m) => Ok(m.matched_path_or_any_parents(path, is_dir).is_ignore()),
+                Err(err) => Err(Error::String(err.to_string())),
+            }
         } else {
             Err(Error::String(
                 "Unable to construct a gitignore matching object for file matcher".to_string(),
