@@ -98,6 +98,13 @@ impl FileMatcher {
     /// The first call to this will construct an internal gitignore
     /// matching object and cache it for subsequent calls.
     pub fn matches<P: AsRef<std::path::Path>>(&self, path: P, is_dir: bool) -> Result<bool> {
+        if self.rules.is_empty() {
+            // Short-circuit if there are no rules to match against.
+            // See `all()` method for making a FileMatcher that will
+            // match all paths.
+            return Ok(false);
+        }
+
         let mut matcher = self
             .gitignore
             .lock()
