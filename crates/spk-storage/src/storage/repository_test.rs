@@ -6,9 +6,10 @@ use std::str::FromStr;
 
 use rstest::rstest;
 use spk_schema::foundation::ident_component::Component;
-use spk_schema::foundation::pkg_name;
 use spk_schema::foundation::spec_ops::Named;
+use spk_schema::foundation::{pkg_name, version_ident};
 use spk_schema::ident::{AsVersionIdent, parse_build_ident, parse_version_ident};
+use spk_schema::ident_build::{Build, EmbeddedSource};
 use spk_schema::{
     Deprecate,
     DeprecateMut,
@@ -386,6 +387,60 @@ async fn test_repo_publish_package_creates_embed_stubs(#[case] repo: RepoKind) {
             .unwrap()
             .iter()
             .any(|pkg| pkg == "my-embedded-pkg")
+    );
+}
+
+/// If an embedded package is declared with a non-normalized version,
+/// the buildid created for the stub should contain a normalized version.
+///
+/// This is necessary to be able to compare build ids correctly.
+#[rstest]
+#[case::mem(RepoKind::Mem)]
+#[case::spfs(RepoKind::Spfs)]
+#[tokio::test]
+async fn test_embedded_stub_build_version_is_normalized(#[case] repo: RepoKind) {
+    let repo = make_repo(repo).await;
+    let recipe = recipe!({
+        "pkg": "my-pkg/1.0.0",
+        "install": {
+            "embedded": [
+                {"pkg": "my-embedded-pkg/1.0.0.0.0"}
+            ]
+        }
+    });
+    repo.publish_recipe(&recipe).await.unwrap();
+    let spec = spec!({
+        "pkg": "my-pkg/1.0.0/3I42H3S6",
+        "install": {
+            "embedded": [
+                {"pkg": "my-embedded-pkg/1.0.0.0.0/embedded"}
+            ]
+        }
+    });
+    repo.publish_package(
+        &spec,
+        &vec![(Component::Run, empty_layer_digest())]
+            .into_iter()
+            .collect(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        repo.list_package_builds(&version_ident!("my-embedded-pkg/1.0.0"))
+            .await
+            .unwrap()
+            .into_iter()
+            .filter_map(|build_ident| match build_ident.build() {
+                Build::Embedded(EmbeddedSource::Package(embedded_source)) =>
+                // Checking the "raw" version string that was encoded into
+                // the build id.
+                    embedded_source.ident.version_str.to_owned(),
+                _ => None,
+            })
+            .next()
+            .expect("should have at least one (embedded) build")
+            .as_str(),
+        "1.0.0"
     );
 }
 

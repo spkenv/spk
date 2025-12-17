@@ -96,13 +96,15 @@ where
         + FromExternalError<&'b str, std::num::ParseIntError>
         + TagError<&'b str, &'static str>,
 {
-    map(
+    map_res(
         delimited(tag("["), cut(ident_parts_with_components), cut(tag("]"))),
         |(ident, components)| {
-            EmbeddedSource::Package(Box::new(EmbeddedSourcePackage {
-                ident: ident.to_owned(),
-                components,
-            }))
+            Ok::<_, crate::version::Error>(EmbeddedSource::Package(Box::new(
+                EmbeddedSourcePackage {
+                    ident: ident.to_owned()?,
+                    components,
+                },
+            )))
         },
     )(input)
 }
