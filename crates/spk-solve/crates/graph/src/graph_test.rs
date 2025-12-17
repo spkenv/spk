@@ -29,7 +29,9 @@ fn test_resolve_build_same_result() {
     let build_spec = Arc::new(build_spec);
     let source = PackageSource::SpkInternalTest;
 
-    let resolve = Decision::builder(&base).resolve_package(&build_spec, source);
+    let resolve = Decision::builder(&base)
+        .resolve_package(&build_spec, source)
+        .unwrap();
     let build = Decision::builder(&base)
         .build_package(&recipe, &build_spec)
         .unwrap();
@@ -112,6 +114,7 @@ fn test_request_default_component() {
 
     let resolve_state = DecisionBuilder::new(&base)
         .resolve_package(&spec, PackageSource::SpkInternalTest)
+        .unwrap()
         .apply(&base);
     let request = resolve_state
         .get_merged_request(PkgName::new("dependency").unwrap())
