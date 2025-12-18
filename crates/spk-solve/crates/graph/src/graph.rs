@@ -28,6 +28,7 @@ use spk_schema::ident::{
     RequestedBy,
     VarRequest,
 };
+use spk_schema::ident_build::{Build, EmbeddedSource};
 use spk_schema::prelude::*;
 use spk_schema::v0::EmbeddedPackageSpec;
 use spk_schema::version::IsSameReasonAs;
@@ -44,6 +45,8 @@ use spk_schema::{
 use spk_solve_package_iterator::{PackageIterator, PromotionPatterns};
 use spk_solve_solution::{PackageSource, Solution};
 use thiserror::Error;
+
+use crate::GetMergedRequestError;
 
 #[cfg(test)]
 #[path = "./graph_test.rs"]
@@ -295,7 +298,7 @@ impl<'state> DecisionBuilder<'state, '_> {
                 spec.embedded(),
                 spec.components(),
                 requester_ident,
-            ));
+            )?);
             changes.push(Self::options_to_change(spec));
 
             Ok(changes)
@@ -308,7 +311,7 @@ impl<'state> DecisionBuilder<'state, '_> {
     }
 
     /// Return all the changes needed when adding a package to the solution.
-    fn set_package(&self, spec: Arc<Spec>, source: PackageSource) -> Vec<Change> {
+    fn set_package(&self, spec: Arc<Spec>, source: PackageSource) -> Result<Vec<Change>> {
         let mut changes = vec![Change::SetPackage(Box::new(SetPackage::new(
             Arc::clone(&spec),
             source,
@@ -316,23 +319,38 @@ impl<'state> DecisionBuilder<'state, '_> {
 
         let requester_ident: &BuildIdent = spec.ident();
         let requested_by = RequestedBy::PackageBuild(requester_ident.clone());
+
+        if let Build::Embedded(EmbeddedSource::Package(parent)) = spec.ident().build() {
+            // An embedded stub needs its parent in the solve.
+            changes.extend(
+                self.pkg_request_to_changes(
+                    &parent
+                        .to_pkg_request(RequestedBy::Embedded(requester_ident.clone()))
+                        .map_err(|err| {
+                            GraphError::RequestError(GetMergedRequestError::Other(Box::new(
+                                crate::Error::SpkIdentError(err),
+                            )))
+                        })?,
+                ),
+            );
+        }
         changes.extend(self.requirements_to_changes(&spec.runtime_requirements(), &requested_by));
         changes.extend(self.components_to_changes(spec.components(), requester_ident));
         changes.extend(self.embedded_to_changes(
             spec.embedded(),
             spec.components(),
             requester_ident,
-        ));
+        )?);
         changes.push(Self::options_to_change(&spec));
 
-        changes
+        Ok(changes)
     }
 
-    pub fn resolve_package(self, spec: &Arc<Spec>, source: PackageSource) -> Decision {
-        Decision {
-            changes: self.set_package(Arc::clone(spec), source),
+    pub fn resolve_package(self, spec: &Arc<Spec>, source: PackageSource) -> Result<Decision> {
+        Ok(Decision {
+            changes: self.set_package(Arc::clone(spec), source)?,
             notes: Vec::default(),
-        }
+        })
     }
 
     /// Make this package the next request to be considered.
@@ -483,7 +501,7 @@ impl<'state> DecisionBuilder<'state, '_> {
         embedded: &EmbeddedPackagesList<EmbeddedPackageSpec>,
         components: &ComponentSpecList<PinnedRequest>,
         parent: &BuildIdent,
-    ) -> Vec<Change> {
+    ) -> Result<Vec<Change>> {
         let required = components.resolve_uses(self.components.iter().cloned());
         if !required.is_empty() {
             let mut merged_changes = HashMap::new();
@@ -522,10 +540,10 @@ impl<'state> DecisionBuilder<'state, '_> {
                             parent: parent.clone(),
                             components: components_as_hashset,
                         },
-                    ));
+                    )?);
                 }
 
-                return changes;
+                return Ok(changes);
             }
         }
 
@@ -534,19 +552,22 @@ impl<'state> DecisionBuilder<'state, '_> {
         embedded
             .iter()
             .flat_map(|embedded| {
-                let mut changes = vec![Change::RequestPackage(RequestPackage::new(
+                let mut changes = vec![Ok(Change::RequestPackage(RequestPackage::new(
                     PkgRequest::from_ident(
                         embedded.ident().to_any_ident(),
                         RequestedBy::Embedded(parent.clone()),
                     ),
-                ))];
-                changes.extend(self.set_package(
+                )))];
+                match self.set_package(
                     Arc::new(embedded.clone().into()),
                     PackageSource::Embedded {
                         parent: parent.clone(),
                         components: Default::default(),
                     },
-                ));
+                ) {
+                    Ok(v) => changes.extend(v.into_iter().map(Ok)),
+                    Err(e) => changes.push(Err(e)),
+                }
                 changes
             })
             .collect()

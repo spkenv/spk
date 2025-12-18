@@ -10,9 +10,12 @@ use relative_path::RelativePathBuf;
 use thiserror::Error;
 
 use super::BuildId;
+use crate::ident::{self, PkgRequest, RangeIdent, RequestedBy};
 use crate::ident_component::{Component, Components};
 use crate::ident_ops::parsing::IdentPartsBuf;
 use crate::ident_ops::{MetadataPath, TagPath};
+use crate::version::Version;
+use crate::version_range::{DoubleEqualsVersion, VersionFilter, VersionRange};
 
 #[cfg(test)]
 #[path = "./build_test.rs"]
@@ -42,6 +45,31 @@ pub struct EmbeddedSourcePackage {
 
 impl EmbeddedSourcePackage {
     pub const EMBEDDED_BY_PREFIX: &'static str = "embedded-by-";
+
+    /// Create a [`PkgRequest'] representing the package that embeds this one.
+    pub fn to_pkg_request(&self, requester: RequestedBy) -> ident::Result<PkgRequest> {
+        let Some(version_str) = &self.ident.version_str else {
+            return Err(ident::Error::String(
+                "embedded source package must have a version".to_string(),
+            ));
+        };
+        let Some(build_str) = &self.ident.build_str else {
+            return Err(ident::Error::String(
+                "embedded source package must have a build".to_string(),
+            ));
+        };
+
+        let ri = RangeIdent {
+            repository_name: None,
+            name: self.ident.pkg_name.parse()?,
+            version: VersionFilter::single(VersionRange::DoubleEquals(DoubleEqualsVersion::from(
+                version_str.parse::<Version>()?,
+            ))),
+            components: self.components.clone(),
+            build: Some(build_str.parse()?),
+        };
+        Ok(PkgRequest::new(ri, requester))
+    }
 }
 
 /// An embedded package's source (if known).
