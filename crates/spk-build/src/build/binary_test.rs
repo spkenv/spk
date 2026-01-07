@@ -856,7 +856,19 @@ async fn test_build_components_metadata(#[case] solver: SolverImpl) {
             "pkg": "mypkg/1.0.0",
             "sources": [],
             "build": {
-                "script": "echo building...",
+                "script": "echo building... && mkdir -p /spfs/bin && echo 'build file' > /spfs/bin/buildfile",
+            },
+            "install": {
+                "components": [
+                    {
+                        "name": "build",
+                        "files": ["bin/buildfile"],
+                    },
+                    {
+                        "name": "run",
+                        "files": [],
+                    }
+                ]
             },
             "components": [{
                 "name": "custom",
@@ -873,7 +885,16 @@ async fn test_build_components_metadata(#[case] solver: SolverImpl) {
     let published = rt.tmprepo.read_components(spec.ident()).await.unwrap();
     for component in spec.components().iter() {
         let digest = published.get(&component.name).unwrap();
-        rt.runtime.reset_all().unwrap();
+        eprintln!("\n=== Testing component: {} ===", component.name);
+        eprintln!("Expected digest: {}", digest);
+
+        eprintln!("Calling reset_all()...");
+        let reset_result = rt.runtime.reset_all();
+        eprintln!("reset_all() result: {:?}", reset_result);
+        reset_result.unwrap();
+
+        eprintln!("Checking if runtime is dirty after reset...");        eprintln!("is_dirty: {}", rt.runtime.is_dirty());
+
         rt.runtime.status.stack.clear();
         rt.runtime.push_digest(*digest);
         rt.runtime.save_state_to_storage().await.unwrap();
@@ -881,9 +902,11 @@ async fn test_build_components_metadata(#[case] solver: SolverImpl) {
         // the package should be "available" no matter what
         // component is installed
         let installed = runtime_repo.read_components(spec.ident()).await.unwrap();
+        eprintln!("Installed components: {:#?}", installed);
         let expected = vec![(component.name.clone(), *digest)]
             .into_iter()
             .collect();
+        eprintln!("Expected components: {:#?}", expected);
         assert_eq!(
             installed, expected,
             "runtime repo should only show installed components"
