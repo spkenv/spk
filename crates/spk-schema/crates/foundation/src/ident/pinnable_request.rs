@@ -18,7 +18,17 @@ use super::AnyIdent;
 use crate::IsDefault;
 use crate::format::{FormatBuild, FormatChangeOptions, FormatComponents, FormatRequest};
 use crate::ident::pinned_request::PinnedValue;
-use crate::ident::{BuildIdent, Error, PinnedRequest, RangeIdent, Result, Satisfy, VersionIdent};
+use crate::ident::{
+    BuildIdent,
+    Error,
+    PinnedRequest,
+    PkgRequestWithOptions,
+    RangeIdent,
+    RequestWithOptions,
+    Result,
+    Satisfy,
+    VersionIdent,
+};
 use crate::ident_component::ComponentSet;
 use crate::name::{OptName, OptNameBuf, PkgName};
 use crate::option_map::Stringified;
@@ -231,6 +241,15 @@ impl From<VarRequest> for PinnableRequest {
 impl From<PkgRequest> for PinnableRequest {
     fn from(req: PkgRequest) -> Self {
         Self::Pkg(req)
+    }
+}
+
+impl From<RequestWithOptions> for PinnableRequest {
+    fn from(r: RequestWithOptions) -> Self {
+        match r {
+            RequestWithOptions::Pkg(pkg) => PinnableRequest::Pkg(pkg.into()),
+            RequestWithOptions::Var(var) => PinnableRequest::Var(var.into()),
+        }
     }
 }
 
@@ -487,10 +506,14 @@ impl VarRequest<PinnableValue> {
     }
 }
 
-impl VarRequest<PinnedValue> {
+pub trait Contains<O> {
     /// True if this request is as least as restrictive as the other. In other words,
     /// if satisfying this request would undoubtedly satisfy the other.
-    pub fn contains(&self, other: &VarRequest<PinnableValue>) -> Compatibility {
+    fn contains(&self, other: &VarRequest<O>) -> Compatibility;
+}
+
+impl Contains<PinnableValue> for VarRequest<PinnedValue> {
+    fn contains(&self, other: &VarRequest<PinnableValue>) -> Compatibility {
         if self.var.base_name() != other.var.base_name() {
             return Compatibility::Incompatible(IncompatibleReason::VarRequestNotSuperset(
                 VarRequestProblem::DifferentVar {
@@ -516,6 +539,38 @@ impl VarRequest<PinnedValue> {
                 VarRequestProblem::Incomparable,
             ));
         };
+        if !other_value.is_empty() && **self_value != **other_value {
+            return Compatibility::Incompatible(IncompatibleReason::VarRequestNotSuperset(
+                VarRequestProblem::DifferentValue {
+                    self_value: self_value.to_string(),
+                    other_value: other_value.to_string(),
+                },
+            ));
+        }
+        Compatibility::Compatible
+    }
+}
+
+impl Contains<PinnedValue> for VarRequest<PinnedValue> {
+    fn contains(&self, other: &VarRequest<PinnedValue>) -> Compatibility {
+        if self.var.base_name() != other.var.base_name() {
+            return Compatibility::Incompatible(IncompatibleReason::VarRequestNotSuperset(
+                VarRequestProblem::DifferentVar {
+                    self_var: self.var.to_string(),
+                    other_var: other.var.to_string(),
+                },
+            ));
+        }
+        let ns = self.var.namespace();
+        if ns.is_some() && ns != other.var.namespace() {
+            return Compatibility::Incompatible(IncompatibleReason::VarRequestNotSuperset(
+                VarRequestProblem::DifferentNamespace {
+                    self_var: self.var.to_string(),
+                    other_var: other.var.to_string(),
+                },
+            ));
+        }
+        let (self_value, other_value) = (&self.value, &other.value);
         if !other_value.is_empty() && **self_value != **other_value {
             return Compatibility::Incompatible(IncompatibleReason::VarRequestNotSuperset(
                 VarRequestProblem::DifferentValue {
@@ -583,6 +638,33 @@ impl Serialize for VarRequest<PinnableValue> {
         }
 
         map.end()
+    }
+}
+
+impl From<VarRequest<PinnedValue>> for VarRequest<PinnableValue> {
+    fn from(req: VarRequest<PinnedValue>) -> Self {
+        Self {
+            var: req.var,
+            value: PinnableValue::Pinned(req.value),
+            description: req.description,
+        }
+    }
+}
+
+impl TryFrom<VarRequest<PinnableValue>> for VarRequest<PinnedValue> {
+    type Error = Error;
+
+    fn try_from(req: VarRequest<PinnableValue>) -> Result<Self> {
+        match req.value {
+            PinnableValue::Pinned(v) => Ok(VarRequest {
+                var: req.var,
+                value: v,
+                description: req.description,
+            }),
+            PinnableValue::FromBuildEnv | PinnableValue::FromBuildEnvIfPresent => Err(
+                Error::String("cannot convert unpinned VarRequest to pinned".to_string()),
+            ),
+        }
     }
 }
 
@@ -1176,6 +1258,12 @@ impl FormatRequest for PkgRequest {
         out.push('/');
         out.push_str(&versions.join(","));
         out
+    }
+}
+
+impl From<PkgRequestWithOptions> for PkgRequest {
+    fn from(value: PkgRequestWithOptions) -> Self {
+        value.pkg_request
     }
 }
 

@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use spk_schema::ident::PinnedRequest;
 use spk_schema::version::IncompatibleReason;
 
 use super::prelude::*;
@@ -20,8 +19,8 @@ impl ValidatorT for VarRequirementsValidator {
         _source: &PackageSource,
     ) -> crate::Result<Compatibility> {
         let options = state.get_option_map();
-        for request in spec.runtime_requirements().iter() {
-            if let PinnedRequest::Var(request) = request {
+        for request in spec.runtime_requirements_with_options().iter() {
+            if let RequestWithOptions::Var(request) = request {
                 for (name, value) in options.iter() {
                     let is_not_requested = *name != request.var;
                     let is_not_same_base = request.var.base_name() != name.base_name();

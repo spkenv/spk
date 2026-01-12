@@ -34,7 +34,7 @@ impl super::Validator for InheritRequirementsValidator<'_> {
     {
         // TODO: why can the below function fail? what errors might we hide here?
         let build_requirements = setup.package.get_build_requirements().unwrap_or_default();
-        let runtime_requirements = setup.package.runtime_requirements();
+        let runtime_requirements = setup.package.runtime_requirements_with_options();
         let mut results = Vec::new();
         for solved_request in setup.environment.items() {
             if !self.packages.is_empty()

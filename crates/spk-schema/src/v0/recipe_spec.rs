@@ -32,7 +32,6 @@ use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{
-    PinnableRequest,
     PkgRequest,
     PkgRequestWithOptions,
     RequestWithOptions,
@@ -430,14 +429,12 @@ impl Recipe for RecipeSpec {
                 match build_requirements.contains_request(request) {
                     Compatibility::Compatible => continue,
                     Compatibility::Incompatible(_) => match request {
-                        PinnableRequest::Pkg(_) => continue,
-                        PinnableRequest::Var(var) => {
-                            let Some(value) = var.value.as_pinned() else {
-                                continue;
-                            };
+                        RequestWithOptions::Pkg(_) => continue,
+                        RequestWithOptions::Var(var) => {
+                            let value = &var.value;
                             match missing_build_requirements.entry(var.var.clone()) {
                                 std::collections::hash_map::Entry::Occupied(entry) => {
-                                    if entry.get() != value {
+                                    if *entry.get() != **value {
                                         return Err(Error::String(format!(
                                             "Multiple conflicting downstream build requirements found for {}: {} and {}",
                                             var.var,
@@ -459,14 +456,12 @@ impl Recipe for RecipeSpec {
                 match package_install.requirements.contains_request(request) {
                     Compatibility::Compatible => continue,
                     Compatibility::Incompatible(_) => match request {
-                        PinnableRequest::Pkg(_) => continue,
-                        PinnableRequest::Var(var) => {
-                            let Some(value) = var.value.as_pinned() else {
-                                continue;
-                            };
+                        RequestWithOptions::Pkg(_) => continue,
+                        RequestWithOptions::Var(var) => {
+                            let value = &var.value;
                             match missing_runtime_requirements.entry(var.var.clone()) {
                                 std::collections::hash_map::Entry::Occupied(entry) => {
-                                    if entry.get().0 != value {
+                                    if *entry.get().0 != **value {
                                         return Err(Error::String(format!(
                                             "Multiple conflicting downstream runtime requirements found for {}: {} and {}",
                                             var.var,

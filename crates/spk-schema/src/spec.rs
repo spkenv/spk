@@ -781,12 +781,6 @@ impl Package for Spec {
         }
     }
 
-    fn runtime_requirements(&self) -> Cow<'_, crate::RequirementsList<PinnedRequest>> {
-        match self {
-            Spec::V0Package(spec) => spec.runtime_requirements(),
-        }
-    }
-
     fn get_all_tests(&self) -> Vec<SpecTest> {
         match self {
             Spec::V0Package(spec) => spec.get_all_tests(),
@@ -816,7 +810,7 @@ impl Package for Spec {
     fn downstream_build_requirements<'a>(
         &self,
         components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, crate::RequirementsList> {
+    ) -> Cow<'_, crate::RequirementsList<RequestWithOptions>> {
         match self {
             Spec::V0Package(spec) => spec.downstream_build_requirements(components),
         }
@@ -825,7 +819,7 @@ impl Package for Spec {
     fn downstream_runtime_requirements<'a>(
         &self,
         components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, crate::RequirementsList> {
+    ) -> Cow<'_, crate::RequirementsList<RequestWithOptions>> {
         match self {
             Spec::V0Package(spec) => spec.downstream_runtime_requirements(components),
         }

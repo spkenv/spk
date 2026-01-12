@@ -11,7 +11,7 @@ use spk_schema::foundation::env::data_path;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::{opt_name, option_map, version_ident};
-use spk_schema::ident::{PinnedRequest, PkgRequest, RangeIdent};
+use spk_schema::ident::{PinnedRequest, PkgRequest, RangeIdent, RequestWithOptions};
 use spk_schema::{
     ComponentSpecList,
     Components,
@@ -258,9 +258,13 @@ async fn test_build_package_pinning(
         .unwrap();
 
     let spec = rt.tmprepo.read_package(spec.ident()).await.unwrap();
-    let req = spec.runtime_requirements().first().unwrap().clone();
+    let req = spec
+        .runtime_requirements_with_options()
+        .first()
+        .unwrap()
+        .clone();
     match req {
-        PinnedRequest::Pkg(req) => {
+        RequestWithOptions::Pkg(req) => {
             assert_eq!(&req.pkg.to_string(), "dep/~1.0");
         }
         _ => panic!("expected a package request"),
@@ -321,9 +325,13 @@ async fn test_build_package_pinning_optional_requirement(#[case] solver: SolverI
             .unwrap();
 
         let spec = rt.tmprepo.read_package(spec.ident()).await.unwrap();
-        let req = spec.runtime_requirements().first().unwrap().clone();
+        let req = spec
+            .runtime_requirements_with_options()
+            .first()
+            .unwrap()
+            .clone();
         match req {
-            PinnedRequest::Pkg(req) => {
+            RequestWithOptions::Pkg(req) => {
                 assert_eq!(req.pkg.to_string(), format!("{expected_dep}/Binary:1.0.0"));
             }
             _ => panic!("expected a package request"),
@@ -387,9 +395,13 @@ async fn test_build_package_pinning_optional_requirement_without_frombuildenv(
             .unwrap();
 
         let spec = rt.tmprepo.read_package(spec.ident()).await.unwrap();
-        let req = spec.runtime_requirements().first().unwrap().clone();
+        let req = spec
+            .runtime_requirements_with_options()
+            .first()
+            .unwrap()
+            .clone();
         match req {
-            PinnedRequest::Pkg(req) => {
+            RequestWithOptions::Pkg(req) => {
                 assert_eq!(req.pkg.to_string(), *expected_dep);
             }
             _ => panic!("expected a package request"),
@@ -460,9 +472,9 @@ async fn test_build_var_pinning_optional_requirement(#[case] solver: SolverImpl)
 
         let spec = rt.tmprepo.read_package(spec.ident()).await.unwrap();
         let req = spec
-            .runtime_requirements()
+            .runtime_requirements_with_options()
             .iter()
-            .find(|r| matches!(r, PinnedRequest::Var(_)))
+            .find(|r| matches!(r, RequestWithOptions::Var(_)))
             .map(ToString::to_string);
         assert_eq!(req, expected_dep);
     }
@@ -545,14 +557,18 @@ async fn test_build_var_pinning(#[case] solver: SolverImpl) {
         .unwrap();
 
     let spec = rt.tmprepo.read_package(spec.ident()).await.unwrap();
-    let top_req = spec.runtime_requirements().first().unwrap().clone();
+    let top_req = spec
+        .runtime_requirements_with_options()
+        .first()
+        .unwrap()
+        .clone();
     match top_req {
-        PinnedRequest::Var(r) => assert_eq!(&*r.value, "topvalue"),
+        RequestWithOptions::Var(r) => assert_eq!(&*r.value, "topvalue"),
         _ => panic!("expected var request"),
     }
-    let depreq = spec.runtime_requirements()[1].clone();
+    let depreq = spec.runtime_requirements_with_options()[1].clone();
     match depreq {
-        PinnedRequest::Var(r) => assert_eq!(&*r.value, "depvalue"),
+        RequestWithOptions::Var(r) => assert_eq!(&*r.value, "depvalue"),
         _ => panic!("expected var request"),
     }
 }

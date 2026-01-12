@@ -7,9 +7,9 @@ use std::sync::Arc;
 use spfs::tracking::Manifest;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::option_map;
-use spk_schema::ident::PkgRequestWithOptions;
+use spk_schema::ident::{PkgRequestWithOptions, RequestWithOptions};
 use spk_schema::validation::ValidationMatcher;
-use spk_schema::{Package, PinnableRequest, ValidationRule, spec};
+use spk_schema::{Package, ValidationRule, spec};
 use spk_solve::{RequestedBy, Solution};
 
 use crate::report::BuildSetupReport;
@@ -79,7 +79,7 @@ async fn test_build_package_downstream_build_requests() {
         } => {
             assert_eq!(required_by, base_spec.ident());
             assert!(
-                matches!(request, PinnableRequest::Var(v) if v.var.as_str() == "base.inherited" && v.value.as_pinned() == Some("val")),
+                matches!(request, RequestWithOptions::Var(v) if v.var.as_str() == "base.inherited" && &*v.value == "val"),
                 "{request}"
             );
         }
@@ -150,7 +150,7 @@ async fn test_build_package_downstream_runtime_request() {
         } => {
             assert_eq!(required_by, base_spec.ident());
             assert!(
-                matches!(&request, spk_schema::PinnableRequest::Var(v) if v.var.as_str() == "base.inherited" && v.value.as_pinned() == Some("val")),
+                matches!(&request, RequestWithOptions::Var(v) if v.var.as_str() == "base.inherited" && &*v.value == "val"),
                 "{request}"
             );
         }

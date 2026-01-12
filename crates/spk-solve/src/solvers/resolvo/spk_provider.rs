@@ -1292,7 +1292,9 @@ impl DependencyProvider for SpkProvider {
         {
             Ok(package) => {
                 let mut known_deps = KnownDependencies {
-                    requirements: Vec::with_capacity(package.runtime_requirements().len()),
+                    requirements: Vec::with_capacity(
+                        package.runtime_requirements_with_options().len(),
+                    ),
                     // This is where IfAlreadyPresent constraints would go.
                     constrains: Vec::with_capacity(package.get_build_options().len()),
                 };

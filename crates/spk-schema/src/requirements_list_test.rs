@@ -5,7 +5,7 @@
 use rstest::rstest;
 use serde_json::json;
 use spk_schema_foundation::fixtures::*;
-use spk_schema_foundation::ident::PinnableRequest;
+use spk_schema_foundation::ident::{PinnableRequest, PinnedRequest, RequestWithOptions};
 use spk_schema_foundation::version::Compatibility;
 
 use super::RequirementsList;
@@ -63,7 +63,14 @@ fn test_contains_request(#[case] requests: serde_json::Value, #[case] contains: 
     init_logging();
 
     let reqs: RequirementsList = serde_json::from_value(requests).unwrap();
+    let reqs: RequirementsList<PinnedRequest> = reqs.try_into().unwrap();
     let contains: PinnableRequest = serde_json::from_value(contains).unwrap();
+    let contains: PinnedRequest = contains.try_into().unwrap();
+    let contains: RequestWithOptions = contains.into();
+    // The above massages the input from types with Deserialize impls into types
+    // with ContainsRequest impls. This is done instead of adding those
+    // implementations, so this test actually tests the code that needs test
+    // coverage, instead of having it test code only used by tests.
     tracing::debug!("is {contains} contained within this? {reqs}");
     assert_eq!(reqs.contains_request(&contains), Compatibility::Compatible);
 }

@@ -9,6 +9,7 @@ use std::marker::PhantomData;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::{
+    Contains,
     PinPolicy,
     PinnableValue,
     PinnedRequest,
@@ -154,52 +155,6 @@ impl RequirementsList<PinnableRequest> {
         Ok(())
     }
 
-    /// Reports whether the provided requests would be satisfied by
-    /// this list of requests. The provided request does not need to
-    /// exist in this list exactly, so long as there is a request in this
-    /// list that is at least as restrictive
-    pub fn contains_request(&self, theirs: &PinnableRequest) -> Compatibility {
-        let mut global_opt_request = None;
-        for ours in self.iter() {
-            match (ours, theirs) {
-                (PinnableRequest::Pkg(ours), PinnableRequest::Pkg(theirs))
-                    if ours.pkg.name == theirs.pkg.name =>
-                {
-                    return ours.contains(theirs);
-                }
-                // a var request satisfy another if they have the same opt name or
-                // if our request is package-less and has the same base name, eg:
-                // name/value     [contains] name/value
-                // pkg.name/value [contains] pkg.name/value
-                // name/value     [contains] pkg.name/value
-                //
-                // We only exit early when we find a complete match. The last case
-                // above is saved and only evaluated if no more specific request is found
-                (PinnableRequest::Var(ours), PinnableRequest::Var(theirs))
-                    if ours.var == theirs.var =>
-                {
-                    return ours.contains(theirs);
-                }
-                (PinnableRequest::Var(ours), PinnableRequest::Var(theirs))
-                    if theirs.var.namespace().is_some()
-                        && ours.var.as_str() == theirs.var.base_name() =>
-                {
-                    global_opt_request = Some((ours, theirs));
-                }
-                _ => {
-                    tracing::trace!("skip {ours}, not {theirs}");
-                    continue;
-                }
-            }
-        }
-        if let Some((ours, theirs)) = global_opt_request {
-            return ours.contains(theirs);
-        }
-        Compatibility::Incompatible(IncompatibleReason::RequirementsNotSuperset {
-            name: theirs.name().to_owned(),
-        })
-    }
-
     /// Render all requests with a package pin using the given resolved packages.
     pub fn render_all_pins<K, R>(
         self,
@@ -289,11 +244,11 @@ impl RequirementsList<PinnedRequest> {
     /// this list of requests. The provided request does not need to
     /// exist in this list exactly, so long as there is a request in this
     /// list that is at least as restrictive
-    pub fn contains_request(&self, theirs: &PinnableRequest) -> Compatibility {
+    pub fn contains_request(&self, theirs: &RequestWithOptions) -> Compatibility {
         let mut global_opt_request = None;
         for ours in self.iter() {
             match (ours, theirs) {
-                (PinnedRequest::Pkg(ours), PinnableRequest::Pkg(theirs))
+                (PinnedRequest::Pkg(ours), RequestWithOptions::Pkg(theirs))
                     if ours.pkg.name == theirs.pkg.name =>
                 {
                     return ours.contains(theirs);
@@ -306,12 +261,12 @@ impl RequirementsList<PinnedRequest> {
                 //
                 // We only exit early when we find a complete match. The last case
                 // above is saved and only evaluated if no more specific request is found
-                (PinnedRequest::Var(ours), PinnableRequest::Var(theirs))
+                (PinnedRequest::Var(ours), RequestWithOptions::Var(theirs))
                     if ours.var == theirs.var =>
                 {
                     return ours.contains(theirs);
                 }
-                (PinnedRequest::Var(ours), PinnableRequest::Var(theirs))
+                (PinnedRequest::Var(ours), RequestWithOptions::Var(theirs))
                     if theirs.var.namespace().is_some()
                         && ours.var.as_str() == theirs.var.base_name() =>
                 {
@@ -363,9 +318,70 @@ impl RequirementsList<PinnedRequest> {
         self.0.push(request);
         Ok(())
     }
+
+    /// Attempt to build a requirements list from a set of requests.
+    ///
+    /// Duplicate requests will be merged. Any error during this process
+    /// will cause this process to fail.
+    pub fn try_from_iter<I>(value: I) -> Result<Self>
+    where
+        I: IntoIterator<Item = PinnedRequest>,
+    {
+        let mut out = Self::default();
+        for item in value.into_iter() {
+            out.insert_or_merge_pinned(item)?;
+        }
+        Ok(out)
+    }
 }
 
 impl RequirementsList<RequestWithOptions> {
+    /// Reports whether the provided requests would be satisfied by
+    /// this list of requests. The provided request does not need to
+    /// exist in this list exactly, so long as there is a request in this
+    /// list that is at least as restrictive
+    pub fn contains_request(&self, theirs: &RequestWithOptions) -> Compatibility {
+        let mut global_opt_request = None;
+        for ours in self.iter() {
+            match (ours, theirs) {
+                (RequestWithOptions::Pkg(ours), RequestWithOptions::Pkg(theirs))
+                    if ours.pkg.name == theirs.pkg.name =>
+                {
+                    return ours.contains(theirs);
+                }
+                // a var request satisfy another if they have the same opt name or
+                // if our request is package-less and has the same base name, eg:
+                // name/value     [contains] name/value
+                // pkg.name/value [contains] pkg.name/value
+                // name/value     [contains] pkg.name/value
+                //
+                // We only exit early when we find a complete match. The last case
+                // above is saved and only evaluated if no more specific request is found
+                (RequestWithOptions::Var(ours), RequestWithOptions::Var(theirs))
+                    if ours.var == theirs.var =>
+                {
+                    return ours.contains(theirs);
+                }
+                (RequestWithOptions::Var(ours), RequestWithOptions::Var(theirs))
+                    if theirs.var.namespace().is_some()
+                        && ours.var.as_str() == theirs.var.base_name() =>
+                {
+                    global_opt_request = Some((ours, theirs));
+                }
+                _ => {
+                    tracing::trace!("skip {ours}, not {theirs}");
+                    continue;
+                }
+            }
+        }
+        if let Some((ours, theirs)) = global_opt_request {
+            return ours.contains(theirs);
+        }
+        Compatibility::Incompatible(IncompatibleReason::RequirementsNotSuperset {
+            name: theirs.name().to_owned(),
+        })
+    }
+
     /// Add a requirement in this list, or merge it in.
     ///
     /// If a request exists for the same name, it is updated with the
@@ -397,6 +413,21 @@ impl RequirementsList<RequestWithOptions> {
         }
         self.0.push(request);
         Ok(())
+    }
+
+    /// Attempt to build a requirements list from a set of requests.
+    ///
+    /// Duplicate requests will be merged. Any error during this process
+    /// will cause this process to fail.
+    pub fn try_from_iter<I>(value: I) -> Result<Self>
+    where
+        I: IntoIterator<Item = RequestWithOptions>,
+    {
+        let mut out = Self::default();
+        for item in value.into_iter() {
+            out.insert_or_merge_with_options(item)?;
+        }
+        Ok(out)
     }
 }
 
@@ -504,6 +535,21 @@ impl AsOptNameAndValue for (&OptNameBuf, &String) {
 impl AsOptNameAndValue for () {
     fn as_opt_name_and_value(&self) -> Option<(&OptName, String)> {
         None
+    }
+}
+
+/// Convert requirements list types.
+impl TryFrom<RequirementsList> for RequirementsList<PinnedRequest> {
+    type Error = Error;
+
+    fn try_from(requirements: RequirementsList) -> Result<Self> {
+        Ok(Self(
+            requirements
+                .0
+                .into_iter()
+                .map(|req| req.try_into().map_err(Into::into))
+                .collect::<Result<Vec<_>>>()?,
+        ))
     }
 }
 

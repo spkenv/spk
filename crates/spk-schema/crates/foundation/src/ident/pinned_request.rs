@@ -13,6 +13,7 @@ use crate::ident::{
     NameAndValue,
     PinPolicy,
     PinValue,
+    PinnableRequest,
     PkgRequest,
     PreReleasePolicy,
     RangeIdent,
@@ -66,6 +67,17 @@ impl From<VarRequest<PinnedValue>> for PinnedRequest {
 impl From<PkgRequest> for PinnedRequest {
     fn from(req: PkgRequest) -> Self {
         Self::Pkg(req)
+    }
+}
+
+impl TryFrom<PinnableRequest> for PinnedRequest {
+    type Error = crate::ident::Error;
+
+    fn try_from(req: PinnableRequest) -> std::result::Result<Self, Self::Error> {
+        match req {
+            PinnableRequest::Pkg(r) => Ok(PinnedRequest::Pkg(r)),
+            PinnableRequest::Var(r) => Ok(PinnedRequest::Var(r.try_into()?)),
+        }
     }
 }
 

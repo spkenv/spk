@@ -165,16 +165,13 @@ pub trait Package:
         env
     }
 
-    /// Requests that must be met to use this package
-    fn runtime_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>>;
-
     /// Package's test specs for all test stages
     fn get_all_tests(&self) -> Vec<SpecTest>;
 
     /// Requests that must be met to use this package.
     ///
-    /// Compared to [`Package::runtime_requirements`], the package requirements
-    /// include the package-specific options required too.
+    /// The package requirements include the package-specific options required
+    /// too.
     fn runtime_requirements_with_options(&self) -> Cow<'_, RequirementsList<RequestWithOptions>>;
 
     /// Requests that must be satisfied by the build
@@ -185,7 +182,7 @@ pub trait Package:
     fn downstream_build_requirements<'a>(
         &self,
         components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, RequirementsList>;
+    ) -> Cow<'_, RequirementsList<RequestWithOptions>>;
 
     /// Requests that must be satisfied by the runtime
     /// environment of any package built against this one
@@ -195,7 +192,7 @@ pub trait Package:
     fn downstream_runtime_requirements<'a>(
         &self,
         components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, RequirementsList>;
+    ) -> Cow<'_, RequirementsList<RequestWithOptions>>;
 
     /// Return the set of configured validators when building this package
     fn validation(&self) -> &super::ValidationSpec;
@@ -247,10 +244,6 @@ forward_to_impl!(Package, {
         (**self).get_build_requirements()
     }
 
-    fn runtime_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>> {
-        (**self).runtime_requirements()
-    }
-
     fn get_all_tests(&self) -> Vec<SpecTest> {
         (**self).get_all_tests()
     }
@@ -262,14 +255,14 @@ forward_to_impl!(Package, {
     fn downstream_build_requirements<'a>(
         &self,
         components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, RequirementsList> {
+    ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
         (**self).downstream_build_requirements(components)
     }
 
     fn downstream_runtime_requirements<'a>(
         &self,
         components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, RequirementsList> {
+    ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
         (**self).downstream_runtime_requirements(components)
     }
 

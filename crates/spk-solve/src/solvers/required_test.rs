@@ -18,7 +18,7 @@ use spk_schema::ident::{
     VarRequest,
     parse_ident_range,
 };
-use spk_schema::{Package, PinnedRequest, opt_name};
+use spk_schema::{Package, opt_name};
 use spk_solve_macros::{make_build, make_repo, pinned_request};
 
 use super::solver_test::{resolvo_solver, run_and_print_resolve_for_tests, step_solver};
@@ -295,10 +295,10 @@ async fn requested_required_var_is_strongly_inherited() {
         .unwrap();
     let mypkg = repo.read_package(&builds[0]).await.unwrap();
     mypkg
-        .runtime_requirements()
+        .runtime_requirements_with_options()
         .iter()
         .find(|req| {
-            let PinnedRequest::Var(var_req) = req else {
+            let RequestWithOptions::Var(var_req) = req else {
                 return false;
             };
             var_req.var.as_str() == "mylib.namespace_style" && &*var_req.value == "major_minor"

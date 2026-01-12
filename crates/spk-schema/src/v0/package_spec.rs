@@ -39,7 +39,6 @@ use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, CompatRule, Compatibility, Version};
 use crate::foundation::version_range::Ranged;
 use crate::ident::{
-    PinnableRequest,
     PkgRequestWithOptions,
     PreReleasePolicy,
     RequestWithOptions,
@@ -254,7 +253,7 @@ impl PackageSpec {
 
 impl PackageSpec {
     /// Return downstream var requirements that match the given filter.
-    fn downstream_requirements<F>(&self, filter: F) -> Cow<'_, RequirementsList>
+    fn downstream_requirements<F>(&self, filter: F) -> Cow<'_, RequirementsList<RequestWithOptions>>
     where
         F: FnMut(&&VarOpt) -> bool,
     {
@@ -277,8 +276,8 @@ impl PackageSpec {
                     description: o.description.clone(),
                 }
             })
-            .map(PinnableRequest::Var);
-        RequirementsList::try_from_iter(requests)
+            .map(RequestWithOptions::Var);
+        RequirementsList::<RequestWithOptions>::try_from_iter(requests)
             .map(Cow::Owned)
             .expect("build opts do not contain duplicates")
     }
@@ -459,10 +458,6 @@ impl Package for PackageSpec {
         Cow::Borrowed(&self.install_requirements_with_options)
     }
 
-    fn runtime_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>> {
-        Cow::Borrowed(&self.install.requirements)
-    }
-
     fn get_all_tests(&self) -> Vec<SpecTest> {
         self.tests.clone().into_iter().map(SpecTest::V0).collect()
     }
@@ -470,14 +465,14 @@ impl Package for PackageSpec {
     fn downstream_build_requirements<'a>(
         &self,
         _components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, RequirementsList> {
+    ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
         self.downstream_requirements(|o| o.inheritance() != Inheritance::Weak)
     }
 
     fn downstream_runtime_requirements<'a>(
         &self,
         _components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, RequirementsList> {
+    ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
         self.downstream_requirements(|o| o.inheritance() == Inheritance::Strong)
     }
 
