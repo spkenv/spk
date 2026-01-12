@@ -25,7 +25,7 @@ impl ValidatorT for PkgRequirementsValidator {
         spec: &P,
         _source: &PackageSource,
     ) -> crate::Result<Compatibility> {
-        for request in spec.runtime_requirements_with_options().iter() {
+        for request in spec.runtime_requirements().iter() {
             dbg!(spec.name(), request);
             let compat = self.validate_request_against_existing_state(state, request)?;
             if !&compat {

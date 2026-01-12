@@ -318,7 +318,7 @@ impl Recipe for Platform {
                     ))
                 })?;
 
-            for requirement in base.runtime_requirements_with_options().iter() {
+            for requirement in base.runtime_requirements().iter() {
                 spec.install
                     .requirements
                     .insert_or_replace(requirement.clone());

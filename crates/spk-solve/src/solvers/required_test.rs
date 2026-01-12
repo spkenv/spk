@@ -295,7 +295,7 @@ async fn requested_required_var_is_strongly_inherited() {
         .unwrap();
     let mypkg = repo.read_package(&builds[0]).await.unwrap();
     mypkg
-        .runtime_requirements_with_options()
+        .runtime_requirements()
         .iter()
         .find(|req| {
             let RequestWithOptions::Var(var_req) = req else {

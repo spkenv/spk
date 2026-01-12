@@ -787,11 +787,9 @@ impl Package for Spec {
         }
     }
 
-    fn runtime_requirements_with_options(
-        &self,
-    ) -> Cow<'_, crate::RequirementsList<RequestWithOptions>> {
+    fn runtime_requirements(&self) -> Cow<'_, crate::RequirementsList<RequestWithOptions>> {
         match self {
-            Spec::V0Package(spec) => spec.runtime_requirements_with_options(),
+            Spec::V0Package(spec) => spec.runtime_requirements(),
         }
     }
 

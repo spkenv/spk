@@ -172,7 +172,7 @@ pub trait Package:
     ///
     /// The package requirements include the package-specific options required
     /// too.
-    fn runtime_requirements_with_options(&self) -> Cow<'_, RequirementsList<RequestWithOptions>>;
+    fn runtime_requirements(&self) -> Cow<'_, RequirementsList<RequestWithOptions>>;
 
     /// Requests that must be satisfied by the build
     /// environment of any package built against this one
@@ -248,8 +248,8 @@ forward_to_impl!(Package, {
         (**self).get_all_tests()
     }
 
-    fn runtime_requirements_with_options(&self) -> Cow<'_, RequirementsList<RequestWithOptions>> {
-        (**self).runtime_requirements_with_options()
+    fn runtime_requirements(&self) -> Cow<'_, RequirementsList<RequestWithOptions>> {
+        (**self).runtime_requirements()
     }
 
     fn downstream_build_requirements<'a>(

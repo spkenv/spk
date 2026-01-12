@@ -284,7 +284,7 @@ fn apply_inherit_from_base_component(
     inherit: Component,
     base: impl Package,
 ) {
-    for requirement in base.runtime_requirements_with_options().iter() {
+    for requirement in base.runtime_requirements().iter() {
         cmpt.requirements.insert_or_replace(requirement.clone());
     }
     let Some(base_cmpt) = base.components().get(inherit) else {

@@ -258,11 +258,7 @@ async fn test_build_package_pinning(
         .unwrap();
 
     let spec = rt.tmprepo.read_package(spec.ident()).await.unwrap();
-    let req = spec
-        .runtime_requirements_with_options()
-        .first()
-        .unwrap()
-        .clone();
+    let req = spec.runtime_requirements().first().unwrap().clone();
     match req {
         RequestWithOptions::Pkg(req) => {
             assert_eq!(&req.pkg.to_string(), "dep/~1.0");
@@ -325,11 +321,7 @@ async fn test_build_package_pinning_optional_requirement(#[case] solver: SolverI
             .unwrap();
 
         let spec = rt.tmprepo.read_package(spec.ident()).await.unwrap();
-        let req = spec
-            .runtime_requirements_with_options()
-            .first()
-            .unwrap()
-            .clone();
+        let req = spec.runtime_requirements().first().unwrap().clone();
         match req {
             RequestWithOptions::Pkg(req) => {
                 assert_eq!(req.pkg.to_string(), format!("{expected_dep}/Binary:1.0.0"));
@@ -395,11 +387,7 @@ async fn test_build_package_pinning_optional_requirement_without_frombuildenv(
             .unwrap();
 
         let spec = rt.tmprepo.read_package(spec.ident()).await.unwrap();
-        let req = spec
-            .runtime_requirements_with_options()
-            .first()
-            .unwrap()
-            .clone();
+        let req = spec.runtime_requirements().first().unwrap().clone();
         match req {
             RequestWithOptions::Pkg(req) => {
                 assert_eq!(req.pkg.to_string(), *expected_dep);
@@ -472,7 +460,7 @@ async fn test_build_var_pinning_optional_requirement(#[case] solver: SolverImpl)
 
         let spec = rt.tmprepo.read_package(spec.ident()).await.unwrap();
         let req = spec
-            .runtime_requirements_with_options()
+            .runtime_requirements()
             .iter()
             .find(|r| matches!(r, RequestWithOptions::Var(_)))
             .map(ToString::to_string);
@@ -557,16 +545,12 @@ async fn test_build_var_pinning(#[case] solver: SolverImpl) {
         .unwrap();
 
     let spec = rt.tmprepo.read_package(spec.ident()).await.unwrap();
-    let top_req = spec
-        .runtime_requirements_with_options()
-        .first()
-        .unwrap()
-        .clone();
+    let top_req = spec.runtime_requirements().first().unwrap().clone();
     match top_req {
         RequestWithOptions::Var(r) => assert_eq!(&*r.value, "topvalue"),
         _ => panic!("expected var request"),
     }
-    let depreq = spec.runtime_requirements_with_options()[1].clone();
+    let depreq = spec.runtime_requirements()[1].clone();
     match depreq {
         RequestWithOptions::Var(r) => assert_eq!(&*r.value, "depvalue"),
         _ => panic!("expected var request"),

@@ -1292,9 +1292,7 @@ impl DependencyProvider for SpkProvider {
         {
             Ok(package) => {
                 let mut known_deps = KnownDependencies {
-                    requirements: Vec::with_capacity(
-                        package.runtime_requirements_with_options().len(),
-                    ),
+                    requirements: Vec::with_capacity(package.runtime_requirements().len()),
                     // This is where IfAlreadyPresent constraints would go.
                     constrains: Vec::with_capacity(package.get_build_options().len()),
                 };
@@ -1437,7 +1435,7 @@ impl DependencyProvider for SpkProvider {
                                     RequestVS::SpkRequest(RequestWithOptions::Pkg(
                                         PkgRequestWithOptions {
                                             options: package
-                                                .runtime_requirements_with_options()
+                                                .runtime_requirements()
                                                 .iter()
                                                 // XXX: this is wrong, there could be var requests
                                                 // for the target package but no pkg requests (test
@@ -1585,7 +1583,7 @@ impl DependencyProvider for SpkProvider {
                                             RequestVS::SpkRequest(RequestWithOptions::Pkg(
                                                 PkgRequestWithOptions {
                                                     options: package
-                                                        .runtime_requirements_with_options()
+                                                        .runtime_requirements()
                                                         .iter()
                                                         // XXX: this is wrong, there could be var requests
                                                         // for the target package but no pkg requests (test
@@ -1723,7 +1721,7 @@ impl DependencyProvider for SpkProvider {
                         },
                     ));
                 }
-                for requirement in package.runtime_requirements_with_options().iter() {
+                for requirement in package.runtime_requirements().iter() {
                     let kd = self.request_to_known_dependencies(requirement);
                     known_deps.requirements.extend(kd.requirements);
                     known_deps.constrains.extend(kd.constrains);

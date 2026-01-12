@@ -452,9 +452,7 @@ impl Package for PackageSpec {
         Ok(Cow::Owned(requests))
     }
 
-    fn runtime_requirements_with_options(
-        &self,
-    ) -> Cow<'_, crate::RequirementsList<RequestWithOptions>> {
+    fn runtime_requirements(&self) -> Cow<'_, crate::RequirementsList<RequestWithOptions>> {
         Cow::Borrowed(&self.install_requirements_with_options)
     }
 
