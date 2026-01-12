@@ -227,12 +227,10 @@ fn test_get_build_requirements_variant_treated_as_new_pkg() {
     let variants = spec.default_variants(&OptionMap::default());
     let (v_0, v_1, v_2) = (&variants[0], &variants[1], &variants[2]);
 
-    let build_requirements_default = spec
-        .get_build_requirements_with_options(&OptionMap::default())
-        .unwrap();
-    let build_requirements_variant_0 = spec.get_build_requirements_with_options(v_0).unwrap();
-    let build_requirements_variant_1 = spec.get_build_requirements_with_options(v_1).unwrap();
-    let build_requirements_variant_2 = spec.get_build_requirements_with_options(v_2).unwrap();
+    let build_requirements_default = spec.get_build_requirements(&OptionMap::default()).unwrap();
+    let build_requirements_variant_0 = spec.get_build_requirements(v_0).unwrap();
+    let build_requirements_variant_1 = spec.get_build_requirements(v_1).unwrap();
+    let build_requirements_variant_2 = spec.get_build_requirements(v_2).unwrap();
 
     // The default baseline...
     assert_requests_contains!(build_requirements_default, pkg, "a-package", "1.2.3");
@@ -294,9 +292,7 @@ fn test_get_build_requirements_pkg_in_variant_preserves_order() {
     let variants = spec.default_variants(&OptionMap::default());
     let variant_0 = &variants[0];
 
-    let build_requirements_variant_0 = spec
-        .get_build_requirements_with_options(&variant_0)
-        .unwrap();
+    let build_requirements_variant_0 = spec.get_build_requirements(&variant_0).unwrap();
 
     // Variant 0...
     // Expect the variant content to match the pkg in options and override its

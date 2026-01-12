@@ -192,7 +192,7 @@ impl Recipe for RecipeSpec {
             .map(|(options, _)| options)
     }
 
-    fn get_build_requirements_with_options<V>(
+    fn get_build_requirements<V>(
         &self,
         variant: &V,
     ) -> Result<Cow<'_, RequirementsList<RequestWithOptions>>>
@@ -267,7 +267,7 @@ impl Recipe for RecipeSpec {
                                 // Then the components asked for must be a
                                 // subset of what is present.
                                 if !self
-                                    .get_build_requirements_with_options(variant)
+                                    .get_build_requirements(variant)
                                     .unwrap_or_default()
                                     .iter()
                                     .any(|req| match req {
@@ -332,9 +332,7 @@ impl Recipe for RecipeSpec {
         E: BuildEnv<Package = P>,
         P: Package,
     {
-        let build_requirements = self
-            .get_build_requirements_with_options(variant)?
-            .into_owned();
+        let build_requirements = self.get_build_requirements(variant)?.into_owned();
 
         let build_options = variant.options();
 

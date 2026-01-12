@@ -84,7 +84,7 @@ pub trait Recipe:
     ///
     /// This should also validate and include the items specified
     /// by [`Variant::additional_requirements`].
-    fn get_build_requirements_with_options<V>(
+    fn get_build_requirements<V>(
         &self,
         variant: &V,
     ) -> Result<Cow<'_, RequirementsList<RequestWithOptions>>>
@@ -140,14 +140,14 @@ where
         (**self).resolve_options(variant)
     }
 
-    fn get_build_requirements_with_options<V>(
+    fn get_build_requirements<V>(
         &self,
         variant: &V,
     ) -> Result<Cow<'_, RequirementsList<RequestWithOptions>>>
     where
         V: Variant,
     {
-        (**self).get_build_requirements_with_options(variant)
+        (**self).get_build_requirements(variant)
     }
 
     fn get_tests<V>(&self, stage: TestStage, variant: &V) -> Result<Vec<Self::Test>>
@@ -205,14 +205,14 @@ where
         (**self).resolve_options(variant)
     }
 
-    fn get_build_requirements_with_options<V>(
+    fn get_build_requirements<V>(
         &self,
         variant: &V,
     ) -> Result<Cow<'_, RequirementsList<RequestWithOptions>>>
     where
         V: Variant,
     {
-        (**self).get_build_requirements_with_options(variant)
+        (**self).get_build_requirements(variant)
     }
 
     fn get_tests<V>(&self, stage: TestStage, variant: &V) -> Result<Vec<Self::Test>>

@@ -606,9 +606,9 @@ impl Requests {
                                             recipe.ident().format_ident()
                                         ))?
                                         .with_overrides(options.clone());
-                            recipe.get_build_requirements_with_options(&variant)?
+                            recipe.get_build_requirements(&variant)?
                         }
-                        None => recipe.get_build_requirements_with_options(&options)?,
+                        None => recipe.get_build_requirements(&options)?,
                     };
                     out.extend(requirements.into_owned());
                 }

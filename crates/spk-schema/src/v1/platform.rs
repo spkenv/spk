@@ -150,7 +150,7 @@ impl Recipe for Platform {
         Ok(OptionMap::default())
     }
 
-    fn get_build_requirements_with_options<V>(
+    fn get_build_requirements<V>(
         &self,
         variant: &V,
     ) -> Result<Cow<'_, RequirementsList<RequestWithOptions>>>

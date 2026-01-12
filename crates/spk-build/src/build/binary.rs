@@ -488,10 +488,7 @@ where
             self.solver.add_repository(repo);
         }
 
-        let build_requirements = self
-            .recipe
-            .get_build_requirements_with_options(variant)?
-            .into_owned();
+        let build_requirements = self.recipe.get_build_requirements(variant)?.into_owned();
         for request in build_requirements.iter().cloned() {
             self.solver.add_request(request);
         }

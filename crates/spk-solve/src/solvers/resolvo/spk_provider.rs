@@ -517,7 +517,7 @@ impl SpkProvider {
                     .chain([ident.clone()]),
             ));
 
-            let build_requirements = match recipe.get_build_requirements_with_options(&variant) {
+            let build_requirements = match recipe.get_build_requirements(&variant) {
                 Ok(build_requirements) => build_requirements,
                 Err(err) => {
                     return CanBuildFromSource::No(
