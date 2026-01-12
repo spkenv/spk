@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use std::fmt::Write;
 
 use spk_schema_foundation::format::FormatOptionMap;
-use spk_schema_foundation::ident::{PinnedRequest, RequestWithOptions};
+use spk_schema_foundation::ident::RequestWithOptions;
 use spk_schema_foundation::option_map::{HOST_OPTIONS, OptionMap};
 
 use crate::{RequirementsList, Result};
@@ -21,9 +21,6 @@ pub trait Variant {
     /// Input option values for this variant
     fn options(&self) -> Cow<'_, OptionMap>;
 
-    /// Additional requirements for this variant
-    fn additional_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>>;
-
     /// Additional requirements with options for this variant
     fn additional_requirements_with_options(&self)
     -> Cow<'_, RequirementsList<RequestWithOptions>>;
@@ -32,10 +29,6 @@ pub trait Variant {
 impl Variant for OptionMap {
     fn options(&self) -> Cow<'_, OptionMap> {
         Cow::Borrowed(self)
-    }
-
-    fn additional_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>> {
-        Cow::Owned(RequirementsList::default())
     }
 
     fn additional_requirements_with_options(
@@ -55,10 +48,6 @@ where
 
     fn options(&self) -> Cow<'_, OptionMap> {
         (**self).options()
-    }
-
-    fn additional_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>> {
-        (**self).additional_requirements()
     }
 
     fn additional_requirements_with_options(
@@ -122,10 +111,6 @@ where
         Cow::Owned(opts)
     }
 
-    fn additional_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>> {
-        self.inner.additional_requirements()
-    }
-
     fn additional_requirements_with_options(
         &self,
     ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
@@ -177,7 +162,7 @@ impl<V: Variant> std::fmt::Display for Override<V> {
         }
         f.write_str("Options: ")?;
         f.write_str(&self.options().format_option_map())?;
-        let requirements = self.additional_requirements();
+        let requirements = self.additional_requirements_with_options();
         f.write_fmt(format_args!("{br}Additional Requirements:"))?;
         if !requirements.is_empty() {
             for request in requirements.iter() {

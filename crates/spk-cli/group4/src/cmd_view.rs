@@ -519,7 +519,12 @@ impl View {
                     for (index, variant) in default_variants.iter().enumerate() {
                         let variant_info = PrintVariant {
                             options: variant.options(),
-                            additional_requirements: variant.additional_requirements(),
+                            additional_requirements: Cow::Owned(
+                                variant
+                                    .additional_requirements_with_options()
+                                    .into_owned()
+                                    .into(),
+                            ),
                         };
                         if show_variants_with_tests {
                             let mut tests = BTreeMap::new();

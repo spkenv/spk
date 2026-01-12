@@ -83,7 +83,7 @@ pub trait Recipe:
     /// Identify the requirements for a build of this recipe.
     ///
     /// This should also validate and include the items specified
-    /// by [`Variant::additional_requirements`].
+    /// by [`Variant::additional_requirements_with_options`].
     fn get_build_requirements<V>(
         &self,
         variant: &V,

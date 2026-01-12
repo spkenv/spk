@@ -24,7 +24,6 @@ use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::{
-    PinnedRequest,
     PkgRequest,
     PreReleasePolicy,
     RangeIdent,
@@ -102,13 +101,6 @@ where
     #[inline]
     fn options(&self) -> std::borrow::Cow<'_, OptionMap> {
         self.resolved_variant.options()
-    }
-
-    #[inline]
-    fn additional_requirements(
-        &self,
-    ) -> std::borrow::Cow<'_, spk_schema::RequirementsList<PinnedRequest>> {
-        self.resolved_variant.additional_requirements()
     }
 
     #[inline]

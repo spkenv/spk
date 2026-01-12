@@ -564,6 +564,24 @@ impl From<&RequirementsList<PinnedRequest>> for RequirementsList<RequestWithOpti
 
 /// Convert requirements list types.
 ///
+/// This conversion discards any options associated with the Pkg requests.
+impl From<RequirementsList<RequestWithOptions>> for RequirementsList<PinnedRequest> {
+    fn from(value: RequirementsList<RequestWithOptions>) -> Self {
+        RequirementsList::<PinnedRequest>(
+            value
+                .0
+                .into_iter()
+                .map(|req| match req {
+                    RequestWithOptions::Pkg(pkg_req) => PinnedRequest::Pkg(pkg_req.pkg_request),
+                    RequestWithOptions::Var(var_req) => PinnedRequest::Var(var_req),
+                })
+                .collect(),
+        )
+    }
+}
+
+/// Convert requirements list types.
+///
 /// An additional iterable of options in scope is also considered.
 impl<I, OV> From<(I, &RequirementsList<PinnedRequest>)> for RequirementsList<RequestWithOptions>
 where
