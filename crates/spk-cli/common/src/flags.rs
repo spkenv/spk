@@ -30,7 +30,6 @@ use spk_schema::ident::{
     AsVersionIdent,
     InitialRawRequest,
     PinnableRequest,
-    PinnedRequest,
     PinnedValue,
     PkgRequest,
     RangeIdent,
@@ -39,17 +38,8 @@ use spk_schema::ident::{
     VarRequest,
     parse_ident,
 };
-use spk_schema::name::OptNameBuf;
 use spk_schema::option_map::HOST_OPTIONS;
-use spk_schema::{
-    Recipe,
-    SpecFileData,
-    SpecRecipe,
-    Template,
-    TestStage,
-    VariantExt,
-    convert_requests_to_requests_with_options,
-};
+use spk_schema::{Recipe, SpecFileData, SpecRecipe, Template, TestStage, VariantExt};
 #[cfg(unix)]
 #[cfg(feature = "statsd")]
 use spk_solve::{SPK_RUN_TIME_METRIC, get_metrics_client};
@@ -491,7 +481,7 @@ impl Requests {
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
-        let mut out = Vec::<PinnedRequest>::new();
+        let mut out = Vec::<RequestWithOptions>::new();
         let override_options = options.get_options()?;
         let mut templating_options = override_options.clone();
         let mut extra_options = OptionMap::default();
@@ -525,7 +515,7 @@ impl Requests {
                     )
                 })?;
 
-                out.extend(requests_from_file.requirements);
+                out.extend(requests_from_file.requirements.into_iter().map(Into::into));
 
                 for (name, value) in requests_from_file.options {
                     // Command line override options take precedence.
@@ -554,12 +544,7 @@ impl Requests {
             )
             .into())
         } else {
-            let out_with_options = convert_requests_to_requests_with_options(
-                std::iter::empty::<(OptNameBuf, String)>(),
-                || out.iter(),
-            )
-            .collect();
-            Ok((out_with_options, extra_options))
+            Ok((out, extra_options))
         }
     }
 
@@ -569,10 +554,10 @@ impl Requests {
         options: &OptionMap,
         workspace: &mut Option<spk_workspace::Workspace>,
         repos: &[Arc<storage::RepositoryHandle>],
-    ) -> Result<Vec<PinnedRequest>> {
+    ) -> Result<Vec<RequestWithOptions>> {
         // Parses a command line request into one or more requests.
         // 'file@stage' strings can expand into more than one request.
-        let mut out = Vec::<PinnedRequest>::new();
+        let mut out = Vec::<RequestWithOptions>::new();
 
         if request.contains('@') {
             if workspace.is_none() {
@@ -621,9 +606,9 @@ impl Requests {
                                             recipe.ident().format_ident()
                                         ))?
                                         .with_overrides(options.clone());
-                            recipe.get_build_requirements(&variant)?
+                            recipe.get_build_requirements_with_options(&variant)?
                         }
-                        None => recipe.get_build_requirements(&options)?,
+                        None => recipe.get_build_requirements_with_options(&options)?,
                     };
                     out.extend(requirements.into_owned());
                 }

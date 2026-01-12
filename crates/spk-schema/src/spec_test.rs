@@ -156,7 +156,7 @@ macro_rules! assert_requests_contains {
         if !$requests
             .iter()
             .enumerate()
-            .any(|(index, r)| matches!(r, $crate::PinnedRequest::Var(var) if &var.var == $expected_key && &*var.value == $expected_value && ($expected_index.is_none() || $expected_index.unwrap() == index)))
+            .any(|(index, r)| matches!(r, $crate::RequestWithOptions::Var(var) if &var.var == $expected_key && &*var.value == $expected_value && ($expected_index.is_none() || $expected_index.unwrap() == index)))
         {
             panic!(
                 "requests did not contain var with {} and {}{}",
@@ -173,7 +173,7 @@ macro_rules! assert_requests_contains {
         if !$requests
             .iter()
             .enumerate()
-            .any(|(index, r)| matches!(r, $crate::PinnedRequest::Pkg(pkg) if &pkg.pkg.name == $expected_key && pkg.pkg.version.to_string() == $expected_value && ($expected_index.is_none() || $expected_index.unwrap() == index)))
+            .any(|(index, r)| matches!(r, $crate::RequestWithOptions::Pkg(pkg) if &pkg.pkg.name == $expected_key && pkg.pkg.version.to_string() == $expected_value && ($expected_index.is_none() || $expected_index.unwrap() == index)))
         {
             panic!(
                 "requests did not contain pkg with {} and {}{}",
@@ -227,10 +227,12 @@ fn test_get_build_requirements_variant_treated_as_new_pkg() {
     let variants = spec.default_variants(&OptionMap::default());
     let (v_0, v_1, v_2) = (&variants[0], &variants[1], &variants[2]);
 
-    let build_requirements_default = spec.get_build_requirements(&OptionMap::default()).unwrap();
-    let build_requirements_variant_0 = spec.get_build_requirements(v_0).unwrap();
-    let build_requirements_variant_1 = spec.get_build_requirements(v_1).unwrap();
-    let build_requirements_variant_2 = spec.get_build_requirements(v_2).unwrap();
+    let build_requirements_default = spec
+        .get_build_requirements_with_options(&OptionMap::default())
+        .unwrap();
+    let build_requirements_variant_0 = spec.get_build_requirements_with_options(v_0).unwrap();
+    let build_requirements_variant_1 = spec.get_build_requirements_with_options(v_1).unwrap();
+    let build_requirements_variant_2 = spec.get_build_requirements_with_options(v_2).unwrap();
 
     // The default baseline...
     assert_requests_contains!(build_requirements_default, pkg, "a-package", "1.2.3");
@@ -292,7 +294,9 @@ fn test_get_build_requirements_pkg_in_variant_preserves_order() {
     let variants = spec.default_variants(&OptionMap::default());
     let variant_0 = &variants[0];
 
-    let build_requirements_variant_0 = spec.get_build_requirements(&variant_0).unwrap();
+    let build_requirements_variant_0 = spec
+        .get_build_requirements_with_options(&variant_0)
+        .unwrap();
 
     // Variant 0...
     // Expect the variant content to match the pkg in options and override its

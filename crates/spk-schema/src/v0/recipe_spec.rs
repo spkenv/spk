@@ -192,46 +192,6 @@ impl Recipe for RecipeSpec {
             .map(|(options, _)| options)
     }
 
-    fn get_build_requirements<V>(
-        &self,
-        variant: &V,
-    ) -> Result<Cow<'_, RequirementsList<PinnedRequest>>>
-    where
-        V: Variant,
-    {
-        let opts = self.build.opts_for_variant(variant)?;
-        let options = self.resolve_options(variant)?;
-        let build_digest = Build::BuildId(self.build_digest(variant)?);
-        let mut requests = RequirementsList::default();
-        for opt in opts {
-            match opt {
-                Opt::Pkg(opt) => {
-                    let given_value = options.get(opt.pkg.as_opt_name()).map(String::to_owned);
-                    let mut req = opt.to_request(
-                        given_value,
-                        RequestedBy::BinaryBuild(self.ident().to_build_ident(build_digest.clone())),
-                    )?;
-                    if req.pkg.components.is_empty() {
-                        // inject the default component for this context if needed
-                        req.pkg.components.insert(Component::default_for_build());
-                    }
-                    requests.insert_or_merge_pinned(req.into())?;
-                }
-                Opt::Var(opt) => {
-                    // If no value was specified in the spec, there's
-                    // no need to turn that into a requirement to
-                    // find a var with an empty value.
-                    if let Some(value) = options.get(&opt.var)
-                        && !value.is_empty()
-                    {
-                        requests.insert_or_merge_pinned(opt.to_request(Some(value)).into())?;
-                    }
-                }
-            }
-        }
-        Ok(Cow::Owned(requests))
-    }
-
     fn get_build_requirements_with_options<V>(
         &self,
         variant: &V,
@@ -307,14 +267,18 @@ impl Recipe for RecipeSpec {
                                 // Then the components asked for must be a
                                 // subset of what is present.
                                 if !self
-                                    .get_build_requirements(variant)
+                                    .get_build_requirements_with_options(variant)
                                     .unwrap_or_default()
                                     .iter()
                                     .any(|req| match req {
-                                        PinnedRequest::Pkg(PkgRequest {
-                                            pkg:
-                                                RangeIdent {
-                                                    name, components, ..
+                                        RequestWithOptions::Pkg(PkgRequestWithOptions {
+                                            pkg_request:
+                                                PkgRequest {
+                                                    pkg:
+                                                        RangeIdent {
+                                                            name, components, ..
+                                                        },
+                                                    ..
                                                 },
                                             ..
                                         }) => {
@@ -323,7 +287,7 @@ impl Recipe for RecipeSpec {
                                                     &ComponentBTreeSet::new(&pkg.0.components),
                                                 )
                                         }
-                                        PinnedRequest::Var(VarRequest {
+                                        RequestWithOptions::Var(VarRequest {
                                             var,
                                             value: var_request_value,
                                             ..
@@ -368,7 +332,9 @@ impl Recipe for RecipeSpec {
         E: BuildEnv<Package = P>,
         P: Package,
     {
-        let build_requirements = self.get_build_requirements(variant)?.into_owned();
+        let build_requirements = self
+            .get_build_requirements_with_options(variant)?
+            .into_owned();
 
         let build_options = variant.options();
 

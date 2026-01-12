@@ -11,7 +11,7 @@ use spk_schema::foundation::env::data_path;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::{opt_name, option_map, version_ident};
-use spk_schema::ident::{PinnedRequest, PkgRequest, RangeIdent, RequestWithOptions};
+use spk_schema::ident::{PkgRequest, PkgRequestWithOptions, RangeIdent, RequestWithOptions};
 use spk_schema::{
     ComponentSpecList,
     Components,
@@ -73,7 +73,9 @@ async fn test_empty_var_option_is_not_a_request() {
         }"#,
     )
     .unwrap();
-    let requirements = recipe.get_build_requirements(&option_map! {}).unwrap();
+    let requirements = recipe
+        .get_build_requirements_with_options(&option_map! {})
+        .unwrap();
     assert!(
         requirements.is_empty(),
         "a var option with empty value should not create a solver request"
@@ -95,14 +97,17 @@ fn test_var_with_build_assigns_build() {
     .unwrap();
     // Assuming there is a request for a version with a specific build...
     let requirements = recipe
-        .get_build_requirements(&option_map! {"my-dep" => "1.0.0/QYB6QLCN"})
+        .get_build_requirements_with_options(&option_map! {"my-dep" => "1.0.0/QYB6QLCN"})
         .unwrap();
     assert!(!requirements.is_empty());
     // ... a requirement is generated for that specific build.
     assert!(matches!(
         requirements.first().unwrap(),
-        PinnedRequest::Pkg(PkgRequest {
-            pkg: RangeIdent { name, build: Some(digest), .. },
+        RequestWithOptions::Pkg(PkgRequestWithOptions {
+            pkg_request: PkgRequest {
+                pkg: RangeIdent { name, build: Some(digest), .. },
+                ..
+            },
             ..
         })
      if name.as_str() == "my-dep" && digest.digest() == "QYB6QLCN"));
@@ -859,11 +864,13 @@ async fn test_default_build_component() {
         }
     );
 
-    let requirements = spec.get_build_requirements(&option_map! {}).unwrap();
+    let requirements = spec
+        .get_build_requirements_with_options(&option_map! {})
+        .unwrap();
     assert_eq!(requirements.len(), 1, "should have one build requirement");
     let req = requirements.first().unwrap();
     match req {
-        PinnedRequest::Pkg(req) => {
+        RequestWithOptions::Pkg(req) => {
             assert_eq!(
                 req.pkg.components,
                 vec![Component::default_for_build()].into_iter().collect(),

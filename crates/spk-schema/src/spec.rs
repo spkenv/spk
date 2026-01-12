@@ -358,16 +358,6 @@ impl Recipe for SpecRecipe {
         each_variant!(self, r, r.resolve_options(variant))
     }
 
-    fn get_build_requirements<V>(
-        &self,
-        variant: &V,
-    ) -> Result<Cow<'_, RequirementsList<PinnedRequest>>>
-    where
-        V: Variant,
-    {
-        each_variant!(self, r, r.get_build_requirements(variant))
-    }
-
     fn get_build_requirements_with_options<V>(
         &self,
         variant: &V,
