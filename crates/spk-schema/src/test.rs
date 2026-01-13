@@ -21,7 +21,7 @@ pub trait Test {
     /// Calculate the additional requirements with options.
     ///
     /// This requires the options of the variant being tested.
-    fn additional_requirements_with_options(&self, options: &OptionMap) -> Vec<RequestWithOptions>;
+    fn additional_requirements(&self, options: &OptionMap) -> Vec<RequestWithOptions>;
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, strum::EnumIter)]

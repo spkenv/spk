@@ -607,9 +607,9 @@ impl Test for SpecTest {
         }
     }
 
-    fn additional_requirements_with_options(&self, options: &OptionMap) -> Vec<RequestWithOptions> {
+    fn additional_requirements(&self, options: &OptionMap) -> Vec<RequestWithOptions> {
         match self {
-            Self::V0(t) => t.additional_requirements_with_options(options),
+            Self::V0(t) => t.additional_requirements(options),
         }
     }
 }
