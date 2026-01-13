@@ -5,7 +5,7 @@
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
-use spk_schema_foundation::ident::OptVersionIdent;
+use spk_schema_foundation::ident::{OptVersionIdent, PinnedRequest};
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::name::OptName;
 use spk_schema_foundation::spec_ops::Named;
@@ -13,6 +13,7 @@ use spk_schema_foundation::spec_ops::Named;
 use crate::component_embedded_packages::ComponentEmbeddedPackage;
 use crate::v0::{EmbeddedInstallSpec, EmbeddedPackageSpec};
 use crate::{
+    ComponentSpec,
     ComponentSpecList,
     Components,
     EmbeddedPackagesList,
@@ -52,7 +53,7 @@ pub struct InstallSpec<Request: DeserializeOwned + Named<OptName> + PartialEq + 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub embedded: EmbeddedPackagesList<EmbeddedPackageSpec>,
     #[serde(default)]
-    pub components: ComponentSpecList<Request>,
+    pub components: ComponentSpecList<ComponentSpec>,
     #[serde(default, skip_serializing_if = "IsDefault::is_default")]
     pub environment: EnvOpList,
 }
@@ -71,16 +72,13 @@ where
     }
 }
 
-impl<Request> From<EmbeddedInstallSpec<Request>> for InstallSpec<Request>
-where
-    Request: DeserializeOwned + Named<OptName> + PartialEq + Serialize,
-{
-    fn from(embedded: EmbeddedInstallSpec<Request>) -> Self {
+impl From<EmbeddedInstallSpec> for InstallSpec<PinnedRequest> {
+    fn from(embedded: EmbeddedInstallSpec) -> Self {
         Self {
             requirements: embedded.requirements,
             embedded: EmbeddedPackagesList::default(),
             components: embedded.components,
-            environment: embedded.environment,
+            environment: EnvOpList::default(),
         }
     }
 }
@@ -189,7 +187,7 @@ struct RawInstallSpec<Request> {
     #[serde(default)]
     embedded: EmbeddedPackagesList<EmbeddedPackageSpec>,
     #[serde(default)]
-    components: ComponentSpecList<Request>,
+    components: ComponentSpecList<ComponentSpec>,
     #[serde(default, deserialize_with = "deserialize_env_conf")]
     environment: EnvOpList,
 }

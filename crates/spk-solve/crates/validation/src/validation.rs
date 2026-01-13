@@ -4,7 +4,7 @@
 
 use enum_dispatch::enum_dispatch;
 use spk_schema::foundation::version::Compatibility;
-use spk_schema::ident::{AsVersionIdent, PinnedValue, PkgRequest, Satisfy, VarRequest};
+use spk_schema::ident::{AsVersionIdent, PinnedValue, PkgRequestWithOptions, Satisfy, VarRequest};
 use spk_schema::name::PkgName;
 use spk_schema::prelude::Named;
 use spk_schema::{Package, Recipe};
@@ -33,14 +33,14 @@ pub enum Validators {
 
 /// For validation methods that only operate on package requests
 pub trait GetMergedRequest {
-    fn get_merged_request(&self, name: &PkgName) -> GetMergedRequestResult<PkgRequest>;
+    fn get_merged_request(&self, name: &PkgName) -> GetMergedRequestResult<PkgRequestWithOptions>;
 }
 
 // This trait implementation for State is here because graph crate
 // contains the State definition, and this (validation) crate uses the
 // graph crate.
 impl GetMergedRequest for State {
-    fn get_merged_request(&self, name: &PkgName) -> GetMergedRequestResult<PkgRequest> {
+    fn get_merged_request(&self, name: &PkgName) -> GetMergedRequestResult<PkgRequestWithOptions> {
         State::get_merged_request(self, name)
     }
 }
@@ -56,8 +56,8 @@ pub trait ValidatorT {
         source: &PackageSource,
     ) -> crate::Result<Compatibility>
     where
-        P: Satisfy<PkgRequest> + Satisfy<VarRequest<PinnedValue>> + Package,
-        <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequest>;
+        P: Satisfy<PkgRequestWithOptions> + Satisfy<VarRequest<PinnedValue>> + Package,
+        <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequestWithOptions>;
 
     /// Check if the given package is appropriate for the packages request data.
     ///
@@ -71,7 +71,7 @@ pub trait ValidatorT {
     ) -> crate::Result<Compatibility>
     where
         PR: GetMergedRequest,
-        P: Satisfy<PkgRequest> + Package,
+        P: Satisfy<PkgRequestWithOptions> + Package,
     {
         Err(Error::SolverError(
             "validate_package_against_request() is not implemented for this Validator".to_string(),

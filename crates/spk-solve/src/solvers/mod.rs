@@ -13,4 +13,8 @@ pub use step::{Solver as StepSolver, SolverRuntime as StepSolverRuntime};
 // Public to allow other tests to use its macros
 #[cfg(test)]
 #[path = "./solver_test.rs"]
-mod solver_test;
+pub mod solver_test;
+
+#[cfg(test)]
+#[path = "./required_test.rs"]
+mod required_test;

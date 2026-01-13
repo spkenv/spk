@@ -17,6 +17,7 @@ use spk_schema::{
     Components,
     FromYaml,
     OptionMap,
+    OptionValues,
     Package,
     Recipe,
     SpecRecipe,

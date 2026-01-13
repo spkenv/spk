@@ -14,7 +14,10 @@ use spk_schema_foundation::ident::{
     PinnableRequest,
     PinnedRequest,
     PkgRequest,
+    PkgRequestOptions,
+    PkgRequestWithOptions,
     RangeIdent,
+    RequestWithOptions,
     RequestedBy,
     VarRequest,
     VersionIdent,
@@ -35,13 +38,13 @@ use crate::v0::{PackageSpec, TestSpec};
 use crate::{
     BuildEnv,
     BuildSpec,
-    ComponentSpec,
     Deprecate,
     DeprecateMut,
     InputVariant,
     Opt,
     Package,
     Recipe,
+    RecipeComponentSpec,
     RequirementsList,
     Result,
     RuntimeEnvironment,
@@ -168,6 +171,31 @@ impl Recipe for Platform {
         Ok(Cow::Owned(requirements))
     }
 
+    fn get_build_requirements_with_options<V>(
+        &self,
+        variant: &V,
+    ) -> Result<Cow<'_, RequirementsList<RequestWithOptions>>>
+    where
+        V: Variant,
+    {
+        let mut requirements = RequirementsList::<RequestWithOptions>::default();
+        for base in self.base.iter() {
+            let build_digest = self.build_digest(variant)?;
+
+            requirements.insert_or_replace(RequestWithOptions::Pkg(PkgRequestWithOptions {
+                pkg_request: PkgRequest::from_ident(
+                    base.clone().into_any_ident(None),
+                    RequestedBy::BinaryBuild(
+                        self.ident().to_build_ident(Build::BuildId(build_digest)),
+                    ),
+                ),
+                options: PkgRequestOptions::default(),
+            }));
+        }
+
+        Ok(Cow::Owned(requirements))
+    }
+
     fn get_tests<V>(&self, _stage: TestStage, _variant: &V) -> Result<Vec<Self::Test>>
     where
         V: Variant,
@@ -230,12 +258,12 @@ impl Recipe for Platform {
             let build_cmpt = spec
                 .install
                 .components
-                .get_or_insert_with(Component::Build, ComponentSpec::default_build);
+                .get_or_insert_with(Component::Build, RecipeComponentSpec::default_build);
             apply_inherit_from_base_component(build_cmpt, Component::Build, base);
             let run_cmpt = spec
                 .install
                 .components
-                .get_or_insert_with(Component::Run, ComponentSpec::default_run);
+                .get_or_insert_with(Component::Run, RecipeComponentSpec::default_run);
             apply_inherit_from_base_component(run_cmpt, Component::Run, base);
         }
 
@@ -252,7 +280,7 @@ impl Recipe for Platform {
 }
 
 fn apply_inherit_from_base_component(
-    cmpt: &mut ComponentSpec<PinnableRequest>,
+    cmpt: &mut RecipeComponentSpec,
     inherit: Component,
     base: impl Package,
 ) {
@@ -262,7 +290,7 @@ fn apply_inherit_from_base_component(
     let Some(base_cmpt) = base.components().get(inherit) else {
         return;
     };
-    for requirement in base_cmpt.requirements.iter() {
+    for requirement in base_cmpt.requirements().iter() {
         cmpt.requirements.insert_or_replace(requirement.clone());
     }
 }
@@ -339,7 +367,7 @@ impl PlatformPkgRequirement {
         let build_component = spec
             .install
             .components
-            .get_or_insert_with(Component::Build, ComponentSpec::default_build);
+            .get_or_insert_with(Component::Build, RecipeComponentSpec::default_build);
         match &self.at_build {
             None => {}
             Some(Override::Remove) => build_component.requirements.remove_all(self.name()),
@@ -362,12 +390,12 @@ impl PlatformPkgRequirement {
                         requested_by: Default::default(),
                     }));
             }
-        }
+        };
 
         let runtime_component = spec
             .install
             .components
-            .get_or_insert_with(Component::Run, ComponentSpec::default_run);
+            .get_or_insert_with(Component::Run, RecipeComponentSpec::default_run);
         match &self.at_runtime {
             None => {}
             Some(Override::Remove) => runtime_component.requirements.remove_all(self.name()),
@@ -390,7 +418,7 @@ impl PlatformPkgRequirement {
                         requested_by: Default::default(),
                     }));
             }
-        }
+        };
 
         Ok(())
     }
@@ -438,7 +466,7 @@ impl PlatformVarRequirement {
         let build_component = spec
             .install
             .components
-            .get_or_insert_with(Component::Build, ComponentSpec::default_build);
+            .get_or_insert_with(Component::Build, RecipeComponentSpec::default_build);
         match &self.at_build {
             None => {}
             Some(Override::Remove) => build_component.requirements.remove_all(self.name()),
@@ -453,12 +481,12 @@ impl PlatformVarRequirement {
                         description: DESCRIPTION,
                     }));
             }
-        }
+        };
 
         let runtime_component = spec
             .install
             .components
-            .get_or_insert_with(Component::Run, ComponentSpec::default_run);
+            .get_or_insert_with(Component::Run, RecipeComponentSpec::default_run);
         match &self.at_runtime {
             None => {}
             Some(Override::Remove) => runtime_component.requirements.remove_all(self.name()),
@@ -473,7 +501,7 @@ impl PlatformVarRequirement {
                         description: DESCRIPTION,
                     }));
             }
-        }
+        };
 
         Ok(())
     }

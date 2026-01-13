@@ -29,7 +29,7 @@ pub mod variant;
 
 pub use build_spec::{BuildSpec, Script};
 pub use component_embedded_packages::ComponentEmbeddedPackagesList;
-pub use component_spec::{ComponentFileMatchMode, ComponentSpec};
+pub use component_spec::ComponentSpec;
 pub use component_spec_list::ComponentSpecList;
 pub use deprecate::{Deprecate, DeprecateMut};
 pub use embedded_packages_list::EmbeddedPackagesList;
@@ -48,9 +48,9 @@ pub use error::{Error, Result};
 pub use input_variant::InputVariant;
 pub use install_spec::InstallSpec;
 pub use option::{Inheritance, Opt};
-pub use package::{Components, Package, PackageMut};
+pub use package::{Components, OptionValues, Package, PackageMut};
 pub use recipe::{BuildEnv, Recipe};
-pub use requirements_list::RequirementsList;
+pub use requirements_list::{RequirementsList, convert_requests_to_requests_with_options};
 pub use serde_json;
 pub use source_spec::{GitSource, LocalSource, ScriptSource, SourceSpec, TarSource};
 pub use spec::{ApiVersion, Spec, SpecFileData, SpecRecipe, SpecTemplate, SpecVariant};
@@ -78,6 +78,7 @@ pub use spk_schema_foundation::{
 };
 pub use template::{Template, TemplateData, TemplateExt};
 pub use test::{Test, TestStage};
+pub use v0::RecipeComponentSpec;
 pub use validation::{ValidationRule, ValidationSpec};
 pub use variant::{Variant, VariantExt};
 

@@ -9,7 +9,7 @@ use std::sync::atomic::Ordering;
 use rstest::rstest;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::version_ident;
-use spk_schema::ident::{PkgRequest, RequestedBy};
+use spk_schema::ident::{PkgRequestWithOptions, RequestedBy};
 use spk_schema::name::PkgNameBuf;
 use spk_schema::spec;
 use spk_solve_macros::{make_build, make_repo};
@@ -21,7 +21,7 @@ use super::ImpossibleRequestsChecker;
 async fn test_impossible_requests_checker_set_binary() {
     init_logging();
 
-    let request = PkgRequest::from_ident(
+    let request = PkgRequestWithOptions::from_ident(
         version_ident!("my-pkg/1").to_any_ident(None),
         RequestedBy::SpkInternalTest,
     );
@@ -131,7 +131,7 @@ async fn test_impossible_requests_checker_set_binary() {
 async fn test_impossible_requests_checker_any_build_valid_for_request_valid_build() {
     init_logging();
 
-    let request = PkgRequest::from_ident(
+    let request = PkgRequestWithOptions::from_ident(
         version_ident!("my-pkg/1").to_any_ident(None),
         RequestedBy::SpkInternalTest,
     );
@@ -164,7 +164,7 @@ async fn test_impossible_requests_checker_any_build_valid_for_request_valid_buil
 async fn test_impossible_requests_checker_any_build_valid_for_request_no_valid_build() {
     init_logging();
 
-    let request = PkgRequest::from_ident(
+    let request = PkgRequestWithOptions::from_ident(
         version_ident!("my-pkg/7.0.0").to_any_ident(None),
         RequestedBy::SpkInternalTest,
     );
@@ -221,7 +221,7 @@ async fn test_impossible_requests_checker_validate_pkg_requests_possible() {
         }
     );
 
-    let unresolved_requests: HashMap<PkgNameBuf, PkgRequest> = HashMap::new();
+    let unresolved_requests: HashMap<PkgNameBuf, PkgRequestWithOptions> = HashMap::new();
 
     // Test: a package that adds only possible requests
     let requests_checker = ImpossibleRequestsChecker::default();
@@ -285,7 +285,7 @@ async fn test_impossible_requests_checker_validate_pkg_requests_impossible() {
         }
     );
 
-    let unresolved_requests: HashMap<PkgNameBuf, PkgRequest> = HashMap::new();
+    let unresolved_requests: HashMap<PkgNameBuf, PkgRequestWithOptions> = HashMap::new();
 
     // Test: a package that adds an impossible request
     let requests_checker = ImpossibleRequestsChecker::default();
@@ -360,11 +360,11 @@ async fn test_impossible_requests_checker_validate_pkg_requests_include_embedded
 
     // This should combine with the embedded package and create an
     // impossible request.
-    let same_pkg_request = PkgRequest::from_ident(
+    let same_pkg_request = PkgRequestWithOptions::from_ident(
         version_ident!("my-pkg/2").to_any_ident(None),
         RequestedBy::SpkInternalTest,
     );
-    let mut unresolved_requests: HashMap<PkgNameBuf, PkgRequest> = HashMap::new();
+    let mut unresolved_requests: HashMap<PkgNameBuf, PkgRequestWithOptions> = HashMap::new();
     unresolved_requests.insert(same_pkg_request.pkg.name.clone(), same_pkg_request.clone());
 
     // Test: a package that adds an impossible request
@@ -401,12 +401,12 @@ async fn test_impossible_requests_checker_validate_pkg_requests_no_requirements(
         }
     );
 
-    let request = PkgRequest::from_ident(
+    let request = PkgRequestWithOptions::from_ident(
         version_ident!("my-pkg/2").to_any_ident(None),
         RequestedBy::SpkInternalTest,
     );
 
-    let mut unresolved_requests: HashMap<PkgNameBuf, PkgRequest> = HashMap::new();
+    let mut unresolved_requests: HashMap<PkgNameBuf, PkgRequestWithOptions> = HashMap::new();
     unresolved_requests.insert(request.pkg.name.clone(), request.clone());
 
     // Test: a package that has no install requirements of its own
@@ -444,11 +444,11 @@ async fn test_impossible_requests_checker_with_uncombinable_requests() {
         }
     );
 
-    let request = PkgRequest::from_ident(
+    let request = PkgRequestWithOptions::from_ident(
         version_ident!("my-pkg/1.0.0").to_any_ident(None),
         RequestedBy::SpkInternalTest,
     );
-    let mut unresolved_requests: HashMap<PkgNameBuf, PkgRequest> = HashMap::new();
+    let mut unresolved_requests: HashMap<PkgNameBuf, PkgRequestWithOptions> = HashMap::new();
     unresolved_requests.insert(request.pkg.name.clone(), request);
 
     let requests_checker = ImpossibleRequestsChecker::default();

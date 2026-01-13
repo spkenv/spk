@@ -3,7 +3,6 @@
 // https://github.com/spkenv/spk
 
 use spk_schema::Components;
-use spk_schema::ident::PinnedRequest;
 use spk_schema::version::{
     CommaSeparated,
     ComponentsMissingProblem,
@@ -26,7 +25,8 @@ impl ValidatorT for PkgRequirementsValidator {
         spec: &P,
         _source: &PackageSource,
     ) -> crate::Result<Compatibility> {
-        for request in spec.runtime_requirements().iter() {
+        for request in spec.runtime_requirements_with_options().iter() {
+            dbg!(spec.name(), request);
             let compat = self.validate_request_against_existing_state(state, request)?;
             if !&compat {
                 return Ok(compat);
@@ -51,16 +51,16 @@ impl PkgRequirementsValidator {
     fn validate_request_against_existing_state(
         &self,
         state: &State,
-        request: &PinnedRequest,
+        request: &RequestWithOptions,
     ) -> crate::Result<Compatibility> {
         use Compatibility::Compatible;
         let request = match request {
-            PinnedRequest::Pkg(request) => request,
+            RequestWithOptions::Pkg(request) => request,
             _ => return Ok(Compatible),
         };
 
         let existing = match state.get_merged_request(&request.pkg.name) {
-            Ok(request) => request,
+            Ok(request) => dbg!(request),
             Err(spk_solve_graph::GetMergedRequestError::NoRequestFor(_)) => return Ok(Compatible),
             // XXX: KeyError or ValueError still possible here?
             Err(err) => return Err(err.into()),
@@ -68,7 +68,7 @@ impl PkgRequirementsValidator {
 
         let mut restricted = existing.clone();
         let request = match restricted.restrict(request) {
-            Compatible => restricted,
+            Compatible => dbg!(restricted),
             Compatibility::Incompatible(incompatible) => {
                 return Ok(Compatibility::Incompatible(
                     IncompatibleReason::ConflictingRequirement(
@@ -168,7 +168,7 @@ impl PkgRequirementsValidator {
     }
 
     fn validate_request_against_existing_resolve(
-        request: &PkgRequest,
+        request: &PkgRequestWithOptions,
         resolved: &CachedHash<std::sync::Arc<Spec>>,
         provided_components: std::collections::HashSet<&Component>,
     ) -> crate::Result<Compatibility> {

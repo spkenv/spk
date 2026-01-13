@@ -3,8 +3,10 @@
 // https://github.com/spkenv/spk
 
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::ident::{PinnedRequest, RequestedBy, VersionIdent};
+use spk_schema_foundation::ident::{PinnedRequest, RequestWithOptions, RequestedBy, VersionIdent};
+use spk_schema_foundation::option_map::OptionMap;
 
+use crate::requirements_list::convert_requests_to_requests_with_options;
 use crate::{Script, TestStage};
 
 #[cfg(test)]
@@ -50,5 +52,10 @@ impl crate::Test for TestSpec {
 
     fn additional_requirements(&self) -> Vec<PinnedRequest> {
         self.requirements.clone()
+    }
+
+    fn additional_requirements_with_options(&self, options: &OptionMap) -> Vec<RequestWithOptions> {
+        convert_requests_to_requests_with_options(options.iter(), || self.requirements.iter())
+            .collect()
     }
 }

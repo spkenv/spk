@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
-use spk_schema_foundation::ident::{PinnedRequest, VersionIdent};
+use spk_schema_foundation::ident::{PinnedRequest, RequestWithOptions, VersionIdent};
 
 use crate::foundation::ident_build::BuildId;
 use crate::foundation::option_map::OptionMap;
@@ -93,6 +93,17 @@ pub trait Recipe:
     where
         V: Variant;
 
+    /// Identify the requirements for a build of this recipe.
+    ///
+    /// This should also validate and include the items specified
+    /// by [`Variant::additional_requirements`].
+    fn get_build_requirements_with_options<V>(
+        &self,
+        variant: &V,
+    ) -> Result<Cow<'_, RequirementsList<RequestWithOptions>>>
+    where
+        V: Variant;
+
     /// Return the tests defined for this package at the given stage.
     fn get_tests<V>(&self, stage: TestStage, variant: &V) -> Result<Vec<Self::Test>>
     where
@@ -150,6 +161,16 @@ where
         V: Variant,
     {
         (**self).get_build_requirements(variant)
+    }
+
+    fn get_build_requirements_with_options<V>(
+        &self,
+        variant: &V,
+    ) -> Result<Cow<'_, RequirementsList<RequestWithOptions>>>
+    where
+        V: Variant,
+    {
+        (**self).get_build_requirements_with_options(variant)
     }
 
     fn get_tests<V>(&self, stage: TestStage, variant: &V) -> Result<Vec<Self::Test>>
@@ -215,6 +236,16 @@ where
         V: Variant,
     {
         (**self).get_build_requirements(variant)
+    }
+
+    fn get_build_requirements_with_options<V>(
+        &self,
+        variant: &V,
+    ) -> Result<Cow<'_, RequirementsList<RequestWithOptions>>>
+    where
+        V: Variant,
+    {
+        (**self).get_build_requirements_with_options(variant)
     }
 
     fn get_tests<V>(&self, stage: TestStage, variant: &V) -> Result<Vec<Self::Test>>
