@@ -5,7 +5,6 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::Arc;
 
 use spk_schema_foundation::ident::{RequestWithOptions, VersionIdent};
 
@@ -13,7 +12,7 @@ use crate::foundation::ident_build::BuildId;
 use crate::foundation::option_map::OptionMap;
 use crate::foundation::spec_ops::{Named, Versioned};
 use crate::metadata::Meta;
-use crate::{InputVariant, Package, RequirementsList, Result, TestStage, Variant};
+use crate::{InputVariant, Package, RequirementsList, Result, TestStage, Variant, forward_to_impl};
 
 /// Return the resolved packages from a solution.
 pub trait BuildEnv {
@@ -116,10 +115,7 @@ pub trait Recipe:
     fn validation(&self) -> &super::ValidationSpec;
 }
 
-impl<T> Recipe for std::sync::Arc<T>
-where
-    T: Recipe,
-{
+forward_to_impl!(box = false, Recipe, {
     type Output = T::Output;
     type Variant = T::Variant;
     type Test = T::Test;
@@ -177,7 +173,7 @@ where
         E: BuildEnv<Package = P>,
         P: Package,
     {
-        Arc::unwrap_or_clone(self).generate_binary_build(variant, build_env)
+        clone!(self).generate_binary_build(variant, build_env)
     }
 
     fn metadata(&self) -> &Meta {
@@ -187,77 +183,4 @@ where
     fn validation(&self) -> &super::ValidationSpec {
         (**self).validation()
     }
-}
-
-impl<T> Recipe for &T
-where
-    T: Recipe,
-{
-    type Output = T::Output;
-    type Variant = T::Variant;
-    type Test = T::Test;
-
-    fn ident(&self) -> &VersionIdent {
-        (**self).ident()
-    }
-
-    fn build_digest<V>(&self, variant: &V) -> Result<BuildId>
-    where
-        V: Variant,
-    {
-        (**self).build_digest(variant)
-    }
-
-    fn build_script(&self) -> String {
-        (**self).build_script()
-    }
-
-    fn default_variants(&self, options: &OptionMap) -> Cow<'_, Vec<Self::Variant>> {
-        (**self).default_variants(options)
-    }
-
-    fn resolve_options<V>(&self, variant: &V) -> Result<OptionMap>
-    where
-        V: Variant,
-    {
-        (**self).resolve_options(variant)
-    }
-
-    fn get_build_requirements<V>(
-        &self,
-        variant: &V,
-    ) -> Result<Cow<'_, RequirementsList<RequestWithOptions>>>
-    where
-        V: Variant,
-    {
-        (**self).get_build_requirements(variant)
-    }
-
-    fn get_tests<V>(&self, stage: TestStage, variant: &V) -> Result<Vec<Self::Test>>
-    where
-        V: Variant,
-    {
-        (**self).get_tests(stage, variant)
-    }
-
-    fn generate_source_build(&self, root: &Path) -> Result<Self::Output> {
-        (**self).generate_source_build(root)
-    }
-
-    fn generate_binary_build<V, E, P>(self, variant: &V, build_env: &E) -> Result<Self::Output>
-    where
-        V: InputVariant,
-        E: BuildEnv<Package = P>,
-        P: Package,
-    {
-        self.clone().generate_binary_build(variant, build_env)
-    }
-
-    fn metadata(&self) -> &Meta {
-        (**self).metadata()
-    }
-
-    fn validation(&self) -> &super::ValidationSpec {
-        (**self).validation()
-    }
-}
+});
