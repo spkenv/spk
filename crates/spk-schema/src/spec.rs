@@ -803,6 +803,12 @@ impl PackageMut for Spec {
             Spec::V0Package(spec) => spec.set_build(build),
         }
     }
+
+    fn insert_or_merge_install_requirement(&mut self, req: PinnedRequest) -> Result<()> {
+        match self {
+            Spec::V0Package(spec) => spec.insert_or_merge_install_requirement(req),
+        }
+    }
 }
 
 impl FromYaml for Spec {

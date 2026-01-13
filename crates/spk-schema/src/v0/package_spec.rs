@@ -478,6 +478,13 @@ impl PackageMut for PackageSpec {
     fn set_build(&mut self, build: Build) {
         self.pkg.set_target(build);
     }
+
+    fn insert_or_merge_install_requirement(&mut self, req: PinnedRequest) -> Result<()> {
+        self.install_mut(|install| {
+            install.requirements.insert_or_merge_pinned(req)?;
+            Ok(())
+        })
+    }
 }
 
 /// Shared implementation for Satisfy<PkgRequestWithOptions> for package-like types.

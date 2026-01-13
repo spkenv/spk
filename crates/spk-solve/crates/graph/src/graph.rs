@@ -25,6 +25,7 @@ use spk_schema::ident::{
     PinnedValue,
     PkgRequest,
     PkgRequestOptionValue,
+    PkgRequestOptions,
     PkgRequestWithOptions,
     RequestWithOptions,
     RequestedBy,
@@ -325,6 +326,10 @@ impl<'state> DecisionBuilder<'state, '_> {
         let requested_by = RequestedBy::PackageBuild(requester_ident.clone());
 
         if let Build::Embedded(EmbeddedSource::Package(parent)) = spec.ident().build() {
+            // Create a request from the stub back to the parent.
+            // The request must include any required options that exist in the
+            // parent. These will already exist as runtime requirements in the
+            // stub.
             let pkg_request = parent
                 .to_pkg_request(RequestedBy::Embedded(requester_ident.clone()))
                 .map_err(|err| {
@@ -333,9 +338,21 @@ impl<'state> DecisionBuilder<'state, '_> {
                     )))
                 })?;
 
+            let options_for_parent = PkgRequestOptions::from_iter(
+                spec.runtime_requirements().iter().filter_map(|req| {
+                    let var = req.var_ref()?;
+                    (var.var.namespace() == Some(&pkg_request.pkg.name)).then(|| {
+                        (
+                            var.var.clone(),
+                            PkgRequestOptionValue::Complete(var.value.to_string()),
+                        )
+                    })
+                }),
+            );
+
             let pkg_request_with_options = PkgRequestWithOptions {
                 pkg_request,
-                options: Default::default(),
+                options: options_for_parent,
             };
 
             // An embedded stub needs its parent in the solve.

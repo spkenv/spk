@@ -1513,6 +1513,54 @@ async fn test_solver_embedded_package_brings_parent(#[case] mut solver: SolverIm
     assert_resolved!(solution, "maya", "2019.2");
 }
 
+/// If a parent package contains a required var, the embedded stub should still
+/// be able to solve with its parent.
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
+#[tokio::test]
+async fn test_solver_embedded_package_brings_parent_with_required_var(
+    #[case] mut solver: SolverImpl,
+) {
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "maya/2019.2",
+                "build": {
+                    "options": [
+                        {
+                            "var": "required_var/on",
+                            "required": true,
+                            "description": "demonstrate required var behavior"
+                        },
+                        {
+                            "var": "required_var2/off",
+                            "required": true,
+                            "description": "two vars to test more than simple case"
+                        }
+                    ],
+                    "script": "echo BUILD"
+                },
+                "install": {"embedded": [{"pkg": "qt/5.12.6"}]},
+            },
+        ]
+    );
+
+    solver.add_repository(Arc::new(repo));
+    // Only requesting the embedded package here.
+    solver.add_request(pinned_request!("qt"));
+
+    let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
+
+    assert_resolved!(solution, "qt", "5.12.6");
+    assert_resolved!(
+        solution,
+        "qt",
+        build =~ Build::Embedded(_)
+    );
+    assert_resolved!(solution, "maya", "2019.2");
+}
+
 /// A package with an embedded package can solve its src build
 ///
 /// The src build should not depend on anything from the embedded package, in

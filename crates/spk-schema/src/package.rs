@@ -234,6 +234,13 @@ pub trait Package:
 pub trait PackageMut: Package + DeprecateMut {
     /// Modify the build identifier for this package
     fn set_build(&mut self, build: Build);
+
+    /// Insert or merge a runtime requirement of this package.
+    ///
+    /// If a request exists for the same name, it is updated with the
+    /// restrictions of this one. Otherwise the new request is
+    /// appended to the list.
+    fn insert_or_merge_install_requirement(&mut self, req: PinnedRequest) -> crate::Result<()>;
 }
 
 forward_to_impl!(Package, {

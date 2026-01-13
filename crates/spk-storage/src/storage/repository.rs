@@ -174,6 +174,13 @@ pub(in crate::storage) mod internal {
             Self::Package: PackageMut,
         {
             let mut spec_for_embedded_pkg = spec_for_embedded_pkg.clone();
+            for request_with_options in spec_for_parent
+                .downstream_runtime_requirements(components_that_embed_this_pkg.iter())
+                .iter()
+            {
+                spec_for_embedded_pkg
+                    .insert_or_merge_install_requirement(request_with_options.clone().into())?;
+            }
             spec_for_embedded_pkg.set_build(Build::Embedded(EmbeddedSource::Package(Box::new(
                 EmbeddedSourcePackage {
                     ident: spec_for_parent.ident().into(),
