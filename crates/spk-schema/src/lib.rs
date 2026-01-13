@@ -60,6 +60,7 @@ pub use spk_schema_foundation::ident::{
     BuildIdent,
     PinnableRequest,
     PinnedRequest,
+    RequestWithOptions,
     VersionIdent,
 };
 pub use spk_schema_foundation::option_map::{self, OptionMap};

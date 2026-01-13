@@ -284,29 +284,26 @@ impl<'state> DecisionBuilder<'state, '_> {
         recipe: &Arc<SpecRecipe>,
         spec: &Arc<Spec>,
     ) -> crate::Result<Decision> {
-        let generate_changes =
-            || -> crate::Result<Vec<_>> {
-                let mut changes = vec![Change::SetPackageBuild(Box::new(SetPackageBuild::new(
-                    Arc::clone(spec),
-                    Arc::clone(recipe),
-                )))];
+        let generate_changes = || -> crate::Result<Vec<_>> {
+            let mut changes = vec![Change::SetPackageBuild(Box::new(SetPackageBuild::new(
+                Arc::clone(spec),
+                Arc::clone(recipe),
+            )))];
 
-                let requester_ident: &BuildIdent = spec.ident();
-                let requested_by = RequestedBy::PackageBuild(requester_ident.clone());
-                changes.extend(self.requirements_to_changes(
-                    &spec.runtime_requirements_with_options(),
-                    &requested_by,
-                ));
-                changes.extend(self.components_to_changes(spec.components(), requester_ident));
-                changes.extend(self.embedded_to_changes(
-                    spec.embedded(),
-                    spec.components(),
-                    requester_ident,
-                ));
-                changes.push(Self::options_to_change(spec));
+            let requester_ident: &BuildIdent = spec.ident();
+            let requested_by = RequestedBy::PackageBuild(requester_ident.clone());
+            changes
+                .extend(self.requirements_to_changes(&spec.runtime_requirements(), &requested_by));
+            changes.extend(self.components_to_changes(spec.components(), requester_ident));
+            changes.extend(self.embedded_to_changes(
+                spec.embedded(),
+                spec.components(),
+                requester_ident,
+            ));
+            changes.push(Self::options_to_change(spec));
 
-                Ok(changes)
-            };
+            Ok(changes)
+        };
 
         Ok(Decision {
             changes: generate_changes()?,
@@ -323,9 +320,7 @@ impl<'state> DecisionBuilder<'state, '_> {
 
         let requester_ident: &BuildIdent = spec.ident();
         let requested_by = RequestedBy::PackageBuild(requester_ident.clone());
-        changes.extend(
-            self.requirements_to_changes(&spec.runtime_requirements_with_options(), &requested_by),
-        );
+        changes.extend(self.requirements_to_changes(&spec.runtime_requirements(), &requested_by));
         changes.extend(self.components_to_changes(spec.components(), requester_ident));
         changes.extend(self.embedded_to_changes(
             spec.embedded(),

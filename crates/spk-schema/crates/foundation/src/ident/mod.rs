@@ -25,6 +25,7 @@ pub use ident_optversion::{OptVersionIdent, parse_optversion_ident};
 pub use ident_version::{VersionIdent, parse_version_ident};
 pub(crate) use pinnable_request::PinValue;
 pub use pinnable_request::{
+    Contains,
     InclusionPolicy,
     InitialRawRequest,
     NameAndValue,

@@ -274,7 +274,7 @@ impl ImpossibleRequestsChecker {
         unresolved_requests: &HashMap<PkgNameBuf, PkgRequestWithOptions>,
         repos: &[Arc<RepositoryHandle>],
     ) -> Result<Compatibility> {
-        let mut requirements = package.runtime_requirements_with_options().into_owned();
+        let mut requirements = package.runtime_requirements().into_owned();
 
         tracing::debug!(
             target: IMPOSSIBLE_CHECKS_TARGET,
@@ -305,7 +305,7 @@ impl ImpossibleRequestsChecker {
                     // checked as if it was a requirement
                     let req = RequestWithOptions::Pkg(PkgRequestWithOptions {
                         options: package
-                            .runtime_requirements_with_options()
+                            .runtime_requirements()
                             .iter()
                             // XXX: this is wrong, there could be var requests
                             // for the target package but no pkg requests (test

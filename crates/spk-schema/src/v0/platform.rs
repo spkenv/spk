@@ -10,7 +10,6 @@ use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::{
     InclusionPolicy,
     PinnableRequest,
-    PinnedRequest,
     PkgRequest,
     PkgRequestOptions,
     PkgRequestWithOptions,
@@ -210,27 +209,6 @@ impl Recipe for Platform {
     }
 
     fn get_build_requirements<V>(
-        &self,
-        variant: &V,
-    ) -> Result<Cow<'_, RequirementsList<PinnedRequest>>>
-    where
-        V: Variant,
-    {
-        let mut requirements = RequirementsList::default();
-
-        if let Some(base) = self.base.as_ref() {
-            let build_digest = self.build_digest(variant)?;
-
-            requirements.insert_or_merge_pinned(PinnedRequest::Pkg(PkgRequest::from_ident(
-                base.clone().into_any_ident(None),
-                RequestedBy::BinaryBuild(self.ident().to_build_ident(Build::BuildId(build_digest))),
-            )))?;
-        }
-
-        Ok(Cow::Owned(requirements))
-    }
-
-    fn get_build_requirements_with_options<V>(
         &self,
         variant: &V,
     ) -> Result<Cow<'_, RequirementsList<RequestWithOptions>>>

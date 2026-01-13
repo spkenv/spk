@@ -361,21 +361,11 @@ impl Recipe for SpecRecipe {
     fn get_build_requirements<V>(
         &self,
         variant: &V,
-    ) -> Result<Cow<'_, RequirementsList<PinnedRequest>>>
-    where
-        V: Variant,
-    {
-        each_variant!(self, r, r.get_build_requirements(variant))
-    }
-
-    fn get_build_requirements_with_options<V>(
-        &self,
-        variant: &V,
     ) -> Result<Cow<'_, RequirementsList<RequestWithOptions>>>
     where
         V: Variant,
     {
-        each_variant!(self, r, r.get_build_requirements_with_options(variant))
+        each_variant!(self, r, r.get_build_requirements(variant))
     }
 
     fn get_tests<V>(&self, stage: TestStage, variant: &V) -> Result<Vec<Self::Test>>
@@ -591,17 +581,9 @@ impl super::Variant for SpecVariant {
         }
     }
 
-    fn additional_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>> {
+    fn additional_requirements(&self) -> Cow<'_, RequirementsList<RequestWithOptions>> {
         match self {
             Self::V0(v) => v.additional_requirements(),
-        }
-    }
-
-    fn additional_requirements_with_options(
-        &self,
-    ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
-        match self {
-            Self::V0(v) => v.additional_requirements_with_options(),
         }
     }
 }
@@ -625,15 +607,9 @@ impl Test for SpecTest {
         }
     }
 
-    fn additional_requirements(&self) -> Vec<PinnedRequest> {
+    fn additional_requirements(&self, options: &OptionMap) -> Vec<RequestWithOptions> {
         match self {
-            Self::V0(t) => t.additional_requirements(),
-        }
-    }
-
-    fn additional_requirements_with_options(&self, options: &OptionMap) -> Vec<RequestWithOptions> {
-        match self {
-            Self::V0(t) => t.additional_requirements_with_options(options),
+            Self::V0(t) => t.additional_requirements(options),
         }
     }
 }
@@ -781,23 +757,15 @@ impl Package for Spec {
         }
     }
 
-    fn runtime_requirements(&self) -> Cow<'_, crate::RequirementsList<PinnedRequest>> {
-        match self {
-            Spec::V0Package(spec) => spec.runtime_requirements(),
-        }
-    }
-
     fn get_all_tests(&self) -> Vec<SpecTest> {
         match self {
             Spec::V0Package(spec) => spec.get_all_tests(),
         }
     }
 
-    fn runtime_requirements_with_options(
-        &self,
-    ) -> Cow<'_, crate::RequirementsList<RequestWithOptions>> {
+    fn runtime_requirements(&self) -> Cow<'_, crate::RequirementsList<RequestWithOptions>> {
         match self {
-            Spec::V0Package(spec) => spec.runtime_requirements_with_options(),
+            Spec::V0Package(spec) => spec.runtime_requirements(),
         }
     }
 
@@ -816,7 +784,7 @@ impl Package for Spec {
     fn downstream_build_requirements<'a>(
         &self,
         components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, crate::RequirementsList> {
+    ) -> Cow<'_, crate::RequirementsList<RequestWithOptions>> {
         match self {
             Spec::V0Package(spec) => spec.downstream_build_requirements(components),
         }
@@ -825,7 +793,7 @@ impl Package for Spec {
     fn downstream_runtime_requirements<'a>(
         &self,
         components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, crate::RequirementsList> {
+    ) -> Cow<'_, crate::RequirementsList<RequestWithOptions>> {
         match self {
             Spec::V0Package(spec) => spec.downstream_runtime_requirements(components),
         }

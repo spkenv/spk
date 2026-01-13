@@ -24,7 +24,6 @@ use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::{
-    PinnedRequest,
     PkgRequest,
     PreReleasePolicy,
     RangeIdent,
@@ -107,15 +106,8 @@ where
     #[inline]
     fn additional_requirements(
         &self,
-    ) -> std::borrow::Cow<'_, spk_schema::RequirementsList<PinnedRequest>> {
-        self.resolved_variant.additional_requirements()
-    }
-
-    #[inline]
-    fn additional_requirements_with_options(
-        &self,
     ) -> std::borrow::Cow<'_, spk_schema::RequirementsList<RequestWithOptions>> {
-        self.resolved_variant.additional_requirements_with_options()
+        self.resolved_variant.additional_requirements()
     }
 }
 
@@ -488,10 +480,7 @@ where
             self.solver.add_repository(repo);
         }
 
-        let build_requirements = self
-            .recipe
-            .get_build_requirements_with_options(variant)?
-            .into_owned();
+        let build_requirements = self.recipe.get_build_requirements(variant)?.into_owned();
         for request in build_requirements.iter().cloned() {
             self.solver.add_request(request);
         }

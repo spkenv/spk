@@ -7,7 +7,7 @@ use std::io::Write;
 use std::str::FromStr;
 
 use rstest::rstest;
-use spk_schema_foundation::ident::PinnedRequest;
+use spk_schema_foundation::ident::RequestWithOptions;
 use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::option_map;
 use spk_schema_foundation::version_range::VersionFilter;
@@ -219,7 +219,7 @@ fn test_variants_can_introduce_components() {
         }
 
         for requirement in variant.additional_requirements().iter() {
-            if let PinnedRequest::Pkg(pkg) = requirement
+            if let RequestWithOptions::Pkg(pkg) = requirement
                 && pkg.pkg.name == "dep-pkg"
                 && pkg.pkg.components.contains(&comp1)
                 && pkg.pkg.components.contains(&comp2)

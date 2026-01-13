@@ -27,7 +27,6 @@ use spk_schema::ident::{
     InclusionPolicy,
     LocatedBuildIdent,
     PinPolicy,
-    PinnedRequest,
     PinnedValue,
     PkgRequest,
     PkgRequestWithOptions,
@@ -93,7 +92,7 @@ impl Solver {
         let mut names_to_requesters: HashMap<PkgNameBuf, BTreeSet<RequestedBy>> = HashMap::new();
         for (_pkg_request, package, _source) in solution_adds.iter() {
             for request in package.runtime_requirements().iter() {
-                if let PinnedRequest::Pkg(pkg_req) = request {
+                if let RequestWithOptions::Pkg(pkg_req) = request {
                     let name = pkg_req.pkg.name();
                     let entry = names_to_requesters.entry(name.into()).or_default();
                     entry.insert(RequestedBy::PackageBuild(package.ident().clone()));
@@ -310,7 +309,7 @@ impl Solver {
                 }
             }
             for option in package.runtime_requirements().iter() {
-                if let PinnedRequest::Var(var_req) = option {
+                if let RequestWithOptions::Var(var_req) = option {
                     solution_options.insert(var_req.var.clone(), var_req.value.to_string());
                 }
             }

@@ -11,7 +11,14 @@ use miette::{Result, miette};
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::name::OptNameBuf;
-use spk_schema::{PinnedRequest, Recipe, RequirementsList, SpecVariant, Variant as _, VariantExt};
+use spk_schema::{
+    Recipe,
+    RequestWithOptions,
+    RequirementsList,
+    SpecVariant,
+    Variant as _,
+    VariantExt,
+};
 
 use crate::Error;
 
@@ -115,7 +122,7 @@ enum VariantInfoIterState<'v, 'r> {
     Invalid,
 }
 
-type Enabled = HashMap<(OptionMap, RequirementsList<PinnedRequest>), VariantLocation>;
+type Enabled = HashMap<(OptionMap, RequirementsList<RequestWithOptions>), VariantLocation>;
 
 struct VariantInfoIter<'v, 'r, 'o> {
     variant: &'v Variant,

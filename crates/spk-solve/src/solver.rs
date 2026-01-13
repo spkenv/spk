@@ -55,7 +55,7 @@ pub trait SolverMut: Solver {
 
         let build_options = recipe.resolve_options(&*options)?;
         for request in recipe
-            .get_build_requirements_with_options(&build_options)?
+            .get_build_requirements(&build_options)?
             .iter()
             .cloned()
         {

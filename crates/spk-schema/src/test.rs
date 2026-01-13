@@ -5,7 +5,7 @@
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::ident::{PinnedRequest, RequestWithOptions};
+use spk_schema_foundation::ident::RequestWithOptions;
 use spk_schema_foundation::option_map::OptionMap;
 
 const BUILD_NAME: &str = "build";
@@ -18,14 +18,10 @@ const TEST_STAGES: &[&str] = &[BUILD_NAME, INSTALL_NAME, SOURCES_NAME];
 pub trait Test {
     fn script(&self) -> String;
 
-    fn additional_requirements(&self) -> Vec<PinnedRequest> {
-        Vec::new()
-    }
-
     /// Calculate the additional requirements with options.
     ///
     /// This requires the options of the variant being tested.
-    fn additional_requirements_with_options(&self, options: &OptionMap) -> Vec<RequestWithOptions>;
+    fn additional_requirements(&self, options: &OptionMap) -> Vec<RequestWithOptions>;
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, strum::EnumIter)]

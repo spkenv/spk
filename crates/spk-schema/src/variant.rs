@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use std::fmt::Write;
 
 use spk_schema_foundation::format::FormatOptionMap;
-use spk_schema_foundation::ident::{PinnedRequest, RequestWithOptions};
+use spk_schema_foundation::ident::RequestWithOptions;
 use spk_schema_foundation::option_map::{HOST_OPTIONS, OptionMap};
 
 use crate::{RequirementsList, Result};
@@ -21,12 +21,8 @@ pub trait Variant {
     /// Input option values for this variant
     fn options(&self) -> Cow<'_, OptionMap>;
 
-    /// Additional requirements for this variant
-    fn additional_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>>;
-
     /// Additional requirements with options for this variant
-    fn additional_requirements_with_options(&self)
-    -> Cow<'_, RequirementsList<RequestWithOptions>>;
+    fn additional_requirements(&self) -> Cow<'_, RequirementsList<RequestWithOptions>>;
 }
 
 impl Variant for OptionMap {
@@ -34,13 +30,7 @@ impl Variant for OptionMap {
         Cow::Borrowed(self)
     }
 
-    fn additional_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>> {
-        Cow::Owned(RequirementsList::default())
-    }
-
-    fn additional_requirements_with_options(
-        &self,
-    ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
+    fn additional_requirements(&self) -> Cow<'_, RequirementsList<RequestWithOptions>> {
         Cow::Owned(RequirementsList::<RequestWithOptions>::default())
     }
 }
@@ -57,14 +47,8 @@ where
         (**self).options()
     }
 
-    fn additional_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>> {
+    fn additional_requirements(&self) -> Cow<'_, RequirementsList<RequestWithOptions>> {
         (**self).additional_requirements()
-    }
-
-    fn additional_requirements_with_options(
-        &self,
-    ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
-        (**self).additional_requirements_with_options()
     }
 }
 
@@ -122,14 +106,8 @@ where
         Cow::Owned(opts)
     }
 
-    fn additional_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>> {
+    fn additional_requirements(&self) -> Cow<'_, RequirementsList<RequestWithOptions>> {
         self.inner.additional_requirements()
-    }
-
-    fn additional_requirements_with_options(
-        &self,
-    ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
-        self.inner.additional_requirements_with_options()
     }
 }
 

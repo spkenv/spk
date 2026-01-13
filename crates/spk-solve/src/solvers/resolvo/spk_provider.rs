@@ -517,7 +517,7 @@ impl SpkProvider {
                     .chain([ident.clone()]),
             ));
 
-            let build_requirements = match recipe.get_build_requirements_with_options(&variant) {
+            let build_requirements = match recipe.get_build_requirements(&variant) {
                 Ok(build_requirements) => build_requirements,
                 Err(err) => {
                     return CanBuildFromSource::No(
@@ -1435,7 +1435,7 @@ impl DependencyProvider for SpkProvider {
                                     RequestVS::SpkRequest(RequestWithOptions::Pkg(
                                         PkgRequestWithOptions {
                                             options: package
-                                                .runtime_requirements_with_options()
+                                                .runtime_requirements()
                                                 .iter()
                                                 // XXX: this is wrong, there could be var requests
                                                 // for the target package but no pkg requests (test
@@ -1583,7 +1583,7 @@ impl DependencyProvider for SpkProvider {
                                             RequestVS::SpkRequest(RequestWithOptions::Pkg(
                                                 PkgRequestWithOptions {
                                                     options: package
-                                                        .runtime_requirements_with_options()
+                                                        .runtime_requirements()
                                                         .iter()
                                                         // XXX: this is wrong, there could be var requests
                                                         // for the target package but no pkg requests (test
@@ -1721,7 +1721,7 @@ impl DependencyProvider for SpkProvider {
                         },
                     ));
                 }
-                for requirement in package.runtime_requirements_with_options().iter() {
+                for requirement in package.runtime_requirements().iter() {
                     let kd = self.request_to_known_dependencies(requirement);
                     known_deps.requirements.extend(kd.requirements);
                     known_deps.constrains.extend(kd.constrains);

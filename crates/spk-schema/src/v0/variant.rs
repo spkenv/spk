@@ -156,13 +156,7 @@ impl crate::Variant for Variant {
         Cow::Borrowed(&self.options)
     }
 
-    fn additional_requirements(&self) -> Cow<'_, RequirementsList<PinnedRequest>> {
-        Cow::Borrowed(&self.requirements)
-    }
-
-    fn additional_requirements_with_options(
-        &self,
-    ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
+    fn additional_requirements(&self) -> Cow<'_, RequirementsList<RequestWithOptions>> {
         Cow::Owned((self.options.iter(), &self.requirements).into())
     }
 }

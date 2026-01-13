@@ -180,9 +180,7 @@ impl Run for CmdTest {
                                     .with_options(variant.options().into_owned())
                                     .with_repositories(repos.iter().cloned())
                                     .with_requirements(
-                                        test.additional_requirements_with_options(
-                                            &variant.options(),
-                                        ),
+                                        test.additional_requirements(&variant.options()),
                                     )
                                     .with_source(source.clone())
                                     .watch_environment_formatter(src_formatter);
@@ -203,13 +201,9 @@ impl Run for CmdTest {
                                     .with_options(variant.options().into_owned())
                                     .with_repositories(repos.iter().cloned())
                                     .with_requirements(
-                                        variant
-                                            .additional_requirements_with_options()
-                                            .iter()
-                                            .cloned()
-                                            .chain(test.additional_requirements_with_options(
-                                                &variant.options(),
-                                            )),
+                                        variant.additional_requirements().iter().cloned().chain(
+                                            test.additional_requirements(&variant.options()),
+                                        ),
                                     )
                                     .with_source(
                                         source.clone().map(BuildSource::LocalPath).unwrap_or_else(
@@ -243,9 +237,7 @@ impl Run for CmdTest {
                                     .with_options(variant.options().into_owned())
                                     .with_repositories(repos.iter().cloned())
                                     .with_requirements(
-                                        test.additional_requirements_with_options(
-                                            &variant.options(),
-                                        ),
+                                        test.additional_requirements(&variant.options()),
                                     )
                                     .with_requirements(options_reqs.clone())
                                     .with_source(source.clone())

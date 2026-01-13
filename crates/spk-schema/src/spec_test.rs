@@ -156,7 +156,7 @@ macro_rules! assert_requests_contains {
         if !$requests
             .iter()
             .enumerate()
-            .any(|(index, r)| matches!(r, $crate::PinnedRequest::Var(var) if &var.var == $expected_key && &*var.value == $expected_value && ($expected_index.is_none() || $expected_index.unwrap() == index)))
+            .any(|(index, r)| matches!(r, $crate::RequestWithOptions::Var(var) if &var.var == $expected_key && &*var.value == $expected_value && ($expected_index.is_none() || $expected_index.unwrap() == index)))
         {
             panic!(
                 "requests did not contain var with {} and {}{}",
@@ -173,7 +173,7 @@ macro_rules! assert_requests_contains {
         if !$requests
             .iter()
             .enumerate()
-            .any(|(index, r)| matches!(r, $crate::PinnedRequest::Pkg(pkg) if &pkg.pkg.name == $expected_key && pkg.pkg.version.to_string() == $expected_value && ($expected_index.is_none() || $expected_index.unwrap() == index)))
+            .any(|(index, r)| matches!(r, $crate::RequestWithOptions::Pkg(pkg) if &pkg.pkg.name == $expected_key && pkg.pkg.version.to_string() == $expected_value && ($expected_index.is_none() || $expected_index.unwrap() == index)))
         {
             panic!(
                 "requests did not contain pkg with {} and {}{}",
