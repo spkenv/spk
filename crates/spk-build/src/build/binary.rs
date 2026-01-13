@@ -104,10 +104,10 @@ where
     }
 
     #[inline]
-    fn additional_requirements_with_options(
+    fn additional_requirements(
         &self,
     ) -> std::borrow::Cow<'_, spk_schema::RequirementsList<RequestWithOptions>> {
-        self.resolved_variant.additional_requirements_with_options()
+        self.resolved_variant.additional_requirements()
     }
 }
 

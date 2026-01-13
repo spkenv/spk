@@ -203,13 +203,11 @@ impl Run for CmdTest {
                                     .with_options(variant.options().into_owned())
                                     .with_repositories(repos.iter().cloned())
                                     .with_requirements(
-                                        variant
-                                            .additional_requirements_with_options()
-                                            .iter()
-                                            .cloned()
-                                            .chain(test.additional_requirements_with_options(
+                                        variant.additional_requirements().iter().cloned().chain(
+                                            test.additional_requirements_with_options(
                                                 &variant.options(),
-                                            )),
+                                            ),
+                                        ),
                                     )
                                     .with_source(
                                         source.clone().map(BuildSource::LocalPath).unwrap_or_else(

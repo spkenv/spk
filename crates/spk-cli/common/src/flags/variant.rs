@@ -150,8 +150,7 @@ impl<'r> Iterator for VariantInfoIter<'_, 'r, '_> {
                 .into_owned();
             // Different additional requirements will make variants with
             // the same options distinct.
-            let variant_additional_requirements =
-                (*v).additional_requirements_with_options().into_owned();
+            let variant_additional_requirements = (*v).additional_requirements().into_owned();
             match enabled.entry((variant_options, variant_additional_requirements)) {
                 std::collections::hash_map::Entry::Occupied(entry) => Ok(VariantInfo {
                     location: this_location,

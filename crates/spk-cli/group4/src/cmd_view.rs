@@ -520,10 +520,7 @@ impl View {
                         let variant_info = PrintVariant {
                             options: variant.options(),
                             additional_requirements: Cow::Owned(
-                                variant
-                                    .additional_requirements_with_options()
-                                    .into_owned()
-                                    .into(),
+                                variant.additional_requirements().into_owned().into(),
                             ),
                         };
                         if show_variants_with_tests {

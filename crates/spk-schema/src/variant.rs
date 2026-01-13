@@ -22,8 +22,7 @@ pub trait Variant {
     fn options(&self) -> Cow<'_, OptionMap>;
 
     /// Additional requirements with options for this variant
-    fn additional_requirements_with_options(&self)
-    -> Cow<'_, RequirementsList<RequestWithOptions>>;
+    fn additional_requirements(&self) -> Cow<'_, RequirementsList<RequestWithOptions>>;
 }
 
 impl Variant for OptionMap {
@@ -31,9 +30,7 @@ impl Variant for OptionMap {
         Cow::Borrowed(self)
     }
 
-    fn additional_requirements_with_options(
-        &self,
-    ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
+    fn additional_requirements(&self) -> Cow<'_, RequirementsList<RequestWithOptions>> {
         Cow::Owned(RequirementsList::<RequestWithOptions>::default())
     }
 }
@@ -50,10 +47,8 @@ where
         (**self).options()
     }
 
-    fn additional_requirements_with_options(
-        &self,
-    ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
-        (**self).additional_requirements_with_options()
+    fn additional_requirements(&self) -> Cow<'_, RequirementsList<RequestWithOptions>> {
+        (**self).additional_requirements()
     }
 }
 
@@ -111,10 +106,8 @@ where
         Cow::Owned(opts)
     }
 
-    fn additional_requirements_with_options(
-        &self,
-    ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
-        self.inner.additional_requirements_with_options()
+    fn additional_requirements(&self) -> Cow<'_, RequirementsList<RequestWithOptions>> {
+        self.inner.additional_requirements()
     }
 }
 
@@ -162,7 +155,7 @@ impl<V: Variant> std::fmt::Display for Override<V> {
         }
         f.write_str("Options: ")?;
         f.write_str(&self.options().format_option_map())?;
-        let requirements = self.additional_requirements_with_options();
+        let requirements = self.additional_requirements();
         f.write_fmt(format_args!("{br}Additional Requirements:"))?;
         if !requirements.is_empty() {
             for request in requirements.iter() {

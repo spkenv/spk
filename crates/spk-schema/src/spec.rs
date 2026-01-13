@@ -581,11 +581,9 @@ impl super::Variant for SpecVariant {
         }
     }
 
-    fn additional_requirements_with_options(
-        &self,
-    ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
+    fn additional_requirements(&self) -> Cow<'_, RequirementsList<RequestWithOptions>> {
         match self {
-            Self::V0(v) => v.additional_requirements_with_options(),
+            Self::V0(v) => v.additional_requirements(),
         }
     }
 }

@@ -176,7 +176,7 @@ impl BuildSpec {
 
         // inject additional package options for items in the variant that
         // were not present in the original package
-        let reqs = variant.additional_requirements_with_options().into_owned();
+        let reqs = variant.additional_requirements().into_owned();
         for req in reqs.into_iter() {
             let mut opt = Opt::try_from(req)?;
 
@@ -369,7 +369,7 @@ impl TryFrom<UncheckedBuildSpec> for BuildSpec {
                 // same requirements but in a different order are still
                 // considered the same.
                 let requirements = variant
-                    .additional_requirements_with_options()
+                    .additional_requirements()
                     .iter()
                     .cloned()
                     .sorted()

@@ -218,7 +218,7 @@ fn test_variants_can_introduce_components() {
             }
         }
 
-        for requirement in variant.additional_requirements_with_options().iter() {
+        for requirement in variant.additional_requirements().iter() {
             if let RequestWithOptions::Pkg(pkg) = requirement
                 && pkg.pkg.name == "dep-pkg"
                 && pkg.pkg.components.contains(&comp1)
