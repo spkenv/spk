@@ -499,10 +499,10 @@ where
         // these must remain ordered so that the overriding of
         // rules is applied correctly later when we merge the results
         let mut validations = futures::stream::FuturesOrdered::new();
-        if !report.setup.package.validation().disabled.is_empty() {
+        if !self.recipe.validation().disabled.is_empty() {
             return Err(Error::UseOfObsoleteValidators);
         }
-        let validators = report.setup.package.validation().to_expanded_rules();
+        let validators = self.recipe.validation().to_expanded_rules();
         tracing::trace!("running validation");
         for validator in validators {
             tracing::trace!(" > {validator:?}");
@@ -518,7 +518,7 @@ where
         // these must remain ordered so that the overriding of
         // rules is applied correctly later when we merge the results
         let mut validations = futures::stream::FuturesOrdered::new();
-        let validators = report.setup.package.validation().to_expanded_rules();
+        let validators = self.recipe.validation().to_expanded_rules();
         for validator in validators {
             validations.push_back(async move { validator.validate_build(report).await });
         }
@@ -606,7 +606,7 @@ where
             let mut writer = std::fs::File::create(&build_script)
                 .map_err(|err| Error::FileOpenError(build_script.to_owned(), err))?;
             writer
-                .write_all(package.build_script().as_bytes())
+                .write_all(self.recipe.build_script().as_bytes())
                 .map_err(|err| Error::String(format!("Failed to save build script: {err}")))?;
             writer
                 .sync_data()

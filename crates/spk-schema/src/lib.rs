@@ -27,7 +27,7 @@ pub mod v1;
 pub mod validation;
 pub mod variant;
 
-pub use build_spec::{BuildSpec, Script};
+pub use build_spec::BuildSpec;
 pub use component_embedded_packages::ComponentEmbeddedPackagesList;
 pub use component_spec::ComponentSpec;
 pub use component_spec_list::ComponentSpecList;
@@ -79,7 +79,7 @@ pub use spk_schema_foundation::{
 };
 pub use template::{Template, TemplateData, TemplateExt};
 pub use test::{Test, TestStage};
-pub use v0::RecipeComponentSpec;
+pub use v0::{AutoHostVars, RecipeComponentSpec, Script};
 pub use validation::{ValidationRule, ValidationSpec};
 pub use variant::{Variant, VariantExt};
 

@@ -24,7 +24,6 @@ use spk_schema_foundation::version::{IncompatibleReason, VarOptionProblem};
 
 use super::TestSpec;
 use super::variant_spec::VariantSpecEntryKey;
-use crate::build_spec::UncheckedBuildSpec;
 use crate::foundation::ident_build::Build;
 use crate::foundation::ident_component::Component;
 use crate::foundation::name::{OptNameBuf, PkgName};
@@ -42,10 +41,9 @@ use crate::ident::{
 };
 use crate::metadata::Meta;
 use crate::option::VarOpt;
-use crate::v0::{PackageSpec, RecipeInstallSpec};
+use crate::v0::{PackageSpec, RecipeBuildSpec, RecipeInstallSpec, UncheckedRecipeBuildSpec};
 use crate::{
     BuildEnv,
-    BuildSpec,
     Deprecate,
     DeprecateMut,
     EnvOp,
@@ -61,6 +59,7 @@ use crate::{
     RuntimeEnvironment,
     SourceSpec,
     TestStage,
+    ValidationSpec,
     Variant,
 };
 
@@ -83,8 +82,8 @@ pub struct RecipeSpec {
     pub deprecated: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sources: Vec<SourceSpec>,
-    #[serde(default, skip_serializing_if = "BuildSpec::is_default")]
-    pub build: BuildSpec,
+    #[serde(default, skip_serializing_if = "RecipeBuildSpec::is_default")]
+    pub build: RecipeBuildSpec,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tests: Vec<TestSpec>,
     #[serde(default, skip_serializing_if = "IsDefault::is_default")]
@@ -102,7 +101,7 @@ impl RecipeSpec {
             compat: Compat::default(),
             deprecated: bool::default(),
             sources: Vec::new(),
-            build: BuildSpec::default(),
+            build: RecipeBuildSpec::default(),
             tests: Vec::new(),
             install: RecipeInstallSpec::default(),
         }
@@ -170,6 +169,10 @@ impl Recipe for RecipeSpec {
         V: Variant,
     {
         self.build.build_digest(self.pkg.name(), variant)
+    }
+
+    fn build_script(&self) -> String {
+        self.build.script.join("\n")
     }
 
     fn default_variants(&self, options: &OptionMap) -> Cow<'_, Vec<Self::Variant>> {
@@ -469,7 +472,7 @@ impl Recipe for RecipeSpec {
             recipe_compat,
             recipe_deprecated,
             recipe_sources,
-            recipe_build,
+            recipe_build.into(),
             recipe_tests,
             package_install,
         );
@@ -488,6 +491,10 @@ impl Recipe for RecipeSpec {
 
     fn metadata(&self) -> &Meta {
         &self.meta
+    }
+
+    fn validation(&self) -> &ValidationSpec {
+        &self.build.validation
     }
 }
 
@@ -595,7 +602,7 @@ struct SpecVisitor {
     compat: Option<Compat>,
     deprecated: Option<bool>,
     sources: Option<Vec<SourceSpec>>,
-    build: Option<UncheckedBuildSpec>,
+    build: Option<UncheckedRecipeBuildSpec>,
     tests: Option<Vec<TestSpec>>,
     install: Option<RecipeInstallSpec>,
     check_build_spec: bool,
@@ -649,7 +656,7 @@ impl<'de> serde::de::Visitor<'de> for SpecVisitor {
                 "compat" => self.compat = Some(map.next_value::<Compat>()?),
                 "deprecated" => self.deprecated = Some(map.next_value::<bool>()?),
                 "sources" => self.sources = Some(map.next_value::<Vec<SourceSpec>>()?),
-                "build" => self.build = Some(map.next_value::<UncheckedBuildSpec>()?),
+                "build" => self.build = Some(map.next_value::<UncheckedRecipeBuildSpec>()?),
                 "tests" => self.tests = Some(map.next_value::<Vec<TestSpec>>()?),
                 "install" => self.install = Some(map.next_value::<RecipeInstallSpec>()?),
                 _ => {
@@ -703,7 +710,7 @@ impl<'de> serde::de::Visitor<'de> for SpecVisitor {
 impl From<PackageSpec> for RecipeSpec {
     fn from(pkg: PackageSpec) -> Self {
         Self {
-            build: pkg.build().clone(),
+            build: pkg.build().clone().into(),
             install: pkg.install().clone().into(),
             pkg: pkg.pkg.as_version_ident().clone(),
             meta: pkg.meta,

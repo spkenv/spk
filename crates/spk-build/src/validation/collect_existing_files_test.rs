@@ -4,7 +4,7 @@
 
 use spfs::tracking::Manifest;
 use spk_schema::validation::ValidationMatcher;
-use spk_schema::{Package, ValidationRule, v0};
+use spk_schema::{OptionValues, Package, ValidationRule, v0};
 use spk_solve::{Named, Solution};
 
 use crate::report::{BuildOutputReport, BuildReport, BuildSetupReport};
@@ -41,12 +41,7 @@ async fn test_validate_build_changeset_collect_existing() {
         },
         setup: BuildSetupReport {
             environment: Solution::default(),
-            variant: package
-                .build()
-                .variants
-                .first()
-                .cloned()
-                .unwrap_or_default(),
+            variant: package.option_values(),
             environment_filesystem,
             package,
         },

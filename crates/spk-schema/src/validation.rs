@@ -35,6 +35,12 @@ pub struct ValidationSpec {
     pub disabled: Vec<LegacyValidator>,
 }
 
+/// An instance of a default, empty validation spec.
+pub static DEFAULT_VALIDATION_SPEC: ValidationSpec = ValidationSpec {
+    rules: Vec::new(),
+    disabled: Vec::new(),
+};
+
 impl ValidationSpec {
     /// The rules as specified in the spec file. Usually this is not
     /// what you want, see [`Self::to_expanded_rules`].

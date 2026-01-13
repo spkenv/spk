@@ -34,6 +34,7 @@ use crate::ident::is_false;
 use crate::metadata::Meta;
 use crate::option::VarOpt;
 use crate::v0::{PackageSpec, TestSpec};
+use crate::validation::DEFAULT_VALIDATION_SPEC;
 use crate::{
     BuildEnv,
     BuildSpec,
@@ -49,6 +50,7 @@ use crate::{
     RuntimeEnvironment,
     Script,
     TestStage,
+    ValidationSpec,
     Variant,
 };
 
@@ -137,6 +139,11 @@ impl Recipe for Platform {
         // there are no variants to platform builds as they simply capture a single state
         // of the requirements
         BuildSpec::default().build_digest(self.name(), variant)
+    }
+
+    fn build_script(&self) -> String {
+        // Platforms have no build script!
+        String::new()
     }
 
     fn default_variants(&self, _options: &OptionMap) -> Cow<'_, Vec<Self::Variant>> {
@@ -255,6 +262,10 @@ impl Recipe for Platform {
 
     fn metadata(&self) -> &Meta {
         &self.meta
+    }
+
+    fn validation(&self) -> &ValidationSpec {
+        &DEFAULT_VALIDATION_SPEC
     }
 }
 
