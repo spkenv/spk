@@ -12,10 +12,12 @@ use spk_schema_foundation::ident::{
     PkgRequestWithOptions,
     RequestWithOptions,
     Satisfy,
+    VarRequest,
     VersionIdent,
     is_false,
 };
 use spk_schema_foundation::ident_build::EmbeddedSource;
+use spk_schema_foundation::ident_component::Component;
 use spk_schema_foundation::name::{OptName, OptNameBuf};
 use spk_schema_foundation::option_map::OptionMap;
 use spk_schema_foundation::spec_ops::HasBuildIdent;
@@ -26,6 +28,7 @@ use crate::foundation::ident_build::Build;
 use crate::foundation::name::PkgName;
 use crate::foundation::spec_ops::prelude::*;
 use crate::metadata::Meta;
+use crate::option::VarOpt;
 use crate::package::{BuildOptions, OptionValues};
 use crate::requirements_list::AsOptNameAndValue;
 use crate::v0::{
@@ -40,6 +43,8 @@ use crate::{
     Components,
     Deprecate,
     DeprecateMut,
+    DownstreamRequirements,
+    Inheritance,
     Opt,
     RequirementsList,
     Result,
@@ -121,6 +126,35 @@ impl EmbeddedPackageSpec {
         install: &EmbeddedInstallSpec,
     ) -> RequirementsList<RequestWithOptions> {
         (build.options.iter(), &install.requirements).into()
+    }
+
+    /// Return downstream var requirements that match the given filter.
+    fn downstream_requirements<F>(&self, filter: F) -> Cow<'_, RequirementsList<RequestWithOptions>>
+    where
+        F: FnMut(&VarOpt) -> bool,
+    {
+        let requests = self
+            .build
+            .options
+            .iter()
+            .filter_map(|opt| match opt {
+                Opt::Var(v) => Some(v.with_default_namespace(self.name())),
+                Opt::Pkg(_) => None,
+            })
+            .filter(filter)
+            .map(|o| {
+                VarRequest {
+                    // we are assuming that the var here will have a value because
+                    // this is a built binary package
+                    value: o.get_value(None).unwrap_or_default().into(),
+                    var: o.var,
+                    description: o.description.clone(),
+                }
+            })
+            .map(RequestWithOptions::Var);
+        RequirementsList::<RequestWithOptions>::try_from_iter(requests)
+            .map(Cow::Owned)
+            .expect("build opts do not contain duplicates")
     }
 
     /// Read-only access to the install spec
@@ -229,6 +263,22 @@ impl DeprecateMut for EmbeddedPackageSpec {
     fn undeprecate(&mut self) -> Result<()> {
         self.deprecated = false;
         Ok(())
+    }
+}
+
+impl DownstreamRequirements for EmbeddedPackageSpec {
+    fn downstream_build_requirements<'a>(
+        &self,
+        _components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
+        self.downstream_requirements(|o| o.inheritance() != Inheritance::Weak)
+    }
+
+    fn downstream_runtime_requirements<'a>(
+        &self,
+        _components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
+        self.downstream_requirements(|o| o.inheritance() == Inheritance::Strong || o.required)
     }
 }
 

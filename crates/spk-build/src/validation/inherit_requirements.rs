@@ -8,7 +8,7 @@ use spk_schema::validation::{
     ValidationRuleDiscriminants as RuleKind,
 };
 use spk_schema::version::Compatibility;
-use spk_schema::{Package, Variant};
+use spk_schema::{DownstreamRequirements, Package, Variant};
 use spk_solve::Named;
 
 use super::{Error, Outcome, Report, Status, Subject};

@@ -8,6 +8,7 @@ use std::convert::TryInto;
 use std::path::Path;
 use std::str::FromStr;
 
+use itertools::Either;
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::{
@@ -46,6 +47,7 @@ use crate::{
     BuildEnv,
     Deprecate,
     DeprecateMut,
+    DownstreamRequirements,
     EnvOp,
     EnvOpList,
     Error,
@@ -390,8 +392,16 @@ impl Recipe for RecipeSpec {
         let mut missing_runtime_requirements: HashMap<OptNameBuf, (String, Option<String>)> =
             HashMap::new();
 
-        for (_, spec) in specs {
-            let downstream_build = spec.downstream_build_requirements([]);
+        for spec in specs.values().map(Either::Left).chain(
+            // chain with any of our own embedded packages to pick up
+            // their downstream requirements as if they existed as real
+            // external packages in the build env.
+            package_install.embedded.iter().map(Either::Right),
+        ) {
+            let downstream_build = match spec {
+                Either::Left(pkg) => pkg.downstream_build_requirements([]),
+                Either::Right(embedded) => embedded.downstream_build_requirements([]),
+            };
             for request in downstream_build.iter() {
                 match build_requirements.contains_request(request) {
                     Compatibility::Compatible => continue,
@@ -418,7 +428,10 @@ impl Recipe for RecipeSpec {
                     },
                 }
             }
-            let downstream_runtime = spec.downstream_runtime_requirements([]);
+            let downstream_runtime = match spec {
+                Either::Left(pkg) => pkg.downstream_runtime_requirements([]),
+                Either::Right(embedded) => embedded.downstream_runtime_requirements([]),
+            };
             for request in downstream_runtime.iter() {
                 match package_install.requirements.contains_request(request) {
                     Compatibility::Compatible => continue,

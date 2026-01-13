@@ -31,7 +31,7 @@ use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{PinnedRequest, Satisfy, VarRequest};
 use crate::metadata::Meta;
-use crate::package::OptionValues;
+use crate::package::{DownstreamRequirements, OptionValues};
 use crate::{
     BuildEnv,
     ComponentSpec,
@@ -777,7 +777,9 @@ impl Package for Spec {
             Spec::V0Package(spec) => spec.runtime_requirements(),
         }
     }
+}
 
+impl DownstreamRequirements for Spec {
     fn downstream_build_requirements<'a>(
         &self,
         components: impl IntoIterator<Item = &'a Component>,

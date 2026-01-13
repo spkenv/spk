@@ -152,7 +152,14 @@ pub(in crate::storage) mod internal {
 
     use spk_schema::foundation::ident_build::{Build, EmbeddedSource, EmbeddedSourcePackage};
     use spk_schema::foundation::ident_component::Component;
-    use spk_schema::{Deprecate, DeprecateMut, Package, PackageMut, Recipe};
+    use spk_schema::{
+        Deprecate,
+        DeprecateMut,
+        DownstreamRequirements,
+        Package,
+        PackageMut,
+        Recipe,
+    };
 
     use crate::Result;
 
@@ -171,7 +178,7 @@ pub(in crate::storage) mod internal {
             components_that_embed_this_pkg: BTreeSet<Component>,
         ) -> Result<()>
         where
-            Self::Package: PackageMut,
+            Self::Package: DownstreamRequirements + PackageMut,
         {
             let mut spec_for_embedded_pkg = spec_for_embedded_pkg.clone();
             for request_with_options in spec_for_parent
