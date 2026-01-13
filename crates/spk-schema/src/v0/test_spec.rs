@@ -50,10 +50,6 @@ impl crate::Test for TestSpec {
         self.script.join("\n")
     }
 
-    fn additional_requirements(&self) -> Vec<PinnedRequest> {
-        self.requirements.clone()
-    }
-
     fn additional_requirements_with_options(&self, options: &OptionMap) -> Vec<RequestWithOptions> {
         convert_requests_to_requests_with_options(options.iter(), || self.requirements.iter())
             .collect()

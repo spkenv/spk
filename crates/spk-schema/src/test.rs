@@ -5,7 +5,7 @@
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
-use spk_schema_foundation::ident::{PinnedRequest, RequestWithOptions};
+use spk_schema_foundation::ident::RequestWithOptions;
 use spk_schema_foundation::option_map::OptionMap;
 
 const BUILD_NAME: &str = "build";
@@ -17,10 +17,6 @@ const TEST_STAGES: &[&str] = &[BUILD_NAME, INSTALL_NAME, SOURCES_NAME];
 /// spk environment and validates some aspect of a package
 pub trait Test {
     fn script(&self) -> String;
-
-    fn additional_requirements(&self) -> Vec<PinnedRequest> {
-        Vec::new()
-    }
 
     /// Calculate the additional requirements with options.
     ///
