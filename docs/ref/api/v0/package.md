@@ -89,6 +89,43 @@ Variable options represents some arbitrary configuration parameter to the build.
 | choices     | _List[str]_ | An optional set of possible values for this variable                                                                                                                                                                                                                                                                                                                                                                              |
 | inheritance | _str_       | Defines how this option is inherited by downstream packages. `Weak` is the default behaviour and does not influence downstream packages directly. `Strong` propagates this build option into every package that has this one in it's build environment while also adding an install requirement for this option. `StrongForBuildOnly` can be used to propagate this requirement as a build option but not an install requirement. |
 | static      | _str_       | Defines an unchangeable value for this variable - this is usually reserved for use by the system and is set when a package build is published to save the value of the variable at build time                                                                                                                                                                                                                                     |
+| required    | _bool_      | See _[RequiredVar](#requiredvar)_                                                                                                                                                                                                                                                                                                                                                                                                 |
+
+##### RequiredVar
+
+A package with a required var can only be solved when a request for that package
+also includes a matching value for that var. Normally, vars describe some build
+difference like `debug=on` vs `debug=off`, but when requesting packages if the
+request does not specify a value for that var then a build with any value for
+that var can be used. A var with `required: true` changes this behaviour so that
+if the request does not specify a value for that var, then no build of the
+package with that var can be used.
+
+This is useful when adding a new var to an existing package to describe some
+property of the package that creates a binary incompatibility. If it becomes
+necessary to add an additional new build of an existing version of a package
+that is binary incompatible with the previous builds, then a new `var` should be
+added with `required: true` to describe the difference between the old and new
+builds. Any existing builds of packages that depend on this package will not be
+able to solve with this new build.
+
+An example use case for this property is if a C++ library is being packaged and
+all existing builds are using the same convention for naming some C++ namespace
+in the code. However, a new build of the package is required that uses a
+different namespace for some reason. A build of this library with the new
+namespace would contain different symbol names and not be compatible with
+packages that build against the old namespace. It is only safe to add a new
+build with a different namespace if a new var describing the namespace naming
+convention difference is added with the `required: true` property.
+
+A var with `required: true` behaves as if it also has `inheritance: Strong`, so
+any package that is built against a package with a required var will
+automatically add a request for that var with the same value.
+
+> [!TIP]
+> This property should be used sparingly and `required: true` can be removed
+> when updating a package to a new version number that would be binary
+> incompatible with the previous version.
 
 #### PackageOption
 
