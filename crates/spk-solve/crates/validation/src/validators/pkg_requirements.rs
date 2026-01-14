@@ -26,7 +26,6 @@ impl ValidatorT for PkgRequirementsValidator {
         _source: &PackageSource,
     ) -> crate::Result<Compatibility> {
         for request in spec.runtime_requirements().iter() {
-            dbg!(spec.name(), request);
             let compat = self.validate_request_against_existing_state(state, request)?;
             if !&compat {
                 return Ok(compat);
@@ -60,7 +59,7 @@ impl PkgRequirementsValidator {
         };
 
         let existing = match state.get_merged_request(&request.pkg.name) {
-            Ok(request) => dbg!(request),
+            Ok(request) => request,
             Err(spk_solve_graph::GetMergedRequestError::NoRequestFor(_)) => return Ok(Compatible),
             // XXX: KeyError or ValueError still possible here?
             Err(err) => return Err(err.into()),
@@ -68,7 +67,7 @@ impl PkgRequirementsValidator {
 
         let mut restricted = existing.clone();
         let request = match restricted.restrict(request) {
-            Compatible => dbg!(restricted),
+            Compatible => restricted,
             Compatibility::Incompatible(incompatible) => {
                 return Ok(Compatibility::Incompatible(
                     IncompatibleReason::ConflictingRequirement(

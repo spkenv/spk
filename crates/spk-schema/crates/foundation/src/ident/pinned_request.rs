@@ -17,6 +17,7 @@ use crate::ident::{
     PkgRequest,
     PreReleasePolicy,
     RangeIdent,
+    RequestWithOptions,
     VarRequest,
 };
 use crate::name::{OptName, OptNameBuf};
@@ -67,6 +68,15 @@ impl From<VarRequest<PinnedValue>> for PinnedRequest {
 impl From<PkgRequest> for PinnedRequest {
     fn from(req: PkgRequest) -> Self {
         Self::Pkg(req)
+    }
+}
+
+impl From<RequestWithOptions> for PinnedRequest {
+    fn from(req: RequestWithOptions) -> Self {
+        match req {
+            RequestWithOptions::Pkg(r) => PinnedRequest::Pkg(r.pkg_request),
+            RequestWithOptions::Var(r) => PinnedRequest::Var(r),
+        }
     }
 }
 

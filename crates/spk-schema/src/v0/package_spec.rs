@@ -49,7 +49,7 @@ use crate::ident::{
 };
 use crate::metadata::Meta;
 use crate::option::VarOpt;
-use crate::package::{BuildOptions, OptionValues};
+use crate::package::{BuildOptions, DownstreamRequirements, OptionValues};
 use crate::spec::SpecTest;
 use crate::v0::{EmbeddedPackageSpec, RecipeSpec};
 use crate::{
@@ -254,24 +254,29 @@ impl PackageSpec {
     /// Return downstream var requirements that match the given filter.
     fn downstream_requirements<F>(&self, filter: F) -> Cow<'_, RequirementsList<RequestWithOptions>>
     where
-        F: FnMut(&&VarOpt) -> bool,
+        F: FnMut(&VarOpt) -> bool,
     {
         let requests = self
             .build
             .options
             .iter()
             .filter_map(|opt| match opt {
-                Opt::Var(v) => Some(v),
+                Opt::Var(v) => Some(v.with_default_namespace(self.name())),
                 Opt::Pkg(_) => None,
             })
+            .chain(self.install.embedded.iter().flat_map(|embed| {
+                embed.build().options.iter().filter_map(|opt| match opt {
+                    Opt::Var(v) => Some(v.with_default_namespace(embed.name())),
+                    Opt::Pkg(_) => None,
+                })
+            }))
             .filter(filter)
             .map(|o| {
-                let var = o.var.with_default_namespace(self.name());
                 VarRequest {
-                    var,
                     // we are assuming that the var here will have a value because
                     // this is a built binary package
                     value: o.get_value(None).unwrap_or_default().into(),
+                    var: o.var,
                     description: o.description.clone(),
                 }
             })
@@ -458,7 +463,9 @@ impl Package for PackageSpec {
     fn get_all_tests(&self) -> Vec<SpecTest> {
         self.tests.clone().into_iter().map(SpecTest::V0).collect()
     }
+}
 
+impl DownstreamRequirements for PackageSpec {
     fn downstream_build_requirements<'a>(
         &self,
         _components: impl IntoIterator<Item = &'a Component>,
@@ -470,13 +477,20 @@ impl Package for PackageSpec {
         &self,
         _components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
-        self.downstream_requirements(|o| o.inheritance() == Inheritance::Strong)
+        self.downstream_requirements(|o| o.inheritance() == Inheritance::Strong || o.required)
     }
 }
 
 impl PackageMut for PackageSpec {
     fn set_build(&mut self, build: Build) {
         self.pkg.set_target(build);
+    }
+
+    fn insert_or_merge_install_requirement(&mut self, req: PinnedRequest) -> Result<()> {
+        self.install_mut(|install| {
+            install.requirements.insert_or_merge_pinned(req)?;
+            Ok(())
+        })
     }
 }
 

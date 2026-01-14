@@ -422,6 +422,12 @@ impl VarOpt {
             self.inheritance
         }
     }
+
+    pub fn with_default_namespace(&self, namespace: &PkgName) -> Self {
+        let mut new = self.clone();
+        new.var = new.var.with_default_namespace(namespace);
+        new
+    }
 }
 
 // This manual hash implementation aligns with the derived `Eq` implementation;

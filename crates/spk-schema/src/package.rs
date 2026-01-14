@@ -114,6 +114,28 @@ forward_to_impl!(OptionValues, {
     }
 });
 
+pub trait DownstreamRequirements {
+    /// Requests that must be satisfied by the build
+    /// environment of any package built against this one
+    ///
+    /// These requirements are not injected downstream, instead
+    /// they need to be present in the downstream package itself
+    fn downstream_build_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList<RequestWithOptions>>;
+
+    /// Requests that must be satisfied by the runtime
+    /// environment of any package built against this one
+    ///
+    /// These requirements are not injected downstream, instead
+    /// they need to be present in the downstream package itself
+    fn downstream_runtime_requirements<'a>(
+        &self,
+        components: impl IntoIterator<Item = &'a Component>,
+    ) -> Cow<'_, RequirementsList<RequestWithOptions>>;
+}
+
 /// Can be resolved into an environment.
 #[enum_dispatch::enum_dispatch]
 pub trait Package:
@@ -124,6 +146,7 @@ pub trait Package:
     + RuntimeEnvironment
     + Components<ComponentSpecT = ComponentSpec>
     + OptionValues
+    + DownstreamRequirements
     + Clone
     + Eq
     + std::hash::Hash
@@ -209,31 +232,18 @@ pub trait Package:
     /// The package requirements include the package-specific options required
     /// too.
     fn runtime_requirements(&self) -> Cow<'_, RequirementsList<RequestWithOptions>>;
-
-    /// Requests that must be satisfied by the build
-    /// environment of any package built against this one
-    ///
-    /// These requirements are not injected downstream, instead
-    /// they need to be present in the downstream package itself
-    fn downstream_build_requirements<'a>(
-        &self,
-        components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, RequirementsList<RequestWithOptions>>;
-
-    /// Requests that must be satisfied by the runtime
-    /// environment of any package built against this one
-    ///
-    /// These requirements are not injected downstream, instead
-    /// they need to be present in the downstream package itself
-    fn downstream_runtime_requirements<'a>(
-        &self,
-        components: impl IntoIterator<Item = &'a Component>,
-    ) -> Cow<'_, RequirementsList<RequestWithOptions>>;
 }
 
 pub trait PackageMut: Package + DeprecateMut {
     /// Modify the build identifier for this package
     fn set_build(&mut self, build: Build);
+
+    /// Insert or merge a runtime requirement of this package.
+    ///
+    /// If a request exists for the same name, it is updated with the
+    /// restrictions of this one. Otherwise the new request is
+    /// appended to the list.
+    fn insert_or_merge_install_requirement(&mut self, req: PinnedRequest) -> crate::Result<()>;
 }
 
 forward_to_impl!(Package, {
@@ -281,7 +291,9 @@ forward_to_impl!(Package, {
     fn runtime_requirements(&self) -> Cow<'_, RequirementsList<RequestWithOptions>> {
         (**self).runtime_requirements()
     }
+});
 
+forward_to_impl!(DownstreamRequirements, {
     fn downstream_build_requirements<'a>(
         &self,
         components: impl IntoIterator<Item = &'a Component>,

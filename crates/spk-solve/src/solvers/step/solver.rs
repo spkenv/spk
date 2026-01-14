@@ -643,7 +643,7 @@ impl Solver {
                                 // can be used to resolve the current request
                                 Decision::builder(&node.state)
                                     .with_components(&request.pkg.components)
-                                    .resolve_package(&spec, source.clone())
+                                    .resolve_package(&spec, source.clone())?
                             }
                             Compatibility::Incompatible(
                                 IncompatibleReason::ConflictingEmbeddedPackage(

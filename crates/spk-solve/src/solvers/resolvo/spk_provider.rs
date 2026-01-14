@@ -28,6 +28,8 @@ use spk_schema::ident::{
     LocatedBuildIdent,
     PinnedValue,
     PkgRequest,
+    PkgRequestOptionValue,
+    PkgRequestOptions,
     PkgRequestWithOptions,
     PreReleasePolicy,
     RangeIdent,
@@ -1428,30 +1430,24 @@ impl DependencyProvider for SpkProvider {
                                 component: located_build_ident_with_component.component.clone(),
                             }),
                         );
+                        let options_for_embedded = PkgRequestOptions::from_iter(
+                            package.runtime_requirements().iter().filter_map(|req| {
+                                let var = req.var_ref()?;
+                                (var.var.namespace() == Some(embedded.name())).then(|| {
+                                    (
+                                        var.var.clone(),
+                                        PkgRequestOptionValue::Complete(var.value.to_string()),
+                                    )
+                                })
+                            }),
+                        );
                         known_deps.requirements.push(
                             self.pool
                                 .intern_version_set(
                                     dep_name,
                                     RequestVS::SpkRequest(RequestWithOptions::Pkg(
                                         PkgRequestWithOptions {
-                                            options: package
-                                                .runtime_requirements()
-                                                .iter()
-                                                // XXX: this is wrong, there could be var requests
-                                                // for the target package but no pkg requests (test
-                                                // this!).
-                                                .find_map(|req_with_options| match req_with_options
-                                                {
-                                                    RequestWithOptions::Pkg(
-                                                        pkg_req_with_options,
-                                                    ) if pkg_req_with_options.pkg.name()
-                                                        == embedded.name() =>
-                                                    {
-                                                        Some(pkg_req_with_options.options.clone())
-                                                    }
-                                                    _ => None,
-                                                })
-                                                .unwrap_or_default(),
+                                            options: options_for_embedded,
                                             pkg_request: PkgRequest::new(
                                                 RangeIdent {
                                                     repository_name: Some(
@@ -1576,37 +1572,26 @@ impl DependencyProvider for SpkProvider {
                                         },
                                     ),
                                 );
+                                let options_for_parent = PkgRequestOptions::from_iter(
+                                    package.runtime_requirements().iter().filter_map(|req| {
+                                        let var = req.var_ref()?;
+                                        (var.var.namespace() == Some(parent.name())).then(|| {
+                                            (
+                                                var.var.clone(),
+                                                PkgRequestOptionValue::Complete(
+                                                    var.value.to_string(),
+                                                ),
+                                            )
+                                        })
+                                    }),
+                                );
                                 known_deps.requirements.push(
                                     self.pool
                                         .intern_version_set(
                                             dep_name,
                                             RequestVS::SpkRequest(RequestWithOptions::Pkg(
                                                 PkgRequestWithOptions {
-                                                    options: package
-                                                        .runtime_requirements()
-                                                        .iter()
-                                                        // XXX: this is wrong, there could be var requests
-                                                        // for the target package but no pkg requests (test
-                                                        // this!).
-                                                        .find_map(|req_with_options| {
-                                                            match req_with_options {
-                                                                RequestWithOptions::Pkg(
-                                                                    pkg_req_with_options,
-                                                                ) if pkg_req_with_options
-                                                                    .pkg
-                                                                    .name()
-                                                                    == parent_ident.name() =>
-                                                                {
-                                                                    Some(
-                                                                        pkg_req_with_options
-                                                                            .options
-                                                                            .clone(),
-                                                                    )
-                                                                }
-                                                                _ => None,
-                                                            }
-                                                        })
-                                                        .unwrap_or_default(),
+                                                    options: options_for_parent,
                                                     pkg_request: PkgRequest::new(
                                                         RangeIdent {
                                                             repository_name: Some(
