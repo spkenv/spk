@@ -103,6 +103,7 @@ where
                 EmbeddedSourcePackage {
                     ident: ident.to_owned()?,
                     components,
+                    unparsed: Some(input.to_string()),
                 },
             )))
         },

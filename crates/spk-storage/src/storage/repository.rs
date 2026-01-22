@@ -192,6 +192,7 @@ pub(in crate::storage) mod internal {
                 EmbeddedSourcePackage {
                     ident: spec_for_parent.ident().into(),
                     components: components_that_embed_this_pkg,
+                    unparsed: None,
                 },
             ))));
             spec_for_embedded_pkg.set_deprecated(spec_for_parent.is_deprecated())?;
@@ -236,6 +237,7 @@ pub(in crate::storage) mod internal {
                         EmbeddedSourcePackage {
                             ident: spec_for_parent.ident().into(),
                             components: components_that_embed_this_pkg,
+                            unparsed: None,
                         },
                     ))));
             self.remove_embed_stub_from_storage(&spec_for_embedded_pkg)

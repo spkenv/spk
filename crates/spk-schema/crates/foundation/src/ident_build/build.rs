@@ -5,6 +5,7 @@
 use std::collections::BTreeSet;
 use std::str::FromStr;
 
+use derive_where::derive_where;
 use miette::Diagnostic;
 use relative_path::RelativePathBuf;
 use thiserror::Error;
@@ -37,10 +38,19 @@ impl InvalidBuildError {
     }
 }
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug)]
+#[derive_where(Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct EmbeddedSourcePackage {
     pub ident: IdentPartsBuf,
     pub components: BTreeSet<Component>,
+    /// The original unparsed tag, if known, which may contain non-normalized
+    /// version numbers due to legacy builds of spk allowing this.
+    ///
+    /// It is not considered for comparisons or hashing but will be used when
+    /// generating the metadata path to preserve the ability to roundtrip back
+    /// to the existing tag on disk.
+    #[derive_where(skip(EqHashOrd))]
+    pub unparsed: Option<String>,
 }
 
 impl EmbeddedSourcePackage {
@@ -82,14 +92,20 @@ pub enum EmbeddedSource {
 
 impl MetadataPath for EmbeddedSource {
     fn metadata_path(&self) -> RelativePathBuf {
-        match self {
-            package @ EmbeddedSource::Package { .. } => RelativePathBuf::from(format!(
+        match dbg!(self) {
+            package @ EmbeddedSource::Package(esp) => RelativePathBuf::from(format!(
                 "{}{}",
                 EmbeddedSourcePackage::EMBEDDED_BY_PREFIX,
                 // Encode the parent ident into base32 to have a unique value
                 // per unique parent that is a valid filename. The trailing
                 // '=' are not allowed in tag names (use NOPAD).
-                data_encoding::BASE32_NOPAD.encode(package.to_string().as_bytes())
+                data_encoding::BASE32_NOPAD.encode(
+                    esp.unparsed
+                        .as_ref()
+                        .map(|unparsed| format!("{EMBEDDED}{unparsed}"))
+                        .unwrap_or_else(|| package.to_string())
+                        .as_bytes()
+                )
             )),
             EmbeddedSource::Unknown => RelativePathBuf::from("embedded"),
         }
