@@ -1474,6 +1474,7 @@ impl DependencyProvider for SpkProvider {
                                                                 components: BTreeSet::from_iter([
                                                                     Component::Run,
                                                                 ]),
+                                                                unparsed: None,
                                                             },
                                                         )),
                                                     )),

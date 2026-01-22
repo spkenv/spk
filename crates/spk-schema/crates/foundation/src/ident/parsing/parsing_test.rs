@@ -392,6 +392,7 @@ fn arb_embedded_build() -> impl Strategy<Value = Build> {
                         EmbeddedSourcePackage {
                             ident: (&ident).into(),
                             components,
+                            unparsed: None,
                         }
                     )
                 )
