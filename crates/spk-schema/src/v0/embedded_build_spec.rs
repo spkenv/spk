@@ -3,6 +3,7 @@
 // https://github.com/spkenv/spk
 
 use std::hash::Hash;
+use std::sync::LazyLock;
 
 use serde::{Deserialize, Serialize};
 use serde_yaml::Value;
@@ -11,7 +12,7 @@ use spk_schema_foundation::name::PkgName;
 use spk_schema_foundation::option_map::OptionMap;
 use spk_schema_foundation::spec_ops::Versioned;
 
-use crate::{Error, Opt, Result};
+use crate::{Error, Opt, Result, Script};
 
 #[cfg(test)]
 #[path = "./embedded_build_spec_test.rs"]
@@ -20,7 +21,7 @@ mod embedded_build_spec_test;
 #[derive(Deserialize)]
 struct RawEmbeddedBuildSpec {
     options: Vec<Opt>,
-    script: Option<Value>,
+    script: Option<Script>,
     variants: Option<Value>,
     auto_host_vars: Option<Value>,
 }
@@ -29,7 +30,11 @@ impl TryFrom<RawEmbeddedBuildSpec> for EmbeddedBuildSpec {
     type Error = Error;
 
     fn try_from(raw: RawEmbeddedBuildSpec) -> Result<Self> {
-        if raw.script.is_some() {
+        static DEFAULT_SCRIPT: LazyLock<Script> = LazyLock::new(Script::default);
+
+        if let Some(script) = raw.script
+            && script != *DEFAULT_SCRIPT
+        {
             return Err(Error::String(
                 "embedded build spec cannot contain a build script".to_owned(),
             ));
