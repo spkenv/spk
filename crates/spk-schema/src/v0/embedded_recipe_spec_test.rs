@@ -19,6 +19,12 @@ fn test_spec_is_valid_with_only_name() {
     let _spec: EmbeddedRecipeSpec = serde_yaml::from_str("{pkg: test-pkg}").unwrap();
 }
 
+/// For legacy reasons a build id is tolerated in the recipe.
+#[rstest]
+fn test_spec_is_valid_with_embedded_for_build_id() {
+    let _spec: EmbeddedRecipeSpec = serde_yaml::from_str("{pkg: test-pkg/1.0.0/embedded}").unwrap();
+}
+
 #[rstest]
 fn test_explicit_no_sources() {
     let spec: EmbeddedRecipeSpec = serde_yaml::from_str("{pkg: test-pkg, sources: []}").unwrap();

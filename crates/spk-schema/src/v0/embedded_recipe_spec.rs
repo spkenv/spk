@@ -4,7 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
-use spk_schema_foundation::ident::{AsVersionIdent, VersionIdent};
+use spk_schema_foundation::ident::{AnyIdent, AsVersionIdent, VersionIdent};
 use spk_schema_foundation::option_map::OptionMap;
 use spk_schema_foundation::spec_ops::HasBuildIdent;
 
@@ -29,6 +29,16 @@ use crate::{
 #[path = "./embedded_recipe_spec_test.rs"]
 mod embedded_recipe_spec_test;
 
+/// Accept a build ident in a position that expects a version ident
+fn version_ident_from_any_ident<'de, D>(
+    deserializer: D,
+) -> std::result::Result<VersionIdent, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    AnyIdent::deserialize(deserializer).map(|ident| ident.into_base())
+}
+
 /// A recipe specification for an embedded package.
 ///
 /// This is similar to [`super::RecipeSpec`], but is used for the recipes of
@@ -36,6 +46,9 @@ mod embedded_recipe_spec_test;
 /// not define variants or have embedded packages of its own.
 #[derive(Debug, Deserialize, Clone, Hash, PartialEq, Eq, Ord, PartialOrd, Serialize)]
 pub struct EmbeddedRecipeSpec {
+    // Recipes were previously serialized with "/embedded" as the build id, so
+    // tolerate reading recipes that contain a build id.
+    #[serde(deserialize_with = "version_ident_from_any_ident")]
     pub pkg: VersionIdent,
     #[serde(default, skip_serializing_if = "Meta::is_default")]
     pub meta: Meta,
