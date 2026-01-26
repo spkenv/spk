@@ -36,11 +36,11 @@ pub struct PackagesToSolveData {
     data: BTreeMap<BuildIdent, PackageSolveData>,
 }
 
-fn ensure_version<'de, D>(derserializer: D) -> std::result::Result<u32, D::Error>
+fn ensure_version<'de, D>(deserializer: D) -> std::result::Result<u32, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
-    let version = u32::deserialize(derserializer)?;
+    let version = u32::deserialize(deserializer)?;
     if version != PACKAGE_TO_SOLVE_DATA_VERSION {
         return Err(serde::de::Error::custom(format!(
             "PackagesToSolveData version mismatch. Required version {PACKAGE_TO_SOLVE_DATA_VERSION} but data is version {version}"
