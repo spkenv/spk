@@ -92,7 +92,7 @@ pub enum EmbeddedSource {
 
 impl MetadataPath for EmbeddedSource {
     fn metadata_path(&self) -> RelativePathBuf {
-        match dbg!(self) {
+        match self {
             package @ EmbeddedSource::Package(esp) => RelativePathBuf::from(format!(
                 "{}{}",
                 EmbeddedSourcePackage::EMBEDDED_BY_PREFIX,
