@@ -7,6 +7,7 @@ use std::fmt::Write;
 use std::marker::PhantomData;
 
 use serde::{Deserialize, Serialize};
+use serde_yaml::Value;
 use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::{
     Contains,
@@ -484,14 +485,64 @@ where
                 let size_hint = seq.size_hint().unwrap_or(0);
                 let mut requirements = Vec::with_capacity(size_hint);
                 let mut requirement_names = HashSet::with_capacity(size_hint);
-                while let Some(request) = seq.next_element::<R>()? {
-                    let name = request.name();
-                    if !requirement_names.insert(name.to_owned()) {
-                        return Err(serde::de::Error::custom(format!(
-                            "found multiple install requirements for '{name}'"
-                        )));
+                // First deserialize to Value to consume the entire mapping (R)
+                // so deserialization can continue after ignoring an error
+                // parsing the mapping (R).
+                while let Some(value) = seq.next_element::<Value>()? {
+                    match serde_yaml::from_value::<R>(value) {
+                        Ok(request) => {
+                            let name = request.name();
+                            if !requirement_names.insert(name.to_owned()) {
+                                return Err(serde::de::Error::custom(format!(
+                                    "found multiple install requirements for '{name}'"
+                                )));
+                            }
+                            requirements.push(request);
+                        }
+                        Err(err) => {
+                            // Tolerate "pinned" vars with missing or empty
+                            // values. Old versions of spk produced these
+                            // var requests when building packages that
+                            // would now be considered invalid.
+                            // These are tolerated by ignoring the invalid
+                            // var requests. A var request with an empty
+                            // value has no effect on solver behavior.
+
+                            // serde_yaml doesn't offer a way to get the
+                            // original error type and try to downcast it.
+                            let err_msg = err.to_string();
+                            if err_msg.contains("expected a value for a pinned var request")
+                                || err_msg
+                                    .contains("a pinned var request must include a non-empty value")
+                            {
+                                continue;
+                            }
+
+                            // Wrap the original error instead of creating a
+                            // jumbled new error message using
+                            // `err.to_string()`.
+                            #[derive(Debug)]
+                            struct OriginalError {
+                                source: Box<dyn std::error::Error + Send + Sync + 'static>,
+                            }
+
+                            impl std::fmt::Display for OriginalError {
+                                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                                    write!(f, "failed to deserialize request")
+                                }
+                            }
+
+                            impl std::error::Error for OriginalError {
+                                fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+                                    Some(&*self.source)
+                                }
+                            }
+
+                            return Err(serde::de::Error::custom(OriginalError {
+                                source: Box::new(err),
+                            }));
+                        }
                     }
-                    requirements.push(request);
                 }
                 Ok(RequirementsList(requirements))
             }
