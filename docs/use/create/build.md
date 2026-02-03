@@ -47,6 +47,9 @@ There are some build options that are either provided by the system or are used 
 | almalinux,ubuntu,etc | The linux distro version number, if applicable | 9.5, 9.6, ...          |
 | debug                | Denotes a build with debug information         | on, off                |
 
+> [!NOTE]
+> The `build.auto_host_vars` value determines which options are added automatically to packages. The default value assumes that your package can only be used on the same operating system and architecture where it was built. In many cases, this is unnecessarily restrictive. See the available options for this field in [the reference]({{< ref "../../ref/api/v0/package/" >}}#autohostvars).
+
 #### Build Variable Description
 
 For build variables, a description of up to 256 characters can be provided.
