@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+// Allow: the error fields that are used by the thiserror format string are
+// still considered unused.
+#![allow(unused_assignments)]
+
 use std::io;
 use std::path::PathBuf;
 use std::str::Utf8Error;

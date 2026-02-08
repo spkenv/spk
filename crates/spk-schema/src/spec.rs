@@ -872,18 +872,13 @@ impl AsRef<Spec> for Spec {
     }
 }
 
-#[derive(Deserialize, Serialize, Copy, Clone)]
+#[derive(Default, Deserialize, Serialize, Copy, Clone)]
 pub enum ApiVersion {
     #[serde(rename = "v0/package")]
+    #[default]
     V0Package,
     #[serde(rename = "v0/platform")]
     V0Platform,
     #[serde(rename = "v0/requirements")]
     V0Requirements,
-}
-
-impl Default for ApiVersion {
-    fn default() -> Self {
-        Self::V0Package
-    }
 }

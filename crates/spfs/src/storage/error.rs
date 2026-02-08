@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+// Allow: the error fields that are used by the thiserror format string are
+// still considered unused.
+#![allow(unused_assignments)]
+
 use super::TagNamespaceBuf;
 
 #[derive(Debug, miette::Diagnostic, thiserror::Error)]

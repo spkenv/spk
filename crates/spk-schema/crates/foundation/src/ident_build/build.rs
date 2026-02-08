@@ -56,7 +56,7 @@ pub struct EmbeddedSourcePackage {
 impl EmbeddedSourcePackage {
     pub const EMBEDDED_BY_PREFIX: &'static str = "embedded-by-";
 
-    /// Create a [`PkgRequest'] representing the package that embeds this one.
+    /// Create a [`PkgRequest`] representing the package that embeds this one.
     pub fn to_pkg_request(&self, requester: RequestedBy) -> ident::Result<PkgRequest> {
         let Some(version_str) = &self.ident.version_str else {
             return Err(ident::Error::String(

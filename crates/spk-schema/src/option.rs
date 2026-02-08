@@ -39,9 +39,12 @@ use crate::{Error, Result};
 mod option_test;
 
 /// Defines the way in which a build option in inherited by downstream packages.
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, Default, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord,
+)]
 pub enum Inheritance {
     // the default value, not inherited by downstream packages unless redefined
+    #[default]
     Weak,
     // inherited by downstream packages as a build option only
     StrongForBuildOnly,
@@ -59,12 +62,6 @@ impl std::str::FromStr for Inheritance {
     type Err = crate::Error;
     fn from_str(value: &str) -> crate::Result<Self> {
         serde_yaml::from_str(value).map_err(Error::InvalidInheritance)
-    }
-}
-
-impl Default for Inheritance {
-    fn default() -> Self {
-        Self::Weak
     }
 }
 

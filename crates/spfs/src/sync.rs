@@ -43,11 +43,12 @@ pub const DEFAULT_MAX_CONCURRENT_PAYLOADS: usize = 100;
 mod sync_test;
 
 /// Methods for syncing data between repositories
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub enum SyncPolicy {
     /// Starting at the top-most requested item, sync and
     /// descend only into objects that are missing in the
     /// destination repo. (this is the default)
+    #[default]
     MissingDataOnly,
     /// Update any tags to the latest target from the source
     /// repository, even if they already exist in the destination.
@@ -62,12 +63,6 @@ pub enum SyncPolicy {
     /// object and payload data even if it already exists in
     /// the destination.
     ResyncEverything,
-}
-
-impl Default for SyncPolicy {
-    fn default() -> Self {
-        Self::MissingDataOnly
-    }
 }
 
 impl SyncPolicy {
