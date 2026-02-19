@@ -7,6 +7,7 @@
 mod conversions;
 mod result;
 mod generated {
+    #![allow(missing_docs)]
     #![allow(clippy::derive_partial_eq_without_eq)]
     tonic::include_proto!("spfs");
 }

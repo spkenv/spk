@@ -2,6 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+//! Macro for generating validated string wrapper types.
+//!
+//! This crate provides the [`parsed!`] macro which generates a pair of
+//! types (borrowed and owned) that wrap strings with validation logic.
+//! This is useful for creating type-safe string wrappers like package
+//! names, version strings, or other validated identifiers.
+
 pub use paste;
 
 /// Generate a pair of types to represent a parsed string type.

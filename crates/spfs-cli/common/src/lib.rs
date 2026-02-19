@@ -2,12 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-//! Common macros and argument structures for the spfs command line
+//! Common macros and argument structures for the spfs command line.
+//!
+//! This crate provides shared CLI argument structures, logging configuration,
+//! and utility macros used across spfs CLI commands.
 
 mod args;
 
+#[doc(hidden)]
 pub mod __private {
-    // Private re-exports for macros
     pub use {libc, spfs};
 }
 

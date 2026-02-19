@@ -2,7 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-// TODO: this might be overkill for the integration changes we make/need
+//! Integration between [`sentry`] and [`miette`] error types.
+//!
+//! Provides utilities for capturing miette diagnostic errors
+//! as Sentry events, preserving the rich formatting that miette
+//! provides.
 
 use sentry::Hub;
 use sentry::protocol::Event;

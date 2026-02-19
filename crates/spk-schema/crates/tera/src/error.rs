@@ -10,15 +10,16 @@ use spk_schema_foundation::{name, version, version_range};
 #[path = "./error_test.rs"]
 mod error_test;
 
+/// Error from template rendering operations.
+///
+/// Wraps tera template errors with source location information
+/// for rich diagnostic output via miette.
 #[derive(Debug)]
 pub struct Error {
     message: String,
     tpl: String,
     label: Option<String>,
     location: miette::SourceOffset,
-    // kept around to determine the original source
-    // of this error in the case where a template position
-    // and error message was not discerned
     original: Option<Box<tera::Error>>,
 }
 
@@ -62,6 +63,10 @@ impl miette::Diagnostic for Error {
 }
 
 impl Error {
+    /// Constructs an Error from a tera error and the template source.
+    ///
+    /// Parses the tera error message to extract source location
+    /// information for better diagnostic display.
     pub fn build(tpl: String, err: tera::Error) -> Self {
         static RE: Lazy<Regex> = Lazy::new(|| {
             Regex::new(r"(?ms).*--> (\d+):(\d+)\n.*^\s+= (.*)").expect("a valid regular expression")

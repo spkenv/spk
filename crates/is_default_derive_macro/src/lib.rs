@@ -2,12 +2,26 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+//! Derive macro for the [`spk_schema_foundation::IsDefault`] trait.
+//!
+//! This crate provides a procedural macro that automatically implements
+//! the `IsDefault` trait for structs by checking if all fields are at
+//! their default values.
+
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, parse_macro_input};
 
+/// Derives the `IsDefault` trait for a struct.
+///
+/// The generated implementation returns `true` if all fields
+/// report `is_default() == true`.
+///
+/// # Panics
+///
+/// This macro panics at compile time if applied to non-struct types.
 #[proc_macro_derive(IsDefault)]
 pub fn derive_is_default(input: TokenStream) -> TokenStream {
     // Parse the input tokens into a syntax tree

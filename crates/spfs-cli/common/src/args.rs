@@ -707,6 +707,10 @@ macro_rules! handle_result {
     }};
 }
 
+/// Captures an error to sentry if it represents an unexpected failure.
+///
+/// Certain expected error types (like missing runtime, unknown objects)
+/// are not reported to sentry as they represent normal operation.
 pub fn capture_if_relevant(err: &Error) {
     match err.root_cause().downcast_ref::<spfs::Error>() {
         Some(spfs::Error::Runtime(spfs::runtime::Error::NoActiveRuntime)) => (),
