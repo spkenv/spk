@@ -48,7 +48,7 @@ pub enum Error {
     GraphObject(#[from] super::graph::error::ObjectError),
     #[error(transparent)]
     #[diagnostic(forward(0))]
-    Runtime(#[from] runtime::error::Error),
+    Runtime(#[from] runtime::Error),
 
     #[error("Invalid repository url: {0:?}")]
     InvalidRemoteUrl(#[from] url::ParseError),

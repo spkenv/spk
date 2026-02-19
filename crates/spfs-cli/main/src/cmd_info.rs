@@ -272,7 +272,7 @@ impl CmdInfo {
         let found = match spfs::find_path::find_path_providers_in_spfs_runtime(filepath, repo).await
         {
             Ok(f) => f,
-            Err(spfs::Error::Runtime(spfs::runtime::error::Error::NoActiveRuntime)) => {
+            Err(spfs::Error::Runtime(spfs::runtime::Error::NoActiveRuntime)) => {
                 in_a_runtime = false;
                 Vec::new()
             }

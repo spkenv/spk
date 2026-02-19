@@ -8,7 +8,7 @@ use spfs_encoding::Digest;
 use spfs_encoding::prelude::*;
 
 use crate::graph::{self, DatabaseView, Object};
-use crate::runtime::error::Error as RuntimeError;
+use crate::runtime::Error as RuntimeError;
 use crate::{Result, env, status, storage, tracking};
 
 /// Used for items in a list of spfs objects that contain a filepath.

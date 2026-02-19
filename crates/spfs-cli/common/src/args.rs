@@ -679,7 +679,10 @@ macro_rules! handle_result {
                     tracing::error!("Out of disk space: {msg}");
                     Ok(1)
                 }
-                Some(spfs::Error::Runtime(spfs::runtime::error::Error::RuntimeWriteError(path, io_err)))
+                Some(spfs::Error::Runtime(spfs::runtime::Error::RuntimeWriteError(
+                    path,
+                    io_err,
+                )))
                 | Some(spfs::Error::StorageWriteError(_, path, io_err))
                     if std::matches!(io_err.os_error(), Some($crate::__private::libc::ENOSPC)) =>
                 {
@@ -706,11 +709,11 @@ macro_rules! handle_result {
 
 pub fn capture_if_relevant(err: &Error) {
     match err.root_cause().downcast_ref::<spfs::Error>() {
-        Some(spfs::Error::Runtime(spfs::runtime::error::Error::NoActiveRuntime)) => (),
+        Some(spfs::Error::Runtime(spfs::runtime::Error::NoActiveRuntime)) => (),
         Some(spfs::Error::UnknownObject(_)) => (),
         Some(spfs::Error::UnknownReference(_)) => (),
         Some(spfs::Error::AmbiguousReference(_)) => (),
-        Some(spfs::Error::Runtime(spfs::runtime::error::Error::NothingToCommit)) => (),
+        Some(spfs::Error::Runtime(spfs::runtime::Error::NothingToCommit)) => (),
         _ => {
             #[cfg(feature = "sentry")]
             sentry_miette::capture_miette(err);

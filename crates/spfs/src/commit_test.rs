@@ -7,6 +7,7 @@ use rstest::rstest;
 use super::Committer;
 use crate::Error;
 use crate::fixtures::*;
+use crate::runtime::Error as RuntimeError;
 
 #[rstest]
 #[tokio::test]
@@ -27,12 +28,12 @@ async fn test_commit_empty(tmpdir: tempfile::TempDir) {
     rt.ensure_required_directories().await.unwrap();
     let committer = Committer::new(&repo);
     match committer.commit_layer(&mut rt).await {
-        Err(Error::NothingToCommit) => {}
+        Err(Error::Runtime(RuntimeError::NothingToCommit)) => {}
         res => panic!("expected nothing to commit, got {res:?}"),
     }
 
     match committer.commit_platform(&mut rt).await {
-        Err(Error::NothingToCommit) => {}
+        Err(Error::Runtime(RuntimeError::NothingToCommit)) => {}
         res => panic!("expected nothing to commit, got {res:?}"),
     }
 }

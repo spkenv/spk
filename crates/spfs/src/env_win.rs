@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use crate::runtime::Error as RuntimeError;
 use crate::tracking::EnvSpec;
-use crate::runtime::error::Error as RuntimeError;
 use crate::{Error, Result, runtime};
 
 pub const SPFS_DIR: &str = "C:\\spfs";

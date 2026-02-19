@@ -16,7 +16,7 @@ use tokio_stream::wrappers::{IntervalStream, UnboundedReceiverStream};
 
 use super::runtime;
 use crate::repeating_timeout::RepeatingTimeout;
-use crate::runtime::error::Error as RuntimeError;
+use crate::runtime::Error as RuntimeError;
 use crate::{Error, OsError, Result};
 
 pub const PROC_DIR: &str = "/proc";

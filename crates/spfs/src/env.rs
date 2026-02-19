@@ -21,7 +21,7 @@ use linux_syscall::{
 
 use super::runtime;
 use crate::config::OverlayFsOptions;
-use crate::runtime::error::Error as RuntimeError;
+use crate::runtime::Error as RuntimeError;
 use crate::{Error, Result, which};
 
 pub const SPFS_DIR: &str = "/spfs";
@@ -651,11 +651,13 @@ where
                         continue;
                     }
                     if meta.is_file() {
-                        std::fs::remove_file(&fullpath)
-                            .map_err(|err| RuntimeError::RuntimeWriteError(fullpath.clone(), err))?;
+                        std::fs::remove_file(&fullpath).map_err(|err| {
+                            RuntimeError::RuntimeWriteError(fullpath.clone(), err)
+                        })?;
                     } else {
-                        std::fs::remove_dir_all(&fullpath)
-                            .map_err(|err| RuntimeError::RuntimeWriteError(fullpath.clone(), err))?;
+                        std::fs::remove_dir_all(&fullpath).map_err(|err| {
+                            RuntimeError::RuntimeWriteError(fullpath.clone(), err)
+                        })?;
                     }
                 }
 
@@ -689,7 +691,9 @@ where
                     match err.kind() {
                         std::io::ErrorKind::NotFound => continue,
                         _ => {
-                            return Err(RuntimeError::RuntimeSetPermissionsError(fullpath, err).into());
+                            return Err(
+                                RuntimeError::RuntimeSetPermissionsError(fullpath, err).into()
+                            );
                         }
                     }
                 }

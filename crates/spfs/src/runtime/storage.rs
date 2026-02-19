@@ -21,6 +21,7 @@ use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 use tokio::io::AsyncReadExt;
 
+use super::Error as RuntimeError;
 #[cfg(windows)]
 use super::startup_ps;
 #[cfg(unix)]
@@ -34,7 +35,6 @@ use crate::prelude::*;
 use crate::runtime::LiveLayer;
 use crate::storage::RepositoryHandle;
 use crate::storage::fs::DURABLE_EDITS_DIR;
-use super::error::Error as RuntimeError;
 use crate::{Error, Result, bootstrap, graph, storage, tracking};
 
 #[cfg(test)]
@@ -740,16 +740,20 @@ impl Runtime {
             for pattern in paths.iter() {
                 let is_dir = entry
                     .metadata()
-                    .map_err(|err| RuntimeError::RuntimeReadError(entry.path().to_owned(), err.into()))?
+                    .map_err(|err| {
+                        RuntimeError::RuntimeReadError(entry.path().to_owned(), err.into())
+                    })?
                     .file_type()
                     .is_dir();
                 if pattern.is_excluded(fullpath, is_dir) {
                     if is_dir {
-                        std::fs::remove_dir_all(fullpath)
-                            .map_err(|err| RuntimeError::RuntimeWriteError(fullpath.to_owned(), err))?;
+                        std::fs::remove_dir_all(fullpath).map_err(|err| {
+                            RuntimeError::RuntimeWriteError(fullpath.to_owned(), err)
+                        })?;
                     } else {
-                        std::fs::remove_file(fullpath)
-                            .map_err(|err| RuntimeError::RuntimeWriteError(fullpath.to_owned(), err))?;
+                        std::fs::remove_file(fullpath).map_err(|err| {
+                            RuntimeError::RuntimeWriteError(fullpath.to_owned(), err)
+                        })?;
                     }
                 }
             }
@@ -815,7 +819,9 @@ impl Runtime {
             &self.config.csh_startup_file,
             startup_csh::source(environment_overrides_for_child_process),
         )
-        .map_err(|err| RuntimeError::RuntimeWriteError(self.config.csh_startup_file.clone(), err))?;
+        .map_err(|err| {
+            RuntimeError::RuntimeWriteError(self.config.csh_startup_file.clone(), err)
+        })?;
         #[cfg(windows)]
         std::fs::write(
             &self.config.ps_startup_file,

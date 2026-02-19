@@ -69,7 +69,7 @@ impl Router {
         tracing::info!(%root_pid, env_spec=%env_spec.to_string(),"mounted");
         let mut routes = self.routes.write().expect("lock is never poisoned");
         if routes.contains_key(&root_pid) {
-            return Err(spfs::runtime::error::Error::RuntimeExists(root_pid.to_string()).into());
+            return Err(spfs::runtime::Error::RuntimeExists(root_pid.to_string()).into());
         }
         routes.insert(root_pid, Arc::new(mount));
         Ok(())

@@ -16,6 +16,7 @@ use tar::{Archive, Builder};
 use crate::config::{ToAddress, pathbuf_deserialize_with_tilde_expansion};
 use crate::graph::ObjectProto;
 use crate::prelude::*;
+use crate::runtime::Error as RuntimeError;
 use crate::storage::fs::DURABLE_EDITS_DIR;
 use crate::storage::tag::TagSpecAndTagStream;
 use crate::storage::{
@@ -27,7 +28,6 @@ use crate::storage::{
     TagStorageMut,
 };
 use crate::tracking::BlobRead;
-use crate::runtime::error::Error as RuntimeError;
 use crate::{Error, Result, encoding, graph, storage, tracking};
 
 /// Configuration for a tar repository

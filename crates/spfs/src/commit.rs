@@ -14,8 +14,8 @@ use spfs_encoding::prelude::*;
 
 use super::status::remount_runtime;
 use crate::prelude::*;
+use crate::runtime::Error as RuntimeError;
 use crate::tracking::{BlobHasher, BlobRead, ManifestBuilder, PathFilter};
-use crate::runtime::error::Error as RuntimeError;
 use crate::{Error, Result, encoding, graph, runtime, storage, tracking};
 
 #[cfg(test)]

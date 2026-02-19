@@ -4,7 +4,7 @@
 
 use clap::Args;
 use miette::Result;
-use spfs::runtime::error::Error as RuntimeError;
+use spfs::runtime::Error as RuntimeError;
 
 /// Make the current runtime editable
 #[derive(Debug, Args)]
