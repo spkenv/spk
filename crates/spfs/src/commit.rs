@@ -15,6 +15,7 @@ use spfs_encoding::prelude::*;
 use super::status::remount_runtime;
 use crate::prelude::*;
 use crate::tracking::{BlobHasher, BlobRead, ManifestBuilder, PathFilter};
+use crate::runtime::error::Error as RuntimeError;
 use crate::{Error, Result, encoding, graph, runtime, storage, tracking};
 
 #[cfg(test)]
@@ -198,7 +199,7 @@ where
         runtime: &mut runtime::Runtime,
     ) -> Result<graph::Layer> {
         if manifest.is_empty() && !self.allow_empty {
-            return Err(Error::NothingToCommit);
+            return Err(RuntimeError::NothingToCommit.into());
         }
         let layer = self
             .repo
@@ -208,7 +209,7 @@ where
             // Don't bother putting the empty layer on the stack, the goal
             // with allow_empty is to create an empty manifest.
             if !runtime.push_digest(layer.digest()?) {
-                return Err(Error::NothingToCommit);
+                return Err(RuntimeError::NothingToCommit.into());
             }
             runtime.status.editable = false;
             runtime.save_state_to_storage().await?;
@@ -220,13 +221,13 @@ where
     /// Commit the full layer stack and working files to a new platform.
     pub async fn commit_platform(&self, runtime: &mut runtime::Runtime) -> Result<graph::Platform> {
         match self.commit_layer(runtime).await {
-            Ok(_) | Err(Error::NothingToCommit) => (),
+            Ok(_) | Err(Error::Runtime(RuntimeError::NothingToCommit)) => (),
             Err(err) => return Err(err),
         }
 
         runtime.reload_state_from_storage().await?;
         if runtime.status.stack.is_empty() && !self.allow_empty {
-            Err(Error::NothingToCommit)
+            Err(RuntimeError::NothingToCommit.into())
         } else {
             self.repo
                 .create_platform(runtime.status.stack.clone())

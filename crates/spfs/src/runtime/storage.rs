@@ -34,6 +34,7 @@ use crate::prelude::*;
 use crate::runtime::LiveLayer;
 use crate::storage::RepositoryHandle;
 use crate::storage::fs::DURABLE_EDITS_DIR;
+use super::error::Error as RuntimeError;
 use crate::{Error, Result, bootstrap, graph, storage, tracking};
 
 #[cfg(test)]
@@ -421,7 +422,7 @@ impl OwnedRuntime {
         tracing::debug!("cleaning up runtime: {}", &self.name());
         match self.0.storage.remove_runtime(self.name()).await {
             Ok(()) => Ok(()),
-            Err(Error::UnknownRuntime { .. }) => Ok(()),
+            Err(Error::Runtime(RuntimeError::UnknownRuntime { .. })) => Ok(()),
             Err(err) => Err(err),
         }
     }
@@ -730,7 +731,7 @@ impl Runtime {
             .collect::<Result<Vec<gitignore::Pattern>>>()?;
         for entry in walkdir::WalkDir::new(&self.config.upper_dir) {
             let entry = entry.map_err(|err| {
-                Error::RuntimeReadError(self.config.upper_dir.clone(), err.into())
+                RuntimeError::RuntimeReadError(self.config.upper_dir.clone(), err.into())
             })?;
             let fullpath = entry.path();
             if fullpath == self.config.upper_dir {
@@ -739,16 +740,16 @@ impl Runtime {
             for pattern in paths.iter() {
                 let is_dir = entry
                     .metadata()
-                    .map_err(|err| Error::RuntimeReadError(entry.path().to_owned(), err.into()))?
+                    .map_err(|err| RuntimeError::RuntimeReadError(entry.path().to_owned(), err.into()))?
                     .file_type()
                     .is_dir();
                 if pattern.is_excluded(fullpath, is_dir) {
                     if is_dir {
                         std::fs::remove_dir_all(fullpath)
-                            .map_err(|err| Error::RuntimeWriteError(fullpath.to_owned(), err))?;
+                            .map_err(|err| RuntimeError::RuntimeWriteError(fullpath.to_owned(), err))?;
                     } else {
                         std::fs::remove_file(fullpath)
-                            .map_err(|err| Error::RuntimeWriteError(fullpath.to_owned(), err))?;
+                            .map_err(|err| RuntimeError::RuntimeWriteError(fullpath.to_owned(), err))?;
                     }
                 }
             }
@@ -808,25 +809,25 @@ impl Runtime {
             &self.config.sh_startup_file,
             startup_sh::source(environment_overrides_for_child_process),
         )
-        .map_err(|err| Error::RuntimeWriteError(self.config.sh_startup_file.clone(), err))?;
+        .map_err(|err| RuntimeError::RuntimeWriteError(self.config.sh_startup_file.clone(), err))?;
         #[cfg(unix)]
         std::fs::write(
             &self.config.csh_startup_file,
             startup_csh::source(environment_overrides_for_child_process),
         )
-        .map_err(|err| Error::RuntimeWriteError(self.config.csh_startup_file.clone(), err))?;
+        .map_err(|err| RuntimeError::RuntimeWriteError(self.config.csh_startup_file.clone(), err))?;
         #[cfg(windows)]
         std::fs::write(
             &self.config.ps_startup_file,
             startup_ps::source(environment_overrides_for_child_process),
         )
-        .map_err(|err| Error::RuntimeWriteError(self.config.ps_startup_file.clone(), err))?;
+        .map_err(|err| RuntimeError::RuntimeWriteError(self.config.ps_startup_file.clone(), err))?;
         Ok(())
     }
 
     async fn ensure_lower_dir(&self) -> Result<()> {
         if let Err(err) = makedirs_with_perms(&self.config.lower_dir, 0o777) {
-            return Err(Error::RuntimeWriteError(self.config.lower_dir.clone(), err));
+            return Err(RuntimeError::RuntimeWriteError(self.config.lower_dir.clone(), err).into());
         }
         Ok(())
     }
@@ -835,11 +836,11 @@ impl Runtime {
     pub async fn ensure_upper_dirs(&self) -> Result<()> {
         let mut result = makedirs_with_perms(&self.config.upper_dir, 0o777);
         if let Err(err) = result {
-            return Err(Error::RuntimeWriteError(self.config.upper_dir.clone(), err));
+            return Err(RuntimeError::RuntimeWriteError(self.config.upper_dir.clone(), err).into());
         }
         result = makedirs_with_perms(&self.config.work_dir, 0o777);
         if let Err(err) = result {
-            return Err(Error::RuntimeWriteError(self.config.work_dir.clone(), err));
+            return Err(RuntimeError::RuntimeWriteError(self.config.work_dir.clone(), err).into());
         }
         Ok(())
     }
@@ -996,17 +997,18 @@ impl Storage {
     /// Access a runtime in this storage
     ///
     /// # Errors:
-    /// - [`Error::UnknownRuntime`] if the named runtime does not exist
+    /// - [`RuntimeError::UnknownRuntime`] if the named runtime does not exist
     /// - if there are filesystem errors while reading the runtime on disk
     pub async fn read_runtime<R: AsRef<str>>(&self, name: R) -> Result<Runtime> {
         let tag_spec = runtime_tag(RuntimeDataType::Metadata, name.as_ref())?;
         let digest = match self.inner.resolve_tag(&tag_spec).await {
             Ok(tag) => tag.target,
             Err(err @ Error::UnknownReference(_)) => {
-                return Err(Error::UnknownRuntime {
+                return Err(RuntimeError::UnknownRuntime {
                     runtime: format!("{} in storage {}", name.as_ref(), self.address()),
                     source: Box::new(err),
-                });
+                }
+                .into());
             }
             Err(err) => return Err(err),
         };
@@ -1015,17 +1017,17 @@ impl Storage {
                 .open_payload(digest)
                 .await
                 .map_err(|err| match err {
-                    Error::UnknownObject(_) => Error::UnknownRuntime {
+                    Error::UnknownObject(_) => Error::from(RuntimeError::UnknownRuntime {
                         runtime: format!("{} in storage {}", name.as_ref(), self.address()),
                         source: Box::new(err),
-                    },
+                    }),
                     _ => err,
                 })?;
         let mut data = String::new();
         reader
             .read_to_string(&mut data)
             .await
-            .map_err(|err| Error::RuntimeReadError(filename, err))?;
+            .map_err(|err| RuntimeError::RuntimeReadError(filename, err))?;
         let config: Data = serde_json::from_str(&data)?;
         Ok(Runtime {
             data: config,
@@ -1194,7 +1196,7 @@ impl Storage {
                 upper_root_path.push(name);
                 Ok(upper_root_path)
             }
-            _ => Err(Error::DoesNotSupportDurableRuntimePath),
+            _ => Err(RuntimeError::DoesNotSupportDurableRuntimePath.into()),
         }
     }
 
@@ -1214,10 +1216,11 @@ impl Storage {
                 continue;
             };
             if sample_upper_dir == *runtime.upper_dir() {
-                return Err(Error::RuntimeUpperDirAlreadyInUse {
+                return Err(RuntimeError::RuntimeUpperDirAlreadyInUse {
                     upper_name,
                     runtime_name: runtime.name().to_string(),
-                });
+                }
+                .into());
             }
         }
         Ok(())
@@ -1235,7 +1238,7 @@ impl Storage {
         let name = name.into();
         let runtime_tag = runtime_tag(RuntimeDataType::Metadata, &name)?;
         match self.inner.resolve_tag(&runtime_tag).await {
-            Ok(_) => return Err(Error::RuntimeExists(name)),
+            Ok(_) => return Err(RuntimeError::RuntimeExists(name).into()),
             Err(Error::UnknownReference(_)) => {}
             Err(err) => return Err(err),
         }

@@ -27,6 +27,7 @@ use crate::storage::{
     TagStorageMut,
 };
 use crate::tracking::BlobRead;
+use crate::runtime::error::Error as RuntimeError;
 use crate::{Error, Result, encoding, graph, storage, tracking};
 
 /// Configuration for a tar repository
@@ -121,7 +122,7 @@ impl TarRepository {
         // This will fail if the durable edits directory for runtimes has something in it.
         tokio::fs::remove_dir(&path)
             .await
-            .map_err(|err| Error::RuntimeWriteError(path, err))
+            .map_err(|err| Error::from(RuntimeError::RuntimeWriteError(path, err)))
     }
 
     // Open a repository over the given directory, which must already

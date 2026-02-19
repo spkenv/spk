@@ -9,7 +9,7 @@ use std::str::Utf8Error;
 use miette::Diagnostic;
 use thiserror::Error;
 
-use crate::{encoding, graph, storage};
+use crate::{encoding, graph, runtime, storage};
 
 #[derive(Diagnostic, Debug, Error)]
 #[diagnostic(
@@ -46,6 +46,9 @@ pub enum Error {
     #[error(transparent)]
     #[diagnostic(forward(0))]
     GraphObject(#[from] super::graph::error::ObjectError),
+    #[error(transparent)]
+    #[diagnostic(forward(0))]
+    Runtime(#[from] runtime::error::Error),
 
     #[error("Invalid repository url: {0:?}")]
     InvalidRemoteUrl(#[from] url::ParseError),
@@ -108,46 +111,6 @@ pub enum Error {
     )]
     UnknownRemoteName(String),
 
-    #[error("Nothing to commit, resulting filesystem would be empty")]
-    NothingToCommit,
-    #[error("No active runtime")]
-    NoActiveRuntime,
-    #[error("Runtime has not been initialized: {0}")]
-    RuntimeNotInitialized(String),
-    #[error("Runtime does not exist: {runtime}")]
-    UnknownRuntime {
-        runtime: String,
-        source: Box<dyn std::error::Error + Send + Sync>,
-    },
-    #[error("Runtime already exists: {0}")]
-    RuntimeExists(String),
-    #[error(
-        "An existing runtime is using the same upper name ({upper_name}).\nTry another name, or connect to the runtime by running:\n\n   spfs join {runtime_name} <command>"
-    )]
-    RuntimeUpperDirAlreadyInUse {
-        upper_name: String,
-        runtime_name: String,
-    },
-    #[error(
-        "This kind of repository does not support durable runtime paths. A FSRepository is required for that."
-    )]
-    DoesNotSupportDurableRuntimePath,
-    #[error("Runtime is already editable")]
-    RuntimeAlreadyEditable,
-    #[error("Runtime read error: {0}")]
-    RuntimeReadError(std::path::PathBuf, #[source] io::Error),
-    #[error("Runtime write error: {0}")]
-    RuntimeWriteError(std::path::PathBuf, #[source] io::Error),
-    #[error("Runtime set permissions error: {0}")]
-    RuntimeSetPermissionsError(std::path::PathBuf, #[source] io::Error),
-    #[error("Failed to create {} directory", crate::env::SPFS_DIR)]
-    #[diagnostic(
-        code("spfs::could_not_create_spfs_dir"),
-        help("If you have sudo/admin privileges, you can try creating it yourself")
-    )]
-    CouldNotCreateSpfsRoot { source: std::io::Error },
-    #[error("Unable to make the runtime durable: {0}")]
-    RuntimeChangeToDurableError(String),
     #[error("Storage read error from {0} at {1}: {2}")]
     StorageReadError(&'static str, std::path::PathBuf, #[source] io::Error),
     #[error("Storage write error from {0} at {1}: {2}")]
@@ -354,8 +317,7 @@ impl OsError for Error {
             Error::Encoding(encoding::Error::FailedRead(err)) => err.os_error(),
             Error::Encoding(encoding::Error::FailedWrite(err)) => err.os_error(),
             Error::ProcessSpawnError(_, err) => err.os_error(),
-            Error::RuntimeReadError(_, err) => err.os_error(),
-            Error::RuntimeWriteError(_, err) => err.os_error(),
+            Error::Runtime(err) => err.os_error(),
             Error::StorageReadError(_, _, err) => err.os_error(),
             Error::StorageWriteError(_, _, err) => err.os_error(),
             Error::Errno(_, errno) => Some(*errno),

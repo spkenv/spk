@@ -21,6 +21,7 @@ use linux_syscall::{
 
 use super::runtime;
 use crate::config::OverlayFsOptions;
+use crate::runtime::error::Error as RuntimeError;
 use crate::{Error, Result, which};
 
 pub const SPFS_DIR: &str = "/spfs";
@@ -248,7 +249,7 @@ impl<User> RuntimeConfigurator<User, NoMountNamespace> {
         rt: &runtime::Runtime,
     ) -> Result<RuntimeConfigurator<User, ProcessIsInMountNamespace>> {
         let Some(runtime_ns) = &rt.config.mount_namespace else {
-            return Err(Error::NoActiveRuntime);
+            return Err(RuntimeError::NoActiveRuntime.into());
         };
         // Safety: we are going to validate that this is the
         // expected namespace for the provided runtime and so
@@ -283,7 +284,7 @@ impl<User> RuntimeConfigurator<User, NoMountNamespace> {
         check_can_join()?;
 
         let pid = match rt.status.owner {
-            None => return Err(Error::RuntimeNotInitialized(rt.name().into())),
+            None => return Err(RuntimeError::RuntimeNotInitialized(rt.name().into()).into()),
             Some(pid) => pid,
         };
 
@@ -296,11 +297,12 @@ impl<User> RuntimeConfigurator<User, NoMountNamespace> {
             Ok(file) => file,
             Err(err) => {
                 return match err.kind() {
-                    std::io::ErrorKind::NotFound => Err(Error::UnknownRuntime {
+                    std::io::ErrorKind::NotFound => Err(RuntimeError::UnknownRuntime {
                         runtime: rt.name().into(),
                         source: Box::new(err),
-                    }),
-                    _ => Err(Error::RuntimeReadError(ns_path, err)),
+                    }
+                    .into()),
+                    _ => Err(RuntimeError::RuntimeReadError(ns_path, err).into()),
                 };
             }
         };
@@ -445,11 +447,11 @@ where
     pub fn ensure_mount_targets_exist(&self, config: &runtime::Config) -> Result<()> {
         tracing::debug!("ensuring mount targets exist...");
         runtime::makedirs_with_perms(SPFS_DIR, 0o777)
-            .map_err(|source| Error::CouldNotCreateSpfsRoot { source })?;
+            .map_err(|source| RuntimeError::CouldNotCreateSpfsRoot { source })?;
 
         if let Some(dir) = &config.runtime_dir {
             runtime::makedirs_with_perms(dir, 0o777)
-                .map_err(|err| Error::RuntimeWriteError(dir.clone(), err))?
+                .map_err(|err| RuntimeError::RuntimeWriteError(dir.clone(), err))?
         }
         Ok(())
     }
@@ -639,7 +641,7 @@ where
                 if let Some(parent) = fullpath.parent() {
                     tracing::trace!(?parent, "build parent dir for mask");
                     runtime::makedirs_with_perms(parent, 0o777)
-                        .map_err(|err| Error::RuntimeWriteError(parent.to_owned(), err))?;
+                        .map_err(|err| RuntimeError::RuntimeWriteError(parent.to_owned(), err))?;
                 }
                 tracing::trace!(?node.path, "Creating file mask");
 
@@ -650,10 +652,10 @@ where
                     }
                     if meta.is_file() {
                         std::fs::remove_file(&fullpath)
-                            .map_err(|err| Error::RuntimeWriteError(fullpath.clone(), err))?;
+                            .map_err(|err| RuntimeError::RuntimeWriteError(fullpath.clone(), err))?;
                     } else {
                         std::fs::remove_dir_all(&fullpath)
-                            .map_err(|err| Error::RuntimeWriteError(fullpath.clone(), err))?;
+                            .map_err(|err| RuntimeError::RuntimeWriteError(fullpath.clone(), err))?;
                     }
                 }
 
@@ -677,7 +679,7 @@ where
                     continue;
                 }
                 let existing = std::fs::symlink_metadata(&fullpath)
-                    .map_err(|err| Error::RuntimeReadError(fullpath.clone(), err))?;
+                    .map_err(|err| RuntimeError::RuntimeReadError(fullpath.clone(), err))?;
                 if existing.permissions().mode() != node.entry.mode
                     && let Err(err) = std::fs::set_permissions(
                         &fullpath,
@@ -687,7 +689,7 @@ where
                     match err.kind() {
                         std::io::ErrorKind::NotFound => continue,
                         _ => {
-                            return Err(Error::RuntimeSetPermissionsError(fullpath, err));
+                            return Err(RuntimeError::RuntimeSetPermissionsError(fullpath, err).into());
                         }
                     }
                 }
@@ -728,10 +730,11 @@ where
         match runtime.config.mount_backend {
             runtime::MountBackend::FuseOnly | runtime::MountBackend::WinFsp => {
                 // a vfs-only runtime cannot be change to durable
-                return Err(Error::RuntimeChangeToDurableError(format!(
+                return Err(RuntimeError::RuntimeChangeToDurableError(format!(
                     "{} backend does not support durable runtimes",
                     runtime.config.mount_backend
-                )));
+                ))
+                .into());
             }
             runtime::MountBackend::OverlayFsWithFuse
             | runtime::MountBackend::OverlayFsWithRenders => {}
@@ -755,19 +758,21 @@ where
         let src_dir = match old_upper_dir.to_str() {
             Some(path) => path,
             None => {
-                return Err(Error::RuntimeChangeToDurableError(format!(
+                return Err(RuntimeError::RuntimeChangeToDurableError(format!(
                     "current upper_dir '{}' has invalid characters",
                     old_upper_dir.display()
-                )));
+                ))
+                .into());
             }
         };
         let dest_dir = match new_path.to_str() {
             Some(path) => path,
             None => {
-                return Err(Error::RuntimeChangeToDurableError(format!(
+                return Err(RuntimeError::RuntimeChangeToDurableError(format!(
                     "new upper_dir '{}' has invalid characters",
                     new_path.display()
-                )));
+                ))
+                .into());
             }
         };
 
@@ -775,9 +780,10 @@ where
         let cmd_path = match which("rsync") {
             Some(cmd) => cmd,
             None => {
-                return Err(Error::RuntimeChangeToDurableError(
+                return Err(RuntimeError::RuntimeChangeToDurableError(
                     "rsync is not available on this host".to_string(),
-                ));
+                )
+                .into());
             }
         };
 
@@ -793,16 +799,19 @@ where
                     tracing::info!("runtime saved as durable");
                     Ok(0)
                 }
-                Some(code) => Err(Error::RuntimeChangeToDurableError(format!(
+                Some(code) => Err(RuntimeError::RuntimeChangeToDurableError(format!(
                     "rsync failed with exit code: {code}"
-                ))),
-                None => Err(Error::RuntimeChangeToDurableError(
+                ))
+                .into()),
+                None => Err(RuntimeError::RuntimeChangeToDurableError(
                     "rsync was terminated by an unexpected signal".to_string(),
-                )),
+                )
+                .into()),
             },
-            Err(err) => Err(Error::RuntimeChangeToDurableError(format!(
+            Err(err) => Err(RuntimeError::RuntimeChangeToDurableError(format!(
                 "rsync failed to run: {err}"
-            ))),
+            ))
+            .into()),
         }
     }
 

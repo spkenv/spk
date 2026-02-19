@@ -167,7 +167,7 @@ impl CmdClean {
                 // durable upper path's workdir that have 'd---------' permissions
                 // from overlayfs.
                 std::fs::remove_dir_all(durable_path.clone())
-                    .map_err(|err| spfs::Error::RuntimeWriteError(durable_path, err))?;
+                    .map_err(|err| spfs::runtime::error::Error::RuntimeWriteError(durable_path, err))?;
             }
             return Ok(0);
         }

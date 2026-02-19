@@ -3,6 +3,7 @@
 // https://github.com/spkenv/spk
 
 use crate::tracking::EnvSpec;
+use crate::runtime::error::Error as RuntimeError;
 use crate::{Error, Result, runtime};
 
 pub const SPFS_DIR: &str = "C:\\spfs";
@@ -29,9 +30,10 @@ impl RuntimeConfigurator {
     /// Mount the provided runtime via the winfsp backend
     pub async fn mount_env_winfsp(&self, rt: &runtime::Runtime) -> Result<()> {
         let Some(root_pid) = rt.status.owner else {
-            return Err(Error::RuntimeNotInitialized(
+            return Err(RuntimeError::RuntimeNotInitialized(
                 "Missing owner in runtime, cannot initialize".to_string(),
-            ));
+            )
+            .into());
         };
 
         let env_spec = rt

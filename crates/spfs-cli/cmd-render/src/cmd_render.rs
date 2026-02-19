@@ -7,6 +7,7 @@ use clap::builder::TypedValueParser;
 use miette::{Context, Result};
 use spfs::prelude::*;
 use spfs::storage::fallback::FallbackProxy;
+use spfs::runtime::error::Error as RuntimeError;
 use spfs::{Error, RenderResult, graph};
 use spfs_cli_common::{self as cli, CommandName, HasRepositoryArgs};
 use strum::VariantNames;
@@ -97,15 +98,15 @@ impl CmdRender {
     ) -> Result<RenderResult> {
         tokio::fs::create_dir_all(&target)
             .await
-            .map_err(|err| Error::RuntimeWriteError(target.to_owned(), err))?;
+            .map_err(|err| RuntimeError::RuntimeWriteError(target.to_owned(), err))?;
         let target_dir = tokio::task::block_in_place(|| dunce::canonicalize(target))
             .map_err(|err| Error::InvalidPath(target.to_owned(), err))?;
         if tokio::fs::read_dir(&target_dir)
             .await
-            .map_err(|err| Error::RuntimeReadError(target_dir.clone(), err))?
+            .map_err(|err| RuntimeError::RuntimeReadError(target_dir.clone(), err))?
             .next_entry()
             .await
-            .map_err(|err| Error::RuntimeReadError(target_dir.clone(), err))?
+            .map_err(|err| RuntimeError::RuntimeReadError(target_dir.clone(), err))?
             .is_some()
             && !self.allow_existing
         {
