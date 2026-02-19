@@ -8,7 +8,8 @@ use spfs_encoding::Digest;
 use spfs_encoding::prelude::*;
 
 use crate::graph::{self, DatabaseView, Object};
-use crate::{Error, Result, env, status, storage, tracking};
+use crate::runtime::error::Error as RuntimeError;
+use crate::{Result, env, status, storage, tracking};
 
 /// Used for items in a list of spfs objects that contain a filepath.
 /// The parent containers down to the filepath will be graph objects.
@@ -56,7 +57,7 @@ pub async fn find_path_providers_in_spfs_runtime(
             }
         }
     } else {
-        return Err(Error::NoActiveRuntime);
+        return Err(RuntimeError::NoActiveRuntime.into());
     }
 
     Ok(found)
