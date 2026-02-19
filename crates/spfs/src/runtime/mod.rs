@@ -4,6 +4,8 @@
 
 //! Handles the setup and initialization of runtime environments
 
+pub mod error;
+pub use error::Error;
 pub mod live_layer;
 #[cfg(unix)]
 pub mod overlayfs;

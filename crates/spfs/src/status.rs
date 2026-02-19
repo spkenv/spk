@@ -9,6 +9,7 @@ mod os;
 pub use os::*;
 
 use super::config::get_config;
+use crate::runtime::Error as RuntimeError;
 use crate::storage::FromConfig;
 use crate::{Error, Result, runtime, tracking};
 
@@ -20,13 +21,13 @@ const RUNTIME_REPO_NAME: &str = "<runtime>";
 /// Once modified, active changes can be committed
 ///
 /// Errors:
-/// - [`Error::NoActiveRuntime`]: if there is no active runtime
-/// - [`Error::RuntimeAlreadyEditable`]: if the active runtime is already editable
+/// - [`RuntimeError::NoActiveRuntime`]: if there is no active runtime
+/// - [`RuntimeError::RuntimeAlreadyEditable`]: if the active runtime is already editable
 /// - if there are issues remounting the filesystem
 pub async fn make_active_runtime_editable() -> Result<()> {
     let mut rt = active_runtime().await?;
     if rt.status.editable {
-        return Err(Error::RuntimeAlreadyEditable);
+        return Err(RuntimeError::RuntimeAlreadyEditable.into());
     }
 
     rt.status.editable = true;
@@ -77,12 +78,12 @@ pub async fn compute_runtime_manifest(rt: &runtime::Runtime) -> Result<tracking:
 /// Return the currently active runtime
 ///
 /// # Errors:
-/// - [`Error::NoActiveRuntime`] if there is no runtime detected
-/// - [`Error::UnknownRuntime`] if the environment references a
+/// - [`RuntimeError::NoActiveRuntime`] if there is no runtime detected
+/// - [`RuntimeError::UnknownRuntime`] if the environment references a
 ///   runtime that is not in the configured runtime storage
 /// - other issues loading the config or accessing the runtime data
 pub async fn active_runtime() -> Result<runtime::Runtime> {
-    let name = std::env::var(SPFS_RUNTIME).map_err(|_| Error::NoActiveRuntime)?;
+    let name = std::env::var(SPFS_RUNTIME).map_err(|_| RuntimeError::NoActiveRuntime)?;
     let config = get_config()?;
     let storage = config.get_runtime_storage().await?;
     storage.read_runtime(name).await

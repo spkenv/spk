@@ -581,7 +581,9 @@ impl View {
         let mut in_a_runtime = true;
         let found = match spk_storage::find_path_providers(filepath).await {
             Ok(f) => f,
-            Err(spk_storage::Error::SPFS(spfs::Error::NoActiveRuntime)) => {
+            Err(spk_storage::Error::SPFS(spfs::Error::Runtime(
+                spfs::runtime::Error::NoActiveRuntime,
+            ))) => {
                 in_a_runtime = false;
                 Vec::new()
             }
