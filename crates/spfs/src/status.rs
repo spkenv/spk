@@ -9,7 +9,7 @@ mod os;
 pub use os::*;
 
 use super::config::get_config;
-use crate::runtime::error::Error as RuntimeError;
+use crate::runtime::Error as RuntimeError;
 use crate::storage::FromConfig;
 use crate::{Error, Result, runtime, tracking};
 

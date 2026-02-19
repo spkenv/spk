@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use clap::Args;
 use miette::Result;
 use spfs::prelude::*;
-use spfs::runtime::error::Error as RuntimeError;
+use spfs::runtime::Error as RuntimeError;
 use spfs::tracking::BlobReadExt;
 use spfs_cli_common as cli;
 

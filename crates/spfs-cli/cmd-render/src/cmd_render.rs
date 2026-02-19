@@ -6,7 +6,7 @@ use clap::Parser;
 use clap::builder::TypedValueParser;
 use miette::{Context, Result};
 use spfs::prelude::*;
-use spfs::runtime::error::Error as RuntimeError;
+use spfs::runtime::Error as RuntimeError;
 use spfs::storage::fallback::FallbackProxy;
 use spfs::{Error, RenderResult, graph};
 use spfs_cli_common::{self as cli, CommandName, HasRepositoryArgs};

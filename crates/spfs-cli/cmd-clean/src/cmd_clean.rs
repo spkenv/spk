@@ -166,9 +166,8 @@ impl CmdClean {
                 // This requires privileges to remove the sub-directories inside the
                 // durable upper path's workdir that have 'd---------' permissions
                 // from overlayfs.
-                std::fs::remove_dir_all(durable_path.clone()).map_err(|err| {
-                    spfs::runtime::error::Error::RuntimeWriteError(durable_path, err)
-                })?;
+                std::fs::remove_dir_all(durable_path.clone())
+                    .map_err(|err| spfs::runtime::Error::RuntimeWriteError(durable_path, err))?;
             }
             return Ok(0);
         }

@@ -21,7 +21,7 @@ use linux_syscall::{
 
 use super::runtime;
 use crate::config::OverlayFsOptions;
-use crate::runtime::error::Error as RuntimeError;
+use crate::runtime::Error as RuntimeError;
 use crate::{Error, Result, which};
 
 pub const SPFS_DIR: &str = "/spfs";

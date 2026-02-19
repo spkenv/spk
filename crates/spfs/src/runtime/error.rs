@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+#![allow(unused_assignments)]
+
 use std::io;
 
 use miette::Diagnostic;
@@ -28,6 +30,7 @@ pub enum Error {
     #[error("Runtime does not exist: {runtime}")]
     UnknownRuntime {
         runtime: String,
+        #[source]
         source: Box<dyn std::error::Error + Send + Sync>,
     },
     #[error("Runtime already exists: {0}")]
@@ -56,7 +59,10 @@ pub enum Error {
         code("spfs::could_not_create_spfs_dir"),
         help("If you have sudo/admin privileges, you can try creating it yourself")
     )]
-    CouldNotCreateSpfsRoot { source: std::io::Error },
+    CouldNotCreateSpfsRoot {
+        #[source]
+        source: std::io::Error,
+    },
     #[error("Unable to make the runtime durable: {0}")]
     RuntimeChangeToDurableError(String),
 }

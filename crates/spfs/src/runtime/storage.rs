@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 use tokio::io::AsyncReadExt;
 
-use super::error::Error as RuntimeError;
+use super::Error as RuntimeError;
 #[cfg(windows)]
 use super::startup_ps;
 #[cfg(unix)]
