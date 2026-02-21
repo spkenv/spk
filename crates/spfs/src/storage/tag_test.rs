@@ -12,7 +12,6 @@ use rstest::rstest;
 use tokio_stream::StreamExt;
 
 use crate::fixtures::*;
-#[cfg(unix)]
 use crate::storage::fs::MaybeOpenFsRepository;
 use crate::storage::{EntryType, TagStorage};
 use crate::{Result, encoding, tracking};
@@ -251,6 +250,83 @@ async fn test_tag_ordering(
         }
         prev_tag = tag;
     }
+}
+
+/// When a tag file is renamed (e.g. for version normalization from
+/// "spk/spec/pkg/1.0.0.0/BUILD" to "spk/spec/pkg/1.0.0/BUILD"), the
+/// existing entries retain their original org field. New entries inserted
+/// after the rename will have the new org. The tag stream must still be
+/// ordered by time (newest first) regardless of differing org values.
+#[rstest]
+#[tokio::test]
+async fn test_tag_ordering_with_different_org(tmpdir: tempfile::TempDir) {
+    init_logging();
+    let storage = MaybeOpenFsRepository::create(tmpdir.path().join("repo"))
+        .await
+        .unwrap();
+
+    // Simulate the scenario: a tag was originally created under a
+    // non-normalized path (org includes "1.0.0.0") and later the tag
+    // file was renamed to the normalized path ("1.0.0"). The old
+    // entries still carry the old org in their encoded data.
+    let old_org = "spk/spec/mypkg/1.0.0.0";
+    let new_org = "spk/spec/mypkg/1.0.0";
+    let tag_name = "MYBUILD";
+
+    // Create an "old" tag entry with the non-normalized org and an
+    // older timestamp.
+    let mut old_tag = tracking::Tag::new(
+        Some(old_org.to_string()),
+        tag_name.to_string(),
+        encoding::EMPTY_DIGEST.into(),
+    )
+    .unwrap();
+    old_tag.time = Utc.with_ymd_and_hms(2025, 4, 3, 22, 0, 0).unwrap();
+
+    // Insert it via the normal API; this creates the tag file under
+    // the old (non-normalized) directory.
+    storage.insert_tag(&old_tag).await.unwrap();
+
+    // Physically rename the tag directory from "1.0.0.0" to "1.0.0"
+    // to simulate version normalization on the filesystem.
+    let tags_root = tmpdir.path().join("repo/tags");
+    let old_dir = tags_root.join("spk/spec/mypkg/1.0.0.0");
+    let new_dir = tags_root.join("spk/spec/mypkg/1.0.0");
+    std::fs::rename(&old_dir, &new_dir).unwrap();
+
+    // Now insert a newer tag entry with the normalized org.
+    let mut new_tag = tracking::Tag::new(
+        Some(new_org.to_string()),
+        tag_name.to_string(),
+        random_digest(),
+    )
+    .unwrap();
+    new_tag.time = Utc.with_ymd_and_hms(2026, 2, 18, 23, 0, 0).unwrap();
+    storage.insert_tag(&new_tag).await.unwrap();
+
+    // Read back the tag stream using the normalized spec. The newer
+    // entry must be first (position 0). With the buggy time-unaware
+    // comparator, the old org ("1.0.0.0") would sort Greater than the
+    // new org ("1.0.0") and wrongly claim position 0 as the "newest"
+    // entry.
+    let new_spec = tracking::TagSpec::parse(format!("{new_org}/{tag_name}")).unwrap();
+    let tags: Vec<_> = storage
+        .read_tag(&new_spec)
+        .await
+        .unwrap()
+        .try_collect()
+        .await
+        .unwrap();
+
+    assert_eq!(tags.len(), 2, "expected both old and new entries in stream");
+    assert_eq!(
+        tags[0].time, new_tag.time,
+        "newest tag should be at position 0"
+    );
+    assert_eq!(
+        tags[1].time, old_tag.time,
+        "oldest tag should be at position 1"
+    );
 }
 
 #[rstest]
