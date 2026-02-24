@@ -175,4 +175,5 @@ winfsp-sys = "0.2"
 fn_params_excessive_bools = "warn"
 
 [workspace.lints.rust]
+missing_docs = "warn"
 unsafe_op_in_unsafe_fn = "deny"

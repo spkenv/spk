@@ -2,6 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+//! FlatBuffer protocol definitions for SPFS.
+//!
+//! This crate contains generated FlatBuffer code for serializing
+//! and deserializing SPFS data structures, particularly [`Digest`]
+//! types used for content addressing.
+
+#![allow(missing_docs)]
 #![allow(unused_imports)]
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(mismatched_lifetime_syntaxes)]
