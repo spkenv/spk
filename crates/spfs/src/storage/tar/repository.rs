@@ -16,6 +16,7 @@ use tar::{Archive, Builder};
 use crate::config::{ToAddress, pathbuf_deserialize_with_tilde_expansion};
 use crate::graph::ObjectProto;
 use crate::prelude::*;
+use crate::runtime::Error as RuntimeError;
 use crate::storage::fs::DURABLE_EDITS_DIR;
 use crate::storage::tag::TagSpecAndTagStream;
 use crate::storage::{
@@ -121,7 +122,7 @@ impl TarRepository {
         // This will fail if the durable edits directory for runtimes has something in it.
         tokio::fs::remove_dir(&path)
             .await
-            .map_err(|err| Error::RuntimeWriteError(path, err))
+            .map_err(|err| Error::from(RuntimeError::RuntimeWriteError(path, err)))
     }
 
     // Open a repository over the given directory, which must already
