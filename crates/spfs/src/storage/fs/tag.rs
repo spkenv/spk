@@ -323,26 +323,8 @@ impl TagStorage for OpenFsRepository {
                         tags.insert(0, next);
                         continue;
                     }
-                    if next == *tag {
-                        // this tag already exists in the stream,
-                        // and will be dropped
-                        return Ok(());
-                    }
-                    // Compare by time first to ensure correct
-                    // chronological ordering, then by the remaining
-                    // fields as tiebreakers. This is important because
-                    // Tag::cmp() compares org/name before time, which
-                    // causes incorrect ordering when a tag stream
-                    // contains entries with different org values (e.g.
-                    // after renaming a tag path for version
-                    // normalization).
                     use std::cmp::Ordering::*;
-                    let time_ord = next.time.cmp(&tag.time);
-                    match if time_ord != Equal {
-                        time_ord
-                    } else {
-                        next.cmp(tag)
-                    } {
+                    match next.cmp(tag) {
                         Less => {
                             tags.insert(0, tag.clone());
                             tags.insert(0, next);
@@ -352,7 +334,9 @@ impl TagStorage for OpenFsRepository {
                             tags.insert(0, next);
                         }
                         Equal => {
-                            unreachable!("Tag equality was already checked above");
+                            // this tag already exists in the stream,
+                            // and will be dropped
+                            return Ok(());
                         }
                     };
                 }
