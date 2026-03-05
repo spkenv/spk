@@ -17,14 +17,15 @@ mod tag_test;
 /// Tag links a human name to a storage object at some point in time.
 ///
 /// Much like a commit, tags form a linked-list of entries to track history.
-#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Tag {
+    // Tags are ordered by timestamp first; this field must be first.
+    pub time: DateTime<Utc>,
     org: Option<String>,
     name: String,
     pub target: encoding::Digest,
     pub parent: encoding::Digest,
     pub user: String,
-    pub time: DateTime<Utc>,
 }
 
 impl Tag {
@@ -73,38 +74,6 @@ impl Tag {
             .split('@')
             .next()
             .expect("Always one item from str::split")
-    }
-}
-
-impl std::cmp::Ord for Tag {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        match self.org.cmp(&other.org) {
-            core::cmp::Ordering::Equal => {}
-            ord => return ord,
-        }
-        match self.name.cmp(&other.name) {
-            core::cmp::Ordering::Equal => {}
-            ord => return ord,
-        }
-        match self.time.cmp(&other.time) {
-            core::cmp::Ordering::Equal => {}
-            ord => return ord,
-        }
-        match self.target.cmp(&other.target) {
-            core::cmp::Ordering::Equal => {}
-            ord => return ord,
-        }
-        match self.parent.cmp(&other.parent) {
-            core::cmp::Ordering::Equal => {}
-            ord => return ord,
-        }
-        self.user.cmp(&other.user)
-    }
-}
-
-impl std::cmp::PartialOrd for Tag {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
     }
 }
 

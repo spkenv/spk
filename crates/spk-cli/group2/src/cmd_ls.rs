@@ -12,15 +12,16 @@ use futures::TryStreamExt;
 use miette::Result;
 use spfs::Digest;
 use spk_cli_common::{CommandArgs, Run, flags};
+use spk_config;
 use spk_schema::foundation::format::{FormatComponents, FormatIdent, FormatOptionMap};
 use spk_schema::foundation::ident_component::ComponentSet;
 use spk_schema::ident_component::Component;
 use spk_schema::name::OptNameBuf;
 use spk_schema::option_map::get_host_options_filters;
 use spk_schema::{Deprecate, OptionMap, OptionValues, Package, Spec, VersionIdent};
+use spk_storage as storage;
 use spk_storage::RepoWalker;
 use spk_storage::walker::{DeprecationState, RepoWalkerBuilder, RepoWalkerItem, WalkedBuild};
-use {spk_config, spk_storage as storage};
 
 #[cfg(test)]
 #[path = "./cmd_ls_test.rs"]
