@@ -332,26 +332,26 @@ impl RemoteConfig {
             // perspective).
             RepositoryConfig::Fs(mut config) => {
                 config.params.create_renders = false;
-                <storage::fs::MaybeOpenFsRepository<storage::fs::NoRenderStore> as Into<
-                    storage::RepositoryHandle,
-                >>::into(
-                    storage::fs::MaybeOpenFsRepository::from_config(config).await?
+                storage::fs::MaybeOpenFsRepository::<storage::fs::MaybeRenderStore>::from_config(
+                    config,
                 )
+                .await?
             }
-            RepositoryConfig::Tar(config) => storage::tar::TarRepository::from_config(config)
+            RepositoryConfig::Tar(config) => {
+                storage::tar::TarRepository::from_config(config).await?
+            }
+            RepositoryConfig::Grpc(config) => {
+                storage::rpc::RpcRepository::from_config(config).await?
+            }
+            RepositoryConfig::Proxy(config) => {
+                storage::proxy::ProxyRepository::from_config(config).await?
+            }
+            RepositoryConfig::Fallback(config) => {
+                storage::fallback::FallbackProxy::<storage::fs::MaybeRenderStore>::from_config(
+                    config,
+                )
                 .await?
-                .into(),
-            RepositoryConfig::Grpc(config) => storage::rpc::RpcRepository::from_config(config)
-                .await?
-                .into(),
-            RepositoryConfig::Proxy(config) => storage::proxy::ProxyRepository::from_config(config)
-                .await?
-                .into(),
-            RepositoryConfig::Fallback(config) => <storage::fallback::FallbackProxy<
-                storage::fs::NoRenderStore,
-            > as Into<storage::RepositoryHandle>>::into(
-                storage::fallback::FallbackProxy::from_config(config).await?,
-            ),
+            }
         };
         // Set tag namespace first before pinning, because it is not possible
         // to set the tag namespace on a pinned handle.

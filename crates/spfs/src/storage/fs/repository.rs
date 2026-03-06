@@ -590,20 +590,31 @@ where
             .map(Into::into)
             .map(|fs_impl| FsRepository { fs_impl })
     }
-}
 
-#[async_trait::async_trait]
-impl<RS> FromConfig for MaybeOpenFsRepository<RS>
-where
-    MaybeOpenFsRepositoryImpl<RS>: FromConfig<Config = Config>,
-{
-    type Config = Config;
-
-    async fn from_config(config: Self::Config) -> crate::storage::OpenRepositoryResult<Self> {
+    async fn from_fs_config(config: Config) -> crate::storage::OpenRepositoryResult<Self> {
         MaybeOpenFsRepositoryImpl::<RS>::from_config(config)
             .await
             .map(Into::into)
             .map(|fs_impl| FsRepository { fs_impl })
+    }
+}
+
+#[async_trait::async_trait]
+impl FromConfig for MaybeOpenFsRepository<MaybeRenderStore> {
+    type Config = Config;
+
+    async fn from_config(
+        config: Self::Config,
+    ) -> crate::storage::OpenRepositoryResult<crate::storage::RepositoryHandle> {
+        if config.params.create_renders {
+            MaybeOpenFsRepository::<MaybeRenderStore>::from_fs_config(config)
+                .await
+                .map(Into::into)
+        } else {
+            MaybeOpenFsRepository::<NoRenderStore>::from_fs_config(config)
+                .await
+                .map(Into::into)
+        }
     }
 }
 
@@ -730,14 +741,15 @@ impl TryFrom<MaybeOpenFsRepositoryImpl<MaybeRenderStore>>
     }
 }
 
-#[async_trait::async_trait]
-impl<RS> FromConfig for MaybeOpenFsRepositoryImpl<RS>
+impl<RS> MaybeOpenFsRepositoryImpl<RS>
 where
-    OpenFsRepositoryImpl<RS>: FromConfig<Config = Config>,
+    RS: DefaultRenderStoreCreationPolicy
+        + RenderStoreForUser<RenderStore = RS>
+        + Send
+        + Sync
+        + 'static,
 {
-    type Config = Config;
-
-    async fn from_config(config: Self::Config) -> crate::storage::OpenRepositoryResult<Self> {
+    async fn from_config(config: Config) -> crate::storage::OpenRepositoryResult<Self> {
         if config.params.lazy {
             Ok(Self(Arc::new(ArcSwap::new(Arc::new(InnerFsRepository::<
                 RS,
@@ -745,7 +757,7 @@ where
                 config
             ))))))
         } else {
-            Ok(OpenFsRepositoryImpl::<RS>::from_config(config)
+            Ok(OpenFsRepositoryImpl::<RS>::from_fs_config(config)
                 .await?
                 .into())
         }
@@ -754,7 +766,6 @@ where
 
 impl<RS> MaybeOpenFsRepositoryImpl<RS>
 where
-    OpenFsRepositoryImpl<RS>: FromConfig<Config = Config>,
     RS: DefaultRenderStoreCreationPolicy
         + RenderStoreForUser<RenderStore = RS>
         + Send
@@ -806,7 +817,7 @@ where
             match &**inner.load() {
                 InnerFsRepository::Closed(config) => {
                     let config = config.clone();
-                    let opened = match OpenFsRepositoryImpl::<RS>::from_config(config).await {
+                    let opened = match OpenFsRepositoryImpl::<RS>::from_fs_config(config).await {
                         Ok(o) => Arc::new(o),
                         Err(err) => return Err(map(&Self(inner), err)),
                     };
@@ -953,14 +964,11 @@ impl From<OpenFsRepositoryImpl<RenderStore>> for OpenFsRepositoryImpl<NoRenderSt
     }
 }
 
-#[async_trait::async_trait]
-impl<RS> FromConfig for OpenFsRepositoryImpl<RS>
+impl<RS> OpenFsRepositoryImpl<RS>
 where
     RS: DefaultRenderStoreCreationPolicy + RenderStoreForUser<RenderStore = RS> + Send + Sync,
 {
-    type Config = Config;
-
-    async fn from_config(config: Self::Config) -> crate::storage::OpenRepositoryResult<Self> {
+    async fn from_fs_config(config: Config) -> crate::storage::OpenRepositoryResult<Self> {
         if config.params.create_renders ^ RS::default_creation_policy().is_create_if_missing() {
             return Err(OpenRepositoryError::InvalidRenderStoreCreationPolicy("create_renders parameter does not match the default creation policy for the render store type".to_string()));
         }

@@ -762,8 +762,7 @@ impl SessionInner {
                     .map_err(|source| spfs::Error::FailedToOpenRepository {
                         repository: "<FUSE Repository Stack>".into(),
                         source,
-                    })?
-                    .into();
+                    })?;
 
                 tracing::debug!("Computing environment manifest...");
                 let manifest = spfs::compute_environment_manifest(&self.reference, &repo).await?;

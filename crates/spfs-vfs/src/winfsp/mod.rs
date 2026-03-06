@@ -78,7 +78,13 @@ impl Service {
                 repository: "<WinFSP Repository Stack>".into(),
                 source,
             })?;
-        let repos = repo.into_stack().into_iter().map(Arc::new).collect();
+        let repos = match repo {
+            spfs::storage::RepositoryHandle::Proxy(proxy) => proxy.into_stack(),
+            repo => vec![repo],
+        }
+        .into_iter()
+        .map(Arc::new)
+        .collect();
 
         // as of writing, the descriptor mode is the only one that works in
         // winfsp-rs without causing crashes

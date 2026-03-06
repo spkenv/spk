@@ -161,6 +161,12 @@ impl From<super::fallback::FallbackProxy<RenderStore>> for RepositoryHandle {
     }
 }
 
+impl From<super::fallback::FallbackProxy<MaybeRenderStore>> for RepositoryHandle {
+    fn from(repo: super::fallback::FallbackProxy<MaybeRenderStore>) -> Self {
+        RepositoryHandle::FallbackProxyWithMaybeRenders(Box::new(repo))
+    }
+}
+
 impl From<super::fallback::FallbackProxy<NoRenderStore>> for RepositoryHandle {
     fn from(repo: super::fallback::FallbackProxy<NoRenderStore>) -> Self {
         RepositoryHandle::FallbackProxyWithoutRenders(Box::new(repo))

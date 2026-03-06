@@ -75,8 +75,10 @@ pub struct TarRepository {
 impl storage::FromConfig for TarRepository {
     type Config = Config;
 
-    async fn from_config(config: Self::Config) -> OpenRepositoryResult<Self> {
-        Self::create(&config.path).await
+    async fn from_config(
+        config: Self::Config,
+    ) -> OpenRepositoryResult<crate::storage::RepositoryHandle> {
+        Self::create(&config.path).await.map(Into::into)
     }
 }
 

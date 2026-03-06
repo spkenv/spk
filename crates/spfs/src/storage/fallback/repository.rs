@@ -123,42 +123,61 @@ where
     }
 }
 
-// Cheating in a sense by only supporting NoRenderStore here, since that's the
-// only use case that currently exists.
 #[async_trait::async_trait]
-impl storage::FromConfig for FallbackProxy<NoRenderStore> {
+impl storage::FromConfig for FallbackProxy<MaybeRenderStore> {
     type Config = Config;
 
-    async fn from_config(config: Self::Config) -> OpenRepositoryResult<Self> {
+    async fn from_config(
+        config: Self::Config,
+    ) -> OpenRepositoryResult<crate::storage::RepositoryHandle> {
+        enum PrimaryFsRepository {
+            Maybe(OpenFsRepository<MaybeRenderStore>),
+            Render(OpenFsRepository<RenderStore>),
+            None(OpenFsRepository<NoRenderStore>),
+        }
+
         let spfs_config =
             crate::Config::current().map_err(|source| OpenRepositoryError::FailedToLoadConfig {
                 source: Box::new(source),
             })?;
+
         let primary = async {
-            let primary =
+            let primary_handle =
                 crate::config::open_repository_from_string(&spfs_config, Some(&config.primary))
                     .await
                     .map_err(|source| OpenRepositoryError::FailedToOpenPartial {
                         source: Box::new(source),
                     })?;
-            let primary = match primary {
-                RepositoryHandle::FSWithMaybeRenders(fs) => fs.into(),
-                RepositoryHandle::FSWithRenders(fs) => fs.into(),
-                RepositoryHandle::FSWithoutRenders(fs) => fs,
-                _ => {
-                    return Err(OpenRepositoryError::UnsupportedRepositoryType(
-                        "The primary repository of a FallbackProxy must be a filesystem repository"
-                            .into(),
-                    ));
-                }
-            };
-            primary
-                .opened()
-                .await
-                .map_err(|source| OpenRepositoryError::FailedToOpenPartial {
-                    source: Box::new(source),
-                })
+
+            match primary_handle {
+                RepositoryHandle::FSWithMaybeRenders(fs) => fs
+                    .opened()
+                    .await
+                    .map(PrimaryFsRepository::Maybe)
+                    .map_err(|source| OpenRepositoryError::FailedToOpenPartial {
+                        source: Box::new(source),
+                    }),
+                RepositoryHandle::FSWithRenders(fs) => fs
+                    .opened()
+                    .await
+                    .map(PrimaryFsRepository::Render)
+                    .map_err(|source| OpenRepositoryError::FailedToOpenPartial {
+                        source: Box::new(source),
+                    }),
+                RepositoryHandle::FSWithoutRenders(fs) => fs
+                    .opened()
+                    .await
+                    .map(PrimaryFsRepository::None)
+                    .map_err(|source| OpenRepositoryError::FailedToOpenPartial {
+                        source: Box::new(source),
+                    }),
+                _ => Err(OpenRepositoryError::UnsupportedRepositoryType(
+                    "The primary repository of a FallbackProxy must be a filesystem repository"
+                        .into(),
+                )),
+            }
         };
+
         let secondary = async {
             let mut secondary = Vec::with_capacity(config.secondary.len());
             for name in config.secondary.iter() {
@@ -167,6 +186,12 @@ impl storage::FromConfig for FallbackProxy<NoRenderStore> {
                     .map_err(|source| OpenRepositoryError::FailedToOpenPartial {
                         source: Box::new(source),
                     })? {
+                    RepositoryHandle::FallbackProxyWithMaybeRenders(proxy) => {
+                        secondary.extend(proxy.into_stack());
+                    }
+                    RepositoryHandle::FallbackProxyWithRenders(proxy) => {
+                        secondary.extend(proxy.into_stack());
+                    }
                     RepositoryHandle::FallbackProxyWithoutRenders(proxy) => {
                         // Instead of nesting proxy repos, flatten them into
                         // a single proxy repo with multiple secondaries.
@@ -179,13 +204,30 @@ impl storage::FromConfig for FallbackProxy<NoRenderStore> {
                     repo => secondary.push(repo),
                 };
             }
-            Ok(secondary)
+            Ok::<_, OpenRepositoryError>(secondary)
         };
+
         let (primary, secondary) = tokio::try_join!(primary, secondary)?;
-        Ok(Self {
-            primary: primary.into(),
-            secondary,
-            include_secondary_tags: config.include_secondary_tags,
+
+        Ok(match primary {
+            PrimaryFsRepository::Maybe(primary) => Self {
+                primary: primary.into(),
+                secondary,
+                include_secondary_tags: config.include_secondary_tags,
+            }
+            .into(),
+            PrimaryFsRepository::Render(primary) => FallbackProxy::<RenderStore> {
+                primary: primary.into(),
+                secondary,
+                include_secondary_tags: config.include_secondary_tags,
+            }
+            .into(),
+            PrimaryFsRepository::None(primary) => FallbackProxy::<NoRenderStore> {
+                primary: primary.into(),
+                secondary,
+                include_secondary_tags: config.include_secondary_tags,
+            }
+            .into(),
         })
     }
 }
