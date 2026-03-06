@@ -31,6 +31,7 @@ pub use storage::{
     RuntimeRepository,
     SpfsRepository,
     Storage,
+    WorkspaceRepository,
     export_package,
     find_path_providers,
     inject_path_repo_into_spfs_config,

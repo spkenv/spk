@@ -1,5 +1,11 @@
-# {% set opt = opt | default_opts(version="3.18.2") %}
-pkg: cmake/{{ opt.version }}
+template:
+  versions:
+    discover:
+      gitTags: v3\.\d+\.\d+
+      url: https://github.com/Kitware/CMake
+      extract: v(\d+\.\d+\.\d+)
+
+pkg: cmake/{{ version }}
 api: v0/package
 
 sources:
@@ -8,20 +14,20 @@ sources:
   # the tar file.
   - path: ./
   - script:
-    - export TARFILE=cmake-{{ opt.version }}-Linux-x86_64.tar.gz
-    - if [ ! -e ./$TARFILE ] ; then wget https://github.com/Kitware/CMake/releases/download/v{{ opt.version }}/$TARFILE ; fi
+      - export TARFILE=cmake-{{ version }}-Linux-x86_64.tar.gz
+      - if [ ! -e ./$TARFILE ] ; then wget https://github.com/Kitware/CMake/releases/download/v{{ version }}/$TARFILE ; fi
 
 build:
   options:
-  - var: arch
-  - var: os
+    - var: arch
+    - var: os
   script:
     - mkdir -p build; cd build
     - tar -xvf
-        ../cmake-{{ opt.version }}-Linux-x86_64.tar.gz
-        --strip-components=1
-        --exclude=doc
-        --exclude=Help
+      ../cmake-{{ version }}-Linux-x86_64.tar.gz
+      --strip-components=1
+      --exclude=doc
+      --exclude=Help
     - rsync -rv ./ $PREFIX/
 
 install:
