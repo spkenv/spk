@@ -902,7 +902,7 @@ impl<RS> std::fmt::Debug for MaybeOpenFsRepositoryImpl<RS> {
 }
 
 /// A validated and opened fs repository.
-pub struct OpenFsRepositoryImpl<RenderStore> {
+pub struct OpenFsRepositoryImpl<RS> {
     root: PathBuf,
     /// the namespace to use for tag resolution. If set, then this is treated
     /// as "chroot" of the real tag root.
@@ -912,7 +912,7 @@ pub struct OpenFsRepositoryImpl<RenderStore> {
     /// stores all digraph object data for this repo
     pub objects: FsHashStore,
     /// stores rendered file system layers for use in overlayfs
-    pub rs_impl: RenderStore,
+    pub rs_impl: RS,
 }
 
 impl TryFrom<OpenFsRepositoryImpl<MaybeRenderStore>> for OpenFsRepositoryImpl<RenderStore> {
