@@ -472,7 +472,6 @@ async fn test_clean_untagged_objects_layers_platforms(
 #[rstest]
 #[case::fs_with_renders(tmprepo("fs-with-renders"))]
 #[case::fs_with_maybe_renders(tmprepo("fs-with-maybe-renders"))]
-#[case::fs_without_renders(tmprepo("fs-without-renders"))]
 #[tokio::test]
 async fn test_clean_manifest_renders(
     #[case]
@@ -517,17 +516,6 @@ async fn test_clean_manifest_renders(
                 unreachable!()
             };
             test_clean_manifest_renders_with_repo(&handle, borrow, manifest).await
-        }
-        RepositoryHandle::FSWithoutRenders(_fs) => {
-            // This case exists for completeness, but this nonsensical
-            // conversion from NoRenderStore to RenderStore doesn't exist and
-            // this code won't compile. It is better to have this be a compile
-            // time error than a runtime error.
-            //
-            //let repo_with_render_store: MaybeOpenFsRepository<RenderStore> = fs
-            //    .clone()
-            //    .try_into()
-            //    .expect_err("converting from NoRenderStore to RenderStore is expected to fail");
         }
         _ => panic!("Unexpected tmprepo type!"),
     };
