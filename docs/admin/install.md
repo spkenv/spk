@@ -22,3 +22,21 @@ make install-spfs # only spfs
 Currently, only spfs is supported on windows and is still considered experimental. File systems can be mounted and viewed, but not modified. See above on building from source - windows builds will require WinFSP to be installed rather than fuse libraries.
 
 <!-- TODO: include really basic make instructions as above for playing with this -->
+
+### Cross-Compile for Windows From Arch Linux
+
+To cross-compile from Arch Linux, install:
+
+```sh
+sudo pacman -S --needed mingw-w64-gcc protobuf flatbuffers ast-grep
+rustup target add x86_64-pc-windows-gnu
+```
+
+Then build:
+
+```sh
+make release PLATFORM=windows FEATURES=server,spfs/server
+```
+
+For Linux-hosted workspace builds, `spfs-cli-winfsp` is excluded because its
+`winfsp-sys` dependency requires a Windows host during build-script execution.

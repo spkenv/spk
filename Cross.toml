@@ -1,2 +1,7 @@
 [target.x86_64-pc-windows-gnu]
-pre-build = ["apt-get install -y protobuf-compiler"]
+pre-build = [
+    "apt-get update && apt-get install -y protobuf-compiler curl unzip",
+    "curl --proto '=https' --tlsv1.2 -sSfL https://github.com/google/flatbuffers/releases/download/v23.5.26/Linux.flatc.binary.g++-10.zip | funzip > /usr/local/bin/flatc",
+    "chmod +x /usr/local/bin/flatc",
+    "cargo install --locked ast-grep",
+]
