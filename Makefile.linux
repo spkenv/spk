@@ -8,10 +8,16 @@ CARGO_TARGET_DIR := $(shell \
 
 export PLATFORM ?= unix
 ifeq ($(PLATFORM),windows)
-spfs_packages := $(spfs_packages),spfs-cli-winfsp
-CARGO_ARGS += --target x86_64-pc-windows-gnu
-# swap cargo for cross when building for other platforms
-CARGO = cross
+WINDOWS_TARGET ?= x86_64-pc-windows-gnu
+CARGO_ARGS += --target $(WINDOWS_TARGET)
+# winfsp-sys requires a Windows host in its build script, so exclude the
+# winfsp CLI crate for Linux-hosted workspace cross-compiles.
+cargo_excludes_arg += $(if $(CRATES),,--exclude spfs-cli-winfsp)
+# Default to cargo for Linux -> Windows cross-compilation. This works on
+# Arch Linux with mingw-w64-gcc. To use containerized cross, set:
+#   WINDOWS_CARGO=cross
+WINDOWS_CARGO ?= cargo
+CARGO = $(WINDOWS_CARGO)
 else
 spfs_packages := $(spfs_packages),spfs-cli-fuse,spfs-cli-monitor
 endif

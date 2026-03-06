@@ -49,8 +49,7 @@ use spk_schema::{
 };
 use spk_solve::solution::{LayerPackageAndComponents, get_spfs_layers_to_packages};
 use spk_solve::{PackageSource, Recipe, RequestedBy, Solution, Solver, SolverMut};
-use spk_storage;
-use spk_storage::RepositoryHandle;
+use spk_storage::{self, RepositoryHandle};
 use strum::{Display, EnumString, IntoEnumIterator, VariantNames};
 
 #[cfg(test)]

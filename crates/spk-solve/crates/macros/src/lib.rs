@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+pub use serde;
+pub use serde_json;
+pub use spfs;
 pub use spk_schema::recipe;
 pub use spk_solve_solution::{PackageSource, Solution};
-pub use {serde, serde_json, spfs};
 
 /// Creates a repository containing a set of provided package specs.
 /// It will take care of publishing the spec, and creating a build for
