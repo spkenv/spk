@@ -561,12 +561,12 @@ where
     type RenderStore = RS;
 
     fn render_store_for_user(
-        _creation_policy: RenderStoreCreationPolicy,
-        _url: url::Url,
-        _root: &std::path::Path,
-        _username: &std::path::Path,
+        creation_policy: RenderStoreCreationPolicy,
+        url: url::Url,
+        root: &std::path::Path,
+        username: &std::path::Path,
     ) -> OpenRepositoryResult<Self::RenderStore> {
-        todo!()
+        RS::render_store_for_user(creation_policy, url, root, username)
     }
 }
 
