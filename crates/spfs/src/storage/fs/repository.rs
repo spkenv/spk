@@ -203,9 +203,6 @@ enum InnerMaybeRenderStore {
     },
     /// The render store is known to exist and is valid.
     Valid { renders: RenderStore },
-    /// The render store does not exist or has some other issue and was not
-    /// expected to be created.
-    Invalid,
 }
 
 pub trait DefaultRenderStoreCreationPolicy {
@@ -274,19 +271,13 @@ impl TryRenderStore for MaybeRenderStore {
                         });
                         Ok(Cow::Owned(store))
                     }
-                    Err(err) => {
-                        // Store the fact that the render store is invalid so
-                        // it isn't attempted to be created again.
-                        self.inner.rcu(|_| InnerMaybeRenderStore::Invalid);
-                        Err(err)
-                    }
+                    Err(err) => Err(err),
                 }
             }
             InnerMaybeRenderStore::Valid { renders } => {
                 // Can't borrow from the temporary returned by ArcSwap::load().
                 Ok(Cow::Owned(renders.clone()))
             }
-            InnerMaybeRenderStore::Invalid => Err(OpenRepositoryError::RenderStorageUnavailable),
         }
     }
 
@@ -969,14 +960,16 @@ where
     RS: DefaultRenderStoreCreationPolicy + RenderStoreForUser<RenderStore = RS> + Send + Sync,
 {
     async fn from_fs_config(config: Config) -> crate::storage::OpenRepositoryResult<Self> {
-        if config.params.create_renders ^ RS::default_creation_policy().is_create_if_missing() {
-            return Err(OpenRepositoryError::InvalidRenderStoreCreationPolicy("create_renders parameter does not match the default creation policy for the render store type".to_string()));
-        }
+        let creation_policy = if config.params.create_renders {
+            RenderStoreCreationPolicy::CreateIfMissing
+        } else {
+            RenderStoreCreationPolicy::DoNotCreate
+        };
 
         let repo = if config.params.create {
-            Self::create(&config.path).await
+            Self::create_with_policy(&config.path, creation_policy).await
         } else {
-            Self::open(&config.path).await
+            Self::open_with_policy(&config.path, creation_policy).await
         };
         repo.map(|mut repo| {
             repo.set_tag_namespace(config.params.tag_namespace);
@@ -1079,8 +1072,10 @@ impl<RS> OpenFsRepositoryImpl<RS>
 where
     RS: DefaultRenderStoreCreationPolicy + RenderStoreForUser<RenderStore = RS>,
 {
-    /// Establish a new filesystem repository
-    pub async fn create(root: impl AsRef<Path>) -> OpenRepositoryResult<Self> {
+    async fn create_with_policy(
+        root: impl AsRef<Path>,
+        creation_policy: RenderStoreCreationPolicy,
+    ) -> OpenRepositoryResult<Self> {
         let root = root.as_ref();
         // avoid creating any blocking tasks so as to not spawn
         // threads for the case where this repo is being opened as
@@ -1113,12 +1108,13 @@ where
         // `VERSION` to our version, so it is compatible.
         // FIXME: No attempt to check if the repo already existed and is
         // actually incompatible.
-        unsafe { Self::open_unchecked(root) }
+        unsafe { Self::open_unchecked_with_policy(root, creation_policy) }
     }
 
-    // Open a repository over the given directory, which must already
-    // exist and be a repository
-    pub async fn open(root: impl AsRef<Path>) -> OpenRepositoryResult<Self> {
+    async fn open_with_policy(
+        root: impl AsRef<Path>,
+        creation_policy: RenderStoreCreationPolicy,
+    ) -> OpenRepositoryResult<Self> {
         // although this is an async function, we avoid spawning a blocking task
         // here for the cases where a local fs repo is opened to spawn a runtime
         // and the program cannot spawn another thread without angering the kernel
@@ -1134,7 +1130,7 @@ where
 
         // Safety: we canonicalized `root` and check the version compatibility
         // in the next step.
-        let repo = unsafe { Self::open_unchecked(&root)? };
+        let repo = unsafe { Self::open_unchecked_with_policy(&root, creation_policy)? };
 
         let current_version = semver::Version::parse(crate::VERSION).unwrap();
         let repo_version = repo.last_migration().await?;
@@ -1148,8 +1144,20 @@ where
         Ok(repo)
     }
 
+    /// Establish a new filesystem repository
+    pub async fn create(root: impl AsRef<Path>) -> OpenRepositoryResult<Self> {
+        Self::create_with_policy(root, RS::default_creation_policy()).await
+    }
+
+    // Open a repository over the given directory, which must already
+    // exist and be a repository
+    pub async fn open(root: impl AsRef<Path>) -> OpenRepositoryResult<Self> {
+        Self::open_with_policy(root, RS::default_creation_policy()).await
+    }
+
     /// Open a repository at the given directory, without reading or verifying
-    /// the migration version of the repository.
+    /// the migration version of the repository, with explicit render-store
+    /// creation policy.
     ///
     /// # Safety
     ///
@@ -1157,7 +1165,10 @@ where
     ///
     /// The caller must ensure that the repository version is compatible with
     /// this version of spfs before using the repository.
-    unsafe fn open_unchecked(root: impl AsRef<Path>) -> OpenRepositoryResult<Self> {
+    unsafe fn open_unchecked_with_policy(
+        root: impl AsRef<Path>,
+        creation_policy: RenderStoreCreationPolicy,
+    ) -> OpenRepositoryResult<Self> {
         let root = root.as_ref();
         let username = PathBuf::from(whoami::username());
         let url = url::Url::from_directory_path(root).map_err(|()| {
@@ -1172,12 +1183,7 @@ where
         Ok(OpenFsRepositoryImpl::<RS> {
             objects: FsHashStore::open(root.join("objects"))?,
             payloads: FsHashStore::open(root.join("payloads"))?,
-            rs_impl: RS::render_store_for_user(
-                RS::default_creation_policy(),
-                url,
-                root,
-                &username,
-            )?,
+            rs_impl: RS::render_store_for_user(creation_policy, url, root, &username)?,
             root: root.to_owned(),
             tag_namespace: None,
         })
