@@ -234,6 +234,42 @@ ast-grep is also used when compiling, it can be installed with the following com
 cargo install --locked ast-grep
 ```
 
+### Cross-Compiling for Windows from Arch Linux
+
+You can cross-compile Windows binaries on Arch Linux without Docker by using
+the GNU Windows target and MinGW tools.
+
+```sh
+sudo pacman -S --needed \
+    mingw-w64-gcc \
+    protobuf \
+    flatbuffers \
+    ast-grep
+rustup target add x86_64-pc-windows-gnu
+```
+
+Then build with:
+
+```sh
+make release PLATFORM=windows FEATURES=server,spfs/server
+```
+
+Output binaries are written to:
+
+```text
+target/x86_64-pc-windows-gnu/release/
+```
+
+When cross-compiling from Linux, workspace builds automatically exclude
+`spfs-cli-winfsp` because `winfsp-sys` requires running its build script on a
+Windows host. Build that crate natively on Windows if needed.
+
+If you prefer containerized cross-compilation, install `cross` and run:
+
+```sh
+make release PLATFORM=windows WINDOWS_CARGO=cross FEATURES=server,spfs/server
+```
+
 ### Benchmarks
 
 Benchmark tests can be found in `benches/`. All benchmark tests can be run with `cargo bench`, but in order to successfully pass `criterion`-specific options to the `criterion`-based benchmarks, those types of benchmarks need to be filtered for.

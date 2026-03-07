@@ -9,6 +9,7 @@ cargo_features_arg = $(if $(FEATURES),--features $(FEATURES))
 cargo_packages_arg := $(if $(CRATES),-p=$(CRATES))
 cargo_packages_arg := $(subst $(comma), -p=,$(cargo_packages_arg))
 cargo_packages_arg := $(if $(cargo_packages_arg),$(cargo_packages_arg),--workspace)
+cargo_excludes_arg ?=
 
 # Suppress this warning to not muddle the test output.
 export SPFS_SUPPRESS_OVERLAYFS_PARAMS_WARNING = 1
@@ -54,11 +55,11 @@ lint-fmt:
 
 .PHONY: lint-clippy
 lint-clippy:
-	$(CARGO) clippy --tests $(cargo_features_arg) $(cargo_packages_arg) $(CARGO_ARGS) -- -Dwarnings
+	$(CARGO) clippy --tests $(cargo_features_arg) $(cargo_packages_arg) $(cargo_excludes_arg) $(CARGO_ARGS) -- -Dwarnings
 
 .PHONY: lint-docs
 lint-docs:
-	env RUSTDOCFLAGS="-Dwarnings" cargo doc --no-deps $(cargo_features_arg) $(cargo_packages_arg)
+	env RUSTDOCFLAGS="-Dwarnings" cargo doc --no-deps $(cargo_features_arg) $(cargo_packages_arg) $(cargo_excludes_arg)
 
 .PHONY: format
 format:
@@ -68,13 +69,13 @@ format:
 build: debug
 
 debug:
-	$(CARGO) build $(cargo_packages_arg) $(cargo_features_arg) $(CARGO_ARGS)
+	$(CARGO) build $(cargo_packages_arg) $(cargo_excludes_arg) $(cargo_features_arg) $(CARGO_ARGS)
 
 debug-spfs:
 	$(MAKE) debug CRATES=$(spfs_packages)
 
 release:
-	$(CARGO) build --release $(cargo_packages_arg) $(cargo_features_arg) $(CARGO_ARGS)
+	$(CARGO) build --release $(cargo_packages_arg) $(cargo_excludes_arg) $(cargo_features_arg) $(CARGO_ARGS)
 
 release-spfs:
 	$(MAKE) release CRATES=$(spfs_packages)
