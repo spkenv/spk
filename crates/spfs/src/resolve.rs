@@ -5,6 +5,7 @@
 #[cfg(unix)]
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use futures::{FutureExt, TryFutureExt, TryStreamExt};
 use itertools::Itertools;
@@ -97,8 +98,12 @@ async fn render_via_subcommand(
 /// Compute or load the spfs manifest representation for a saved reference.
 pub async fn compute_manifest<R: AsRef<str>>(reference: R) -> Result<tracking::Manifest> {
     let config = get_config()?;
-    let mut repos: Vec<storage::RepositoryHandle> =
-        vec![config.get_local_repository().await?.into()];
+    let mut repos: Vec<storage::RepositoryHandle> = vec![
+        config
+            .get_local_repository::<storage::fs::NoRenderStore>()
+            .await?
+            .into(),
+    ];
     for name in config.list_remote_names() {
         match config.get_remote(&name).await {
             Ok(repo) => repos.push(repo),
@@ -365,13 +370,24 @@ where
 /// the `flattened_layers` property is modified. Only pass true here if the
 /// runtime is unconditionally saved shortly after calling this function.
 #[cfg(unix)]
-pub(crate) async fn resolve_and_render_overlay_dirs(
+pub(crate) async fn resolve_and_render_overlay_dirs<RS>(
     runtime: &mut runtime::Runtime,
     skip_runtime_save: bool,
-) -> Result<RenderResult> {
+) -> Result<RenderResult>
+where
+    Arc<storage::fs::OpenFsRepository<RS>>: Into<storage::RepositoryHandle> + ManifestRenderPath,
+    RS: storage::DefaultRenderStoreCreationPolicy
+        + storage::LocalRenderStore<RenderStore = RS>
+        + Clone
+        + std::fmt::Debug
+        + Send
+        + Sync,
+{
     let config = get_config()?;
-    let (repo, remotes) =
-        tokio::try_join!(config.get_opened_local_repository(), config.list_remotes())?;
+    let (repo, remotes) = tokio::try_join!(
+        config.get_opened_local_repository::<RS>(),
+        config.list_remotes()
+    )?;
     let fallback_repo = FallbackProxy::new(
         repo, remotes,
         // preserve original behavior of not looking for tags in the secondary
@@ -414,15 +430,33 @@ pub async fn resolve_stack_to_layers(
         Some(repo) => repo,
         None => {
             let config = get_config()?;
-            owned_handle = storage::RepositoryHandle::from(config.get_local_repository().await?);
+            owned_handle = storage::RepositoryHandle::from(
+                config
+                    .get_local_repository::<storage::fs::NoRenderStore>()
+                    .await?,
+            );
             &owned_handle
         }
     };
     match repo {
-        storage::RepositoryHandle::FS(r) => resolve_stack_to_layers_with_repo(stack, r).await,
+        storage::RepositoryHandle::FSWithMaybeRenders(r) => {
+            resolve_stack_to_layers_with_repo(stack, r).await
+        }
+        storage::RepositoryHandle::FSWithRenders(r) => {
+            resolve_stack_to_layers_with_repo(stack, r).await
+        }
+        storage::RepositoryHandle::FSWithoutRenders(r) => {
+            resolve_stack_to_layers_with_repo(stack, r).await
+        }
         storage::RepositoryHandle::Tar(r) => resolve_stack_to_layers_with_repo(stack, r).await,
         storage::RepositoryHandle::Rpc(r) => resolve_stack_to_layers_with_repo(stack, r).await,
-        storage::RepositoryHandle::FallbackProxy(r) => {
+        storage::RepositoryHandle::FallbackProxyWithMaybeRenders(r) => {
+            resolve_stack_to_layers_with_repo(stack, &**r).await
+        }
+        storage::RepositoryHandle::FallbackProxyWithRenders(r) => {
+            resolve_stack_to_layers_with_repo(stack, &**r).await
+        }
+        storage::RepositoryHandle::FallbackProxyWithoutRenders(r) => {
             resolve_stack_to_layers_with_repo(stack, &**r).await
         }
         storage::RepositoryHandle::Proxy(r) => resolve_stack_to_layers_with_repo(stack, &**r).await,

@@ -10,8 +10,8 @@ use super::was_render_completed;
 use crate::encoding::prelude::*;
 use crate::fixtures::*;
 use crate::graph::object::{DigestStrategy, EncodingFormat};
-use crate::storage::fs::{MaybeOpenFsRepository, OpenFsRepository};
-use crate::storage::{RepositoryExt, RepositoryHandle};
+use crate::storage::fs::{MaybeOpenFsRepository, NoRenderStore, OpenFsRepository, RenderStore};
+use crate::storage::{LayerStorageExt, RepositoryExt, RepositoryHandle, TagStorage};
 use crate::{Config, reset_config_async, tracking};
 
 #[rstest(
@@ -31,7 +31,7 @@ async fn test_render_manifest(
         config.storage.digest_strategy = write_digest_strategy;
         config.make_current().unwrap();
 
-        let storage = OpenFsRepository::create(tmpdir.path().join("storage"))
+        let storage = OpenFsRepository::<RenderStore>::create(tmpdir.path().join("storage"))
             .await
             .unwrap();
 
@@ -86,7 +86,7 @@ async fn test_render_manifest_with_repo(
         config.make_current().unwrap();
 
         let tmprepo = Arc::new(
-            MaybeOpenFsRepository::create(tmpdir.path().join("repo"))
+            MaybeOpenFsRepository::<RenderStore>::create(tmpdir.path().join("repo"))
                 .await
                 .unwrap()
                 .into(),
@@ -105,15 +105,13 @@ async fn test_render_manifest_with_repo(
 
         // Safety: tmprepo was created as an FsRepository
         let tmprepo = match &*tmprepo {
-            RepositoryHandle::FS(fs) => fs.opened().await.unwrap(),
+            RepositoryHandle::FSWithRenders(fs) => fs.opened().await.unwrap(),
             _ => panic!("Unexpected tmprepo type!"),
         };
 
         let render = tmprepo
             .fs_impl
-            .renders
-            .as_ref()
-            .unwrap()
+            .rs_impl
             .renders
             .build_digest_path(&manifest.digest().unwrap());
         assert!(!render.exists(), "render should NOT be seen as existing");
@@ -132,4 +130,59 @@ async fn test_render_manifest_with_repo(
             rendered_manifest.to_graph_manifest().digest().unwrap()
         );
     }
+}
+
+#[tokio::test]
+async fn test_render_into_directory_without_render_store_does_not_create_renders_dir() {
+    let tmpdir = tempfile::Builder::new()
+        .prefix("spfs-test-")
+        .tempdir()
+        .unwrap();
+    let repo_root = tmpdir.path().join("repo");
+    let repo = MaybeOpenFsRepository::<NoRenderStore>::create(&repo_root)
+        .await
+        .unwrap();
+    let repo_handle = Arc::new(RepositoryHandle::from(repo.clone()));
+
+    let src_dir = tmpdir.path().join("source");
+    ensure(src_dir.join("dir/file.txt"), "hello");
+    ensure(src_dir.join("file.txt"), "world");
+    let expected_manifest = crate::Committer::new(&repo_handle)
+        .commit_dir(&src_dir)
+        .await
+        .unwrap();
+    let layer = repo_handle
+        .create_layer(&expected_manifest.to_graph_manifest())
+        .await
+        .unwrap();
+    let tag = tracking::TagSpec::parse("renderer/no-render-store").unwrap();
+    repo_handle
+        .push_tag(&tag, &layer.digest().unwrap())
+        .await
+        .unwrap();
+
+    let opened = repo.opened().await.unwrap();
+    let target_dir = tmpdir.path().join("rendered");
+    let env_spec = tracking::EnvSpec::parse(tag.to_string()).unwrap();
+    super::Renderer::new(&opened)
+        .render_into_directory(
+            env_spec,
+            &target_dir,
+            super::RenderType::HardLink(super::HardLinkRenderType::WithoutProxy),
+        )
+        .await
+        .unwrap();
+
+    let root_contents = tokio::fs::read_to_string(target_dir.join("file.txt"))
+        .await
+        .unwrap();
+    let nested_contents = tokio::fs::read_to_string(target_dir.join("dir/file.txt"))
+        .await
+        .unwrap();
+    assert_eq!(root_contents, "world");
+    assert_eq!(nested_contents, "hello");
+    assert!(
+        !repo_root.join("renders").exists(),
+        "render_into_directory should not create repository renders dir"
+    );
 }

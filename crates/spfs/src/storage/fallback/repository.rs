@@ -13,17 +13,28 @@ use relative_path::RelativePath;
 use crate::config::{ToAddress, default_fallback_repo_include_secondary_tags};
 use crate::graph::ObjectProto;
 use crate::prelude::*;
-use crate::storage::fs::{FsHashStore, ManifestRenderPath, OpenFsRepository, RenderStore};
+use crate::storage::fs::{
+    FsHashStore,
+    ManifestRenderPath,
+    MaybeRenderStore,
+    NoRenderStore,
+    OpenFsRepository,
+    RenderStore,
+    RenderStoreCreationPolicy,
+};
 use crate::storage::proxy::ProxyRepositoryExt;
 use crate::storage::tag::TagSpecAndTagStream;
 use crate::storage::{
     EntryType,
-    LocalRepository,
+    LocalPayloads,
+    LocalRenderStore,
     OpenRepositoryError,
     OpenRepositoryResult,
+    RenderStoreForUser,
     TagNamespace,
     TagNamespaceBuf,
     TagStorageMut,
+    TryRenderStore,
 };
 use crate::sync::reporter::SyncReporters;
 use crate::tracking::BlobRead;
@@ -76,25 +87,19 @@ impl storage::FromUrl for Config {
 /// payloads are copied into the primary repository. Missing blobs are also
 /// repaired in the same way.
 #[derive(Debug)]
-pub struct FallbackProxy {
+pub struct FallbackProxy<RS> {
     // Why isn't this a RepositoryHandle?
     //
-    // It needs to be something that implements LocalRepository so this
+    // It needs to be something that implements LocalPayloads so this
     // struct can implement it too. RepositoryHandle can't implement that
     // trait.
-    primary: Arc<OpenFsRepository>,
+    primary: Arc<OpenFsRepository<RS>>,
     secondary: Vec<crate::storage::RepositoryHandle>,
     include_secondary_tags: bool,
 }
 
-impl FallbackProxy {
-    pub fn into_stack(self) -> Vec<crate::storage::RepositoryHandle> {
-        let mut stack = vec![self.primary.into()];
-        stack.extend(self.secondary);
-        stack
-    }
-
-    pub fn new<P: Into<Arc<OpenFsRepository>>>(
+impl<RS> FallbackProxy<RS> {
+    pub fn new<P: Into<Arc<OpenFsRepository<RS>>>>(
         primary: P,
         secondary: Vec<crate::storage::RepositoryHandle>,
         include_secondary_tags: bool,
@@ -107,38 +112,72 @@ impl FallbackProxy {
     }
 }
 
+impl<RS> FallbackProxy<RS>
+where
+    Arc<OpenFsRepository<RS>>: Into<crate::storage::RepositoryHandle>,
+{
+    pub fn into_stack(self) -> Vec<crate::storage::RepositoryHandle> {
+        let mut stack = vec![self.primary.into()];
+        stack.extend(self.secondary);
+        stack
+    }
+}
+
 #[async_trait::async_trait]
-impl storage::FromConfig for FallbackProxy {
+impl storage::FromConfig for FallbackProxy<MaybeRenderStore> {
     type Config = Config;
 
-    async fn from_config(config: Self::Config) -> OpenRepositoryResult<Self> {
+    async fn from_config(
+        config: Self::Config,
+    ) -> OpenRepositoryResult<crate::storage::RepositoryHandle> {
+        enum PrimaryFsRepository {
+            Maybe(OpenFsRepository<MaybeRenderStore>),
+            Render(OpenFsRepository<RenderStore>),
+            None(OpenFsRepository<NoRenderStore>),
+        }
+
         let spfs_config =
             crate::Config::current().map_err(|source| OpenRepositoryError::FailedToLoadConfig {
                 source: Box::new(source),
             })?;
+
         let primary = async {
-            let primary =
+            let primary_handle =
                 crate::config::open_repository_from_string(&spfs_config, Some(&config.primary))
                     .await
                     .map_err(|source| OpenRepositoryError::FailedToOpenPartial {
                         source: Box::new(source),
                     })?;
-            let primary = match primary {
-                RepositoryHandle::FS(fs) => fs,
-                _ => {
-                    return Err(OpenRepositoryError::UnsupportedRepositoryType(
-                        "The primary repository of a FallbackProxy must be a filesystem repository"
-                            .into(),
-                    ));
-                }
-            };
-            primary
-                .opened()
-                .await
-                .map_err(|source| OpenRepositoryError::FailedToOpenPartial {
-                    source: Box::new(source),
-                })
+
+            match primary_handle {
+                RepositoryHandle::FSWithMaybeRenders(fs) => fs
+                    .opened()
+                    .await
+                    .map(PrimaryFsRepository::Maybe)
+                    .map_err(|source| OpenRepositoryError::FailedToOpenPartial {
+                        source: Box::new(source),
+                    }),
+                RepositoryHandle::FSWithRenders(fs) => fs
+                    .opened()
+                    .await
+                    .map(PrimaryFsRepository::Render)
+                    .map_err(|source| OpenRepositoryError::FailedToOpenPartial {
+                        source: Box::new(source),
+                    }),
+                RepositoryHandle::FSWithoutRenders(fs) => fs
+                    .opened()
+                    .await
+                    .map(PrimaryFsRepository::None)
+                    .map_err(|source| OpenRepositoryError::FailedToOpenPartial {
+                        source: Box::new(source),
+                    }),
+                _ => Err(OpenRepositoryError::UnsupportedRepositoryType(
+                    "The primary repository of a FallbackProxy must be a filesystem repository"
+                        .into(),
+                )),
+            }
         };
+
         let secondary = async {
             let mut secondary = Vec::with_capacity(config.secondary.len());
             for name in config.secondary.iter() {
@@ -147,7 +186,13 @@ impl storage::FromConfig for FallbackProxy {
                     .map_err(|source| OpenRepositoryError::FailedToOpenPartial {
                         source: Box::new(source),
                     })? {
-                    RepositoryHandle::FallbackProxy(proxy) => {
+                    RepositoryHandle::FallbackProxyWithMaybeRenders(proxy) => {
+                        secondary.extend(proxy.into_stack());
+                    }
+                    RepositoryHandle::FallbackProxyWithRenders(proxy) => {
+                        secondary.extend(proxy.into_stack());
+                    }
+                    RepositoryHandle::FallbackProxyWithoutRenders(proxy) => {
                         // Instead of nesting proxy repos, flatten them into
                         // a single proxy repo with multiple secondaries.
                         // This helps spfs-fuse handle the case where
@@ -159,19 +204,39 @@ impl storage::FromConfig for FallbackProxy {
                     repo => secondary.push(repo),
                 };
             }
-            Ok(secondary)
+            Ok::<_, OpenRepositoryError>(secondary)
         };
+
         let (primary, secondary) = tokio::try_join!(primary, secondary)?;
-        Ok(Self {
-            primary: primary.into(),
-            secondary,
-            include_secondary_tags: config.include_secondary_tags,
+
+        Ok(match primary {
+            PrimaryFsRepository::Maybe(primary) => Self {
+                primary: primary.into(),
+                secondary,
+                include_secondary_tags: config.include_secondary_tags,
+            }
+            .into(),
+            PrimaryFsRepository::Render(primary) => FallbackProxy::<RenderStore> {
+                primary: primary.into(),
+                secondary,
+                include_secondary_tags: config.include_secondary_tags,
+            }
+            .into(),
+            PrimaryFsRepository::None(primary) => FallbackProxy::<NoRenderStore> {
+                primary: primary.into(),
+                secondary,
+                include_secondary_tags: config.include_secondary_tags,
+            }
+            .into(),
         })
     }
 }
 
 #[async_trait::async_trait]
-impl graph::DatabaseView for FallbackProxy {
+impl<RS> graph::DatabaseView for FallbackProxy<RS>
+where
+    RS: Send + Sync,
+{
     async fn has_object(&self, digest: encoding::Digest) -> bool {
         if self.primary.has_object(digest).await {
             return true;
@@ -240,7 +305,10 @@ impl graph::DatabaseView for FallbackProxy {
 }
 
 #[async_trait::async_trait]
-impl graph::Database for FallbackProxy {
+impl<RS> graph::Database for FallbackProxy<RS>
+where
+    RS: Send + Sync,
+{
     async fn remove_object(&self, digest: encoding::Digest) -> Result<()> {
         self.primary.remove_object(digest).await?;
         Ok(())
@@ -259,7 +327,10 @@ impl graph::Database for FallbackProxy {
 }
 
 #[async_trait::async_trait]
-impl graph::DatabaseExt for FallbackProxy {
+impl<RS> graph::DatabaseExt for FallbackProxy<RS>
+where
+    RS: Send + Sync,
+{
     async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
         self.primary.write_object(obj).await?;
         Ok(())
@@ -267,7 +338,11 @@ impl graph::DatabaseExt for FallbackProxy {
 }
 
 #[async_trait::async_trait]
-impl PayloadStorage for FallbackProxy {
+impl<RS> PayloadStorage for FallbackProxy<RS>
+where
+    Arc<OpenFsRepository<RS>>: Into<crate::storage::RepositoryHandle>,
+    RS: Send + Sync,
+{
     async fn has_payload(&self, digest: encoding::Digest) -> bool {
         if self.primary.has_payload(digest).await {
             return true;
@@ -372,7 +447,10 @@ impl PayloadStorage for FallbackProxy {
     }
 }
 
-impl ProxyRepositoryExt for FallbackProxy {
+impl<RS> ProxyRepositoryExt for FallbackProxy<RS>
+where
+    RS: Send + Sync,
+{
     #[inline]
     fn include_secondary_tags(&self) -> bool {
         self.include_secondary_tags
@@ -390,7 +468,10 @@ impl ProxyRepositoryExt for FallbackProxy {
 }
 
 #[async_trait::async_trait]
-impl TagStorage for FallbackProxy {
+impl<RS> TagStorage for FallbackProxy<RS>
+where
+    RS: Send + Sync,
+{
     #[inline]
     fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
         self.primary.get_tag_namespace()
@@ -457,7 +538,10 @@ impl TagStorage for FallbackProxy {
     }
 }
 
-impl TagStorageMut for FallbackProxy {
+impl<RS> TagStorageMut for FallbackProxy<RS>
+where
+    RS: Clone,
+{
     fn try_set_tag_namespace(
         &mut self,
         tag_namespace: Option<TagNamespaceBuf>,
@@ -467,7 +551,7 @@ impl TagStorageMut for FallbackProxy {
     }
 }
 
-impl Address for FallbackProxy {
+impl<RS> Address for FallbackProxy<RS> {
     fn address(&self) -> Cow<'_, url::Url> {
         let config = Config {
             primary: self.primary.address().to_string(),
@@ -486,20 +570,69 @@ impl Address for FallbackProxy {
     }
 }
 
-impl LocalRepository for FallbackProxy {
+impl<RS> LocalPayloads for FallbackProxy<RS> {
     #[inline]
     fn payloads(&self) -> &FsHashStore {
         self.primary.payloads()
     }
+}
 
+impl<RS> LocalRenderStore for FallbackProxy<RS>
+where
+    RS: LocalRenderStore + RenderStoreForUser<RenderStore = RS>,
+{
     #[inline]
-    fn render_store(&self) -> Result<&RenderStore> {
-        self.primary.render_store()
+    fn render_store(&self) -> &RenderStore {
+        self.primary.rs_impl.render_store()
     }
 }
 
-impl ManifestRenderPath for FallbackProxy {
+impl<RS> ManifestRenderPath for FallbackProxy<RS>
+where
+    Arc<OpenFsRepository<RS>>: ManifestRenderPath,
+{
     fn manifest_render_path(&self, manifest: &graph::Manifest) -> Result<std::path::PathBuf> {
         self.primary.manifest_render_path(manifest)
+    }
+}
+
+impl<RS> RenderStoreForUser for FallbackProxy<RS>
+where
+    RS: RenderStoreForUser<RenderStore = RS>,
+{
+    type RenderStore = RS;
+
+    fn render_store_for_user(
+        creation_policy: RenderStoreCreationPolicy,
+        url: url::Url,
+        root: &std::path::Path,
+        username: &std::path::Path,
+    ) -> OpenRepositoryResult<Self::RenderStore> {
+        RS::render_store_for_user(creation_policy, url, root, username)
+    }
+}
+
+impl<RS> TryRenderStore for FallbackProxy<RS>
+where
+    RS: TryRenderStore,
+{
+    fn try_render_store(&self) -> OpenRepositoryResult<Cow<'_, RenderStore>> {
+        self.primary.fs_impl.rs_impl.try_render_store()
+    }
+
+    fn proxy_path(&self) -> Option<Cow<'_, std::path::Path>> {
+        self.primary.fs_impl.rs_impl.proxy_path()
+    }
+}
+
+impl TryFrom<FallbackProxy<MaybeRenderStore>> for FallbackProxy<RenderStore> {
+    type Error = OpenRepositoryError;
+
+    fn try_from(value: FallbackProxy<MaybeRenderStore>) -> OpenRepositoryResult<Self> {
+        Ok(Self {
+            primary: Arc::new(Arc::unwrap_or_clone(value.primary).try_into()?),
+            secondary: value.secondary,
+            include_secondary_tags: value.include_secondary_tags,
+        })
     }
 }

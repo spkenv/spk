@@ -4,9 +4,10 @@
 
 use clap::Parser;
 use clap::builder::TypedValueParser;
-use miette::{Context, Result};
+use miette::{Context, IntoDiagnostic, Result};
 use spfs::prelude::*;
 use spfs::storage::fallback::FallbackProxy;
+use spfs::storage::fs::{MaybeRenderStore, RenderStore};
 use spfs::{Error, RenderResult, graph};
 use spfs_cli_common::{self as cli, CommandName, HasRepositoryArgs};
 use strum::VariantNames;
@@ -80,7 +81,11 @@ impl CmdRender {
 
         let rendered = match &self.target {
             Some(target) => self.render_to_dir(fallback, env_spec, target).await?,
-            None => self.render_to_repo(fallback, env_spec).await?,
+            None => {
+                // This path requires a repository that supports renders.
+                let fallback: FallbackProxy<RenderStore> = fallback.try_into().into_diagnostic()?;
+                self.render_to_repo(fallback, env_spec).await?
+            }
         };
 
         tracing::debug!("render(s) completed successfully");
@@ -91,7 +96,7 @@ impl CmdRender {
 
     async fn render_to_dir(
         &self,
-        repo: FallbackProxy,
+        repo: FallbackProxy<MaybeRenderStore>,
         env_spec: spfs::tracking::EnvSpec,
         target: &std::path::Path,
     ) -> Result<RenderResult> {
@@ -140,7 +145,7 @@ impl CmdRender {
 
     async fn render_to_repo(
         &self,
-        repo: FallbackProxy,
+        repo: FallbackProxy<RenderStore>,
         env_spec: spfs::tracking::EnvSpec,
     ) -> Result<RenderResult> {
         let mut stack = graph::Stack::default();

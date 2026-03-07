@@ -14,6 +14,7 @@ use crate::fixtures::*;
 use crate::graph::AnnotationValue;
 use crate::graph::object::EncodingFormat;
 use crate::prelude::*;
+use crate::storage::fs::NoRenderStore;
 use crate::{Error, encoding, graph, reset_config_async, storage, tracking};
 
 #[rstest]
@@ -21,7 +22,11 @@ use crate::{Error, encoding, graph, reset_config_async, storage, tracking};
 async fn test_sync_ref_unknown(#[future] config: (tempfile::TempDir, Config)) {
     init_logging();
     let (_handle, config) = config.await;
-    let local = config.get_local_repository().await.unwrap().into();
+    let local = config
+        .get_local_repository::<NoRenderStore>()
+        .await
+        .unwrap()
+        .into();
     let origin = config.get_remote("origin").await.unwrap();
     let syncer = Syncer::new(&local, &origin);
     match syncer.sync_ref("--test-unknown--").await {
@@ -50,7 +55,13 @@ async fn test_push_ref(#[future] config: (tempfile::TempDir, Config)) {
     ensure(src_dir.join("dir2/otherfile.txt"), "hello2");
     ensure(src_dir.join("dir//dir/dir/file.txt"), "hello, world");
 
-    let local = Arc::new(config.get_local_repository().await.unwrap().into());
+    let local = Arc::new(
+        config
+            .get_local_repository::<NoRenderStore>()
+            .await
+            .unwrap()
+            .into(),
+    );
     let remote = config.get_remote("origin").await.unwrap();
     let manifest = crate::Committer::new(&local)
         .commit_dir(src_dir.as_path())
@@ -369,11 +380,11 @@ async fn test_sync_through_tar(
 #[fixture]
 async fn config(tmpdir: tempfile::TempDir) -> (tempfile::TempDir, Config) {
     let repo_path = tmpdir.path().join("repo");
-    crate::storage::fs::MaybeOpenFsRepository::create(&repo_path)
+    crate::storage::fs::MaybeOpenFsRepository::<NoRenderStore>::create(&repo_path)
         .await
         .expect("failed to make repo for test");
     let origin_path = tmpdir.path().join("origin");
-    crate::storage::fs::MaybeOpenFsRepository::create(&origin_path)
+    crate::storage::fs::MaybeOpenFsRepository::<NoRenderStore>::create(&origin_path)
         .await
         .expect("failed to make repo for test");
     let mut conf = Config::default();

@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use spfs::prelude::*;
+use spfs::storage::fs::NoRenderStore;
 
 pub fn commit_benchmark(c: &mut Criterion) {
     const NUM_FILES: usize = 1024;
@@ -44,9 +45,11 @@ pub fn commit_benchmark(c: &mut Criterion) {
         .expect("create a temp directory for spfs repo");
     let repo: Arc<RepositoryHandle> = Arc::new(
         tokio_runtime
-            .block_on(spfs::storage::fs::MaybeOpenFsRepository::create(
-                repo_path.path().join("repo"),
-            ))
+            .block_on(
+                spfs::storage::fs::MaybeOpenFsRepository::<NoRenderStore>::create(
+                    repo_path.path().join("repo"),
+                ),
+            )
             .expect("create spfs repo")
             .into(),
     );

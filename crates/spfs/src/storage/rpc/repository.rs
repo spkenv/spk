@@ -92,7 +92,17 @@ pub struct RpcRepository {
 impl storage::FromConfig for RpcRepository {
     type Config = Config;
 
-    async fn from_config(config: Self::Config) -> OpenRepositoryResult<Self> {
+    async fn from_config(
+        config: Self::Config,
+    ) -> OpenRepositoryResult<crate::storage::RepositoryHandle> {
+        Self::new(config).await.map(Into::into)
+    }
+}
+
+#[async_trait::async_trait]
+impl storage::FromUrl for RpcRepository {
+    async fn from_url(url: &url::Url) -> OpenRepositoryResult<Self> {
+        let config = Config::from_url(url).await?;
         Self::new(config).await
     }
 }

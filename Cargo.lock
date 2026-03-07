@@ -3978,6 +3978,7 @@ dependencies = [
  "unix_mode",
  "url",
  "uuid 1.18.1",
+ "variantly",
  "walkdir",
  "whoami",
  "windows 0.51.1",

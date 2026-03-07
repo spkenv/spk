@@ -12,11 +12,20 @@ use encoding::prelude::*;
 use futures::{Stream, StreamExt, TryFutureExt};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+use super::DefaultRenderStoreCreationPolicy;
 use crate::graph::{DatabaseView, Object, ObjectProto};
+use crate::storage::RenderStoreForUser;
 use crate::{Error, Result, encoding, graph};
 
 #[async_trait::async_trait]
-impl DatabaseView for super::MaybeOpenFsRepository {
+impl<RS> DatabaseView for super::MaybeOpenFsRepository<RS>
+where
+    RS: DefaultRenderStoreCreationPolicy
+        + RenderStoreForUser<RenderStore = RS>
+        + Send
+        + Sync
+        + 'static,
+{
     async fn has_object(&self, digest: encoding::Digest) -> bool {
         let Ok(opened) = self.opened().await else {
             return false;
@@ -55,7 +64,14 @@ impl DatabaseView for super::MaybeOpenFsRepository {
 }
 
 #[async_trait::async_trait]
-impl graph::Database for super::MaybeOpenFsRepository {
+impl<RS> graph::Database for super::MaybeOpenFsRepository<RS>
+where
+    RS: DefaultRenderStoreCreationPolicy
+        + RenderStoreForUser<RenderStore = RS>
+        + Send
+        + Sync
+        + 'static,
+{
     async fn remove_object(&self, digest: encoding::Digest) -> crate::Result<()> {
         self.opened().await?.remove_object(digest).await
     }
@@ -73,14 +89,24 @@ impl graph::Database for super::MaybeOpenFsRepository {
 }
 
 #[async_trait::async_trait]
-impl graph::DatabaseExt for super::MaybeOpenFsRepository {
+impl<RS> graph::DatabaseExt for super::MaybeOpenFsRepository<RS>
+where
+    RS: DefaultRenderStoreCreationPolicy
+        + RenderStoreForUser<RenderStore = RS>
+        + Send
+        + Sync
+        + 'static,
+{
     async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
         self.opened().await?.write_object(obj).await
     }
 }
 
 #[async_trait::async_trait]
-impl DatabaseView for super::OpenFsRepository {
+impl<RS> DatabaseView for super::OpenFsRepository<RS>
+where
+    RS: Send + Sync,
+{
     async fn has_object(&self, digest: encoding::Digest) -> bool {
         let filepath = self.objects.build_digest_path(&digest);
         tokio::fs::symlink_metadata(filepath).await.is_ok()
@@ -129,7 +155,10 @@ impl DatabaseView for super::OpenFsRepository {
 }
 
 #[async_trait::async_trait]
-impl graph::Database for super::OpenFsRepository {
+impl<RS> graph::Database for super::OpenFsRepository<RS>
+where
+    RS: Send + Sync,
+{
     async fn remove_object(&self, digest: encoding::Digest) -> crate::Result<()> {
         let filepath = self.objects.build_digest_path(&digest);
 
@@ -200,7 +229,10 @@ impl graph::Database for super::OpenFsRepository {
 }
 
 #[async_trait::async_trait]
-impl graph::DatabaseExt for super::OpenFsRepository {
+impl<RS> graph::DatabaseExt for super::OpenFsRepository<RS>
+where
+    RS: Send + Sync,
+{
     async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
         let digest = obj.digest()?;
         let filepath = self.objects.build_digest_path(&digest);
