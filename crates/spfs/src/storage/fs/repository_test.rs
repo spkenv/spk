@@ -2,10 +2,67 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use std::path::PathBuf;
+use std::borrow::Cow;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
 
-use super::{MaybeOpenFsRepository, MaybeRenderStore, RenderStore, RenderStoreCreationPolicy};
-use crate::storage::{RenderStoreForUser, TryRenderStore};
+use super::{
+    DefaultRenderStoreCreationPolicy,
+    FsHashStore,
+    FsRepositoryOps,
+    MaybeOpenFsRepository,
+    MaybeRenderStore,
+    OpenFsRepositoryImpl,
+    RenderStore,
+    RenderStoreCreationPolicy,
+};
+use crate::storage::{
+    OpenRepositoryError,
+    OpenRepositoryResult,
+    RenderStoreForUser,
+    TryRenderStore,
+};
+
+#[derive(Clone, Debug)]
+struct RecordingRenderStore;
+
+fn recorded_user_paths() -> &'static Mutex<Vec<PathBuf>> {
+    static RECORDED_USER_PATHS: OnceLock<Mutex<Vec<PathBuf>>> = OnceLock::new();
+    RECORDED_USER_PATHS.get_or_init(|| Mutex::new(Vec::new()))
+}
+
+impl DefaultRenderStoreCreationPolicy for RecordingRenderStore {
+    fn default_creation_policy() -> RenderStoreCreationPolicy {
+        RenderStoreCreationPolicy::DoNotCreate
+    }
+}
+
+impl RenderStoreForUser for RecordingRenderStore {
+    type RenderStore = Self;
+
+    fn render_store_for_user(
+        _creation_policy: RenderStoreCreationPolicy,
+        _url: url::Url,
+        _root: &Path,
+        username: &Path,
+    ) -> OpenRepositoryResult<Self> {
+        recorded_user_paths()
+            .lock()
+            .expect("recorded user paths mutex should not be poisoned")
+            .push(username.to_path_buf());
+        Ok(Self)
+    }
+}
+
+impl TryRenderStore for RecordingRenderStore {
+    fn try_render_store(&self) -> OpenRepositoryResult<Cow<'_, RenderStore>> {
+        Err(OpenRepositoryError::RenderStorageUnavailable)
+    }
+
+    fn proxy_path(&self) -> Option<Cow<'_, Path>> {
+        None
+    }
+}
 
 #[tokio::test]
 async fn test_render_store_for_user_create_if_missing_creates_proxy_dir() {
@@ -143,5 +200,57 @@ async fn test_try_from_maybe_open_repo_to_render_repo_succeeds_after_render_stor
     assert!(
         converted.is_ok(),
         "conversion should succeed once the render store exists"
+    );
+}
+
+#[tokio::test]
+async fn test_renders_for_all_users_passes_username_segment_to_render_store_for_user() {
+    let tmpdir = tempfile::Builder::new()
+        .prefix("spfs-test-")
+        .tempdir()
+        .unwrap();
+    let root = tmpdir.path().join("repo");
+    std::fs::create_dir_all(root.join("objects")).unwrap();
+    std::fs::create_dir_all(root.join("payloads")).unwrap();
+
+    let username = "test-user-segment";
+    std::fs::create_dir_all(root.join("renders").join(username)).unwrap();
+
+    recorded_user_paths()
+        .lock()
+        .expect("recorded user paths mutex should not be poisoned")
+        .clear();
+
+    let repo = OpenFsRepositoryImpl::<RecordingRenderStore> {
+        objects: FsHashStore::open_unchecked(root.join("objects")),
+        payloads: FsHashStore::open_unchecked(root.join("payloads")),
+        rs_impl: RecordingRenderStore,
+        root: root.clone(),
+        tag_namespace: None,
+    };
+
+    let renders = repo.renders_for_all_users().unwrap();
+    assert_eq!(
+        renders.len(),
+        1,
+        "one user render directory should produce one repository entry"
+    );
+    assert_eq!(
+        renders[0].0, username,
+        "returned username should match the renders directory name"
+    );
+
+    let recorded = recorded_user_paths()
+        .lock()
+        .expect("recorded user paths mutex should not be poisoned")
+        .clone();
+    assert_eq!(
+        recorded,
+        vec![PathBuf::from(username)],
+        "render_store_for_user should receive a username segment, not renders/<username>"
+    );
+    assert!(
+        !recorded[0].to_string_lossy().contains("renders"),
+        "forwarded path should not include the renders directory prefix"
     );
 }

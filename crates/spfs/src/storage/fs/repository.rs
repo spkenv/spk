@@ -1347,27 +1347,26 @@ where
             if !dir.is_dir() {
                 continue;
             }
-            render_dirs.push((
+            render_dirs.push(
                 entry
                     .file_name()
                     .to_str()
                     .expect("filename is valid utf8")
                     .to_string(),
-                dir,
-            ));
+            );
         }
 
         render_dirs
             .into_iter()
-            .map(|(username, dir)| {
+            .map(|username| {
                 let fs_impl = Self {
                     objects: FsHashStore::open_unchecked(self.root.join("objects")),
                     payloads: FsHashStore::open_unchecked(self.root.join("payloads")),
                     rs_impl: RS::render_store_for_user(
                         RenderStoreCreationPolicy::DoNotCreate,
-                        (*self.address()).clone(),
+                        self.address().into_owned(),
                         &self.root,
-                        &dir,
+                        Path::new(&username),
                     )
                     .map_err(|source| Error::FailedToOpenRepository {
                         repository: format!("<Render Storage for {username}>",),
