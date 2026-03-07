@@ -418,9 +418,7 @@ where
 
                 render_blob_result
             } else {
-                return Err(
-                    "Cannot render blob as hard link to repository with no render store".into(),
-                );
+                return Err(Error::NoRenderStorage(self.repo.address().into_owned()));
             };
 
             break if let Err(err) = nix::unistd::linkat(
