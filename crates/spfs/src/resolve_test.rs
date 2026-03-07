@@ -12,7 +12,9 @@ use crate::fixtures::*;
 #[cfg(unix)]
 use crate::io::DigestFormat;
 use crate::prelude::*;
+use crate::storage::fallback::FallbackProxy;
 use crate::storage::fs::RenderStore;
+use crate::storage::{RepositoryHandle, fs};
 use crate::{encoding, graph, io};
 
 #[rstest]
@@ -27,6 +29,88 @@ async fn test_stack_to_layers_dedupe(#[future] tmprepo: TempRepo) {
     repo.write_object(&platform).await.unwrap();
     let resolved = resolve_stack_to_layers(&stack, Some(&repo)).await.unwrap();
     assert_eq!(resolved.len(), 1, "should deduplicate layers in resolve");
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_stack_to_layers_dedupe_all_repo_handle_variants(tmpdir: tempfile::TempDir) {
+    fn make_test_stack() -> (graph::Layer, graph::Platform, graph::Stack) {
+        let layer = graph::Layer::new(encoding::EMPTY_DIGEST.into());
+        let platform = graph::Platform::from_digestible([&layer, &layer]).unwrap();
+        let mut stack = graph::Stack::from_digestible([&layer]).unwrap();
+        stack.push(platform.digest().unwrap());
+        (layer, platform, stack)
+    }
+
+    async fn assert_dedupe(handle: &RepositoryHandle) {
+        let (layer, platform, stack) = make_test_stack();
+        handle.write_object(&layer).await.unwrap();
+        handle.write_object(&platform).await.unwrap();
+        let resolved = resolve_stack_to_layers(&stack, Some(handle)).await.unwrap();
+        assert_eq!(resolved.len(), 1, "should deduplicate layers in resolve");
+    }
+
+    let repo_root = |name: &str| tmpdir.path().join(name);
+
+    let fs_with_maybe: RepositoryHandle =
+        fs::MaybeOpenFsRepository::<fs::MaybeRenderStore>::create(repo_root("fs-with-maybe"))
+            .await
+            .unwrap()
+            .into();
+    assert_dedupe(&fs_with_maybe).await;
+
+    let fs_with_renders: RepositoryHandle =
+        fs::MaybeOpenFsRepository::<fs::RenderStore>::create(repo_root("fs-with-renders"))
+            .await
+            .unwrap()
+            .into();
+    assert_dedupe(&fs_with_renders).await;
+
+    let fs_without_renders: RepositoryHandle =
+        fs::MaybeOpenFsRepository::<fs::NoRenderStore>::create(repo_root("fs-without-renders"))
+            .await
+            .unwrap()
+            .into();
+    assert_dedupe(&fs_without_renders).await;
+
+    let fallback_with_maybe: RepositoryHandle = FallbackProxy::<fs::MaybeRenderStore>::new(
+        fs::MaybeOpenFsRepository::<fs::MaybeRenderStore>::create(repo_root("fallback-maybe"))
+            .await
+            .unwrap()
+            .opened()
+            .await
+            .unwrap(),
+        vec![],
+        false,
+    )
+    .into();
+    assert_dedupe(&fallback_with_maybe).await;
+
+    let fallback_with_renders: RepositoryHandle = FallbackProxy::<fs::RenderStore>::new(
+        fs::MaybeOpenFsRepository::<fs::RenderStore>::create(repo_root("fallback-render"))
+            .await
+            .unwrap()
+            .opened()
+            .await
+            .unwrap(),
+        vec![],
+        false,
+    )
+    .into();
+    assert_dedupe(&fallback_with_renders).await;
+
+    let fallback_without_renders: RepositoryHandle = FallbackProxy::<fs::NoRenderStore>::new(
+        fs::MaybeOpenFsRepository::<fs::NoRenderStore>::create(repo_root("fallback-none"))
+            .await
+            .unwrap()
+            .opened()
+            .await
+            .unwrap(),
+        vec![],
+        false,
+    )
+    .into();
+    assert_dedupe(&fallback_without_renders).await;
 }
 
 // `resolve_overlay_dirs` only exists on unix
