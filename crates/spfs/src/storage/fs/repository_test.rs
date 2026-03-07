@@ -98,3 +98,50 @@ async fn test_without_render_creation_disables_lazy_render_store_creation() {
         "missing render store should still be reported as not initialized"
     );
 }
+
+#[tokio::test]
+async fn test_try_from_maybe_open_repo_to_render_repo_fails_with_creation_disabled() {
+    let tmpdir = tempfile::Builder::new()
+        .prefix("spfs-test-")
+        .tempdir()
+        .unwrap();
+    let root = tmpdir.path().join("repo");
+
+    let repo = MaybeOpenFsRepository::<MaybeRenderStore>::create(&root)
+        .await
+        .unwrap()
+        .without_render_creation();
+    let err = <MaybeOpenFsRepository<RenderStore>>::try_from(repo)
+        .expect_err("conversion should fail when renders have not been created");
+    assert!(
+        matches!(
+            err,
+            crate::storage::OpenRepositoryError::PathNotInitialized { .. }
+        ),
+        "missing render store should fail with PathNotInitialized"
+    );
+}
+
+#[tokio::test]
+async fn test_try_from_maybe_open_repo_to_render_repo_succeeds_after_render_store_exists() {
+    let tmpdir = tempfile::Builder::new()
+        .prefix("spfs-test-")
+        .tempdir()
+        .unwrap();
+    let root = tmpdir.path().join("repo");
+
+    let repo = MaybeOpenFsRepository::<MaybeRenderStore>::create(&root)
+        .await
+        .unwrap();
+    let opened = repo.opened().await.unwrap();
+    opened
+        .fs_impl
+        .try_render_store()
+        .expect("create the render store before conversion");
+
+    let converted = <MaybeOpenFsRepository<RenderStore>>::try_from(repo);
+    assert!(
+        converted.is_ok(),
+        "conversion should succeed once the render store exists"
+    );
+}
