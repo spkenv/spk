@@ -246,7 +246,7 @@ async fn test_renders_for_all_users_passes_username_segment_to_render_store_for_
     std::fs::create_dir_all(root.join("payloads")).unwrap();
 
     let username = "test-user-segment";
-    std::fs::create_dir_all(root.join("renders").join(username)).unwrap();
+    std::fs::create_dir_all(root.join("renders").join(username).join("proxy")).unwrap();
 
     recorded_user_paths()
         .lock()
@@ -337,9 +337,10 @@ async fn test_renders_for_all_users_skips_unavailable_per_user_stores() {
     std::fs::create_dir_all(root.join("objects")).unwrap();
     std::fs::create_dir_all(root.join("payloads")).unwrap();
 
-    // Create two user directories: one good, one that will fail.
-    std::fs::create_dir_all(root.join("renders").join("good-user")).unwrap();
-    std::fs::create_dir_all(root.join("renders").join("bad-user")).unwrap();
+    // Create two user directories with proxy dirs: one good, one that will
+    // fail in render_store_for_user due to the "bad-" prefix.
+    std::fs::create_dir_all(root.join("renders").join("good-user").join("proxy")).unwrap();
+    std::fs::create_dir_all(root.join("renders").join("bad-user").join("proxy")).unwrap();
 
     let repo = OpenFsRepositoryImpl::<FailingRenderStore> {
         objects: FsHashStore::open_unchecked(root.join("objects")),
@@ -360,5 +361,51 @@ async fn test_renders_for_all_users_skips_unavailable_per_user_stores() {
     assert_eq!(
         renders[0].0, "good-user",
         "the returned user should be the one whose render store succeeded"
+    );
+}
+
+#[tokio::test]
+async fn test_renders_for_all_users_skips_deferred_render_store_with_missing_proxy() {
+    // MaybeRenderStore defers on-disk validation, so render_store_for_user()
+    // always succeeds. This test verifies that renders_for_all_users still
+    // skips users whose on-disk proxy directory is missing.
+    let tmpdir = tempfile::Builder::new()
+        .prefix("spfs-test-")
+        .tempdir()
+        .unwrap();
+    let root = tmpdir.path().join("repo");
+    std::fs::create_dir_all(root.join("objects")).unwrap();
+    std::fs::create_dir_all(root.join("payloads")).unwrap();
+
+    // Create a user render directory but do NOT create the proxy subdirectory
+    // inside it, so try_render_store() will fail with PathNotInitialized.
+    std::fs::create_dir_all(root.join("renders").join("missing-proxy-user")).unwrap();
+
+    // Also create a valid user with proxy dir so we can verify it is returned.
+    let valid_user = "valid-user";
+    std::fs::create_dir_all(root.join("renders").join(valid_user).join("proxy")).unwrap();
+
+    let url = url::Url::from_directory_path(&root).unwrap();
+    let repo = OpenFsRepositoryImpl::<MaybeRenderStore> {
+        objects: FsHashStore::open_unchecked(root.join("objects")),
+        payloads: FsHashStore::open_unchecked(root.join("payloads")),
+        rs_impl: MaybeRenderStore::render_store_for_user(
+            RenderStoreCreationPolicy::DoNotCreate,
+            url,
+            &root,
+            Path::new("_unused"),
+        )
+        .unwrap(),
+        root: root.clone(),
+        tag_namespace: None,
+    };
+
+    let renders = repo
+        .renders_for_all_users()
+        .expect("should not fail even though one user has no proxy dir");
+    assert_eq!(renders.len(), 1, "only the valid user should be returned");
+    assert_eq!(
+        renders[0].0, valid_user,
+        "the returned user should be the one with a valid proxy directory"
     );
 }

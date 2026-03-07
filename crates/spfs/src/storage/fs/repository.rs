@@ -1366,6 +1366,34 @@ where
         render_dirs
             .into_iter()
             .filter_map(|username| {
+                // Pre-validate the proxy directory on disk before calling
+                // render_store_for_user. Some RS types (e.g. MaybeRenderStore)
+                // defer validation, so render_store_for_user alone may succeed
+                // even when the on-disk proxy directory is missing.
+                let proxy_dir = self
+                    .root
+                    .join("renders")
+                    .join(&username)
+                    .join(PROXY_DIRNAME);
+                match std::fs::symlink_metadata(&proxy_dir) {
+                    Ok(_) => {}
+                    Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                        tracing::warn!(
+                            %username,
+                            "Skipping per-user render store (proxy directory not found)"
+                        );
+                        return None;
+                    }
+                    Err(err) => {
+                        tracing::warn!(
+                            %username,
+                            ?err,
+                            "Skipping per-user render store (unable to read proxy directory)"
+                        );
+                        return None;
+                    }
+                }
+
                 let rs_impl = match RS::render_store_for_user(
                     RenderStoreCreationPolicy::DoNotCreate,
                     self.address().into_owned(),
@@ -1390,6 +1418,7 @@ where
                         }));
                     }
                 };
+
                 let fs_impl = Self {
                     objects: FsHashStore::open_unchecked(self.root.join("objects")),
                     payloads: FsHashStore::open_unchecked(self.root.join("payloads")),
