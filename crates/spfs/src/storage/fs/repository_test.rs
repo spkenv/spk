@@ -130,6 +130,38 @@ async fn test_render_store_for_user_do_not_create_returns_error() {
 }
 
 #[tokio::test]
+async fn test_render_store_for_user_create_if_missing_returns_non_not_found_errors() {
+    let tmpdir = tempfile::Builder::new()
+        .prefix("spfs-test-")
+        .tempdir()
+        .unwrap();
+    let root = tmpdir.path().join("repo");
+    std::fs::create_dir_all(&root).unwrap();
+
+    let username = PathBuf::from("test-user-enotdir");
+    let renders_dir = root.join("renders").join(&username);
+    std::fs::create_dir_all(renders_dir.parent().unwrap()).unwrap();
+    std::fs::write(&renders_dir, b"not a directory").unwrap();
+
+    let url = url::Url::from_directory_path(&root).unwrap();
+    let err = RenderStore::render_store_for_user(
+        RenderStoreCreationPolicy::CreateIfMissing,
+        url,
+        &root,
+        &username,
+    )
+    .expect_err("create-if-missing should return non-NotFound metadata errors");
+
+    assert!(
+        matches!(
+            err,
+            crate::storage::OpenRepositoryError::PathNotInitialized { .. }
+        ),
+        "create-if-missing should preserve metadata errors that are not NotFound"
+    );
+}
+
+#[tokio::test]
 async fn test_without_render_creation_disables_lazy_render_store_creation() {
     let tmpdir = tempfile::Builder::new()
         .prefix("spfs-test-")

@@ -147,8 +147,9 @@ impl RenderStoreForUser for RenderStore {
         let stat = std::fs::symlink_metadata(&proxy_dir);
 
         match creation_policy {
-            RenderStoreCreationPolicy::CreateIfMissing => {
-                if stat.is_err() {
+            RenderStoreCreationPolicy::CreateIfMissing => match stat {
+                Ok(_) => {}
+                Err(source) if source.kind() == std::io::ErrorKind::NotFound => {
                     makedirs_with_perms(&proxy_dir, 0o777).map_err(|source| {
                         OpenRepositoryError::PathNotInitialized {
                             path: proxy_dir.clone(),
@@ -156,7 +157,13 @@ impl RenderStoreForUser for RenderStore {
                         }
                     })?;
                 }
-            }
+                Err(source) => {
+                    return Err(OpenRepositoryError::PathNotInitialized {
+                        path: proxy_dir,
+                        source,
+                    });
+                }
+            },
             RenderStoreCreationPolicy::DoNotCreate => {
                 if let Err(source) = stat {
                     return Err(OpenRepositoryError::PathNotInitialized {
