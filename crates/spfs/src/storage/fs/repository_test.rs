@@ -286,3 +286,79 @@ async fn test_renders_for_all_users_passes_username_segment_to_render_store_for_
         "forwarded path should not include the renders directory prefix"
     );
 }
+
+/// A render store that fails with [`OpenRepositoryError::PathNotInitialized`]
+/// for usernames containing "bad-".
+#[derive(Clone, Debug)]
+struct FailingRenderStore;
+
+impl DefaultRenderStoreCreationPolicy for FailingRenderStore {
+    fn default_creation_policy() -> RenderStoreCreationPolicy {
+        RenderStoreCreationPolicy::DoNotCreate
+    }
+}
+
+impl RenderStoreForUser for FailingRenderStore {
+    type RenderStore = Self;
+
+    fn render_store_for_user(
+        _creation_policy: RenderStoreCreationPolicy,
+        _url: url::Url,
+        _root: &Path,
+        username: &Path,
+    ) -> OpenRepositoryResult<Self> {
+        if username.to_string_lossy().contains("bad-") {
+            return Err(OpenRepositoryError::PathNotInitialized {
+                path: username.to_path_buf(),
+                source: std::io::Error::new(std::io::ErrorKind::NotFound, "simulated"),
+            });
+        }
+        Ok(Self)
+    }
+}
+
+impl TryRenderStore for FailingRenderStore {
+    fn try_render_store(&self) -> OpenRepositoryResult<Cow<'_, RenderStore>> {
+        Err(OpenRepositoryError::RenderStorageUnavailable)
+    }
+
+    fn proxy_path(&self) -> Option<Cow<'_, Path>> {
+        None
+    }
+}
+
+#[tokio::test]
+async fn test_renders_for_all_users_skips_unavailable_per_user_stores() {
+    let tmpdir = tempfile::Builder::new()
+        .prefix("spfs-test-")
+        .tempdir()
+        .unwrap();
+    let root = tmpdir.path().join("repo");
+    std::fs::create_dir_all(root.join("objects")).unwrap();
+    std::fs::create_dir_all(root.join("payloads")).unwrap();
+
+    // Create two user directories: one good, one that will fail.
+    std::fs::create_dir_all(root.join("renders").join("good-user")).unwrap();
+    std::fs::create_dir_all(root.join("renders").join("bad-user")).unwrap();
+
+    let repo = OpenFsRepositoryImpl::<FailingRenderStore> {
+        objects: FsHashStore::open_unchecked(root.join("objects")),
+        payloads: FsHashStore::open_unchecked(root.join("payloads")),
+        rs_impl: FailingRenderStore,
+        root: root.clone(),
+        tag_namespace: None,
+    };
+
+    let renders = repo
+        .renders_for_all_users()
+        .expect("should not fail even though one user store is unavailable");
+    assert_eq!(
+        renders.len(),
+        1,
+        "only the good user should be returned, the bad user should be skipped"
+    );
+    assert_eq!(
+        renders[0].0, "good-user",
+        "the returned user should be the one whose render store succeeded"
+    );
+}

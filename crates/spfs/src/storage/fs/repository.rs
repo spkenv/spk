@@ -1365,24 +1365,39 @@ where
 
         render_dirs
             .into_iter()
-            .map(|username| {
+            .filter_map(|username| {
+                let rs_impl = match RS::render_store_for_user(
+                    RenderStoreCreationPolicy::DoNotCreate,
+                    self.address().into_owned(),
+                    &self.root,
+                    Path::new(&username),
+                ) {
+                    Ok(rs) => rs,
+                    Err(
+                        OpenRepositoryError::PathNotInitialized { .. }
+                        | OpenRepositoryError::RenderStorageUnavailable,
+                    ) => {
+                        tracing::warn!(
+                            %username,
+                            "Skipping per-user render store (not initialized or unavailable)"
+                        );
+                        return None;
+                    }
+                    Err(source) => {
+                        return Some(Err(Error::FailedToOpenRepository {
+                            repository: format!("<Render Storage for {username}>"),
+                            source,
+                        }));
+                    }
+                };
                 let fs_impl = Self {
                     objects: FsHashStore::open_unchecked(self.root.join("objects")),
                     payloads: FsHashStore::open_unchecked(self.root.join("payloads")),
-                    rs_impl: RS::render_store_for_user(
-                        RenderStoreCreationPolicy::DoNotCreate,
-                        self.address().into_owned(),
-                        &self.root,
-                        Path::new(&username),
-                    )
-                    .map_err(|source| Error::FailedToOpenRepository {
-                        repository: format!("<Render Storage for {username}>",),
-                        source,
-                    })?,
+                    rs_impl,
                     root: self.root.clone(),
                     tag_namespace: self.tag_namespace.clone(),
                 };
-                Ok((username, fs_impl))
+                Some(Ok((username, fs_impl)))
             })
             .collect::<Result<Vec<_>>>()
     }
