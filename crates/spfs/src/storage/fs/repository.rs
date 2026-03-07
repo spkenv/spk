@@ -36,6 +36,10 @@ use crate::storage::{
 };
 use crate::{Error, Result};
 
+#[cfg(test)]
+#[path = "./repository_test.rs"]
+mod repository_test;
+
 /// The directory name within the repo where durable runtimes keep
 /// their upper path roots and upper/work directories.
 pub const DURABLE_EDITS_DIR: &str = "durable_edits";
