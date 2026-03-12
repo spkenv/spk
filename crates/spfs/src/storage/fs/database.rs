@@ -7,7 +7,6 @@ use std::os::unix::fs::PermissionsExt;
 use std::pin::Pin;
 
 use chrono::{DateTime, Utc};
-use close_err::Closable;
 use encoding::prelude::*;
 use futures::{Stream, StreamExt, TryFutureExt};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -248,14 +247,14 @@ impl graph::DatabaseExt for super::OpenFsRepository {
                 err,
             ));
         }
-        if let Err(err) = writer.into_inner().into_std().await.close() {
+        if let Err(err) = writer.into_inner().sync_all().await {
             let _ = tokio::fs::remove_file(&working_file).await;
             return Err(Error::StorageWriteError(
-                "close on object file",
+                "sync_all on object file",
                 working_file.clone(),
                 err,
             ));
-        }
+        };
         #[cfg(unix)]
         {
             let perms = std::fs::Permissions::from_mode(self.objects.file_permissions);

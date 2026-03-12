@@ -33,7 +33,6 @@ async-trait = "0.1.52"
 bytes = { workspace = true }
 cached = { workspace = true }
 chrono = { workspace = true }
-close-err = "1.0"
 colored = "2.0"
 config = { workspace = true }
 dashmap = { workspace = true }

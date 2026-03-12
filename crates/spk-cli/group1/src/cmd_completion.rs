@@ -7,8 +7,7 @@
 use std::io::Write;
 
 use clap::{Command, Parser, value_parser};
-use clap_complete;
-use clap_complete::Shell;
+use clap_complete::{self, Shell};
 use miette::Result;
 use spk_cli_common::CommandArgs;
 

@@ -9,7 +9,6 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 
 use async_stream::try_stream;
-use close_err::Closable;
 use futures::{Stream, TryStreamExt};
 use tokio::fs::DirEntry;
 use tokio::io::AsyncWriteExt;
@@ -253,6 +252,7 @@ impl FsHashStore {
         };
 
         if let Err(err) = hasher.flush().await {
+            let _ = tokio::fs::remove_file(&working_file).await;
             return Err(Error::StorageWriteError(
                 "flush on hash store object file",
                 working_file,
@@ -260,9 +260,10 @@ impl FsHashStore {
             ));
         }
         let digest = hasher.digest();
-        if let Err(err) = writer.into_inner().into_std().await.close() {
+        if let Err(err) = writer.into_inner().sync_all().await {
+            let _ = tokio::fs::remove_file(&working_file).await;
             return Err(Error::StorageWriteError(
-                "close on hash store object file",
+                "sync_all on hash store object file",
                 working_file,
                 err,
             ));

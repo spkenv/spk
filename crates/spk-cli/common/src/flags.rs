@@ -40,12 +40,13 @@ use spk_schema::ident::{
 };
 use spk_schema::option_map::HOST_OPTIONS;
 use spk_schema::{Recipe, SpecFileData, SpecRecipe, Template, TestStage, VariantExt};
+use spk_solve as solve;
 #[cfg(unix)]
 #[cfg(feature = "statsd")]
 use spk_solve::{SPK_RUN_TIME_METRIC, get_metrics_client};
+use spk_storage as storage;
 use spk_workspace::{FindOrLoadPackageTemplateError, FindPackageTemplateError};
 pub use variant::{Variant, VariantBuildStatus, VariantLocation};
-use {spk_solve as solve, spk_storage as storage};
 
 use crate::parsing::{VariantIndex, stage_specifier};
 use crate::{CommandArgs, Error};

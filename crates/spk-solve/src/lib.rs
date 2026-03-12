@@ -32,10 +32,13 @@ pub use metrics::{
     get_metrics_client,
 };
 pub(crate) use search_space::show_search_space_stats;
+pub use serde;
+pub use serde_json;
 pub use solver::{Solver, SolverExt, SolverImpl, SolverMut};
 // Publicly exported ResolvoSolver to stop dead code warnings
 pub use solvers::ResolvoSolver;
 pub use solvers::{StepSolver, StepSolverRuntime};
+pub use spfs;
 pub use spk_schema::foundation::ident_build::Build;
 pub use spk_schema::foundation::ident_component::Component;
 pub use spk_schema::foundation::option_map;
@@ -49,15 +52,10 @@ pub use spk_schema::ident::{
     parse_ident_range,
 };
 pub use spk_schema::{Package, Recipe, Spec, SpecRecipe, recipe, spec, v0};
+pub use spk_solve_graph as graph;
+pub use spk_solve_package_iterator as package_iterator;
+pub use spk_solve_solution as solution;
 pub use spk_solve_solution::{PackageSource, Solution};
+pub use spk_solve_validation as validation;
 pub use spk_storage::RepositoryHandle;
 pub(crate) use status_line::StatusLine;
-pub use {
-    serde,
-    serde_json,
-    spfs,
-    spk_solve_graph as graph,
-    spk_solve_package_iterator as package_iterator,
-    spk_solve_solution as solution,
-    spk_solve_validation as validation,
-};
