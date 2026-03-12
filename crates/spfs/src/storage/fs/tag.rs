@@ -13,7 +13,6 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Poll;
 
-use close_err::Closable;
 use encoding::{Decodable, Encodable};
 use futures::future::ready;
 use futures::{Future, Stream, StreamExt, TryFutureExt};
@@ -599,9 +598,9 @@ async fn write_tags_to_path(filepath: &PathBuf, tags: &[tracking::Tag]) -> Resul
             err,
         ));
     }
-    if let Err(err) = file.into_inner().into_std().await.close() {
+    if let Err(err) = file.into_inner().sync_all().await {
         return Err(Error::StorageWriteError(
-            "close on tag file",
+            "sync_all on tag file",
             filepath.clone(),
             err,
         ));
