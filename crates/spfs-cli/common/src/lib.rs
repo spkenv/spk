@@ -8,7 +8,8 @@ mod args;
 
 pub mod __private {
     // Private re-exports for macros
-    pub use {libc, spfs};
+    pub use libc;
+    pub use spfs;
 }
 
 pub use args::{
