@@ -119,7 +119,7 @@ impl Run for Install {
             }
         }
 
-        let compiled_solution = build_required_packages(&solution, solver)
+        let compiled_solution = build_required_packages(&solution, &formatter, solver)
             .await
             .wrap_err("Failed to build one or more packages from source")?;
         setup_current_runtime(&compiled_solution).await?;

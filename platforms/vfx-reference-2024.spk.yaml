@@ -1,0 +1,6 @@
+api: v1/platform
+platform: vfx-reference/2024
+requirements:
+  - pkg: python
+    build:
+      version: 3.10.0

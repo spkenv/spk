@@ -431,14 +431,18 @@ impl Requests {
                     unreachable!();
                 };
 
-                let configured = ws
+                let template = ws
                     .find_or_load_package_template(package)
                     .wrap_err("did not find recipe template")?;
-                let rendered_data = configured.template.render(options)?;
+                let rendered_data =
+                    template.render(spk_schema::template::TemplateRenderConfig {
+                        options: options.clone(),
+                        ..Default::default()
+                    })?;
                 let recipe = rendered_data.into_recipe().wrap_err_with(|| {
                     format!(
                         "{filename} was expected to contain a recipe",
-                        filename = configured.template.file_path().to_string_lossy()
+                        filename = template.file_path().to_string_lossy()
                     )
                 })?;
                 idents.push(recipe.ident().to_any_ident(None));
@@ -764,7 +768,8 @@ impl Workspace {
             | Err(spk_workspace::error::FromPathError::LoadWorkspaceFileError(
                 spk_workspace::error::LoadWorkspaceFileError::WorkspaceNotFound(_),
             )) => {
-                let mut builder = spk_workspace::Workspace::builder();
+                let mut builder =
+                    spk_workspace::Workspace::builder().with_ignore_invalid_files(true);
 
                 if self.workspace.is_dir() {
                     tracing::debug!(
@@ -912,7 +917,7 @@ where
         Some(package_name) => workspace.find_or_load_package_template(package_name),
         None => workspace.default_package_template().map_err(From::from),
     };
-    let configured = match from_workspace {
+    let template = match from_workspace {
         Ok(template) => template,
         res @ Err(FindOrLoadPackageTemplateError::FindPackageTemplateError(
             FindPackageTemplateError::MultipleTemplates(_),
@@ -984,17 +989,22 @@ where
             }
         }
     };
-    let found = configured.template.render(options).wrap_err_with(|| {
-        format!(
-            "{filename} was expected to contain a valid spk yaml data file",
-            filename = configured.template.file_path().to_string_lossy()
-        )
-    })?;
+    let found = template
+        .render(spk_schema::template::TemplateRenderConfig {
+            options: options.clone(),
+            ..Default::default()
+        })
+        .wrap_err_with(|| {
+            format!(
+                "{filename} was expected to contain a valid spk yaml data file",
+                filename = template.file_path().to_string_lossy()
+            )
+        })?;
     tracing::debug!(
-        "Rendered configured.template from the data in {:?}",
-        configured.template.file_path()
+        "Rendered template from the data in {:?}",
+        template.file_path()
     );
-    Ok((found, configured.template.file_path().to_owned()))
+    Ok((found, template.file_path().to_owned()))
 }
 
 #[derive(Args, Clone)]

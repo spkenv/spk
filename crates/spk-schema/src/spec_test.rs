@@ -4,12 +4,13 @@
 
 use rstest::rstest;
 use spk_schema_foundation::name::PkgName;
-use spk_schema_foundation::option_map;
 use spk_schema_foundation::option_map::OptionMap;
 use spk_schema_foundation::spec_ops::HasVersion;
+use spk_schema_foundation::{option_map, version};
 
 use super::SpecTemplate;
 use crate::prelude::*;
+use crate::template::{TemplateRenderConfig, TemplateSpec};
 use crate::{Template, recipe};
 
 #[rstest]
@@ -316,19 +317,19 @@ fn test_get_build_requirements_pkg_in_variant_preserves_order() {
 #[rstest]
 fn test_template_error_message() {
     format_serde_error::never_color();
-    static SPEC: &str = r#"pkg: my-package/{{ opt.version }}
+    static SPEC: &str = r#"pkg: my-package/{{ version }}
 sources:
   - git: https://downloads.testing/my-package/v{{ opt.typo }}
 "#;
     let tpl = SpecTemplate {
+        template_spec: TemplateSpec::from_single_version(version!("1.0.0")),
+        supported_versions: Default::default(),
         name: Some(PkgName::new("my-package").unwrap().to_owned()),
         file_path: "my-package.spk.yaml".into(),
-        versions: Default::default(),
         template: SPEC.into(),
     };
-    let options = option_map! {"version" => "1.0.0"};
     let err = tpl
-        .render(&options)
+        .render(TemplateRenderConfig::default())
         .expect_err("expect template rendering to fail");
     let expected = "Variable `opt.typo` not found";
     let message = format!("{err:?}");
@@ -346,14 +347,18 @@ fn test_template_namespace_options() {
     format_serde_error::never_color();
     static SPEC: &str = r#"pkg: mypackage/{{ opt.namespace.version }}"#;
     let tpl = SpecTemplate {
+        template_spec: TemplateSpec::from_single_version(version!("1.0.0")),
+        supported_versions: Default::default(),
         name: Some(PkgName::new("my-package").unwrap().to_owned()),
         file_path: "my-package.spk.yaml".into(),
-        versions: Default::default(),
         template: SPEC.into(),
     };
     let options = option_map! {"namespace.version" => "1.0.0"};
     let rendered_data = tpl
-        .render(&options)
+        .render(TemplateRenderConfig {
+            options,
+            ..Default::default()
+        })
         .expect("template should render with sub-object access");
     let recipe = rendered_data.into_recipe().unwrap();
     assert_eq!(recipe.version().to_string(), "1.0.0");

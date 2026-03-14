@@ -163,8 +163,6 @@ pub enum PackageRepoProblem {
         to_string = "package did not come from requested repo (it was embedded in {parent_ident})"
     )]
     EmbeddedInPackageFromWrongRepository { parent_ident: String },
-    #[strum(to_string = "package did not come from requested repo (it comes from a spec)")]
-    FromRecipeFromWrongRepository,
     #[strum(
         to_string = "package did not come from requested repo (it comes from an internal test setup)"
     )]
