@@ -25,7 +25,9 @@ use fuser::{
     ReplyDirectory,
     ReplyDirectoryPlus,
     ReplyEntry,
+    ReplyIoctl,
     ReplyOpen,
+    ReplyXattr,
     Request,
 };
 use spfs::OsError;
@@ -974,6 +976,46 @@ impl fuser::Filesystem for Session {
             let fs = unwrap!(reply, session.get_fs().await);
             fs.lseek(ino, fh, offset, whence, reply).await
         });
+    }
+
+    fn flush(
+        &mut self,
+        _req: &Request<'_>,
+        _ino: u64,
+        _fh: u64,
+        _lock_owner: u64,
+        reply: fuser::ReplyEmpty,
+    ) {
+        reply.error(libc::ENOSYS);
+    }
+
+    fn access(&mut self, _req: &Request<'_>, _ino: u64, _mask: i32, reply: fuser::ReplyEmpty) {
+        reply.error(libc::ENOSYS);
+    }
+
+    fn getxattr(
+        &mut self,
+        _req: &Request<'_>,
+        _ino: u64,
+        _name: &OsStr,
+        _size: u32,
+        reply: ReplyXattr,
+    ) {
+        reply.error(libc::ENOSYS);
+    }
+
+    fn ioctl(
+        &mut self,
+        _req: &Request<'_>,
+        _ino: u64,
+        _fh: u64,
+        _flags: u32,
+        _cmd: u32,
+        _in_data: &[u8],
+        _out_size: u32,
+        reply: ReplyIoctl,
+    ) {
+        reply.error(libc::ENOSYS);
     }
 }
 
