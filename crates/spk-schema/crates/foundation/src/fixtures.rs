@@ -18,6 +18,7 @@ static TRACING_STORAGE: Lazy<SharedStorage> = Lazy::new(SharedStorage::default);
 /// events and spans that were logged
 pub fn init_logging() -> &'static SharedStorage {
     let sub = tracing_subscriber::FmtSubscriber::builder()
+        .with_ansi_sanitization(false)
         .with_max_level(tracing::Level::TRACE)
         .without_time()
         .with_test_writer()

@@ -343,6 +343,7 @@ pub unsafe fn configure_logging(verbosity: u8) -> Result<()> {
     }
     let env_filter = tracing_subscriber::filter::EnvFilter::new(directives);
     let stderr_log = tracing_subscriber::fmt::layer()
+        .with_ansi_sanitization(false)
         .with_target(verbosity > 2)
         .with_writer(std::io::stderr);
     let stderr_log = if std::env::var("SPK_LOG_ENABLE_TIMESTAMP").is_ok() {
