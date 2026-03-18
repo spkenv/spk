@@ -397,7 +397,11 @@ impl Logging {
         }
 
         let env_filter = move || tracing_subscriber::filter::EnvFilter::from(config.clone());
-        let fmt_layer = || tracing_subscriber::fmt::layer().with_target(self.show_target());
+        let fmt_layer = || {
+            tracing_subscriber::fmt::layer()
+                .with_target(self.show_target())
+                .with_ansi_sanitization(false)
+        };
 
         #[cfg(unix)]
         let syslog_layer = self.syslog.then(|| {

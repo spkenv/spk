@@ -85,6 +85,7 @@ impl Drop for TempRepo {
 
 pub fn init_logging() {
     let sub = tracing_subscriber::FmtSubscriber::builder()
+        .with_ansi_sanitization(false)
         .with_env_filter("spfs=trace")
         .without_time()
         .with_test_writer()

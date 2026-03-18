@@ -19,6 +19,7 @@ pub fn tmpdir() -> tempfile::TempDir {
 
 pub fn init_logging() {
     let sub = tracing_subscriber::FmtSubscriber::builder()
+        .with_ansi_sanitization(false)
         .with_env_filter("spk_workspace=trace,debug")
         .without_time()
         .with_test_writer()
