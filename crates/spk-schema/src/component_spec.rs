@@ -11,7 +11,7 @@ use spk_schema_foundation::name::PkgName;
 use spk_schema_foundation::option_map::OptionMap;
 use spk_schema_foundation::spec_ops::{ComponentFileMatchMode, HasBuildIdent};
 
-use super::RequirementsList;
+use super::{ComponentEmbeddedPackagesList, RequirementsList};
 use crate::component_spec_list::ComponentSpecDefaults;
 use crate::foundation::ident_component::Component;
 use crate::foundation::spec_ops::{ComponentOps, FileMatcher};
@@ -32,7 +32,7 @@ struct RawComponentSpec {
     #[serde(default)]
     requirements: super::RequirementsList<PinnedRequest>,
     #[serde(default)]
-    embedded: super::ComponentEmbeddedPackagesList,
+    embedded: ComponentEmbeddedPackagesList,
     #[serde(default)]
     file_match_mode: ComponentFileMatchMode,
 }
@@ -72,7 +72,7 @@ pub struct ComponentSpec {
         default,
         skip_serializing_if = "super::ComponentEmbeddedPackagesList::is_fabricated"
     )]
-    pub embedded: super::ComponentEmbeddedPackagesList,
+    pub embedded: ComponentEmbeddedPackagesList,
 
     #[serde(default)]
     pub file_match_mode: ComponentFileMatchMode,
@@ -192,6 +192,29 @@ impl ComponentSpec {
             embedded,
             file_match_mode,
         })
+    }
+
+    /// Create a component spec from parts without checking them.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_unchecked(
+        name: Component,
+        uses: Vec<Component>,
+        // This is needed because some cases call for empty rules and
+        // others for a single wild card rule.
+        files: FileMatcher,
+        options: &OptionMap,
+        requirements: RequirementsList<PinnedRequest>,
+        embedded: ComponentEmbeddedPackagesList,
+    ) -> ComponentSpec {
+        ComponentSpec {
+            name,
+            uses,
+            files,
+            requirements_with_options: (options.iter(), &requirements).into(),
+            requirements,
+            embedded,
+            file_match_mode: Default::default(),
+        }
     }
 }
 

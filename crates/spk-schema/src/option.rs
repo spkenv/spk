@@ -522,6 +522,26 @@ impl VarOpt {
         })
     }
 
+    /// Create a VarOpt from the given pieces without checking them
+    pub fn new_unchecked<S: AsRef<str>>(
+        var: S,
+        inheritance: Inheritance,
+        compat: Option<Compat>,
+        required: bool,
+        value: Option<String>,
+    ) -> Self {
+        Self {
+            var: unsafe { OptNameBuf::from_string(var.as_ref().to_string()) },
+            default: String::default(),
+            choices: IndexSet::default(),
+            inheritance,
+            description: None,
+            compat,
+            required,
+            value,
+        }
+    }
+
     pub fn get_value(&self, given: Option<&str>) -> Option<String> {
         if let Some(v) = &self.value
             && !v.is_empty()
@@ -666,6 +686,24 @@ impl PkgOpt {
             value: None,
             required_compat: None,
         })
+    }
+
+    /// Create a PkgOpt from the given pieces without checking them
+    pub fn new_unchecked(
+        name: PkgNameBuf,
+        components: ComponentBTreeSetBuf,
+        prerelease_policy: Option<PreReleasePolicy>,
+        value: Option<String>,
+        required_compat: Option<CompatRule>,
+    ) -> Self {
+        Self {
+            pkg: name,
+            components,
+            default: String::default(),
+            prerelease_policy,
+            value,
+            required_compat,
+        }
     }
 
     pub fn get_value(&self, given: Option<&str>) -> Option<String> {

@@ -45,6 +45,10 @@ impl NormalizedVersionString {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    pub fn new_unchecked(normalized_version_string: String) -> Self {
+        Self(normalized_version_string)
+    }
 }
 
 impl std::fmt::Display for NormalizedVersionString {

@@ -104,6 +104,27 @@ impl EmbeddedPackageSpec {
         }
     }
 
+    /// Create a spec for the identified package from the given values
+    /// without checking them
+    pub fn new_unchecked(
+        ident: BuildIdent,
+        build: EmbeddedBuildSpec,
+        requirements_with_options: RequirementsList<RequestWithOptions>,
+        install: EmbeddedInstallSpec,
+    ) -> Self {
+        EmbeddedPackageSpec {
+            pkg: ident,
+            meta: Meta::default(),
+            compat: Compat::default(),
+            deprecated: bool::default(),
+            sources: Vec::new(),
+            build,
+            tests: Vec::new(),
+            install,
+            install_requirements_with_options: requirements_with_options,
+        }
+    }
+
     /// Read-only access to the build spec
     #[inline]
     pub fn build(&self) -> &EmbeddedBuildSpec {

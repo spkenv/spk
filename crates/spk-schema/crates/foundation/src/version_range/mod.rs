@@ -1208,6 +1208,12 @@ impl VersionFilter {
         }
     }
 
+    /// Makes a VersionFilter from the given string, without checking
+    /// that it is valid. This is used by indexing.
+    pub fn new_unchecked(filter_string: &str) -> Self {
+        VersionFilter::from_str(filter_string).unwrap()
+    }
+
     pub fn single(item: VersionRange) -> Self {
         let mut filter = Self::default();
         filter.rules.insert(item);

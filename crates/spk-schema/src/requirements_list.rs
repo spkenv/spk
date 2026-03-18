@@ -430,6 +430,12 @@ impl RequirementsList<RequestWithOptions> {
         }
         Ok(out)
     }
+
+    /// Construct a RequirementsList from a RequestWithOptions list,
+    /// without checking them, or merging them together.
+    pub fn new_checked(requests_with_options: Vec<RequestWithOptions>) -> Self {
+        Self(requests_with_options)
+    }
 }
 
 impl<R> std::fmt::Display for RequirementsList<R>
