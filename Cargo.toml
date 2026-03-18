@@ -45,7 +45,7 @@ arc-swap = "1.6.0"
 async-stream = "0.3"
 async-trait = "0.1"
 bracoxide = "0.1.4"
-bytes = "1.5"
+bytes = "1.11"
 cached = "0.48.1"
 chrono = { version = "0.4.34", features = ["serde"] }
 clap = { version = "4.5", features = ["derive", "env"] }
