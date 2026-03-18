@@ -35,6 +35,12 @@ impl ComponentEmbeddedPackage {
         }
     }
 
+    /// Create a new `ComponentEmbeddedPackage` directly from the
+    /// given pieces without checking them.
+    pub fn new_unchecked(pkg: OptVersionIdent, components: BTreeSet<Component>) -> Self {
+        Self { pkg, components }
+    }
+
     #[inline]
     pub fn components(&self) -> &BTreeSet<Component> {
         &self.components
