@@ -152,7 +152,8 @@ impl From<RawRecipeInstallSpec> for RecipeInstallSpec {
                     }
                 }
 
-                let new_components = target_embedded_package.components().names();
+                let new_component_specs = target_embedded_package.components();
+                let new_components = new_component_specs.names();
                 if new_components.is_empty() {
                     // Empty components set? The embedded package is not allowed
                     // to have an empty component set.

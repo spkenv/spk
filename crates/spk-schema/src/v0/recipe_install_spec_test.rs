@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
@@ -73,8 +74,8 @@ fn test_render_all_pins_renders_requirements_in_components() {
     }
 
     impl Versioned for FakeBuild {
-        fn compat(&self) -> &Compat {
-            &self.compat
+        fn compat(&self) -> Cow<'_, Compat> {
+            Cow::Borrowed(&self.compat)
         }
     }
 

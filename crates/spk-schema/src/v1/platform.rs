@@ -63,7 +63,7 @@ pub struct Platform {
     pub platform: VersionIdent,
     #[serde(default, skip_serializing_if = "IsDefault::is_default")]
     pub meta: Meta,
-    #[serde(default, skip_serializing_if = "IsDefault::is_default")]
+    #[serde(default, skip_serializing_if = "Compat::is_default")]
     pub compat: Compat,
     #[serde(default, skip_serializing_if = "is_false")]
     pub deprecated: bool,
@@ -117,8 +117,8 @@ impl RuntimeEnvironment for Platform {
 }
 
 impl Versioned for Platform {
-    fn compat(&self) -> &Compat {
-        &self.compat
+    fn compat(&self) -> Cow<'_, Compat> {
+        Cow::Borrowed(&self.compat)
     }
 }
 
@@ -277,7 +277,8 @@ fn apply_inherit_from_base_component(
     for requirement in base.runtime_requirements().iter() {
         cmpt.requirements.insert_or_replace(requirement.clone());
     }
-    let Some(base_cmpt) = base.components().get(inherit) else {
+    let component_specs = base.components();
+    let Some(base_cmpt) = component_specs.get(inherit) else {
         return;
     };
     for requirement in base_cmpt.requirements().iter() {

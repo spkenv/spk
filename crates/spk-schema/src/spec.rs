@@ -433,7 +433,7 @@ impl RuntimeEnvironment for SpecRecipe {
 }
 
 impl Versioned for SpecRecipe {
-    fn compat(&self) -> &Compat {
+    fn compat(&self) -> Cow<'_, Compat> {
         each_variant!(self, spec, spec.compat())
     }
 }
@@ -638,7 +638,7 @@ pub enum Spec {
 impl Components for Spec {
     type ComponentSpecT = ComponentSpec;
 
-    fn components(&self) -> &super::ComponentSpecList<Self::ComponentSpecT> {
+    fn components(&self) -> Cow<'_, super::ComponentSpecList<Self::ComponentSpecT>> {
         match self {
             Spec::V0Package(spec) => spec.components(),
         }
@@ -702,7 +702,7 @@ impl RuntimeEnvironment for Spec {
 }
 
 impl Versioned for Spec {
-    fn compat(&self) -> &Compat {
+    fn compat(&self) -> Cow<'_, Compat> {
         match self {
             Spec::V0Package(spec) => spec.compat(),
         }
@@ -738,7 +738,7 @@ impl Package for Spec {
         }
     }
 
-    fn embedded(&self) -> &super::EmbeddedPackagesList<Self::EmbeddedPackage> {
+    fn embedded(&self) -> Cow<'_, super::EmbeddedPackagesList<Self::EmbeddedPackage>> {
         match self {
             Spec::V0Package(spec) => spec.embedded(),
         }
@@ -754,7 +754,7 @@ impl Package for Spec {
         }
     }
 
-    fn get_build_options(&self) -> &Vec<Opt> {
+    fn get_build_options(&self) -> Cow<'_, [Opt]> {
         match self {
             Spec::V0Package(spec) => spec.get_build_options(),
         }

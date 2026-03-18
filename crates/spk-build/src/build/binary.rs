@@ -776,7 +776,7 @@ where
     let manifests = split_manifest_by_component(
         input.package.ident(),
         &collected_layer,
-        input.package.components(),
+        &input.package.components(),
     )?;
     let mut components = HashMap::new();
     for (component, manifest) in manifests {

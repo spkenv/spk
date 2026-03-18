@@ -201,7 +201,7 @@ impl EmbeddedPackageSpec {
                 .pkg
                 .into_build_ident(Build::Embedded(EmbeddedSource::Unknown)),
             meta: recipe.meta,
-            compat: recipe.compat,
+            compat: recipe.compat.clone(),
             deprecated: recipe.deprecated,
             sources: recipe.sources,
             tests: recipe.tests,
@@ -243,8 +243,8 @@ impl BuildOptions for EmbeddedPackageSpec {
 impl Components for EmbeddedPackageSpec {
     type ComponentSpecT = ComponentSpec;
 
-    fn components(&self) -> &ComponentSpecList<Self::ComponentSpecT> {
-        &self.install.components
+    fn components(&self) -> Cow<'_, ComponentSpecList<Self::ComponentSpecT>> {
+        Cow::Borrowed(&self.install.components)
     }
 }
 
@@ -313,8 +313,8 @@ impl OptionValues for EmbeddedPackageSpec {
 }
 
 impl Versioned for EmbeddedPackageSpec {
-    fn compat(&self) -> &Compat {
-        &self.compat
+    fn compat(&self) -> Cow<'_, Compat> {
+        Cow::Borrowed(&self.compat)
     }
 }
 

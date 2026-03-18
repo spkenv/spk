@@ -88,16 +88,16 @@ forward_to_impl!(BuildOptions, {
 
 /// Access to the components defined by a package.
 pub trait Components {
-    type ComponentSpecT;
+    type ComponentSpecT: Clone;
 
     /// The components defined by this package
-    fn components(&self) -> &super::ComponentSpecList<Self::ComponentSpecT>;
+    fn components(&self) -> Cow<'_, super::ComponentSpecList<Self::ComponentSpecT>>;
 }
 
 forward_to_impl!(Components, {
     type ComponentSpecT = T::ComponentSpecT;
 
-    fn components(&self) -> &super::ComponentSpecList<Self::ComponentSpecT> {
+    fn components(&self) -> Cow<'_, super::ComponentSpecList<Self::ComponentSpecT>> {
         (**self).components()
     }
 });
@@ -154,7 +154,7 @@ pub trait Package:
     + Send
 {
     type Package;
-    type EmbeddedPackage;
+    type EmbeddedPackage: Clone;
 
     /// The full identifier for this package
     ///
@@ -172,7 +172,7 @@ pub trait Package:
     fn sources(&self) -> &Vec<super::SourceSpec>;
 
     /// The packages that are embedded within this one
-    fn embedded(&self) -> &super::EmbeddedPackagesList<Self::EmbeddedPackage>;
+    fn embedded(&self) -> Cow<'_, super::EmbeddedPackagesList<Self::EmbeddedPackage>>;
 
     /// The packages that are embedded within this one.
     ///
@@ -185,7 +185,7 @@ pub trait Package:
     ) -> std::result::Result<Vec<(Self::Package, Option<Component>)>, &str>;
 
     /// The list of build options for this package
-    fn get_build_options(&self) -> &Vec<Opt>;
+    fn get_build_options(&self) -> Cow<'_, [Opt]>;
 
     /// Identify the requirements for a build of this package.
     fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList<PinnedRequest>>>;
@@ -266,7 +266,7 @@ forward_to_impl!(Package, {
         (**self).sources()
     }
 
-    fn embedded(&self) -> &super::EmbeddedPackagesList<Self::EmbeddedPackage> {
+    fn embedded(&self) -> Cow<'_, super::EmbeddedPackagesList<Self::EmbeddedPackage>> {
         (**self).embedded()
     }
 
@@ -276,7 +276,7 @@ forward_to_impl!(Package, {
         (**self).embedded_as_packages()
     }
 
-    fn get_build_options(&self) -> &Vec<Opt> {
+    fn get_build_options(&self) -> Cow<'_, [Opt]> {
         (**self).get_build_options()
     }
 

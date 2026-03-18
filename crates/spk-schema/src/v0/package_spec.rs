@@ -296,8 +296,8 @@ impl BuildOptions for PackageSpec {
 impl Components for PackageSpec {
     type ComponentSpecT = ComponentSpec;
 
-    fn components(&self) -> &ComponentSpecList<Self::ComponentSpecT> {
-        &self.install.components
+    fn components(&self) -> Cow<'_, ComponentSpecList<Self::ComponentSpecT>> {
+        Cow::Borrowed(&self.install.components)
     }
 }
 
@@ -350,8 +350,8 @@ impl RuntimeEnvironment for PackageSpec {
 }
 
 impl Versioned for PackageSpec {
-    fn compat(&self) -> &Compat {
-        &self.compat
+    fn compat(&self) -> Cow<'_, Compat> {
+        Cow::Borrowed(&self.compat)
     }
 }
 
@@ -407,8 +407,8 @@ impl Package for PackageSpec {
         &self.sources
     }
 
-    fn embedded(&self) -> &EmbeddedPackagesList<Self::EmbeddedPackage> {
-        &self.install.embedded
+    fn embedded(&self) -> Cow<'_, EmbeddedPackagesList<Self::EmbeddedPackage>> {
+        Cow::Borrowed(&self.install.embedded)
     }
 
     fn embedded_as_packages(
@@ -422,8 +422,8 @@ impl Package for PackageSpec {
             .collect())
     }
 
-    fn get_build_options(&self) -> &Vec<Opt> {
-        &self.build.options
+    fn get_build_options(&self) -> Cow<'_, [Opt]> {
+        Cow::from(&self.build.options)
     }
 
     fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList<PinnedRequest>>> {
@@ -456,7 +456,7 @@ impl Package for PackageSpec {
         Ok(Cow::Owned(requests))
     }
 
-    fn runtime_requirements(&self) -> Cow<'_, crate::RequirementsList<RequestWithOptions>> {
+    fn runtime_requirements(&self) -> Cow<'_, RequirementsList<RequestWithOptions>> {
         Cow::Borrowed(&self.install_requirements_with_options)
     }
 
@@ -720,7 +720,7 @@ impl From<EmbeddedPackageSpec> for PackageSpec {
             install_requirements_with_options: embed.install_requirements_with_options().clone(),
             pkg: embed.pkg,
             meta: embed.meta,
-            compat: embed.compat,
+            compat: embed.compat.clone(),
             deprecated: embed.deprecated,
             sources: embed.sources,
             tests: embed.tests,
