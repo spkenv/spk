@@ -63,10 +63,35 @@ pub enum Error {
     #[error(transparent)]
     #[diagnostic(forward(0))]
     SpkSpecError(Box<spk_schema::Error>),
+    #[error(transparent)]
+    #[diagnostic(forward(0))]
+    SpkConfigError(#[from] spk_config::Error),
     #[error("No disk usage: version '{0}' not found")]
     DiskUsageVersionNotFound(String),
     #[error("No disk usage: build '{0}' not found")]
     DiskUsageBuildNotFound(String),
+
+    #[error("Unable to open flatbuffer index file for repo: {0}")]
+    IndexOpenError(#[source] std::io::Error),
+    #[error("Unable to memory map flatbuffer index from repo file: {0}")]
+    IndexMemMapError(#[source] std::io::Error),
+    #[error("Unable to write '{0}' repo's index: {1}")]
+    IndexWriteError(String, #[source] std::io::Error),
+    #[error(
+        "Cannot generate an index from this repo: It is not a spk MemoryRepository or SpfsRepository"
+    )]
+    IndexGenerationInMemError(),
+    #[error("'{0}' repo does not have a index file location: {1}")]
+    IndexNoRepoPathError(String, String),
+    #[error("No index location for the '{0}' repo. It is a {1} repository")]
+    IndexNoRepoLocationError(String, String),
+    #[error("Failed to load flatbuffer index: {0}")]
+    IndexFailedToLoad(String),
+    #[error("Failed to generate flatbuffer index in memory: {0}")]
+    IndexFailedToGenerate(String),
+    #[error("Unknown index kind: '{0}', unable to {1}load that kind of index")]
+    IndexUnknownKind(String, String),
+
     #[error("{0}")]
     String(String),
 }

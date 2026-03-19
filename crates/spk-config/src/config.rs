@@ -87,6 +87,29 @@ pub struct Solver {
 
     /// Name of the solver whose output to show  when multiple solvers are being run.
     pub solver_to_show: String,
+
+    /// Whether to get the solver to use repository indexes instead of
+    /// the repository directly.
+    pub use_indexes: bool,
+
+    /// What kinds of index to use. Only applies if there is more than
+    /// one kinds of index available for the repositories. The default
+    /// is 'flatb', a flatbuffers file based index.
+    pub index_kind: String,
+
+    /// Whether to validate flatbuffers index data before using it.
+    /// Validating is safer but adds some overhead at the start of a
+    /// solve when using an index.
+    pub verify_flatbuffers_index_before_use: bool,
+}
+
+/// The settings for a single repository
+#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct Repository {
+    /// Whether to use an index with this repository, if one is
+    /// available.
+    pub use_index: bool,
 }
 
 #[derive(Clone, Default, Debug, Deserialize, Serialize)]
@@ -142,6 +165,7 @@ pub struct Config {
     // with environment variables.
     pub sentry: Sentry,
     pub solver: Solver,
+    pub repositories: HashMap<String, Repository>,
     pub statsd: Statsd,
     pub metadata: Metadata,
     pub cli: Cli,

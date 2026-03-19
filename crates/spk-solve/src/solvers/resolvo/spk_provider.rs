@@ -138,7 +138,21 @@ impl ResolvoPackageName {
                 // "requires_build_from_source" being true.
                 let mut located_builds = HashSet::new();
 
+                // This gets the current request with the same pkg_name, so can
+                // get build from it. Then if there is a digest in this request,
+                // and if the pkg build ident matching this one's build ident, then
+                // this is a direct request for a build, which has implications
+                // later for deprecated builds processing.
                 let root_pkg_request = provider.global_pkg_requests.get(&pkg_name.name);
+                let direct_build_request = if let Some(pkg_request) = root_pkg_request {
+                    if pkg_request.pkg.build.is_some() {
+                        pkg_request.pkg.build.clone()
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
 
                 for repo in &provider.repos {
                     let versions = repo
@@ -317,6 +331,41 @@ impl ResolvoPackageName {
                             }
                         }
                         continue;
+                    }
+
+                    // TODO: These checks, and the earlier ones for direct_build_requests,
+                    // may be rendered obsolete with indexes storing the normal data for
+                    // deprecated packages, and indexes being fast.
+                    //
+                    // TODO: if going forward with this, test it with command line added
+                    // package build requests.
+                    //
+                    // A short circuit for avoiding some processing if this build
+                    // is deprecated. Works for an IndexedRepo, all other SPK repos
+                    // return an error. By asking the IndexedRepo directly if the
+                    // build is deprecated, we can avoid reading the full build
+                    // to check. The two cases are:
+                    //
+                    // if build is deprecated and not used in any known direct build reqs,
+                    //      then add to excludes and don't read it.
+                    // if build is deprecated and used in a known direct build reqs,
+                    //      then keep it around just in case that build appears in the resolve.
+                    //
+                    if let Ok(true) = repo.is_build_deprecated(ident.as_build()).await {
+                        if let Some(ref build_ident) = direct_build_request
+                            && build_ident == ident.build()
+                        {
+                            // Allow it to continue because, even though it is deprecated,
+                            // the current request is for a specific build and this
+                            // build matches the request.
+                        } else {
+                            // Exclude this deprecated build.
+                            let reason = provider
+                                .pool
+                                .intern_string(format!("{} is deprecated", ident));
+                            candidates.excluded.push((solvable_id, reason));
+                            continue;
+                        }
                     }
 
                     match repo.read_package(ident.target()).await {
