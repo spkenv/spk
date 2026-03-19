@@ -15,10 +15,13 @@ workspace = true
 [features]
 
 [dependencies]
+arc-swap = { workspace = true }
+bytes = { workspace = true }
 config = { workspace = true }
 data-encoding = "2.3"
 dunce = { workspace = true }
 enum_dispatch = { workspace = true }
+flatbuffers = { workspace = true }
 format_serde_error = { workspace = true, default-features = false, features = [
     "serde_yaml",
     "colored",
@@ -39,6 +42,7 @@ serde_yaml = { workspace = true }
 shellexpand = "3.1.0"
 spfs = { workspace = true }
 spk-config = { workspace = true }
+spk-proto = { workspace = true }
 spk-schema-foundation = { workspace = true }
 spk-schema-tera = { workspace = true }
 strum = { workspace = true }
