@@ -17,7 +17,7 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_schema::foundation::version::{Version, parse_version};
 use spk_schema::ident_build::{Build, EmbeddedSource};
-use spk_schema::{BuildIdent, Components, FromYaml, Spec, SpecRecipe, VersionIdent};
+use spk_schema::{BuildIdent, Components, Deprecate, FromYaml, Spec, SpecRecipe, VersionIdent};
 
 use super::Repository;
 use super::repository::{PublishPolicy, Storage};
@@ -448,6 +448,11 @@ impl Repository for RuntimeRepository {
             .filter_map(|n| n.strip_suffix(".cmpt").map(str::to_string))
             .map(|c| Component::parse(c).map_err(|err| err.into()))
             .collect()
+    }
+
+    async fn is_build_deprecated(&self, build: &BuildIdent) -> Result<bool> {
+        let spec = self.read_package(build).await?;
+        Ok(spec.is_deprecated())
     }
 
     async fn read_embed_stub(&self, pkg: &BuildIdent) -> Result<Arc<Self::Package>> {
