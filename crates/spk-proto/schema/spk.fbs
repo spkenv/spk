@@ -1,0 +1,327 @@
+// Copyright (c) Contributors to the SPK project.
+// SPDX-License-Identifier: Apache-2.0
+// https://github.com/spkenv/spk
+
+// When adding or modifying this file, take care to read
+// the compatibility and evolution notes here:
+// https://flatbuffers.dev/flatbuffers_guide_writing_schema.html
+// In general, only add fields to the end of tables. Never add
+// new fields to struct types.
+
+// The kinds of component names.
+enum ComponentEnum: uint8 {
+    All = 0,
+    Build,
+    Run,
+    Source,
+    // The Named value indicates the name field in the Component table
+    // should be used for the component's name.
+    Named,
+}
+
+// Cannot use a union, because vectors of unions are not allowed. So
+// the name field is optional and only used when the kind value is
+// ComponentEnum::Named.
+table Component {
+     kind: ComponentEnum;
+     name: string;
+}
+
+// For a Version's epsilon values
+enum Epsilon: uint8 {
+      Minus = 0,
+      None = 1,
+      Plus = 2,
+}
+
+// For a Version's pre and post tags
+table TagSetItem {
+    name: string (required);
+    number: uint32;
+}
+
+
+// The pieces of a pkg/version/build Ident, but not combined as a
+// BuildIdent. This is used for embedded packages.
+table IdentPartsBuf {
+     repository_name: string;
+     pkg_name: string (required);
+     version_str: string;
+     build_str: string;
+}
+
+// The package identifier data for an embedded package in a BuildIdent
+table EmbeddedSourcePackage {
+      ident: IdentPartsBuf (required);
+      components: [Component];
+      // ignored fields: unparsed
+}
+
+// A embedded package identifier in a BuildIdent
+table EmbeddedSource {
+       source: EmbeddedSourcePackage;
+}
+
+// A build digest part in BuildIdent
+table BuildId {
+     id: string (required);
+}
+
+// A placeholder for the source enum variant used in the Build
+// union. That the type is source is enough, but it might also be
+// adding to the number of tables issue.
+table Source {
+}
+
+// The union of possible build id parts (digest or label) of a BuildIdent
+union Build {
+      Source,
+      EmbeddedSource,
+      BuildId,
+}
+
+// Build option inheritance kinds
+enum Inheritance: uint8 {
+    Weak = 0,
+    StrongForBuildOnly,
+    Strong,
+}
+
+// Prerelease policy - makes None vs Some(Ex or Incl) clearer
+enum PreReleasePolicy: uint8 {
+  None = 0,
+  ExcludeAll,
+  IncludeAll,
+
+}
+
+// A lone CompatRule, either an API or Binary, not a None.
+enum LoneCompatRule: uint8 {
+  // Here only to indicate it is not set, i.e. would be None on the rust side
+  None = 0,
+  // These indicate Some(value)
+  API,
+  Binary,
+}
+
+// A package option
+table PkgOpt {
+    name: string (required);
+    components: [Component];
+    prerelease_policy: PreReleasePolicy;
+    required_compat: LoneCompatRule;
+    value: string;
+    // ignored fields: default
+}
+
+// A var option
+table VarOpt {
+    name: string (required);
+    inheritance: Inheritance;
+    // compat - compat objects are stored as a string for now, however most
+    //          build compat objects are the default value, which is not stored.
+    compat: string;
+    required: bool;
+    value: string;
+    // ignored fields: default, choices, description
+}
+
+// Union of the kinds of options
+union OptEnum {
+  PkgOpt,
+  VarOpt,
+}
+
+// A helper for an option because vectors of unions are not allowed
+table Opt {
+  opt: OptEnum;
+}
+
+// The inclusion policy for a pkg request
+enum InclusionPolicy: uint8 {
+  Always=0,
+  IfAlreadyPresent,
+}
+
+// The pin policy for pkg request in install requirements
+enum PinPolicy: uint8 {
+  Required=0,
+  IfPresentInBuildEnv,
+}
+
+// An option value attached to a pkg request with options
+table PkgRequestOptionValue {
+  name: string (required);
+  value: string;
+  // PkgRequestOptionValue has two enum variants: Complete and
+  // Partial. Both variants contain a single string. This uses a flag
+  // to decide between them rather than introducing another table,
+  // union, enum combination to record them.
+  is_complete: bool;
+}
+
+// A package request with options
+table PkgRequestWithOptions {
+    // from pkg_request: PkgRequest. In spk, a PkgRequest contains a
+    // 'pkg: RangeIdent' field, but the RangeIdent pieces have been
+    // flattened and included directly as: repo_name, name,
+    // components, version_filter, and build fields
+    name: string (required);
+    repo_name: string;
+    components: [Component];
+    // The VersionFilters field is a set in spk, but it can contain
+    // lots of details and variations. So for now this is kept as a
+    // string, e.g. '>=1.2.3,<4,5,6' and parsed when needed.
+    // TODO: this will likely change in a future version because
+    // processing this is showing up in current profiling.
+    version_filter: string;
+    build: Build;
+    prerelease_policy: PreReleasePolicy;
+    inclusion_policy: InclusionPolicy;
+    pin: string;
+    pin_policy: PinPolicy;
+    // This is not a full compat, just a single CompatRule. Not sure
+    // why not it is not the same as the other required_compat objects in spk.
+    required_compat: LoneCompatRule;
+    options: [PkgRequestOptionValue];
+    // requested_by - ignored
+}
+
+// A var request with pinned value
+table VarRequestPinnedValue {
+      name: string (required);
+      value: string;
+      // ignored fields: description
+}
+
+// Union of the kinds of requests with options
+union RequestWithOptions {
+    PkgRequestWithOptions,
+    VarRequestPinnedValue,
+}
+
+// A helper for a requirement because list of unions are not allowed
+table RequirementWithOptions {
+    request: RequestWithOptions;
+}
+
+// A package embedded in a component of another package
+table ComponentEmbeddedPackage {
+  // pkg - OptVersionIdent - split into name and version fields
+  name: string (required);
+  version: Version;
+  components: [Component];
+}
+
+// A cut down ComponentSpec with containing what is needed when solving
+table SolverComponentSpec {
+    name: Component (required);
+    uses: [Component];
+    requirements_with_options: [RequirementWithOptions];
+    // embedded - only its components subfield is stored, the
+    //           (embedded) fabricated field is ignored
+    embedded_components: [ComponentEmbeddedPackage];
+    // ignored fields: files, requirements, file_match_mode
+}
+
+// A cut down Spec for embedded packages containing what is needed when solving
+table SolverEmbeddedPackageSpec {
+   // The embedded package's BuildIdent as a string
+   ident: string (required);
+   // meta - ignored
+   // compat - compat objects are stored as a string for now, however most
+   //          build compat objects are the default value, which is not stored.
+   compat: string;
+   deprecated: bool;
+   // sources: Vec<SourceSpec> - ignored
+   // build: EmbeddedBuildSpec - mostly ignored, only build_options are kept
+   build_options: [Opt];
+   // test: Vec<TestSpec> - ignored
+   // install: EmbeddedInstallSpec - mostly ignored, flattened into only this field,
+   component_specs: [SolverComponentSpec];
+   // requirements - field ignored in favour of install requirements with options,
+   //                which are stored in the requirements field below
+   requirements: [RequirementWithOptions];
+}
+
+// A Package/Version/Build containing what is needed when solving
+table BuildIndex {
+   // Older packages may have been published with non-normalized
+   // version numbers, e.g. '1.0' instead of '1.0.0'. The index will
+   // need to store original published version number for the build to
+   // make sure the exact build version numbers are available.
+   published_version: Version;
+   // The build digest/identifier only. Must be combined with a field
+   // from a PackageIndex and the published_version field above to
+   // make a complete BuildIdent value.
+   build: Build;
+   // If the build is deprecated the remaining fields will be empty,
+   // and this build index will not be any use for solving operations
+   // that need any of the remaining fields.
+   is_deprecated: bool;
+   // The spec is split up into multiple fields based on the parts the
+   // solver needs. There are many ignored fields.
+   // 
+   // pkg - not stored, but its part are in the combo of PackageIndex,
+   //       VersionIndex, and BuildIndex tables.
+   // meta - ignored
+   // compat - stored as a string for now, however most build compat objects
+   //          are the default value, which is not stored.
+   compat: string;
+   // sources: SourceSpec - ignored, only needed when building from source
+   // build: BuildSpec - ignored, only build_options are stored, the
+   //                    other data is only needed if building.
+   build_options: [Opt];
+   // tests: TestSpec - ignored, only needed if testing.
+   // install: InstallSpec - partially stored by splitting into parts,
+   //                        not the environment, not old requirements,
+   //                        and only parts of the various other sub-specs
+   embedded: [SolverEmbeddedPackageSpec];
+   component_specs: [SolverComponentSpec];
+   runtime_requirements: [RequirementWithOptions];
+   // A list of component names of components actually published in
+   // the repo at time of indexing. This can be a subset of the names
+   // in the component_specs field (which come from the recipe and may
+   // not all be present in the repo at index time).
+   published_components: [Component];
+}
+
+// A version number
+table Version {
+    parts: [uint32];
+    epsilon: Epsilon;
+    pre: [TagSetItem];
+    post: [TagSetItem];
+}
+
+// A Package/Version
+table VersionIndex {
+    // The version number only
+    version: Version (required);
+    builds: [BuildIndex];
+}
+
+// A Package
+table PackageIndex {
+    // A PkgNameBuf,
+    name: string (required, key);
+    // Sorted highest to lowest
+    versions: [VersionIndex];
+}
+
+// For global var values
+table GlobalVar {
+    // An OptNameBuf
+    name: string (required);
+    // The set of known values for this global variable
+    values: [string];
+}
+
+// The index for a repository
+table RepositoryIndex {
+    // Sorted by name
+    packages: [PackageIndex];
+    global_vars: [GlobalVar];
+}
+
+root_type RepositoryIndex;
