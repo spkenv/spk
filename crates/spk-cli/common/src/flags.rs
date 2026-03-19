@@ -7,9 +7,11 @@ mod variant;
 use std::collections::HashSet;
 use std::convert::From;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use clap::{Args, ValueEnum, ValueHint};
 use miette::{Context, IntoDiagnostic, Result, bail, miette};
+use once_cell::sync::Lazy;
 use solve::{
     DEFAULT_SOLVER_RUN_FILE_PREFIX,
     DecisionFormatter,
@@ -45,6 +47,7 @@ use spk_solve as solve;
 #[cfg(feature = "statsd")]
 use spk_solve::{SPK_RUN_TIME_METRIC, get_metrics_client};
 use spk_storage as storage;
+use spk_storage::IndexedRepository;
 use spk_workspace::{FindOrLoadPackageTemplateError, FindPackageTemplateError};
 pub use variant::{Variant, VariantBuildStatus, VariantLocation};
 
@@ -60,6 +63,12 @@ static SPK_KEEP_RUNTIME: &str = "SPK_KEEP_RUNTIME";
 static SPK_SOLVER_OUTPUT_TO_DIR: &str = "SPK_SOLVER_OUTPUT_TO_DIR";
 static SPK_SOLVER_OUTPUT_TO_DIR_MIN_VERBOSITY: &str = "SPK_SOLVER_OUTPUT_TO_DIR_MIN_VERBOSITY";
 static SPK_SOLVER_OUTPUT_FILE_PREFIX: &str = "SPK_SOLVER_OUTPUT_FILE_PREFIX";
+
+static DISABLE_INDEX_USE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+
+pub fn disable_index_use() {
+    DISABLE_INDEX_USE.store(true, std::sync::atomic::Ordering::Release);
+}
 
 #[derive(Args, Clone)]
 pub struct Runtime {
@@ -1052,6 +1061,20 @@ pub struct Repositories {
     /// per-job or per-show repos.
     #[clap(long)]
     pub wrap_origin: Option<std::path::PathBuf>,
+
+    /// Get the package data from the repo indexes instead of the
+    /// repos. This only applies to non-destructive repo operations.
+    /// This can be configured as the default in spk's config file, or
+    /// on a per-repo basis in spk's config file.
+    #[clap(long)]
+    pub use_indexes: bool,
+
+    /// Do not get the package data from the repo index, always use
+    /// the repo instead. This only applies to non-destructive repo
+    /// operations. This option can be configured as the default in
+    /// spk's config file.
+    #[clap(long, conflicts_with = "use_indexes")]
+    pub no_indexes: bool,
 }
 
 impl Repositories {
@@ -1152,8 +1175,39 @@ impl Repositories {
             repos.push(("local".into(), repo.into()));
         }
         if self.local_repo_only {
+            // Local repo only case does not use indexes because they
+            // are typically small and not indexed. If local repos
+            // became large and were indexed, this might change.
             return Ok(repos);
         }
+
+        // Check whether using the indexes for the repos is enabled or not
+        let disable_all_index_use = DISABLE_INDEX_USE.load(std::sync::atomic::Ordering::Relaxed);
+
+        // Get the overrides from the command line flags
+        let use_index_cli_override = if self.use_indexes || self.no_indexes {
+            if self.no_indexes {
+                // Don't use any indexes
+                Some(false)
+            } else {
+                // Use indexes, if the command line flag is given to use them
+                Some(self.use_indexes)
+            }
+        } else {
+            // No command line index flags given, so there's no index override
+            None
+        };
+
+        // Get the overall config setting, which includes env var
+        // setting for it, but not the per repo settings. Those are
+        // checked below as repos are created.
+        let config = spk_config::get_config()?;
+        let all_use_index_from_config = config.solver.use_indexes;
+        tracing::debug!(
+            "Disable all indexes: {disable_all_index_use}, Cli use all indexes: {use_index_cli_override:?}, Config use all indexes: {all_use_index_from_config}"
+        );
+
+        // Add the enabled repos
         for (name, ts, is_default_origin) in enabled
             .into_iter()
             .map(|(name, ts)| (name, ts, false))
@@ -1190,7 +1244,57 @@ impl Repositories {
             if let Some(ts) = ts.as_ref().or(self.when.as_ref()) {
                 repo.pin_at_time(ts);
             }
-            repos.push((name.into(), repo.into()));
+
+            // Decide whether to use an index for this repository based on
+            // the various settings: all repos, per repo, and overrides.
+            let use_index = if disable_all_index_use {
+                // Disable all take precedence over everything
+                tracing::debug!("All index use disabled");
+                false
+            } else if let Some(use_indexes) = use_index_cli_override {
+                // Otherwise the all indexes command line flag takes
+                // precedence over what was in the config file
+                tracing::debug!("A cli-based use index override was given as: {use_indexes}");
+                use_indexes
+            } else {
+                // Otherwise use this specific repository's config setting, if any
+                match config.repositories.get(name) {
+                    Some(r_config) => {
+                        tracing::debug!("Using index for '{name}' repo");
+                        r_config.use_index
+                    }
+                    // And last use the all indexes env var and config
+                    // file setting.
+                    None => {
+                        tracing::debug!("Using config settings for all indexes");
+                        all_use_index_from_config
+                    }
+                }
+            };
+            tracing::debug!("Using index for '{name}': {use_index}");
+
+            if use_index {
+                // Use the index for this repo, if there is one,
+                // otherwise use the repo itself.
+                tracing::debug!("Using a repo index for '{name}'");
+                let indexed_repo = match IndexedRepository::load_from_repo(Arc::new(
+                    repo.clone().into(),
+                ))
+                .await
+                {
+                    Ok(ir) => ir.into(),
+                    Err(_err) => {
+                        tracing::warn!(
+                            "Failed to load index for '{name}' repo, falling back to the repo itself"
+                        );
+                        repo.into()
+                    }
+                };
+                repos.push((name.to_string(), indexed_repo));
+            } else {
+                tracing::debug!("Not using a repo index for '{name}' repo");
+                repos.push((name.to_string(), repo.into()));
+            }
         }
         Ok(repos)
     }
