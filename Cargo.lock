@@ -4612,6 +4612,7 @@ dependencies = [
  "clap 4.5.47",
  "miette",
  "spk-cli-common",
+ "spk-schema",
  "spk-storage",
  "tracing",
 ]
