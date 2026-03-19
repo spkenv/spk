@@ -49,8 +49,8 @@ impl IndexedRepository {
     fn get_index_kind_from_config() -> Result<String> {
         let config = spk_config::get_config()?;
 
-        let index_kind = if config.solver.indexes.kind != String::default() {
-            config.solver.indexes.kind.clone()
+        let index_kind = if config.solver.index_kind != String::default() {
+            config.solver.index_kind.clone()
         } else {
             String::from(FLATBUFFER_INDEX)
         };

@@ -75,8 +75,8 @@ pub enum Error {
     IndexOpenError(#[source] std::io::Error),
     #[error("Unable to memory map flatbuffer index from repo file: {0}")]
     IndexMemMapError(#[source] std::io::Error),
-    #[error("Unable to write '{0}' repo's index, '{1}': {2}")]
-    IndexWriteError(String, String, #[source] std::io::Error),
+    #[error("Unable to write '{0}' repo's index: {1}")]
+    IndexWriteError(String, #[source] std::io::Error),
     #[error(
         "Cannot generate an index from this repo: It is not a spk MemoryRepository or SpfsRepository"
     )]

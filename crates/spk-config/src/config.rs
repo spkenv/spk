@@ -87,14 +87,6 @@ pub struct Solver {
 
     /// Name of the solver whose output to show  when multiple solvers are being run.
     pub solver_to_show: String,
-
-    /// Whether to get the solver to use repository indexes, if
-    /// available, instead of the repository directly.
-    pub use_indexes: bool,
-
-    /// Default setting for indexes, if using indexes is enabled for
-    /// the solver.
-    pub indexes: Index,
 }
 
 /// The settings for one or more indexes

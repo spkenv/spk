@@ -194,8 +194,10 @@ async fn test_solver_no_requests(#[case] mut solver: SolverImpl) {
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_package_with_no_recipe(
     #[case] mut solver: SolverImpl,
@@ -232,8 +234,10 @@ async fn test_solver_package_with_no_recipe(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_package_with_no_recipe_and_impossible_initial_checks(
     #[case] mut solver: SolverImpl,
@@ -273,8 +277,10 @@ async fn test_solver_package_with_no_recipe_and_impossible_initial_checks(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_package_with_no_recipe_from_cmd_line(
     #[case] mut solver: SolverImpl,
@@ -311,8 +317,10 @@ async fn test_solver_package_with_no_recipe_from_cmd_line(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_package_with_no_recipe_from_cmd_line_and_impossible_initial_checks(
     #[case] mut solver: SolverImpl,
@@ -354,8 +362,10 @@ async fn test_solver_package_with_no_recipe_from_cmd_line_and_impossible_initial
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_single_package_no_deps(
     #[case] mut solver: SolverImpl,
@@ -377,8 +387,10 @@ async fn test_solver_single_package_no_deps(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_single_package_simple_deps(
     #[case] mut solver: SolverImpl,
@@ -409,8 +421,10 @@ async fn test_solver_single_package_simple_deps(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_dependency_abi_compat(
     #[case] mut solver: SolverImpl,
@@ -444,8 +458,10 @@ async fn test_solver_dependency_abi_compat(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_dependency_incompatible(
     #[case] mut solver: SolverImpl,
@@ -476,8 +492,10 @@ async fn test_solver_dependency_incompatible(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_dependency_incompatible_stepback(
     #[case] mut solver: SolverImpl,
@@ -515,8 +533,10 @@ async fn test_solver_dependency_incompatible_stepback(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_dependency_already_satisfied(
     #[case] mut solver: SolverImpl,
@@ -553,8 +573,10 @@ async fn test_solver_dependency_already_satisfied(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_dependency_already_satisfied_conflicting_components(
     #[case] mut solver: SolverImpl,
@@ -604,8 +626,10 @@ async fn test_solver_dependency_already_satisfied_conflicting_components(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_dependency_reopen_solvable(
     #[case] mut solver: SolverImpl,
@@ -646,8 +670,10 @@ async fn test_solver_dependency_reopen_solvable(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_dependency_reiterate(
     #[case] mut solver: SolverImpl,
@@ -687,8 +713,10 @@ async fn test_solver_dependency_reiterate(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_dependency_reopen_unsolvable(
     #[case] mut solver: SolverImpl,
@@ -726,8 +754,10 @@ async fn test_solver_dependency_reopen_unsolvable(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_pre_release_config(
     #[case] mut solver: SolverImpl,
@@ -766,8 +796,10 @@ async fn test_solver_pre_release_config(
 /// Test that the solver can resolve a pre-release version of a package along
 /// with a package that requires it, when the pre-release version is requested
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_pre_release_config_with_requirements(
     #[case] mut solver: SolverImpl,
@@ -798,8 +830,10 @@ async fn test_solver_pre_release_config_with_requirements(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_constraint_only(
     #[case] mut solver: SolverImpl,
@@ -832,8 +866,10 @@ async fn test_solver_constraint_only(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_constraint_and_request(
     #[case] mut solver: SolverImpl,
@@ -873,8 +909,10 @@ async fn test_solver_constraint_and_request(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_option_compatibility(
     #[case] mut solver: SolverImpl,
@@ -956,8 +994,10 @@ async fn test_solver_option_compatibility(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_option_injection(
     #[case] mut solver: SolverImpl,
@@ -1015,8 +1055,10 @@ async fn test_solver_option_injection(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_build_from_source(
     #[case] mut solver: SolverImpl,
@@ -1076,8 +1118,10 @@ async fn test_solver_build_from_source(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_build_from_source_unsolvable(
     #[case] mut solver: SolverImpl,
@@ -1149,10 +1193,13 @@ async fn test_solver_build_from_source_unsolvable(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::resolvo(resolvo_solver(), false)]
 #[tokio::test]
-async fn test_solver_build_from_source_dependency(#[case] mut solver: SolverImpl) {
+async fn test_solver_build_from_source_dependency(
+    #[case] mut solver: SolverImpl,
+    #[case] use_index: bool,
+) {
     // test when no appropriate build exists but the source is available
     // - the existing build is skipped
     // - the source package is checked for current options
@@ -1195,6 +1242,7 @@ async fn test_solver_build_from_source_dependency(#[case] mut solver: SolverImpl
         },
     });
     repo.force_publish_recipe(&recipe).await.unwrap();
+    let repo = wrap_repo_for_test(repo, use_index).await;
 
     // as above, the solver should not be able to get py 3.6 as a
     // dependency and so should propose a source build instead
@@ -1211,8 +1259,10 @@ async fn test_solver_build_from_source_dependency(#[case] mut solver: SolverImpl
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_build_from_source_dependency_but_hit_loop(
     #[case] mut solver: SolverImpl,
@@ -1277,8 +1327,10 @@ async fn test_solver_build_from_source_dependency_but_hit_loop(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_deprecated_build(
     #[case] mut solver: SolverImpl,
@@ -1325,8 +1377,10 @@ async fn test_solver_deprecated_build(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_deprecated_version(
     #[case] mut solver: SolverImpl,
@@ -1370,8 +1424,10 @@ async fn test_solver_deprecated_version(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_build_from_source_deprecated(
     #[case] mut solver: SolverImpl,
@@ -1422,8 +1478,10 @@ async fn test_solver_build_from_source_deprecated(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_build_from_source_deprecated_and_impossible_initial_checks(
     #[case] mut solver: SolverImpl,
@@ -1483,8 +1541,10 @@ async fn test_solver_build_from_source_deprecated_and_impossible_initial_checks(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_embedded_package_adds_request(
     #[case] mut solver: SolverImpl,
@@ -1527,8 +1587,10 @@ async fn test_solver_embedded_package_adds_request(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_embedded_package_solvable(
     #[case] mut solver: SolverImpl,
@@ -1571,8 +1633,10 @@ async fn test_solver_embedded_package_solvable(
 /// If the only option for a package request is an embedded package, the
 /// solution must also contain the parent package.
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_embedded_package_brings_parent(
     #[case] mut solver: SolverImpl,
@@ -1607,8 +1671,10 @@ async fn test_solver_embedded_package_brings_parent(
 /// If a parent package contains a required var, the embedded stub should still
 /// be able to solve with its parent.
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_embedded_package_brings_parent_with_required_var(
     #[case] mut solver: SolverImpl,
@@ -1657,8 +1723,10 @@ async fn test_solver_embedded_package_brings_parent_with_required_var(
 /// If a package declares an embedded package with a required var, the parent
 /// should be able to satisfy a request for the embedded package.
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_resolves_embedded_package_with_required_var(
     #[case] mut solver: SolverImpl,
@@ -1714,8 +1782,10 @@ async fn test_solver_resolves_embedded_package_with_required_var(
 /// The src build should not depend on anything from the embedded package, in
 /// particular not the src build of the embedded package.
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn resolve_src_package_with_embedded_package(
     #[case] mut solver: SolverImpl,
@@ -1744,8 +1814,10 @@ async fn resolve_src_package_with_embedded_package(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_embedded_package_unsolvable(
     #[case] mut solver: SolverImpl,
@@ -1783,8 +1855,10 @@ async fn test_solver_embedded_package_unsolvable(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_embedded_package_replaces_real_package(
     #[case] mut solver: SolverImpl,
@@ -1849,8 +1923,10 @@ async fn test_solver_embedded_package_replaces_real_package(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_initial_request_impossible_masks_embedded_package_solution(
     #[case] mut solver: SolverImpl,
@@ -1905,8 +1981,10 @@ async fn test_solver_initial_request_impossible_masks_embedded_package_solution(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_impossible_request_but_embedded_package_makes_solvable(
     #[case] mut solver: SolverImpl,
@@ -1992,8 +2070,10 @@ async fn test_solver_impossible_request_but_embedded_package_makes_solvable(
 /// When multiple packages try to embed the same package the solver doesn't
 /// panic.
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_multiple_packages_embed_same_package(
     #[case] mut solver: SolverImpl,
@@ -2056,8 +2136,10 @@ async fn test_multiple_packages_embed_same_package(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_with_impossible_checks_in_build_keys(
     #[case] mut solver: SolverImpl,
@@ -2103,8 +2185,10 @@ async fn test_solver_with_impossible_checks_in_build_keys(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_some_versions_conflicting_requests(
     #[case] mut solver: SolverImpl,
@@ -2146,8 +2230,10 @@ async fn test_solver_some_versions_conflicting_requests(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_embedded_request_invalidates(
     #[case] mut solver: SolverImpl,
@@ -2186,8 +2272,10 @@ async fn test_solver_embedded_request_invalidates(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_unknown_package_options(
     #[case] mut solver: SolverImpl,
@@ -2217,8 +2305,10 @@ async fn test_solver_unknown_package_options(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_var_requirements(
     #[case] mut solver: SolverImpl,
@@ -2272,8 +2362,10 @@ async fn test_solver_var_requirements(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_var_requirements_unresolve(
     #[case] mut solver: SolverImpl,
@@ -2332,8 +2424,10 @@ async fn test_solver_var_requirements_unresolve(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_build_options_dont_affect_compat(
     #[case] mut solver: SolverImpl,
@@ -2386,8 +2480,10 @@ async fn test_solver_build_options_dont_affect_compat(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_option_compat_intersection(
     #[case] mut solver: SolverImpl,
@@ -2429,7 +2525,8 @@ async fn test_solver_option_compat_intersection(
 }
 
 #[rstest]
-#[case::step(step_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
 // #[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_components(
@@ -2488,8 +2585,10 @@ async fn test_solver_components(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_components_interaction_with_embeds(
     #[case] mut solver: SolverImpl,
@@ -2579,8 +2678,10 @@ async fn test_solver_components_interaction_with_embeds(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_components_when_no_components_requested(
     #[case] mut solver: SolverImpl,
@@ -2638,8 +2739,10 @@ async fn test_solver_components_when_no_components_requested(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_src_package_request_when_no_components_requested(
     #[case] mut solver: SolverImpl,
@@ -2673,8 +2776,10 @@ async fn test_solver_src_package_request_when_no_components_requested(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_all_component(
     #[case] mut solver: SolverImpl,
@@ -2720,8 +2825,10 @@ async fn test_solver_all_component(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_component_availability(
     #[case] mut solver: SolverImpl,
@@ -2795,8 +2902,10 @@ async fn test_solver_component_availability(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_component_requirements(
     #[case] mut solver: SolverImpl,
@@ -2849,8 +2958,10 @@ async fn test_solver_component_requirements(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_component_requirements_extending(
     #[case] mut solver: SolverImpl,
@@ -2888,8 +2999,10 @@ async fn test_solver_component_requirements_extending(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_component_embedded(
     #[case] mut solver: SolverImpl,
@@ -3101,8 +3214,10 @@ async fn test_solver_component_embedded_multiple_versions(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn test_solver_component_embedded_incompatible_requests(
     #[case] mut solver: SolverImpl,
@@ -3395,8 +3510,10 @@ async fn test_version_number_masking(
 }
 
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn request_for_all_component_picks_correct_version(
     #[case] mut solver: SolverImpl,
@@ -3426,8 +3543,10 @@ async fn request_for_all_component_picks_correct_version(
 /// Verify that when solving the dependencies of a package, the build options of
 /// the candidates do not factor into the selection of the candidate.
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn build_options_not_checked_on_dependencies(
     #[case] mut solver: SolverImpl,
@@ -3498,8 +3617,10 @@ async fn build_options_not_checked_on_dependencies(
 /// Any var install.requirements of packages in the Solution should be present
 /// in the Solution's options.
 #[rstest]
-#[case::step(step_solver())]
-#[case::resolvo(resolvo_solver())]
+#[case::step(step_solver(), false)]
+#[case::step_indexed(step_solver(), true)]
+#[case::resolvo(resolvo_solver(), false)]
+#[case::resolvo_indexed(resolvo_solver(), true)]
 #[tokio::test]
 async fn install_requirement_vars_found_in_solution(
     #[case] mut solver: SolverImpl,

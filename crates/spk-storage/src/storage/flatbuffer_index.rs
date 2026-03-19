@@ -29,6 +29,7 @@ use spk_schema::{
     Package,
     PinnedRequest,
     RequestWithOptions,
+    SolverPackageSpec,
     Spec,
     SpecTest,
     build_to_fb_build,
@@ -225,7 +226,6 @@ impl FlatBufferRepoIndex {
         );
 
         let index = FlatBufferRepoIndex::try_from_bytes(name, data_buffer, verify_index)?;
-
         Ok(index)
     }
 
@@ -643,6 +643,7 @@ impl FlatBufferRepoIndex {
 
         let mut index_path = PathBuf::new();
         index_path.push(base_path);
+
         // Index file name contains the index schema version for ease
         // of identifying a compatible index. The index version is
         // also checked later when the bytes are turned into an index
