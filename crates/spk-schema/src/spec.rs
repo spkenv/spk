@@ -630,9 +630,14 @@ impl Test for SpecTest {
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize)]
 #[serde(tag = "api")]
 #[enum_dispatch(Deprecate, DeprecateMut)]
+#[allow(clippy::large_enum_variant)]
 pub enum Spec {
     #[serde(rename = "v0/package")]
     V0Package(super::v0::PackageSpec),
+    /// Package spec from an index, only usable in solves
+    #[serde(skip)]
+    #[serde(rename = "v0/solverpackage")]
+    V0SolverPackage(super::v0::SolverPackageSpec),
 }
 
 impl Components for Spec {
@@ -641,6 +646,7 @@ impl Components for Spec {
     fn components(&self) -> Cow<'_, super::ComponentSpecList<Self::ComponentSpecT>> {
         match self {
             Spec::V0Package(spec) => spec.components(),
+            Spec::V0SolverPackage(spec) => spec.components(),
         }
     }
 }
@@ -649,6 +655,7 @@ impl HasBuildIdent for Spec {
     fn build_ident(&self) -> &BuildIdent {
         match self {
             Spec::V0Package(r) => r.build_ident(),
+            Spec::V0SolverPackage(spec) => spec.build_ident(),
         }
     }
 }
@@ -657,6 +664,7 @@ impl OptionValues for Spec {
     fn option_values(&self) -> OptionMap {
         match self {
             Spec::V0Package(r) => r.option_values(),
+            Spec::V0SolverPackage(spec) => spec.option_values(),
         }
     }
 }
@@ -665,6 +673,7 @@ impl Satisfy<PkgRequestWithOptions> for Spec {
     fn check_satisfies_request(&self, request: &PkgRequestWithOptions) -> Compatibility {
         match self {
             Spec::V0Package(r) => r.check_satisfies_request(request),
+            Spec::V0SolverPackage(spec) => spec.check_satisfies_request(request),
         }
     }
 }
@@ -673,6 +682,7 @@ impl Satisfy<VarRequest<PinnedValue>> for Spec {
     fn check_satisfies_request(&self, request: &VarRequest<PinnedValue>) -> Compatibility {
         match self {
             Spec::V0Package(r) => r.check_satisfies_request(request),
+            Spec::V0SolverPackage(spec) => spec.check_satisfies_request(request),
         }
     }
 }
@@ -681,6 +691,7 @@ impl HasVersion for Spec {
     fn version(&self) -> &Version {
         match self {
             Spec::V0Package(r) => r.version(),
+            Spec::V0SolverPackage(spec) => spec.version(),
         }
     }
 }
@@ -689,6 +700,7 @@ impl Named for Spec {
     fn name(&self) -> &PkgName {
         match self {
             Spec::V0Package(r) => r.name(),
+            Spec::V0SolverPackage(spec) => spec.name(),
         }
     }
 }
@@ -697,6 +709,7 @@ impl RuntimeEnvironment for Spec {
     fn runtime_environment(&self) -> &[crate::EnvOp] {
         match self {
             Spec::V0Package(r) => r.runtime_environment(),
+            Spec::V0SolverPackage(spec) => spec.runtime_environment(),
         }
     }
 }
@@ -705,6 +718,7 @@ impl Versioned for Spec {
     fn compat(&self) -> Cow<'_, Compat> {
         match self {
             Spec::V0Package(spec) => spec.compat(),
+            Spec::V0SolverPackage(spec) => spec.compat(),
         }
     }
 }
@@ -717,30 +731,35 @@ impl Package for Spec {
     fn ident(&self) -> &BuildIdent {
         match self {
             Spec::V0Package(spec) => Package::ident(spec),
+            Spec::V0SolverPackage(spec) => super::v0::SolverPackageSpec::ident(spec),
         }
     }
 
     fn metadata(&self) -> &crate::metadata::Meta {
         match self {
             Spec::V0Package(spec) => spec.metadata(),
+            Spec::V0SolverPackage(spec) => spec.metadata(),
         }
     }
 
     fn matches_all_filters(&self, filter_by: &Option<Vec<OptFilter>>) -> bool {
         match self {
             Spec::V0Package(spec) => spec.matches_all_filters(filter_by),
+            Spec::V0SolverPackage(spec) => spec.matches_all_filters(filter_by),
         }
     }
 
     fn sources(&self) -> &Vec<super::SourceSpec> {
         match self {
             Spec::V0Package(spec) => spec.sources(),
+            Spec::V0SolverPackage(spec) => spec.sources(),
         }
     }
 
     fn embedded(&self) -> Cow<'_, super::EmbeddedPackagesList<Self::EmbeddedPackage>> {
         match self {
             Spec::V0Package(spec) => spec.embedded(),
+            Spec::V0SolverPackage(spec) => spec.embedded(),
         }
     }
 
@@ -751,30 +770,37 @@ impl Package for Spec {
             Spec::V0Package(spec) => spec
                 .embedded_as_packages()
                 .map(|vec| vec.into_iter().map(|(r, c)| (r.into(), c)).collect()),
+            Spec::V0SolverPackage(spec) => spec
+                .embedded_as_packages()
+                .map(|vec| vec.into_iter().map(|(r, c)| (r.into(), c)).collect()),
         }
     }
 
     fn get_build_options(&self) -> Cow<'_, [Opt]> {
         match self {
             Spec::V0Package(spec) => spec.get_build_options(),
+            Spec::V0SolverPackage(spec) => spec.get_build_options(),
         }
     }
 
     fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList<PinnedRequest>>> {
         match self {
             Spec::V0Package(spec) => spec.get_build_requirements(),
+            Spec::V0SolverPackage(spec) => spec.get_build_requirements(),
         }
     }
 
     fn get_all_tests(&self) -> Vec<SpecTest> {
         match self {
             Spec::V0Package(spec) => spec.get_all_tests(),
+            Spec::V0SolverPackage(spec) => spec.get_all_tests(),
         }
     }
 
     fn runtime_requirements(&self) -> Cow<'_, crate::RequirementsList<RequestWithOptions>> {
         match self {
             Spec::V0Package(spec) => spec.runtime_requirements(),
+            Spec::V0SolverPackage(spec) => spec.runtime_requirements(),
         }
     }
 }
@@ -786,6 +812,7 @@ impl DownstreamRequirements for Spec {
     ) -> Cow<'_, crate::RequirementsList<RequestWithOptions>> {
         match self {
             Spec::V0Package(spec) => spec.downstream_build_requirements(components),
+            Spec::V0SolverPackage(spec) => spec.downstream_build_requirements(components),
         }
     }
 
@@ -795,6 +822,7 @@ impl DownstreamRequirements for Spec {
     ) -> Cow<'_, crate::RequirementsList<RequestWithOptions>> {
         match self {
             Spec::V0Package(spec) => spec.downstream_runtime_requirements(components),
+            Spec::V0SolverPackage(spec) => spec.downstream_runtime_requirements(components),
         }
     }
 }
@@ -803,12 +831,14 @@ impl PackageMut for Spec {
     fn set_build(&mut self, build: Build) {
         match self {
             Spec::V0Package(spec) => spec.set_build(build),
+            Spec::V0SolverPackage(spec) => spec.set_build(build),
         }
     }
 
     fn insert_or_merge_install_requirement(&mut self, req: PinnedRequest) -> Result<()> {
         match self {
             Spec::V0Package(spec) => spec.insert_or_merge_install_requirement(req),
+            Spec::V0SolverPackage(spec) => spec.insert_or_merge_install_requirement(req),
         }
     }
 }
