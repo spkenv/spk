@@ -781,6 +781,11 @@ impl View {
 
     /// Display the contents of a package spec
     fn print_build_spec(&self, package_spec: Arc<Spec>) -> Result<i32> {
+        // TODO: does not handle packages from indexes. This will
+        // crash if --use-indexes was used. Those packages would need
+        // to be converted to something that could be serialized, or
+        // pieces extracted individually from the index packages, for
+        // this to work.
         match &self.format.clone().unwrap_or_default() {
             OutputFormat::Yaml => serde_yaml::to_writer(std::io::stdout(), &*package_spec)
                 .into_diagnostic()

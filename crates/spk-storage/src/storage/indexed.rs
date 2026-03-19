@@ -4,6 +4,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use std::time::Instant;
 
 use arc_swap::ArcSwap;
 use spk_schema::foundation::ident_build::Build;
@@ -71,6 +72,7 @@ impl IndexedRepository {
     pub async fn load_from_repo(
         repo_to_wrap: Arc<crate::RepositoryHandle>,
     ) -> Result<IndexedRepository> {
+        let start = Instant::now();
         let index_kind = IndexedRepository::get_index_kind_from_config()?;
 
         let index = match index_kind.as_ref() {
@@ -91,6 +93,12 @@ impl IndexedRepository {
                 ));
             }
         };
+
+        tracing::debug!(
+            "'{}' repo index flatbuffer total load in: {} secs",
+            repo_to_wrap.name(),
+            start.elapsed().as_secs_f64()
+        );
 
         Ok(IndexedRepository {
             index: ArcSwap::new(Arc::new(index)),

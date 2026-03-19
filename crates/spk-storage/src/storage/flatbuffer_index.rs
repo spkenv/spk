@@ -144,7 +144,7 @@ impl FlatBufferRepoIndex {
             let start_check_fb = Instant::now();
             index.check_fb_index()?;
             tracing::debug!(
-                "'{name}' repo index checked as flatb RepositoryIndex: {} secs",
+                "'{name}' repo index verified before use     : {} secs",
                 start_check_fb.elapsed().as_secs_f64()
             );
         } else {
@@ -162,7 +162,7 @@ impl FlatBufferRepoIndex {
         }
 
         tracing::debug!(
-            "'{name}' repo index flatbuffer total time   : {} secs",
+            "'{name}' repo index flatbuffer from bytes in: {} secs",
             start.elapsed().as_secs_f64()
         );
 
@@ -324,20 +324,24 @@ impl FlatBufferRepoIndex {
 
         let mut num_versions = 0;
         let mut num_builds = 0;
+        let mut num_erroring_builds = 0;
 
         let mut traversal = repo_walker.walk();
         while let Some(item) = traversal.try_next().await? {
             match item {
                 RepoWalkerItem::Version(version) => {
+                    num_versions += 1;
+
                     let name = version.ident.name();
                     let v = version.ident.version().clone();
 
                     let pkg_info = packages.entry(name.into()).or_default();
                     pkg_info.versions.push(v.clone());
                     let _ver_info = pkg_info.version_builds.entry(v).or_default();
-                    num_versions += 1;
                 }
                 RepoWalkerItem::Build(build) => {
+                    num_builds += 1;
+
                     // Add a build spec and related things
                     let build_ident = build.spec.ident();
 
@@ -351,6 +355,7 @@ impl FlatBufferRepoIndex {
                     let component_map = match repo.read_components(build.spec.ident()).await {
                         Ok(c) => c,
                         Err(err) => {
+                            num_erroring_builds += 1;
                             tracing::warn!(
                                 "Problem reading published components for '{}': {err}. Skipping it.",
                                 build.spec.ident()
@@ -367,8 +372,6 @@ impl FlatBufferRepoIndex {
                     ver_info.build_specs.push(build_info);
 
                     global_vars.extract_global_vars(&build.spec, &package_names)?;
-
-                    num_builds += 1;
                 }
 
                 // Ignore everything else
@@ -379,14 +382,12 @@ impl FlatBufferRepoIndex {
         // Debugging and logging
         let mut vars: Vec<String> = global_vars.keys().map(|k| k.to_string()).collect();
         vars.sort();
-        tracing::info!("Globals found:\n\t{}", vars.into_iter().join("\n\t"));
+        tracing::debug!("Globals found:\n\t{}", vars.into_iter().join("\n\t"));
 
         tracing::info!(
-            "Index for '{}' repo consists of {} packages, {} versions, {} builds, with {} global vars",
+            "Index for '{}' repo consists of {} packages, {num_versions} versions, {num_builds} builds ({num_erroring_builds} errors), with {} global vars",
             repo.name(),
             packages.len(),
-            num_versions,
-            num_builds,
             global_vars.keys().len()
         );
 

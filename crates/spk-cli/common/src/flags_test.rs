@@ -67,6 +67,8 @@ async fn test_get_solver_with_host_options(
             disable_repo: Default::default(),
             when: None,
             wrap_origin: None,
+            use_indexes: false,
+            no_indexes: false,
         },
         decision_formatter_settings: DecisionFormatterSettings {
             time: Default::default(),

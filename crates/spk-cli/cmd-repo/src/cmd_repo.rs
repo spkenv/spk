@@ -2,10 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::str::FromStr;
+use std::time::Instant;
+
 use clap::{Args, Subcommand};
 use miette::{Context, Result};
-use spk_cli_common::{CommandArgs, Run};
-use spk_storage as storage;
+use spk_cli_common::{CommandArgs, Run, flags};
+use spk_schema::VersionIdent;
+use spk_storage::{self as storage, FlatBufferRepoIndex, RepositoryIndexMut};
 use storage::Repository;
 
 /// Perform repository-level actions and maintenance
@@ -45,19 +49,104 @@ pub enum RepoCommand {
         #[clap(name = "REPO")]
         repo: String,
     },
+    /// Generate an index for a repository
+    Index {
+        #[clap(flatten)]
+        repos: flags::Repositories,
+
+        /// Package/version of a published package to update in an
+        /// existing index.
+        ///
+        /// Other packages in the index will remain unchanged. Without
+        /// this the full index will be constructed from scratch. If
+        /// the repo does not have an index, a full index will be
+        /// constructed from scratch if possible.
+        ///
+        /// This option is only supported for flatbuffer indexes.
+        #[clap(long, name = "PACKAGE/VERSION")]
+        update: Option<String>,
+    },
 }
 
 impl RepoCommand {
     pub async fn run(&mut self) -> Result<i32> {
-        let repo = match &self {
-            Self::Upgrade { repo } => repo,
-        };
-        let repo = match repo.as_str() {
-            "local" => storage::local_repository().await?,
-            _ => storage::remote_repository(repo).await?,
-        };
-        let status = repo.upgrade().await.wrap_err("Upgrade failed")?;
-        tracing::info!("{}", status);
-        Ok(1)
+        match &self {
+            // spk repo upgrade ...
+            Self::Upgrade { repo: repo_name } => {
+                let repo = match repo_name.as_str() {
+                    "local" => storage::local_repository().await?,
+                    _ => storage::remote_repository(repo_name).await?,
+                };
+
+                let status = repo.upgrade().await.wrap_err("Upgrade failed")?;
+                tracing::info!("{}", status);
+                Ok(1)
+            }
+
+            // spk repo index ...
+            Self::Index { repos, update } => {
+                // Generate or update an index a repo. The repo must
+                // be the underlying repo and not an indexed repo. So
+                // this disables index use for this command regardless
+                // of config or command line flags.
+                flags::disable_index_use();
+                let repos = repos.get_repos_for_non_destructive_operation().await?;
+                if repos.len() != 1 {
+                    tracing::error!(
+                        "{} repos specified, Can only index one repo at a time. Please specify a single repo.",
+                        repos.len()
+                    );
+                    return Ok(2);
+                }
+
+                if let Some(package_version) = update {
+                    // Update the existing index for the given package/version
+                    let start = Instant::now();
+                    let version_ident = VersionIdent::from_str(package_version)?;
+                    let mut was_full_index = String::from("");
+
+                    // Load the current index for this repo now
+                    let repo = &repos[0].1;
+                    match FlatBufferRepoIndex::from_repo_file(repo).await {
+                        Ok(current_index) => {
+                            let repo = &repos[0].1;
+                            current_index
+                                .update_repo_with_package_version(repo, &version_ident)
+                                .await?
+                        }
+                        Err(err) => {
+                            // There isn't an existing index, so generate one from scratch that
+                            // will also include the update package version.
+                            // TODO: could also just error out and say run a full index first,
+                            // or ask the user "are you sure?" before continuing.
+                            tracing::warn!("Failed to load flatbuffer index: {err}");
+                            tracing::warn!("No current index to update. Creating a full index ...");
+                            FlatBufferRepoIndex::index_repo(&repos).await?;
+                            was_full_index =
+                                " [no previous index, so a full index was created]".to_string()
+                        }
+                    };
+
+                    tracing::info!(
+                        "Index update for '{package_version}' in '{}' repo completed in: {} secs{was_full_index}",
+                        repo.name(),
+                        start.elapsed().as_secs_f64()
+                    );
+                } else {
+                    // Generate a full index from scratch
+                    let start = Instant::now();
+                    FlatBufferRepoIndex::index_repo(&repos).await?;
+
+                    let repo = &repos[0].1;
+                    tracing::info!(
+                        "Index generation for '{}' repo completed in: {} secs",
+                        repo.name(),
+                        start.elapsed().as_secs_f64()
+                    );
+                }
+
+                Ok(0)
+            }
+        }
     }
 }
