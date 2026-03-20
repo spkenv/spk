@@ -4154,6 +4154,7 @@ dependencies = [
  "prost",
  "protobuf-src",
  "spfs",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tonic",

@@ -1442,3 +1442,177 @@ impl Handle {
         }
     }
 }
+
+#[cfg(test)]
+#[cfg(feature = "fuse-backend-abi-7-31")]
+mod tests {
+    use std::sync::Arc;
+
+    use spfs::tracking::Manifest;
+
+    use super::*;
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    fn make_config() -> Config {
+        Config {
+            root_mode: 0o755 | libc::S_IFDIR as u32,
+            uid: nix::unistd::Uid::current(),
+            gid: nix::unistd::Gid::current(),
+            mount_options: Default::default(),
+            remotes: vec![],
+            include_secondary_tags: false,
+            blob_cache_max_bytes: 64 * 1024 * 1024,
+            blob_cache_max_single_bytes: 8 * 1024 * 1024,
+        }
+    }
+
+    fn make_filesystem(repos: Vec<Arc<spfs::storage::RepositoryHandle>>) -> Filesystem {
+        Filesystem::new(repos, Manifest::default(), make_config())
+    }
+
+    /// Convenience: create a `Digest` from a single repeated byte (for distinct
+    /// test digests without computing real hashes).
+    fn fake_digest(byte: u8) -> spfs::encoding::Digest {
+        spfs::encoding::Digest::from_bytes(&[byte; spfs::encoding::DIGEST_SIZE]).unwrap()
+    }
+
+    // ── BlobCache ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn blob_cache_insert_and_get() {
+        let mut cache = BlobCache::new(1024);
+        let digest = fake_digest(1);
+        let bytes = bytes::Bytes::from_static(b"hello cache");
+        let stored = cache.insert(digest, bytes.clone());
+        assert_eq!(*stored, bytes);
+        let hit = cache.get(&digest).expect("digest should be cached");
+        assert_eq!(*hit, bytes);
+    }
+
+    #[test]
+    fn blob_cache_miss_on_empty() {
+        let cache = BlobCache::new(1024);
+        assert!(cache.get(&fake_digest(42)).is_none());
+    }
+
+    #[test]
+    fn blob_cache_evicts_oldest_when_full() {
+        // Cap at 20 bytes; each entry is 10 bytes, so the third insert must
+        // evict the first.
+        let mut cache = BlobCache::new(20);
+        let (d1, d2, d3) = (fake_digest(1), fake_digest(2), fake_digest(3));
+        cache.insert(d1, bytes::Bytes::from(vec![0u8; 10]));
+        cache.insert(d2, bytes::Bytes::from(vec![0u8; 10]));
+        cache.insert(d3, bytes::Bytes::from(vec![0u8; 10])); // evicts d1
+
+        assert!(cache.get(&d1).is_none(), "oldest entry should be evicted");
+        assert!(cache.get(&d2).is_some());
+        assert!(cache.get(&d3).is_some());
+    }
+
+    #[test]
+    fn blob_cache_duplicate_insert_returns_same_arc() {
+        let mut cache = BlobCache::new(1024);
+        let digest = fake_digest(5);
+        let a1 = cache.insert(digest, bytes::Bytes::from_static(b"data"));
+        let a2 = cache.insert(digest, bytes::Bytes::from_static(b"data"));
+        assert!(
+            Arc::ptr_eq(&a1, &a2),
+            "duplicate insert should reuse the existing Arc"
+        );
+    }
+
+    // ── promote_remote_to_local ───────────────────────────────────────────────
+
+    /// Helper: commit `content` to a freshly created FS repo and return the
+    /// repo together with the blob's digest.
+    async fn create_repo_with_blob(
+        path: &std::path::Path,
+        content: &[u8],
+    ) -> (
+        spfs::storage::fs::MaybeOpenFsRepository,
+        spfs::encoding::Digest,
+    ) {
+        let repo = spfs::storage::fs::MaybeOpenFsRepository::create(path)
+            .await
+            .unwrap();
+        let stream: Pin<Box<dyn BlobRead>> = Box::pin(std::io::Cursor::new(content.to_vec()));
+        let opened = repo.opened().await.unwrap();
+        let digest = opened.commit_blob(stream).await.unwrap();
+        drop(opened);
+        (repo, digest)
+    }
+
+    #[tokio::test]
+    async fn promote_uses_existing_on_disk_payload() {
+        // If the blob is already present in the local FS repository (e.g. from
+        // a prior mount), promote_remote_to_local must succeed without
+        // attempting a remote download and must transition the guard to Local.
+        let tmpdir = tempfile::tempdir().unwrap();
+        let content = b"payload for promotion test";
+        let (repo, digest) = create_repo_with_blob(tmpdir.path(), content).await;
+
+        let repos = vec![Arc::new(spfs::storage::RepositoryHandle::FS(repo))];
+        let fs = make_filesystem(repos);
+
+        let cursor: Pin<Box<dyn BlobRead>> = Box::pin(std::io::Cursor::new(content.to_vec()));
+        let mutex = tokio::sync::Mutex::new(BlobRemoteInner::Streaming {
+            stream: cursor,
+            position: 0,
+        });
+        let mut guard = mutex.lock().await;
+
+        fs.promote_remote_to_local(&mut guard, &digest)
+            .await
+            .expect("promotion should succeed when payload is already on disk");
+
+        assert!(
+            matches!(*guard, BlobRemoteInner::Local(_)),
+            "guard should be Local after promotion"
+        );
+    }
+
+    #[tokio::test]
+    async fn promote_idempotent_when_already_local() {
+        // A guard that is already in the Local state must be a no-op.
+        let tmpdir = tempfile::tempdir().unwrap();
+        let path = tmpdir.path().join("dummy");
+        std::fs::write(&path, b"x").unwrap();
+        let file = std::fs::File::open(&path).unwrap();
+
+        let mutex = tokio::sync::Mutex::new(BlobRemoteInner::Local(file));
+        let mut guard = mutex.lock().await;
+
+        // Repos list is empty — if promote tried to do real work it would error.
+        let fs = make_filesystem(vec![]);
+        let digest = fake_digest(7);
+
+        fs.promote_remote_to_local(&mut guard, &digest)
+            .await
+            .expect("promote on already-Local handle should succeed");
+        assert!(matches!(*guard, BlobRemoteInner::Local(_)));
+    }
+
+    #[tokio::test]
+    async fn promote_fails_without_local_fs_repo() {
+        // Without any FS repository in the stack, promotion cannot write the
+        // blob and must return an error rather than panic.
+        let fs = make_filesystem(vec![]);
+        let digest = fake_digest(8);
+
+        let cursor: Pin<Box<dyn BlobRead>> = Box::pin(std::io::Cursor::new(vec![]));
+        let mutex = tokio::sync::Mutex::new(BlobRemoteInner::Streaming {
+            stream: cursor,
+            position: 0,
+        });
+        let mut guard = mutex.lock().await;
+
+        assert!(
+            fs.promote_remote_to_local(&mut guard, &digest)
+                .await
+                .is_err(),
+            "promotion should fail when no local FS repository is configured"
+        );
+    }
+}
