@@ -650,6 +650,7 @@
     "sddl",
     "seccomp",
     "seekable",
+    "seeked",
     "serde",
     "setattr",
     "setcap",

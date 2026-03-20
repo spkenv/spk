@@ -62,6 +62,17 @@ pub struct Config {
     /// Whether to have the tags in the secondary repos included in
     /// the lookup methods.
     pub include_secondary_tags: bool,
+    /// Maximum total bytes held in the in-memory remote blob cache.
+    ///
+    /// Remote blobs up to `blob_cache_max_single_bytes` in size are buffered
+    /// in memory so they can be read and seeked at arbitrary offsets.
+    pub blob_cache_max_bytes: usize,
+    /// Maximum size of a single remote blob that will be buffered in memory.
+    ///
+    /// Blobs larger than this are instead downloaded once into the local
+    /// repository so that future opens find them locally without a network
+    /// round-trip, and so they can be managed by `spfs clean`.
+    pub blob_cache_max_single_bytes: usize,
 }
 
 /// Handles the allocation of inodes, and async responses to all FUSE requests
