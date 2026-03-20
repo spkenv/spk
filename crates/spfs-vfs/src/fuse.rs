@@ -515,39 +515,20 @@ impl Filesystem {
                                 current_offset: AtomicU64::new(0),
                             });
                         } else {
-                            // Too large for the in-memory cache.  Create a lazy
-                            // handle: sequential reads stream directly from the
-                            // remote; the first non-sequential read or seek
-                            // triggers a one-time download into the local FS
-                            // repository.  If no local FS repo is available we
-                            // fall back to a non-seekable stream.
-                            let has_local_fs = self
-                                .repos
-                                .iter()
-                                .any(|r| matches!(&**r, spfs::storage::RepositoryHandle::FS(_)));
-                            if has_local_fs {
-                                let owned_digest = *digest;
-                                handle = Some(Handle::BlobRemote {
-                                    entry,
-                                    digest: owned_digest,
-                                    inner: tokio::sync::Mutex::new(BlobRemoteInner::Streaming {
-                                        stream,
-                                        position: 0,
-                                    }),
-                                });
-                                flags = FOPEN_STREAM;
-                            } else {
-                                tracing::warn!(
-                                    %digest,
-                                    "no local FS repository available to cache large \
-                                     blob; falling back to non-seekable stream"
-                                );
-                                handle = Some(Handle::BlobStream {
-                                    entry,
-                                    stream: tokio::sync::Mutex::new(stream),
-                                });
-                                flags |= FOPEN_NONSEEKABLE | FOPEN_STREAM;
-                            }
+                            // Too large for the in-memory cache.  Stream
+                            // directly from the remote; the first
+                            // non-sequential read or seek triggers a one-time
+                            // download into the local FS repository.
+                            let owned_digest = *digest;
+                            handle = Some(Handle::BlobRemote {
+                                entry,
+                                digest: owned_digest,
+                                inner: tokio::sync::Mutex::new(BlobRemoteInner::Streaming {
+                                    stream,
+                                    stream_pos: 0,
+                                }),
+                            });
+                            flags = FOPEN_STREAM;
                         }
                         break;
                     }
@@ -647,8 +628,9 @@ impl Filesystem {
                 let read_offset = offset as u64;
 
                 // Promote to a local file on the first non-sequential access.
-                let needs_promotion = if let BlobRemoteInner::Streaming { position, .. } = &*guard {
-                    *position != read_offset
+                let needs_promotion = if let BlobRemoteInner::Streaming { stream_pos, .. } = &*guard
+                {
+                    *stream_pos != read_offset
                 } else {
                     false
                 };
@@ -665,7 +647,7 @@ impl Filesystem {
                 }
 
                 match &mut *guard {
-                    BlobRemoteInner::Streaming { stream, position } => {
+                    BlobRemoteInner::Streaming { stream, stream_pos } => {
                         let mut buf = vec![0; size as usize];
                         let mut consumed = 0;
                         while consumed < size as usize {
@@ -675,7 +657,7 @@ impl Filesystem {
                                 break;
                             }
                         }
-                        *position += consumed as u64;
+                        *stream_pos += consumed as u64;
                         tracing::trace!("read {fh} = {consumed}/{size} [REMOTE STREAM]");
                         reply.data(&buf[..consumed]);
                     }
@@ -698,22 +680,6 @@ impl Filesystem {
                         reply.data(&buf[..consumed]);
                     }
                 }
-            }
-            #[cfg(feature = "fuse-backend-abi-7-31")]
-            Handle::BlobStream { entry: _, stream } => {
-                let mut stream = stream.lock().await;
-                let mut buf = vec![0; size as usize];
-                let mut consumed = 0;
-                while consumed < size as usize {
-                    let count = unwrap!(reply, stream.read(&mut buf[consumed..]).await);
-                    consumed += count;
-                    if count == 0 {
-                        // the end of the file has been reached
-                        break;
-                    }
-                }
-                tracing::trace!("read {fh} = {consumed}/{size} [STREAM]");
-                reply.data(&buf[..consumed]);
             }
         };
     }
@@ -888,29 +854,82 @@ impl Filesystem {
             #[cfg(feature = "fuse-backend-abi-7-31")]
             Handle::BlobRemote {
                 entry,
-                digest: _,
+                digest,
                 inner,
             } => {
                 let file_len = entry.size();
                 let mut guard = inner.lock().await;
-                let new_offset = match &mut *guard {
-                    BlobRemoteInner::Streaming { position, .. } => {
-                        let cur = *position;
-                        let new = match whence {
+
+                // For the Streaming state, handle trivial (non-position-
+                // changing) seeks without touching the stream, and compute
+                // a target position for all position-changing seeks so we can
+                // promote before the borrow is held.
+                let needs_promotion_to =
+                    if let BlobRemoteInner::Streaming { stream_pos, .. } = &*guard {
+                        // SEEK_HOLE / SEEK_DATA: answer without moving the stream.
+                        if whence == libc::SEEK_HOLE {
+                            tracing::trace!("lseek {fh} = {file_len} [REMOTE STREAM SEEK_HOLE]");
+                            reply.offset(file_len as i64);
+                            return;
+                        }
+                        if whence == libc::SEEK_DATA {
+                            tracing::trace!("lseek {fh} = {offset} [REMOTE STREAM SEEK_DATA]");
+                            reply.offset(offset);
+                            return;
+                        }
+                        let new_pos = match whence {
                             libc::SEEK_SET => offset as u64,
-                            libc::SEEK_CUR => (cur as i64 + offset) as u64,
+                            libc::SEEK_CUR => (*stream_pos as i64 + offset) as u64,
                             libc::SEEK_END => (file_len as i64 + offset) as u64,
-                            libc::SEEK_HOLE => file_len,
-                            libc::SEEK_DATA => offset as u64,
                             _ => {
                                 tracing::debug!("lseek {fh} = EINVAL");
                                 reply.error(libc::EINVAL);
                                 return;
                             }
                         };
-                        *position = new;
-                        new
+                        if new_pos == *stream_pos {
+                            // No-op: position unchanged, stream is still valid.
+                            tracing::trace!("lseek {fh} = {new_pos} [REMOTE STREAM noop]");
+                            reply.offset(new_pos as i64);
+                            return;
+                        }
+                        // Position is changing: we can't rewind the stream,
+                        // so promote to a local file first.
+                        Some(new_pos)
+                    } else {
+                        None
+                    };
+
+                if let Some(new_pos) = needs_promotion_to {
+                    tracing::debug!(
+                        fh,
+                        new_pos,
+                        "seek requires rewind on remote stream, promoting to local file"
+                    );
+                    unwrap!(
+                        reply,
+                        self.promote_remote_to_local(&mut guard, digest).await
+                    );
+                    // Promotion succeeded; guard is now Local — seek to target.
+                    match &mut *guard {
+                        BlobRemoteInner::Local(file) => {
+                            let f = unsafe { std::fs::File::from_raw_fd(file.as_raw_fd()) };
+                            let mut f = ManuallyDrop::new(f);
+                            let new_offset = unwrap!(reply, f.seek(SeekFrom::Start(new_pos)));
+                            tracing::trace!("lseek {fh} = {new_offset} [REMOTE PROMOTED]");
+                            reply.offset(new_offset as i64);
+                        }
+                        BlobRemoteInner::Streaming { .. } => {
+                            unreachable!("promote_remote_to_local must transition to Local state");
+                        }
                     }
+                    return;
+                }
+
+                // Guard is already Local (the Streaming branch above either
+                // returned early or set needs_promotion_to, so reaching here
+                // means guard is Local).
+                match &mut *guard {
                     BlobRemoteInner::Local(file) => {
                         let pos = match whence {
                             libc::SEEK_CUR => SeekFrom::Current(offset),
@@ -926,17 +945,14 @@ impl Filesystem {
                         };
                         let f = unsafe { std::fs::File::from_raw_fd(file.as_raw_fd()) };
                         let mut f = ManuallyDrop::new(f);
-                        unwrap!(reply, f.seek(pos))
+                        let new_offset = unwrap!(reply, f.seek(pos));
+                        tracing::trace!("lseek {fh} = {new_offset} [REMOTE LOCAL]");
+                        reply.offset(new_offset as i64);
                     }
-                };
-                tracing::trace!("lseek {fh} = {new_offset} [REMOTE]");
-                reply.offset(new_offset as i64);
-            }
-            #[cfg(feature = "fuse-backend-abi-7-31")]
-            Handle::BlobStream { .. } => {
-                tracing::warn!("FUSE should not allow seek calls on streams");
-                tracing::debug!("lseek {fh} = EINVAL");
-                reply.error(libc::EINVAL);
+                    BlobRemoteInner::Streaming { .. } => {
+                        unreachable!("Streaming state must have been handled above");
+                    }
+                }
             }
             Handle::BlobFile { entry: _, file } => {
                 let pos = match whence {
@@ -1379,7 +1395,7 @@ enum BlobRemoteInner {
     Streaming {
         stream: Pin<Box<dyn BlobRead>>,
         /// Byte offset of the next byte the stream will yield.
-        position: u64,
+        stream_pos: u64,
     },
     /// The blob has been downloaded to the local FS repository and is
     /// accessible as a regular file.
@@ -1412,17 +1428,6 @@ enum Handle {
         digest: spfs::encoding::Digest,
         inner: tokio::sync::Mutex<BlobRemoteInner>,
     },
-    #[cfg(feature = "fuse-backend-abi-7-31")]
-    /// A handle to an opaque file stream that can only be read once.
-    /// Only used as a fallback when no local FS repo is available and the
-    /// file is too large for the in-memory cache.
-    BlobStream {
-        entry: Arc<Entry<u64>>,
-        // TODO: we should avoid the tokio mutex at all costs,
-        // but we need a mutable reference to this BlobRead and
-        // need to hold it across an await (for reading from the stream)
-        stream: tokio::sync::Mutex<Pin<Box<dyn BlobRead>>>,
-    },
     Tree {
         entry: Arc<Entry<u64>>,
     },
@@ -1436,8 +1441,6 @@ impl Handle {
             Self::BlobCached { entry, .. } => Arc::clone(entry),
             #[cfg(feature = "fuse-backend-abi-7-31")]
             Self::BlobRemote { entry, .. } => Arc::clone(entry),
-            #[cfg(feature = "fuse-backend-abi-7-31")]
-            Self::BlobStream { entry, .. } => Arc::clone(entry),
             Self::Tree { entry } => Arc::clone(entry),
         }
     }
@@ -1559,7 +1562,7 @@ mod tests {
         let cursor: Pin<Box<dyn BlobRead>> = Box::pin(std::io::Cursor::new(content.to_vec()));
         let mutex = tokio::sync::Mutex::new(BlobRemoteInner::Streaming {
             stream: cursor,
-            position: 0,
+            stream_pos: 0,
         });
         let mut guard = mutex.lock().await;
 
@@ -1604,7 +1607,7 @@ mod tests {
         let cursor: Pin<Box<dyn BlobRead>> = Box::pin(std::io::Cursor::new(vec![]));
         let mutex = tokio::sync::Mutex::new(BlobRemoteInner::Streaming {
             stream: cursor,
-            position: 0,
+            stream_pos: 0,
         });
         let mut guard = mutex.lock().await;
 
