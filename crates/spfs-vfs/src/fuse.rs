@@ -515,40 +515,28 @@ impl Filesystem {
                                 current_offset: AtomicU64::new(0),
                             });
                         } else {
-                            // Too large for the in-memory cache.  Persist to
-                            // the local FS repo so that future opens are served
-                            // directly from disk, and spfs-clean can reclaim
-                            // the space through the normal object lifecycle.
-                            let local_fs = self.repos.iter().find_map(|r| {
-                                if let spfs::storage::RepositoryHandle::FS(fs) = &**r {
-                                    Some(fs)
-                                } else {
-                                    None
-                                }
-                            });
-                            if let Some(local_fs) = local_fs {
-                                let opened = unwrap!(reply, local_fs.opened().await);
-                                let stored = unwrap!(reply, opened.commit_blob(stream).await);
-                                if stored != *digest {
-                                    err!(
-                                        reply,
-                                        spfs::Error::String(format!(
-                                            "Payload digest mismatch when caching large \
-                                             blob: expected {digest}, got {stored}"
-                                        ))
-                                    );
-                                }
-                                let payload_path = opened.payloads().build_digest_path(digest);
-                                match std::fs::OpenOptions::new().read(true).open(&payload_path) {
-                                    Ok(file) => {
-                                        handle = Some(Handle::BlobFile { entry, file });
-                                    }
-                                    Err(err) => err!(reply, err),
-                                }
+                            // Too large for the in-memory cache.  Create a lazy
+                            // handle: sequential reads stream directly from the
+                            // remote; the first non-sequential read or seek
+                            // triggers a one-time download into the local FS
+                            // repository.  If no local FS repo is available we
+                            // fall back to a non-seekable stream.
+                            let has_local_fs = self
+                                .repos
+                                .iter()
+                                .any(|r| matches!(&**r, spfs::storage::RepositoryHandle::FS(_)));
+                            if has_local_fs {
+                                let owned_digest = *digest;
+                                handle = Some(Handle::BlobRemote {
+                                    entry,
+                                    digest: owned_digest,
+                                    inner: tokio::sync::Mutex::new(BlobRemoteInner::Streaming {
+                                        stream,
+                                        position: 0,
+                                    }),
+                                });
+                                flags = FOPEN_STREAM;
                             } else {
-                                // No local FS repo in the stack — fall back to a
-                                // non-seekable stream.  This should be rare in
-                                // practice.
                                 tracing::warn!(
                                     %digest,
                                     "no local FS repository available to cache large \
@@ -648,6 +636,68 @@ impl Filesystem {
                 };
                 tracing::trace!("read {fh} = {}/{size} [CACHED]", slice.len());
                 reply.data(slice);
+            }
+            #[cfg(feature = "fuse-backend-abi-7-31")]
+            Handle::BlobRemote {
+                entry: _,
+                digest,
+                inner,
+            } => {
+                let mut guard = inner.lock().await;
+                let read_offset = offset as u64;
+
+                // Promote to a local file on the first non-sequential access.
+                let needs_promotion = if let BlobRemoteInner::Streaming { position, .. } = &*guard {
+                    *position != read_offset
+                } else {
+                    false
+                };
+                if needs_promotion {
+                    tracing::debug!(
+                        fh,
+                        read_offset,
+                        "non-sequential read on remote stream, promoting to local file"
+                    );
+                    unwrap!(
+                        reply,
+                        self.promote_remote_to_local(&mut guard, digest).await
+                    );
+                }
+
+                match &mut *guard {
+                    BlobRemoteInner::Streaming { stream, position } => {
+                        let mut buf = vec![0; size as usize];
+                        let mut consumed = 0;
+                        while consumed < size as usize {
+                            let count = unwrap!(reply, stream.read(&mut buf[consumed..]).await);
+                            consumed += count;
+                            if count == 0 {
+                                break;
+                            }
+                        }
+                        *position += consumed as u64;
+                        tracing::trace!("read {fh} = {consumed}/{size} [REMOTE STREAM]");
+                        reply.data(&buf[..consumed]);
+                    }
+                    BlobRemoteInner::Local(file) => {
+                        let f = unsafe { std::fs::File::from_raw_fd(file.as_raw_fd()) };
+                        let f = ManuallyDrop::new(f);
+                        let mut buf = vec![0; size as usize];
+                        let mut consumed = 0;
+                        while consumed < size as usize {
+                            let count = unwrap!(
+                                reply,
+                                f.read_at(&mut buf[consumed..], consumed as u64 + read_offset)
+                            );
+                            consumed += count;
+                            if count == 0 {
+                                break;
+                            }
+                        }
+                        tracing::trace!("read {fh} = {consumed}/{size} [REMOTE LOCAL]");
+                        reply.data(&buf[..consumed]);
+                    }
+                }
             }
             #[cfg(feature = "fuse-backend-abi-7-31")]
             Handle::BlobStream { entry: _, stream } => {
@@ -836,6 +886,53 @@ impl Filesystem {
                 reply.offset(new_offset as i64);
             }
             #[cfg(feature = "fuse-backend-abi-7-31")]
+            Handle::BlobRemote {
+                entry,
+                digest: _,
+                inner,
+            } => {
+                let file_len = entry.size();
+                let mut guard = inner.lock().await;
+                let new_offset = match &mut *guard {
+                    BlobRemoteInner::Streaming { position, .. } => {
+                        let cur = *position;
+                        let new = match whence {
+                            libc::SEEK_SET => offset as u64,
+                            libc::SEEK_CUR => (cur as i64 + offset) as u64,
+                            libc::SEEK_END => (file_len as i64 + offset) as u64,
+                            libc::SEEK_HOLE => file_len,
+                            libc::SEEK_DATA => offset as u64,
+                            _ => {
+                                tracing::debug!("lseek {fh} = EINVAL");
+                                reply.error(libc::EINVAL);
+                                return;
+                            }
+                        };
+                        *position = new;
+                        new
+                    }
+                    BlobRemoteInner::Local(file) => {
+                        let pos = match whence {
+                            libc::SEEK_CUR => SeekFrom::Current(offset),
+                            libc::SEEK_END => SeekFrom::End(offset),
+                            libc::SEEK_SET => SeekFrom::Start(offset as u64),
+                            libc::SEEK_HOLE => SeekFrom::End(0),
+                            libc::SEEK_DATA => SeekFrom::Start(offset as u64),
+                            _ => {
+                                tracing::debug!("lseek {fh} = EINVAL");
+                                reply.error(libc::EINVAL);
+                                return;
+                            }
+                        };
+                        let f = unsafe { std::fs::File::from_raw_fd(file.as_raw_fd()) };
+                        let mut f = ManuallyDrop::new(f);
+                        unwrap!(reply, f.seek(pos))
+                    }
+                };
+                tracing::trace!("lseek {fh} = {new_offset} [REMOTE]");
+                reply.offset(new_offset as i64);
+            }
+            #[cfg(feature = "fuse-backend-abi-7-31")]
             Handle::BlobStream { .. } => {
                 tracing::warn!("FUSE should not allow seek calls on streams");
                 tracing::debug!("lseek {fh} = EINVAL");
@@ -875,6 +972,70 @@ impl Filesystem {
                 reply.offset(new_offset as i64);
             }
         }
+    }
+
+    /// Download a large remote blob to the local FS repository and replace
+    /// the streaming handle state with a `Local` file handle.
+    ///
+    /// Idempotent: if the blob is already on disk (either from a previous
+    /// promotion or because the FS repo already had it), only the file open
+    /// is performed.
+    #[cfg(feature = "fuse-backend-abi-7-31")]
+    async fn promote_remote_to_local(
+        &self,
+        guard: &mut tokio::sync::MutexGuard<'_, BlobRemoteInner>,
+        digest: &spfs::encoding::Digest,
+    ) -> spfs::Result<()> {
+        if matches!(**guard, BlobRemoteInner::Local(_)) {
+            return Ok(());
+        }
+
+        let local_fs = self.repos.iter().find_map(|r| {
+            if let spfs::storage::RepositoryHandle::FS(fs) = &**r {
+                Some(fs)
+            } else {
+                None
+            }
+        });
+        let local_fs = local_fs.ok_or_else(|| {
+            spfs::Error::String("no local FS repository available to cache large blob".into())
+        })?;
+
+        let opened = local_fs.opened().await?;
+        let payload_path = opened.payloads().build_digest_path(digest);
+
+        // Only download if the payload is not already present on disk.
+        if std::fs::metadata(&payload_path).is_err() {
+            tracing::debug!(%digest, "promoting remote blob to local FS repository");
+            let mut fresh_stream = None;
+            for repo in self.repos.iter() {
+                if matches!(&**repo, spfs::storage::RepositoryHandle::FS(_)) {
+                    continue;
+                }
+                match repo.open_payload(*digest).await {
+                    Ok((s, _)) => {
+                        fresh_stream = Some(s);
+                        break;
+                    }
+                    Err(err) if err.try_next_repo() => continue,
+                    Err(err) => return Err(err),
+                }
+            }
+            let stream = fresh_stream.ok_or(spfs::Error::UnknownObject(*digest))?;
+            let stored = opened.commit_blob(stream).await?;
+            if stored != *digest {
+                return Err(spfs::Error::String(format!(
+                    "payload digest mismatch when caching blob: expected {digest}, got {stored}"
+                )));
+            }
+        }
+
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .open(&payload_path)
+            .map_err(|e| spfs::Error::String(format!("failed to open cached payload: {e}")))?;
+        **guard = BlobRemoteInner::Local(file);
+        Ok(())
     }
 }
 
@@ -1209,6 +1370,22 @@ impl fuser::Filesystem for Session {
     }
 }
 
+/// State for a lazily-promoted large remote blob.
+///
+/// Starts as `Streaming` (sequential reads from the remote) and transitions to
+/// `Local` on the first non-sequential read or meaningful lseek.
+#[cfg(feature = "fuse-backend-abi-7-31")]
+enum BlobRemoteInner {
+    Streaming {
+        stream: Pin<Box<dyn BlobRead>>,
+        /// Byte offset of the next byte the stream will yield.
+        position: u64,
+    },
+    /// The blob has been downloaded to the local FS repository and is
+    /// accessible as a regular file.
+    Local(std::fs::File),
+}
+
 enum Handle {
     /// A handle to real file on disk that can be seek'd, etc.
     BlobFile {
@@ -1224,6 +1401,16 @@ enum Handle {
         entry: Arc<Entry<u64>>,
         data: Arc<bytes::Bytes>,
         current_offset: AtomicU64,
+    },
+    #[cfg(feature = "fuse-backend-abi-7-31")]
+    /// A large remote blob served lazily: sequential reads stream directly
+    /// from the remote; the first non-sequential read or meaningful seek
+    /// promotes the blob to the local FS repository so all subsequent
+    /// accesses are from disk.
+    BlobRemote {
+        entry: Arc<Entry<u64>>,
+        digest: spfs::encoding::Digest,
+        inner: tokio::sync::Mutex<BlobRemoteInner>,
     },
     #[cfg(feature = "fuse-backend-abi-7-31")]
     /// A handle to an opaque file stream that can only be read once.
@@ -1247,6 +1434,8 @@ impl Handle {
             Self::BlobFile { entry, .. } => Arc::clone(entry),
             #[cfg(feature = "fuse-backend-abi-7-31")]
             Self::BlobCached { entry, .. } => Arc::clone(entry),
+            #[cfg(feature = "fuse-backend-abi-7-31")]
+            Self::BlobRemote { entry, .. } => Arc::clone(entry),
             #[cfg(feature = "fuse-backend-abi-7-31")]
             Self::BlobStream { entry, .. } => Arc::clone(entry),
             Self::Tree { entry } => Arc::clone(entry),
