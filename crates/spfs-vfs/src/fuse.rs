@@ -3,6 +3,8 @@
 // https://github.com/spkenv/spk
 
 use std::collections::HashSet;
+#[cfg(feature = "fuse-backend-abi-7-31")]
+use std::collections::{HashMap, VecDeque};
 use std::ffi::{OsStr, OsString};
 use std::io::{Seek, SeekFrom};
 use std::mem::ManuallyDrop;
@@ -12,6 +14,8 @@ use std::os::unix::prelude::FileExt;
 #[cfg(feature = "fuse-backend-abi-7-31")]
 use std::pin::Pin;
 use std::sync::Arc;
+#[cfg(feature = "fuse-backend-abi-7-31")]
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime};
 
@@ -75,6 +79,58 @@ pub struct Config {
     pub blob_cache_max_single_bytes: usize,
 }
 
+/// Byte-bounded in-memory cache for remote blob payloads.
+///
+/// Entries are evicted in insertion order (oldest first) once the total
+/// byte count would exceed `max_bytes`.  Multiple open handles to the same
+/// blob share the same `Arc<bytes::Bytes>` without copying.
+#[cfg(feature = "fuse-backend-abi-7-31")]
+struct BlobCache {
+    /// Digest insertion order for eviction (front = oldest).
+    order: VecDeque<spfs::encoding::Digest>,
+    data: HashMap<spfs::encoding::Digest, Arc<bytes::Bytes>>,
+    current_bytes: usize,
+    max_bytes: usize,
+}
+
+#[cfg(feature = "fuse-backend-abi-7-31")]
+impl BlobCache {
+    fn new(max_bytes: usize) -> Self {
+        Self {
+            order: VecDeque::new(),
+            data: HashMap::new(),
+            current_bytes: 0,
+            max_bytes,
+        }
+    }
+
+    fn get(&self, digest: &spfs::encoding::Digest) -> Option<Arc<bytes::Bytes>> {
+        self.data.get(digest).cloned()
+    }
+
+    /// Insert `bytes` under `digest`, evicting oldest entries to stay within
+    /// `max_bytes`.  Returns a shared `Arc` to the stored slice.
+    fn insert(&mut self, digest: spfs::encoding::Digest, bytes: bytes::Bytes) -> Arc<bytes::Bytes> {
+        // A concurrent open may have already inserted this digest.
+        if let Some(existing) = self.data.get(&digest) {
+            return Arc::clone(existing);
+        }
+        let len = bytes.len();
+        while !self.order.is_empty() && self.current_bytes + len > self.max_bytes {
+            if let Some(evicted_digest) = self.order.pop_front()
+                && let Some(evicted) = self.data.remove(&evicted_digest)
+            {
+                self.current_bytes = self.current_bytes.saturating_sub(evicted.len());
+            }
+        }
+        let arc = Arc::new(bytes);
+        self.data.insert(digest, Arc::clone(&arc));
+        self.order.push_back(digest);
+        self.current_bytes += len;
+        arc
+    }
+}
+
 /// Handles the allocation of inodes, and async responses to all FUSE requests
 struct Filesystem {
     repos: Vec<Arc<spfs::storage::RepositoryHandle>>,
@@ -86,6 +142,8 @@ struct Filesystem {
     inodes: DashMap<u64, Arc<Entry<u64>>>,
     handles: DashMap<u64, Handle>,
     fs_creation_time: SystemTime,
+    #[cfg(feature = "fuse-backend-abi-7-31")]
+    blob_cache: Mutex<BlobCache>,
 }
 
 impl Filesystem {
@@ -100,6 +158,8 @@ impl Filesystem {
         manifest: Manifest,
         opts: Config,
     ) -> Self {
+        #[cfg(feature = "fuse-backend-abi-7-31")]
+        let blob_cache = Mutex::new(BlobCache::new(opts.blob_cache_max_bytes));
         let fs = Self {
             repos,
             opts,
@@ -111,6 +171,8 @@ impl Filesystem {
             inodes: Default::default(),
             handles: Default::default(),
             fs_creation_time: SystemTime::now(),
+            #[cfg(feature = "fuse-backend-abi-7-31")]
+            blob_cache,
         };
         // pre-allocate inodes for all entries in the manifest
         let mut root = manifest.take_root();
@@ -391,6 +453,29 @@ impl Filesystem {
         let mut handle = None;
         #[allow(unused_mut)]
         let mut flags = FOPEN_KEEP_CACHE;
+
+        // Fast path: serve from the in-memory blob cache without touching any
+        // repository.  This is checked before the repo loop so that even the
+        // FS repo open() syscall is avoided on a cache hit.
+        #[cfg(feature = "fuse-backend-abi-7-31")]
+        {
+            let cached = self
+                .blob_cache
+                .lock()
+                .expect("blob cache lock poisoned")
+                .get(digest);
+            if let Some(data) = cached {
+                let fh = self.allocate_handle(Handle::BlobCached {
+                    entry,
+                    data,
+                    current_offset: AtomicU64::new(0),
+                });
+                tracing::trace!("open {ino} = {fh} [CACHE HIT]");
+                reply.opened(fh, FOPEN_KEEP_CACHE);
+                return;
+            }
+        }
+
         for repo in self.repos.iter() {
             match &**repo {
                 spfs::storage::RepositoryHandle::FS(fs_repo) => {
@@ -412,13 +497,70 @@ impl Filesystem {
                 }
                 #[cfg(feature = "fuse-backend-abi-7-31")]
                 repo => match repo.open_payload(*digest).await {
-                    Ok((stream, _)) => {
-                        // TODO: try to leverage the returned file path?
-                        handle = Some(Handle::BlobStream {
-                            entry,
-                            stream: tokio::sync::Mutex::new(stream),
-                        });
-                        flags |= FOPEN_NONSEEKABLE | FOPEN_STREAM;
+                    Ok((mut stream, _)) => {
+                        let file_size = entry.size() as usize;
+                        if file_size <= self.opts.blob_cache_max_single_bytes {
+                            // Small enough to buffer in memory.  Download the
+                            // full payload and add it to the shared LRU cache.
+                            let mut buf = Vec::with_capacity(file_size);
+                            unwrap!(reply, stream.read_to_end(&mut buf).await);
+                            let data = self
+                                .blob_cache
+                                .lock()
+                                .expect("blob cache lock poisoned")
+                                .insert(*digest, bytes::Bytes::from(buf));
+                            handle = Some(Handle::BlobCached {
+                                entry,
+                                data,
+                                current_offset: AtomicU64::new(0),
+                            });
+                        } else {
+                            // Too large for the in-memory cache.  Persist to
+                            // the local FS repo so that future opens are served
+                            // directly from disk, and spfs-clean can reclaim
+                            // the space through the normal object lifecycle.
+                            let local_fs = self.repos.iter().find_map(|r| {
+                                if let spfs::storage::RepositoryHandle::FS(fs) = &**r {
+                                    Some(fs)
+                                } else {
+                                    None
+                                }
+                            });
+                            if let Some(local_fs) = local_fs {
+                                let opened = unwrap!(reply, local_fs.opened().await);
+                                let stored = unwrap!(reply, opened.commit_blob(stream).await);
+                                if stored != *digest {
+                                    err!(
+                                        reply,
+                                        spfs::Error::String(format!(
+                                            "Payload digest mismatch when caching large \
+                                             blob: expected {digest}, got {stored}"
+                                        ))
+                                    );
+                                }
+                                let payload_path = opened.payloads().build_digest_path(digest);
+                                match std::fs::OpenOptions::new().read(true).open(&payload_path) {
+                                    Ok(file) => {
+                                        handle = Some(Handle::BlobFile { entry, file });
+                                    }
+                                    Err(err) => err!(reply, err),
+                                }
+                            } else {
+                                // No local FS repo in the stack — fall back to a
+                                // non-seekable stream.  This should be rare in
+                                // practice.
+                                tracing::warn!(
+                                    %digest,
+                                    "no local FS repository available to cache large \
+                                     blob; falling back to non-seekable stream"
+                                );
+                                handle = Some(Handle::BlobStream {
+                                    entry,
+                                    stream: tokio::sync::Mutex::new(stream),
+                                });
+                                flags |= FOPEN_NONSEEKABLE | FOPEN_STREAM;
+                            }
+                        }
                         break;
                     }
                     Err(err) if err.try_next_repo() => continue,
@@ -494,6 +636,18 @@ impl Filesystem {
                 }
                 tracing::trace!("read {fh} = {consumed}/{size} [FILE]");
                 reply.data(&buf[..consumed]);
+            }
+            #[cfg(feature = "fuse-backend-abi-7-31")]
+            Handle::BlobCached { data, .. } => {
+                let start = offset as usize;
+                let end = (start + size as usize).min(data.len());
+                let slice = if start < data.len() {
+                    &data[start..end]
+                } else {
+                    &[]
+                };
+                tracing::trace!("read {fh} = {}/{size} [CACHED]", slice.len());
+                reply.data(slice);
             }
             #[cfg(feature = "fuse-backend-abi-7-31")]
             Handle::BlobStream { entry: _, stream } => {
@@ -644,58 +798,83 @@ impl Filesystem {
     }
 
     async fn lseek(&self, _ino: u64, fh: u64, offset: i64, whence: i32, reply: fuser::ReplyLseek) {
-        let Some(handle) = self.handles.get_mut(&fh) else {
+        let Some(handle) = self.handles.get(&fh) else {
             tracing::debug!("lseek {fh} = EBADF");
             reply.error(libc::EBADF);
             return;
         };
 
-        let file = match handle.value() {
+        match handle.value() {
             Handle::Tree { .. } => {
                 tracing::debug!("lseek {fh} = EISDIR");
                 reply.error(libc::EISDIR);
-                return;
             }
-            Handle::BlobFile { entry: _, file } => file,
+            #[cfg(feature = "fuse-backend-abi-7-31")]
+            Handle::BlobCached {
+                data,
+                current_offset,
+                ..
+            } => {
+                let cur = current_offset.load(Ordering::Relaxed);
+                let file_len = data.len() as u64;
+                let new_offset = match whence {
+                    libc::SEEK_SET => offset as u64,
+                    libc::SEEK_CUR => (cur as i64 + offset) as u64,
+                    libc::SEEK_END => (file_len as i64 + offset) as u64,
+                    // Simplest valid implementation per the linux man page:
+                    // treat the entire file as data with no holes.
+                    libc::SEEK_HOLE => file_len,
+                    libc::SEEK_DATA => offset as u64,
+                    _ => {
+                        tracing::debug!("lseek {fh} = EINVAL");
+                        reply.error(libc::EINVAL);
+                        return;
+                    }
+                };
+                current_offset.store(new_offset, Ordering::Relaxed);
+                tracing::trace!("lseek {fh} = {new_offset} [CACHED]");
+                reply.offset(new_offset as i64);
+            }
             #[cfg(feature = "fuse-backend-abi-7-31")]
             Handle::BlobStream { .. } => {
                 tracing::warn!("FUSE should not allow seek calls on streams");
                 tracing::debug!("lseek {fh} = EINVAL");
                 reply.error(libc::EINVAL);
-                return;
             }
-        };
+            Handle::BlobFile { entry: _, file } => {
+                let pos = match whence {
+                    libc::SEEK_CUR => SeekFrom::Current(offset),
+                    libc::SEEK_END => SeekFrom::End(offset),
+                    libc::SEEK_SET => SeekFrom::Start(offset as u64),
 
-        let pos = match whence {
-            libc::SEEK_CUR => SeekFrom::Current(offset),
-            libc::SEEK_END => SeekFrom::End(offset),
-            libc::SEEK_SET => SeekFrom::Start(offset as u64),
+                    // From linux man pages: In the
+                    // simplest implementation, a filesystem can support the operations
+                    // by making SEEK_HOLE always return the offset of the end of the
+                    // file, and making SEEK_DATA always return offset (i.e., even if
+                    // the location referred to by offset is a hole, it can be
+                    // considered to consist of data that is a sequence of zeros).
+                    libc::SEEK_HOLE => SeekFrom::End(0),
+                    libc::SEEK_DATA => SeekFrom::Start(offset as u64),
 
-            // From linux man pages: In the
-            // simplest implementation, a filesystem can support the operations
-            // by making SEEK_HOLE always return the offset of the end of the
-            // file, and making SEEK_DATA always return offset (i.e., even if
-            // the location referred to by offset is a hole, it can be
-            // considered to consist of data that is a sequence of zeros).
-            libc::SEEK_HOLE => SeekFrom::End(0),
-            libc::SEEK_DATA => SeekFrom::Start(offset as u64),
+                    _ => {
+                        reply.error(libc::EINVAL);
+                        return;
+                    }
+                };
 
-            _ => {
-                reply.error(libc::EINVAL);
-                return;
+                // Safety: the fd must be valid and open, which we know. We also
+                // know that the file will live for the lifetime of this function
+                // and so can create a copy of it safely for use before that rather
+                // than duplicating it or using some kind of lock.
+                let f = unsafe { std::fs::File::from_raw_fd(file.as_raw_fd()) };
+                // file takes ownership of the handle, but we need to make sure
+                // it is not closed since it's a copy of the File that remains alive
+                let mut f = ManuallyDrop::new(f);
+                let new_offset = unwrap!(reply, f.seek(pos));
+                tracing::trace!("lseek {fh} = {new_offset} [FILE]");
+                reply.offset(new_offset as i64);
             }
-        };
-
-        // Safety: the fd must be valid and open, which we know. We also
-        // know that the file will live for the livetime of this function
-        // and so can create a copy of it safely for use before that rather
-        // than duplicating it or using some kind of lock
-        let f = unsafe { std::fs::File::from_raw_fd(file.as_raw_fd()) };
-        // file takes ownership of the handle, but we need to make sure
-        // it is not closed since it's a copy of the File that remains alive
-        let mut f = ManuallyDrop::new(f);
-        let new_offset = unwrap!(reply, f.seek(pos));
-        reply.offset(new_offset as i64);
+        }
     }
 }
 
@@ -1037,7 +1216,19 @@ enum Handle {
         file: std::fs::File,
     },
     #[cfg(feature = "fuse-backend-abi-7-31")]
-    // A handle to an opaque file stream that can only be read once
+    /// A remote blob fully buffered in memory, allowing arbitrary seeks and
+    /// random-access reads without a "current position" in the FUSE sense
+    /// (FUSE read() always supplies an explicit absolute offset).  The
+    /// `current_offset` field is only maintained for SEEK_CUR lseek calls.
+    BlobCached {
+        entry: Arc<Entry<u64>>,
+        data: Arc<bytes::Bytes>,
+        current_offset: AtomicU64,
+    },
+    #[cfg(feature = "fuse-backend-abi-7-31")]
+    /// A handle to an opaque file stream that can only be read once.
+    /// Only used as a fallback when no local FS repo is available and the
+    /// file is too large for the in-memory cache.
     BlobStream {
         entry: Arc<Entry<u64>>,
         // TODO: we should avoid the tokio mutex at all costs,
@@ -1054,6 +1245,8 @@ impl Handle {
     fn entry_owned(&self) -> Arc<Entry<u64>> {
         match self {
             Self::BlobFile { entry, .. } => Arc::clone(entry),
+            #[cfg(feature = "fuse-backend-abi-7-31")]
+            Self::BlobCached { entry, .. } => Arc::clone(entry),
             #[cfg(feature = "fuse-backend-abi-7-31")]
             Self::BlobStream { entry, .. } => Arc::clone(entry),
             Self::Tree { entry } => Arc::clone(entry),
