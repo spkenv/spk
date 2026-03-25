@@ -129,7 +129,7 @@ rpm-buildenv:
 		--tag build_env
 
 .PHONY: coverage
-coverage: FEATURES?=server,spfs/server,spfs/protobuf-src,spk/migration-to-components,sentry,statsd,fuse-backend,spfs-vfs/protobuf-src
+coverage: FEATURES?=server,spfs/server,spfs/protobuf-src,sentry,statsd,fuse-backend,spfs-vfs/protobuf-src
 coverage:
 	# Generate a coverage reports (html, lcov) using grcov, requires:
 	# - cargo install grcov

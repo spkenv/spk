@@ -16,7 +16,6 @@ workspace = true
 default = ["parsedbuf-serde"]
 # activates serde within the generated code from parsedbuf macros
 parsedbuf-serde = []
-migration-to-components = []
 
 [dependencies]
 arc-swap = { workspace = true }

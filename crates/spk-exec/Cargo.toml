@@ -13,11 +13,6 @@ description = { workspace = true }
 workspace = true
 
 [features]
-migration-to-components = [
-    "spk-schema/migration-to-components",
-    "spk-storage/migration-to-components",
-    "spk-solve/migration-to-components",
-]
 
 [dependencies]
 async-stream = "0.3"

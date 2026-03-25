@@ -13,7 +13,6 @@ description = { workspace = true }
 workspace = true
 
 [features]
-migration-to-components = ["spk-schema/migration-to-components"]
 
 [dependencies]
 arc-swap = { workspace = true }
