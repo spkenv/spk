@@ -77,7 +77,7 @@ shellexpand = { workspace = true }
 spfs-encoding = { workspace = true }
 spfs-proto = { path = "../spfs-proto", features = ["serde"] }
 strum = { workspace = true, features = ["derive"] }
-tar = "0.4.30"
+tar = "0.4.45"
 tempfile = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = [

@@ -46,5 +46,5 @@ tracing = { workspace = true }
 rstest = { workspace = true }
 serial_test = { workspace = true }
 spk-solve-macros = { workspace = true }
-tar = "0.4.30"
+tar = "0.4.45"
 tempfile = { workspace = true }
