@@ -23,6 +23,56 @@ jobs:
         uses: crazy-max/ghaction-chocolatey@v3
         with:
           args: install protoc llvm winfsp make
+      - name: Verify Chocolatey packages and retry if needed
+        # The chocolatey install step can partially succeed: if the
+        # Chocolatey CDN returns a transient error (e.g. 504 Gateway
+        # Timeout) for one package, other packages may still install
+        # fine and the step exits successfully. This leaves the build
+        # missing critical dependencies, causing confusing failures
+        # later (e.g. winfsp-sys build.rs panic). This step verifies
+        # that all required packages are actually present and retries
+        # any that are missing.
+        shell: pwsh
+        run: |
+          function Test-Packages {
+            $missing = @()
+            if (-not (Test-Path "C:\Program Files (x86)\WinFsp")) {
+              $missing += "winfsp"
+            }
+            if (-not (Get-Command protoc -ErrorAction SilentlyContinue)) {
+              $missing += "protoc"
+            }
+            if (-not (Get-Command make -ErrorAction SilentlyContinue)) {
+              $missing += "make"
+            }
+            if (-not (Get-Command clang -ErrorAction SilentlyContinue)) {
+              $missing += "llvm"
+            }
+            return $missing
+          }
+
+          $missing = Test-Packages
+          if ($missing.Count -eq 0) {
+            Write-Host "All required packages verified successfully."
+            exit 0
+          }
+
+          $maxRetries = 2
+          for ($attempt = 1; $attempt -le $maxRetries; $attempt++) {
+            Write-Host "::warning::Missing packages: $($missing -join ', '). Retry attempt $attempt of $maxRetries..."
+            Start-Sleep -Seconds 15
+            choco install $missing -y --allow-unofficial
+            $missing = Test-Packages
+            if ($missing.Count -eq 0) {
+              Write-Host "All required packages verified successfully after retry."
+              exit 0
+            }
+          }
+
+          foreach ($pkg in $missing) {
+            Write-Host "::error::Required package not installed after retries: $pkg"
+          }
+          exit 1
       - name: Install FlatBuffers Compiler
         run: |
           $url = "https://github.com/google/flatbuffers/releases/download/v23.5.26/Windows.flatc.binary.zip"
