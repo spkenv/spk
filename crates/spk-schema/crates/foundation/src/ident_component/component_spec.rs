@@ -36,30 +36,16 @@ pub enum Component {
 }
 
 impl Component {
-    /// Return the default build component based on migration-to-components feature
+    /// Return the default build component
     #[inline]
     pub fn default_for_build() -> Self {
-        // For sites that started using spk after component support was added
-        #[cfg(not(feature = "migration-to-components"))]
-        return Component::Build;
-
-        // For migrating to packages with components while a site has
-        // packages that were published before components were supported.
-        #[cfg(feature = "migration-to-components")]
-        return Component::All;
+        Component::Build
     }
 
-    /// Return the default run component based on migration-to-components feature
+    /// Return the default run component
     #[inline]
     pub fn default_for_run() -> Self {
-        // For sites that started using spk after component support was added
-        #[cfg(not(feature = "migration-to-components"))]
-        return Component::Run;
-
-        // For migrating to packages with components while a site has
-        // packages that were published before components were supported.
-        #[cfg(feature = "migration-to-components")]
-        return Component::All;
+        Component::Run
     }
 
     /// Parse a component name from a string, ensuring that it's valid

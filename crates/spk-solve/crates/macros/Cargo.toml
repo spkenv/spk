@@ -13,7 +13,6 @@ description = { workspace = true }
 workspace = true
 
 [features]
-migration-to-components = []
 
 [dependencies]
 serde = { workspace = true }

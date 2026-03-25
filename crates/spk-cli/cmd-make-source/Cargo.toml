@@ -13,12 +13,6 @@ description = { workspace = true }
 workspace = true
 
 [features]
-migration-to-components = [
-    "spk-build/migration-to-components",
-    "spk-cli-common/migration-to-components",
-    "spk-schema/migration-to-components",
-    "spk-storage/migration-to-components",
-]
 
 [dependencies]
 miette = { workspace = true, features = ["fancy"] }

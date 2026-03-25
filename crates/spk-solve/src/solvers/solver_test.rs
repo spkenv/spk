@@ -239,31 +239,13 @@ async fn test_solver_package_with_no_recipe_and_impossible_initial_checks(
 
     // Test
     let res = run_and_print_resolve_for_tests(&mut solver).await;
-    if cfg!(feature = "migration-to-components") {
-        match res {
-            Err(Error::InitialRequestsContainImpossibleError(_))
-            | Err(Error::FailedToResolve(_)) => {
-                // Success, when the 'migration-to-components' feature
-                // is enabled because the initial checks for
-                // impossible requests fail because the package does
-                // not have a :build component, it only has a :run
-                // component and the request was transformed into
-                // my-pkg:all, which requires :build and :run to pass
-                // validation under the feature.
-            }
-            Err(err) => panic!("expected a solver Error::String error, got: {err}"),
-            Ok(_) => panic!("expected a solver Error::String error, got an Ok(_) solution"),
+    match res {
+        Ok(_) => {
+            // Success because the initial checks for impossible
+            // requests pass and this allows the solver to run and
+            // find a solution.
         }
-    } else {
-        match res {
-            Ok(_) => {
-                // Success, when the 'migration-to-components' feature is
-                // disabled because: the initial checks for impossible
-                // requests pass and this allows the solver to run and
-                // find a solution.
-            }
-            Err(err) => panic!("expected an Ok(_) solution, got: {err}"),
-        }
+        Err(err) => panic!("expected an Ok(_) solution, got: {err}"),
     }
 }
 
@@ -332,30 +314,14 @@ async fn test_solver_package_with_no_recipe_from_cmd_line_and_impossible_initial
 
     // Test
     let res = run_and_print_resolve_for_tests(&mut solver).await;
-    if cfg!(feature = "migration-to-components") {
-        // with the 'migration-to-components' feature and impossible
-        // request initial checks will fail because the feature turns
-        // the initial request into my-pkg:all, which requires a
-        // :build and a :run component to pass and it only has a :run
-        // component
-        assert!(
-            matches!(
-                res,
-                Err(Error::InitialRequestsContainImpossibleError(_))
-                    | Err(Error::FailedToResolve(_))
-            ),
-            "'{res:?}' should be a Error::String('Initial requests contain 1 impossible request.')",
-        );
-    } else {
-        // without the 'migration-to-components' feature, the
-        // impossible request initial checks will succeed because
-        // because the initial request is turned into my-pkg:run,
-        // which will pass validation
-        assert!(
-            res.is_ok(),
-            "'{res:?}' should be an Ok(_) solution not an error.')",
-        );
-    }
+
+    // The impossible request initial checks will succeed because
+    // because the initial request is turned into my-pkg:run, which
+    // will pass validation
+    assert!(
+        res.is_ok(),
+        "'{res:?}' should be an Ok(_) solution not an error.')",
+    );
 }
 
 #[rstest]
@@ -1375,23 +1341,13 @@ async fn test_solver_build_from_source_deprecated_and_impossible_initial_checks(
 
     let res = run_and_print_resolve_for_tests(&mut solver).await;
     match res {
-        Err(Error::GraphError(ref graph_err))
-            if matches!(&**graph_err, spk_solve_graph::Error::FailedToResolve(_)) =>
-        {
-            // Success, when the 'migration-to-components' feature is
-            // enabled because: the initial checks for impossible
-            // requests pass because the :all component matches the
-            // :src component of the non-deprecated build and this allows
-            // the solver to run. The solver finds the package/version
-            // recipe is deprecated and refuses to build a binary from
-            // the source package.
-        }
         Err(Error::FailedToResolve(_)) => {
-            // Success; same as above, but for the resolvo solver.
+            // Success, but for the resolvo solver, which doesn't not
+            // use initial request impossible checks, but should fail
+            // to find a solution.
         }
         Err(Error::InitialRequestsContainImpossibleError(_)) => {
-            // Success, when the 'migration-to-components' feature is
-            // disabled because: the initial checks for impossible
+            // Success because the initial checks for impossible
             // requests fail to find a possible build because the
             // default :run component does not match the :src
             // component of the non-deprecated package

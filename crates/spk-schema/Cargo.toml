@@ -13,7 +13,6 @@ description = { workspace = true }
 workspace = true
 
 [features]
-migration-to-components = ["spk-schema-foundation/migration-to-components"]
 
 [dependencies]
 config = { workspace = true }

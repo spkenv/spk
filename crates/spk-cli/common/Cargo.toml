@@ -13,14 +13,6 @@ description = { workspace = true }
 workspace = true
 
 [features]
-migration-to-components = [
-    "spk-build/migration-to-components",
-    "spk-config/migration-to-components",
-    "spk-exec/migration-to-components",
-    "spk-solve/migration-to-components",
-    "spk-schema/migration-to-components",
-    "spk-storage/migration-to-components",
-]
 sentry = [
     "dep:sentry",
     "dep:sentry-tracing",
