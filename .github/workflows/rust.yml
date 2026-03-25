@@ -196,7 +196,7 @@ jobs:
           crates/spfs/tests/integration/run_privileged_tests.sh
 
   matrix-build:
-    name: build features ${{ matrix.no-default-features }} ${{ matrix.features }}
+    name: build ${{ matrix.platform }} features ${{ matrix.no-default-features }} ${{ matrix.features }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container:
@@ -209,12 +209,24 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        platform:
+          - linux
         features:
           # SPI's standand features
           - migration-to-components,sentry,spfs/protobuf-src,spfs-vfs/protobuf-src,statsd,fuse-backend-rhel-7-6
         no-default-features:
           - ""
           - --no-default-features
+        target:
+          - ""
+        exclude_crates:
+          - ""
+        include:
+          - platform: windows
+            features: server,spfs/server
+            no-default-features: ""
+            target: x86_64-pc-windows-gnu
+            exclude_crates: --exclude spfs-cli-winfsp --workspace
     steps:
       - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.11.0
@@ -229,6 +241,11 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSfL ${FB_REL}/download/v23.5.26/Linux.flatc.binary.g++-10.zip | funzip > /usr/bin/flatc
           chmod +x /usr/bin/flatc
           rustup component add clippy
+      - name: Setup cross-compilation
+        if: matrix.platform == 'windows'
+        run: |
+          apt-get install -y gcc-mingw-w64-x86-64
+          rustup target add ${{ matrix.target }}
       - name: Configure cargo
         run: |
           mkdir -p .cargo
@@ -237,6 +254,14 @@ jobs:
           # Disable incremental compilation to lower disk usage, and sccache
           # can't cache incremental compiles.
           incremental = false
+          EOF
+      - name: Configure cross-compile linker
+        if: matrix.platform == 'windows'
+        run: |
+          cat << 'EOF' >> .cargo/config.toml
+          [target.x86_64-pc-windows-gnu]
+          linker = "x86_64-w64-mingw32-gcc"
+          ar = "x86_64-w64-mingw32-gcc-ar"
           EOF
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.9
@@ -263,3 +288,5 @@ jobs:
           ${{ matrix.no-default-features }}
           --features "${{ matrix.features }}"
           --all-targets
+          ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
+          ${{ matrix.exclude_crates }}
