@@ -33,3 +33,5 @@ target/
 .cache/
 .hugo_build.lock
 /.cargo/
+!/.cargo/
+!/.cargo/config.toml
