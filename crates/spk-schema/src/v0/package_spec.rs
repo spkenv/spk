@@ -720,7 +720,7 @@ impl From<EmbeddedPackageSpec> for PackageSpec {
             install_requirements_with_options: embed.install_requirements_with_options().clone(),
             pkg: embed.pkg,
             meta: embed.meta,
-            compat: embed.compat.clone(),
+            compat: embed.compat,
             deprecated: embed.deprecated,
             sources: embed.sources,
             tests: embed.tests,

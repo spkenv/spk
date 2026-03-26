@@ -201,7 +201,7 @@ impl EmbeddedPackageSpec {
                 .pkg
                 .into_build_ident(Build::Embedded(EmbeddedSource::Unknown)),
             meta: recipe.meta,
-            compat: recipe.compat.clone(),
+            compat: recipe.compat,
             deprecated: recipe.deprecated,
             sources: recipe.sources,
             tests: recipe.tests,
