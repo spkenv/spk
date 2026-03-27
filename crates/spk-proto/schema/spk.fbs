@@ -160,6 +160,44 @@ table PkgRequestOptionValue {
   is_complete: bool;
 }
 
+enum VersionRangeOperator: uint8 {
+  // From: VersionRange enum in spk
+  Compat = 0,
+  DoubleEquals,
+  DoubleNotEquals,
+  Equals,
+  // Note, Filter (or VersionFilter) is not actually supported in an
+  // index. This operator is flattened out into other operators before
+  // the index is generated. It has an entry here for completeness.
+  Filter,
+  GreaterThan,
+  GreaterThanOrEqualTo,
+  LessThan,
+  LessThanOrEqualTo,
+  LowestSpecified,
+  NotEquals,
+  Semver,
+  Wildcard,
+}
+
+
+// A single rule in a VersionFilter
+table VersionFilterRule {
+    filter_op: VersionRangeOperator;
+    // Used for: Compat, DoubleEqualsVersion, DoubleNotEqualsVersion,
+    // EqualsVersion, GreaterThanOrEqualToRange, GreaterThanRange,
+    // LessThanOrEqualToRange, LessThanRange, LowestSpecifiedRange,
+    // NotEqualsVersion, SemverRange WildCardRange
+    version: Version;
+    // Used for: Compat
+    required: LoneCompatRule;
+    // WildCardRange - ::MAX means *, aka None, and <::MAX means Some(number)
+    parts: [uint32];
+    // Some VersionRange(objects) have a 'specified' field. This is
+    // not stored here because it can be regenerated in the
+    // constructor when extracting the object from the index.
+}
+
 // A package request with options
 table PkgRequestWithOptions {
     // from pkg_request: PkgRequest. In spk, a PkgRequest contains a
@@ -174,7 +212,7 @@ table PkgRequestWithOptions {
     // string, e.g. '>=1.2.3,<4,5,6' and parsed when needed.
     // TODO: this will likely change in a future version because
     // processing this is showing up in current profiling.
-    version_filter: string;
+    version_filter: [VersionFilterRule];
     build: Build;
     prerelease_policy: PreReleasePolicy;
     inclusion_policy: InclusionPolicy;
