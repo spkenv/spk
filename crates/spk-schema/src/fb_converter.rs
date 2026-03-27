@@ -25,7 +25,23 @@ use spk_schema_foundation::ident_ops::parsing::NormalizedVersionString;
 use spk_schema_foundation::name::{OptNameBuf, PkgNameBuf, RepositoryNameBuf};
 use spk_schema_foundation::option_map::OptionMap;
 use spk_schema_foundation::spec_ops::FileMatcher;
-use spk_schema_foundation::version_range::VersionFilter;
+use spk_schema_foundation::version_range::{
+    CompatRange,
+    DoubleEqualsVersion,
+    DoubleNotEqualsVersion,
+    EqualsVersion,
+    GreaterThanOrEqualToRange,
+    GreaterThanRange,
+    LessThanOrEqualToRange,
+    LessThanRange,
+    LowestSpecifiedRange,
+    NotEqualsVersion,
+    Ranged,
+    SemverRange,
+    VersionFilter,
+    VersionRange,
+    WildcardRange,
+};
 
 use crate::component_embedded_packages::ComponentEmbeddedPackage;
 use crate::deprecate::Deprecate;
@@ -44,6 +60,8 @@ use crate::{
     Opt,
     RequirementsList,
 };
+
+const WILDCARD_MARKER: u32 = u32::MAX;
 
 /// Helper for turning a Vec into to flatbuffer Some(list) or None, if
 /// the list is empty.
@@ -231,10 +249,6 @@ pub fn fb_requirements_to_requirements(
                         let components =
                             fb_component_names_to_component_names_set(&fb_pkg_req.components());
 
-                        // TODO: this will be the next thing to get a
-                        // proper flatbuffer representation because it
-                        // is now showing up as the next significant
-                        // chunk on the large solve flamegraphs
                         let version_filter =
                             fb_version_filter_to_version_filter(fb_pkg_req.version_filter());
 
@@ -744,16 +758,225 @@ pub fn fb_pkg_request_option_values_to_pkg_request_options(
     options
 }
 
-// TODO: this will change if the version filter gets a proper
-// flatbuffer representation to move it away from a string. This look
-// like it is advisable to do in future, based on current profiling.
-#[inline]
-pub fn fb_version_filter_to_version_filter(version_filter: Option<&str>) -> VersionFilter {
-    if let Some(filter_string) = version_filter {
-        unsafe { VersionFilter::new_unchecked(filter_string) }
+pub fn fb_version_filter_to_version_filter(
+    fb_version_filter: Option<
+        flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<spk_proto::VersionFilterRule<'_>>>,
+    >,
+) -> VersionFilter {
+    if let Some(filter) = fb_version_filter {
+        let mut rules = Vec::new();
+
+        for fb_rule in filter.iter() {
+            let rule = match fb_rule.filter_op() {
+                spk_proto::VersionRangeOperator::Compat => {
+                    let base = fb_rule
+                        .version()
+                        .map(|v| fb_version_to_version(v))
+                        .expect("A CompatRange should have a version in an index");
+                    let required = fb_lone_compat_rule_to_lone_compat_rule(fb_rule.required());
+                    VersionRange::Compat(CompatRange::new(base, required))
+                }
+                spk_proto::VersionRangeOperator::DoubleEquals => {
+                    let version = fb_rule
+                        .version()
+                        .map(|v| fb_version_to_version(v))
+                        .expect("A DoubleEqualsVersion should have a version in an index");
+                    VersionRange::DoubleEquals(DoubleEqualsVersion::from(version))
+                }
+                spk_proto::VersionRangeOperator::DoubleNotEquals => {
+                    let base = fb_rule
+                        .version()
+                        .map(|v| fb_version_to_version(v))
+                        .expect("A DoubleNotEqualsVersion should have a base version in an index");
+                    VersionRange::DoubleNotEquals(DoubleNotEqualsVersion::from(base))
+                }
+                spk_proto::VersionRangeOperator::Equals => {
+                    let version = fb_rule
+                        .version()
+                        .map(|v| fb_version_to_version(v))
+                        .expect("An EqualsVersion should have a version in an index");
+                    VersionRange::Equals(EqualsVersion::new(version))
+                }
+                spk_proto::VersionRangeOperator::Filter => {
+                    unreachable!(
+                        "A version range Filter should not be in the index. It should have been flattened beforehand into other VersionRange objects"
+                    )
+                }
+                spk_proto::VersionRangeOperator::GreaterThan => {
+                    let version = fb_rule
+                        .version()
+                        .map(|v| fb_version_to_version(v))
+                        .expect("A GreaterThanRange should have a version in an index");
+                    VersionRange::GreaterThan(GreaterThanRange::new(version))
+                }
+                spk_proto::VersionRangeOperator::GreaterThanOrEqualTo => {
+                    let version = fb_rule
+                        .version()
+                        .map(|v| fb_version_to_version(v))
+                        .expect("A GreaterThanOrEqualToRange should have a version in an index");
+                    VersionRange::GreaterThanOrEqualTo(GreaterThanOrEqualToRange::new(version))
+                }
+                spk_proto::VersionRangeOperator::LessThan => {
+                    let version = fb_rule
+                        .version()
+                        .map(|v| fb_version_to_version(v))
+                        .expect("A LessThanRange should have a version in an index");
+                    VersionRange::LessThan(LessThanRange::new(version))
+                }
+                spk_proto::VersionRangeOperator::LessThanOrEqualTo => {
+                    let version = fb_rule
+                        .version()
+                        .map(|v| fb_version_to_version(v))
+                        .expect("A LessThanOrEqualToRange should have a version in an index");
+                    VersionRange::LessThanOrEqualTo(LessThanOrEqualToRange::new(version))
+                }
+                spk_proto::VersionRangeOperator::LowestSpecified => {
+                    let base = fb_rule
+                        .version()
+                        .map(|v| fb_version_to_version(v))
+                        .expect("A LowestSpecifiedRange should have a base in an index");
+                    VersionRange::LowestSpecified(LowestSpecifiedRange::new(base))
+                }
+                spk_proto::VersionRangeOperator::NotEquals => {
+                    let base = fb_rule
+                        .version()
+                        .map(|v| fb_version_to_version(v))
+                        .expect("A NotEquals should have a base in an index");
+                    VersionRange::NotEquals(NotEqualsVersion::from(base))
+                }
+                spk_proto::VersionRangeOperator::Semver => {
+                    let minimum = fb_rule
+                        .version()
+                        .map(|v| fb_version_to_version(v))
+                        .expect("A SemverRange should have a version in an index");
+                    VersionRange::Semver(SemverRange::new(minimum))
+                }
+                spk_proto::VersionRangeOperator::Wildcard => {
+                    if let Some(parts_list) = fb_rule.parts() {
+                        let parts = parts_list
+                            .iter()
+                            .map(|p| if p != WILDCARD_MARKER { Some(p) } else { None })
+                            .collect();
+                        VersionRange::Wildcard(unsafe { WildcardRange::new_unchecked(parts) })
+                    } else {
+                        // This should not happen?
+                        VersionRange::Wildcard(WildcardRange::any_version())
+                    }
+                }
+                _ => {
+                    // coverage for the ::MAX values
+                    unreachable!(
+                        "filter_op field from an index should not be outside the valid version range operator entries"
+                    );
+                }
+            };
+
+            rules.push(rule);
+        }
+
+        VersionFilter::new(rules)
     } else {
         Default::default()
     }
+}
+
+fn version_filter_to_fb_version_filter<'a>(
+    builder: &mut flatbuffers::FlatBufferBuilder<'a>,
+    version_filter: &VersionFilter,
+) -> Option<
+    flatbuffers::WIPOffset<
+        flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<spk_proto::VersionFilterRule<'a>>>,
+    >,
+> {
+    let mut converted_rules = Vec::new();
+    for rule in version_filter.rules() {
+        let mut args = spk_proto::VersionFilterRuleArgs {
+            filter_op: spk_proto::VersionRangeOperator::Compat,
+            version: None,
+            required: spk_proto::LoneCompatRule::None,
+            parts: None,
+        };
+
+        match rule {
+            VersionRange::Compat(value) => {
+                let fb_version = version_to_fb_version(builder, &value.version());
+                let fb_required = lone_compat_rule_to_fb_lone_compat_rule(value.required());
+                args.filter_op = spk_proto::VersionRangeOperator::Compat;
+                args.version = Some(fb_version);
+                args.required = fb_required;
+            }
+            VersionRange::DoubleEquals(value) => {
+                let fb_version = version_to_fb_version(builder, &value.version());
+                args.filter_op = spk_proto::VersionRangeOperator::DoubleEquals;
+                args.version = Some(fb_version);
+            }
+            VersionRange::DoubleNotEquals(value) => {
+                let fb_version = version_to_fb_version(builder, &value.base());
+                args.filter_op = spk_proto::VersionRangeOperator::DoubleNotEquals;
+                args.version = Some(fb_version);
+            }
+            VersionRange::Equals(value) => {
+                let fb_version = version_to_fb_version(builder, &value.version());
+                args.filter_op = spk_proto::VersionRangeOperator::Equals;
+                args.version = Some(fb_version);
+            }
+            VersionRange::Filter(value) => {
+                unreachable!(
+                    "VersionRange::Filter is not allowed in the index. It should have been flattened out: {value}"
+                )
+            }
+            VersionRange::GreaterThan(value) => {
+                let fb_version = version_to_fb_version(builder, &value.version());
+                args.filter_op = spk_proto::VersionRangeOperator::GreaterThan;
+                args.version = Some(fb_version);
+            }
+            VersionRange::GreaterThanOrEqualTo(value) => {
+                let fb_version = version_to_fb_version(builder, &value.version());
+                args.filter_op = spk_proto::VersionRangeOperator::GreaterThanOrEqualTo;
+                args.version = Some(fb_version);
+            }
+            VersionRange::LessThan(value) => {
+                let fb_version = version_to_fb_version(builder, &value.version());
+                args.filter_op = spk_proto::VersionRangeOperator::LessThan;
+                args.version = Some(fb_version);
+            }
+            VersionRange::LessThanOrEqualTo(value) => {
+                let fb_version = version_to_fb_version(builder, &value.version());
+                args.filter_op = spk_proto::VersionRangeOperator::LessThanOrEqualTo;
+                args.version = Some(fb_version);
+            }
+            VersionRange::LowestSpecified(value) => {
+                let fb_version = version_to_fb_version(builder, &value.base());
+                args.filter_op = spk_proto::VersionRangeOperator::LowestSpecified;
+                args.version = Some(fb_version);
+            }
+            VersionRange::NotEquals(value) => {
+                let fb_version = version_to_fb_version(builder, &value.base());
+                args.filter_op = spk_proto::VersionRangeOperator::NotEquals;
+                args.version = Some(fb_version);
+            }
+            VersionRange::Semver(value) => {
+                let fb_version = version_to_fb_version(builder, &value.minimum());
+                args.filter_op = spk_proto::VersionRangeOperator::Semver;
+                args.version = Some(fb_version);
+            }
+            VersionRange::Wildcard(value) => {
+                let parts: Vec<u32> = value
+                    .parts()
+                    .iter()
+                    .map(|p| if let Some(n) = p { *n } else { WILDCARD_MARKER })
+                    .collect();
+                let fb_parts = flatbuffer_vector!(builder, parts);
+                args.filter_op = spk_proto::VersionRangeOperator::Wildcard;
+                args.parts = fb_parts;
+            }
+        };
+
+        let fb_rule = spk_proto::VersionFilterRule::create(builder, &args);
+        converted_rules.push(fb_rule);
+    }
+
+    flatbuffer_vector!(builder, converted_rules)
 }
 
 #[inline]
@@ -1185,17 +1408,10 @@ pub fn requirements_with_options_to_fb_requirements_with_options<'a>(
 
                 let fb_components = components_set_to_fb_components(builder, &pr.pkg.components);
 
-                // TODO: for now version filters strings, but in future a proper
-                // version filter will breakdown into pieces in the flatbuffer
                 let fb_version_filter = if pr.pkg.version.is_empty() {
                     None
                 } else {
-                    // A version filter is a bunch of version ranges, e.g.
-                    //   [kg/3.10
-                    //   pkg/3.10.0
-                    // so need to use the alternate format here for version
-                    // filters to ensure extra .0's don't get baked into requests.
-                    Some(builder.create_string(&format!("{:#}", pr.pkg.version)))
+                    version_filter_to_fb_version_filter(builder, &pr.pkg.version)
                 };
 
                 let (fb_build, fb_build_type) = if let Some(build) = &pr.pkg.build {
