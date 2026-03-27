@@ -300,4 +300,15 @@ host_filtering = false
 # Set a default compat rule for this distro. For example, on Rocky Linux
 # packages built on 9.3 would be usable on 9.4.
 compat_rule = "x.ab"
+
+# SPK supports using pre-generated repository indexes to speed up solves.
+use_indexes = false
+
+# The kind of repository index format. SPK supports a flatbuffer based index.
+# index_kind = "flatb"
+
+# SPK supports validating flatbuffers index data before using it.
+# This can be disabled, but validating is safer even though it adds
+# some overhead at the start of solves using an index.
+verify_flatbuffers_index_before_use = true
 ```
