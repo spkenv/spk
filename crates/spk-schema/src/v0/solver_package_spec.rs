@@ -460,7 +460,7 @@ impl Package for SolverPackageSpec {
             && self.cached_requirements.load().is_default()
         {
             let reqs = fb_requirements_to_requirements(self.build_index().runtime_requirements());
-            let requirements = RequirementsList::<RequestWithOptions>::new_checked(reqs);
+            let requirements = unsafe { RequirementsList::<RequestWithOptions>::new_checked(reqs) };
 
             self.cached_requirements.store(Arc::new(requirements));
         }
