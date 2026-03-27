@@ -522,8 +522,12 @@ impl VarOpt {
         })
     }
 
-    /// Create a VarOpt from the given pieces without checking them
-    pub fn new_unchecked<S: AsRef<str>>(
+    /// Create a VarOpt from the given pieces without checking them.
+    ///
+    /// # Safety
+    ///
+    /// The caller must make sure the pieces make up a valid var opt.
+    pub unsafe fn new_unchecked<S: AsRef<str>>(
         var: S,
         inheritance: Inheritance,
         compat: Option<Compat>,
@@ -688,8 +692,13 @@ impl PkgOpt {
         })
     }
 
-    /// Create a PkgOpt from the given pieces without checking them
-    pub fn new_unchecked(
+    /// Create a PkgOpt from the given pieces without checking them.
+    ///
+    /// # Safety
+    ///
+    /// The caller must make sure the given pieces can combine into a
+    /// valid pkg opt.
+    pub unsafe fn new_unchecked(
         name: PkgNameBuf,
         components: ComponentBTreeSetBuf,
         prerelease_policy: Option<PreReleasePolicy>,

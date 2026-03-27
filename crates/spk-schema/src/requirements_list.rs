@@ -433,7 +433,12 @@ impl RequirementsList<RequestWithOptions> {
 
     /// Construct a RequirementsList from a RequestWithOptions list,
     /// without checking them, or merging them together.
-    pub fn new_checked(requests_with_options: Vec<RequestWithOptions>) -> Self {
+    ///
+    /// # Safety
+    ///
+    /// The caller must make sure the requests are valid and the they
+    /// have already been merged if needed.
+    pub unsafe fn new_checked(requests_with_options: Vec<RequestWithOptions>) -> Self {
         Self(requests_with_options)
     }
 }
