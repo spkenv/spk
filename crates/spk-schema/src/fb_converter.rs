@@ -306,7 +306,8 @@ pub fn fb_component_specs_to_component_specs(
         let component_requirements =
             fb_requirements_to_requirements(c_spec.requirements_with_options());
         let component_reqs_list =
-            RequirementsList::<RequestWithOptions>::new_checked(component_requirements).into();
+            unsafe { RequirementsList::<RequestWithOptions>::new_checked(component_requirements) }
+                .into();
 
         let embedded = fb_component_emb_pkgs_to_component_emb_pkgs(c_spec.embedded_components());
         let component_embedded_packages: ComponentEmbeddedPackagesList =
@@ -323,14 +324,16 @@ pub fn fb_component_specs_to_component_specs(
             FileMatcher::default()
         };
 
-        let component_spec = ComponentSpec::new_unchecked(
-            component_name,
-            uses,
-            file_matcher,
-            build_options,
-            component_reqs_list,
-            component_embedded_packages,
-        );
+        let component_spec = unsafe {
+            ComponentSpec::new_unchecked(
+                component_name,
+                uses,
+                file_matcher,
+                build_options,
+                component_reqs_list,
+                component_embedded_packages,
+            )
+        };
 
         component_specs.push(component_spec);
     }
@@ -363,18 +366,20 @@ pub fn fb_embedded_package_specs_to_embedded_package_specs(
 
         let requirements = fb_requirements_to_requirements(fb_emb_spec.requirements());
 
-        let embedded_spec = EmbeddedPackageSpec::new_unchecked(
-            build_ident,
-            EmbeddedBuildSpec {
-                options: build_options,
-            },
-            RequirementsList::<RequestWithOptions>::new_checked(requirements),
-            EmbeddedInstallSpec {
-                // TODO: does this need to be kept, they're the old data format??
-                requirements: RequirementsList::default(),
-                components: component_specs,
-            },
-        );
+        let embedded_spec = unsafe {
+            EmbeddedPackageSpec::new_unchecked(
+                build_ident,
+                EmbeddedBuildSpec {
+                    options: build_options,
+                },
+                RequirementsList::<RequestWithOptions>::new_checked(requirements),
+                EmbeddedInstallSpec {
+                    // TODO: does this need to be kept, they're the old data format??
+                    requirements: RequirementsList::default(),
+                    components: component_specs,
+                },
+            )
+        };
 
         embedded_package_specs.push(embedded_spec)
     }
@@ -389,7 +394,7 @@ fn var_opt_fb_compat_to_var_opt_compat(fb_compat: Option<&str>) -> Option<Compat
     // None stored as an fb_compat represents no compat specified at
     // all for a var opt. Some compat stored means a compat was
     // specified, and it may even be the same as the default compat.
-    fb_compat.map(|fc| {
+    fb_compat.map(|fc| unsafe {
         Compat::new_unchecked(fc)
             .expect("A Compat in flatbuffer data should be a valid Compat when parsed")
     })
@@ -398,7 +403,7 @@ fn var_opt_fb_compat_to_var_opt_compat(fb_compat: Option<&str>) -> Option<Compat
 #[inline]
 pub fn fb_compat_to_compat(fb_compat: Option<&str>) -> Compat {
     if let Some(compat) = fb_compat {
-        Compat::new_unchecked(compat)
+        unsafe { Compat::new_unchecked(compat) }
             .expect("A Compat in flatbuffer data should be a valid Compat when parsed")
     } else {
         // In this case, None, so nothing, stored as an fb_compat
@@ -446,7 +451,9 @@ pub fn fb_pkg_opt_to_opt(fb_pkg_opt: spk_proto::PkgOpt) -> Opt {
 
     let value = fb_value_to_value(fb_pkg_opt.value());
 
-    let po = PkgOpt::new_unchecked(name, components, prerelease_policy, value, required_compat);
+    let po = unsafe {
+        PkgOpt::new_unchecked(name, components, prerelease_policy, value, required_compat)
+    };
 
     Opt::Pkg(po)
 }
@@ -466,7 +473,8 @@ pub fn fb_var_opt_to_opt(fb_var_opt: spk_proto::VarOpt) -> Opt {
 
     let value = fb_value_to_value(fb_var_opt.value());
 
-    let vo = VarOpt::new_unchecked(fb_var_opt.name(), inheritance, compat, required, value);
+    let vo =
+        unsafe { VarOpt::new_unchecked(fb_var_opt.name(), inheritance, compat, required, value) };
 
     Opt::Var(vo)
 }
@@ -523,7 +531,7 @@ fn fb_build_as_embedded_source_to_build(build: spk_proto::EmbeddedSource) -> Bui
             version_str: id.version_str().map(|vs| {
                 // Should be safe as the data was a normalized
                 // version string before it was stored.
-                NormalizedVersionString::new_unchecked(vs.to_string())
+                unsafe { NormalizedVersionString::new_unchecked(vs.to_string()) }
             }),
             build_str: id.build_str().map(String::from),
         };
@@ -563,9 +571,9 @@ pub fn get_build_from_fb_pkg_request_with_options(
             let build = pkg_req.build_as_build_id().expect(
             "PkgRequestWithOptions in flatbuffer data should contain a build id when build_type is set to BuildId",
             );
-            Build::BuildId(BuildId::new_unchecked(
-                build.id().chars().collect::<Vec<_>>(),
-            ))
+            Build::BuildId(unsafe {
+                BuildId::new_unchecked(build.id().chars().collect::<Vec<_>>())
+            })
         }
         _ => {
             // covering the 0 and ::MAX, but this should not happen
@@ -590,9 +598,9 @@ pub fn get_build_from_fb_build_index(build_index: spk_proto::BuildIndex) -> Buil
             let build = build_index.build_as_build_id().expect(
                 "A BuildIndex in flatbuffer data should contain a build id when build_type is set to BuildId",
         );
-            Build::BuildId(BuildId::new_unchecked(
-                build.id().chars().collect::<Vec<_>>(),
-            ))
+            Build::BuildId(unsafe {
+                BuildId::new_unchecked(build.id().chars().collect::<Vec<_>>())
+            })
         }
         _ => {
             // covering up to the ::MAX, but this should not happen
@@ -656,7 +664,7 @@ pub fn fb_component_emb_pkgs_to_component_emb_pkgs(
                 let components =
                     fb_component_names_to_component_names_set(&component_embedded_pkg.components());
 
-                ComponentEmbeddedPackage::new_unchecked(ident, components)
+                unsafe { ComponentEmbeddedPackage::new_unchecked(ident, components) }
             })
             .collect()
         // TODO: This does not set fabricated, not sure if that is a problem or not?
@@ -703,7 +711,7 @@ pub fn fb_pkg_request_option_values_to_pkg_request_options(
 #[inline]
 pub fn fb_version_filter_to_version_filter(version_filter: Option<&str>) -> VersionFilter {
     if let Some(filter_string) = version_filter {
-        VersionFilter::new_unchecked(filter_string)
+        unsafe { VersionFilter::new_unchecked(filter_string) }
     } else {
         Default::default()
     }
