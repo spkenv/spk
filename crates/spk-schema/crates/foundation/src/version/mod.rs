@@ -392,7 +392,13 @@ impl Version {
         }
     }
 
-    pub fn new_unchecked(version_str: &str) -> Result<Self> {
+    /// Make a new Version from a string without checking it.
+    ///
+    /// # Safety
+    ///
+    /// The caller must make sure the string can be parsed as a valid
+    /// Version.
+    pub unsafe fn new_unchecked(version_str: &str) -> Result<Self> {
         Version::try_from(version_str)
     }
 

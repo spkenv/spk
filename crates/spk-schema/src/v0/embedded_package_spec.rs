@@ -105,8 +105,13 @@ impl EmbeddedPackageSpec {
     }
 
     /// Create a spec for the identified package from the given values
-    /// without checking them
-    pub fn new_unchecked(
+    /// without checking them.
+    ///
+    /// # Safety
+    ///
+    /// The caller must make sure the pieces combine to make a valid
+    /// EmbeddedPackageSpec.
+    pub unsafe fn new_unchecked(
         ident: BuildIdent,
         build: EmbeddedBuildSpec,
         requirements_with_options: RequirementsList<RequestWithOptions>,

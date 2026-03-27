@@ -195,8 +195,13 @@ impl ComponentSpec {
     }
 
     /// Create a component spec from parts without checking them.
+    ///
+    /// # Safety
+    ///
+    /// The caller must make sure the pieces make up a valid
+    /// ComponentSpec.
     #[allow(clippy::too_many_arguments)]
-    pub fn new_unchecked(
+    pub unsafe fn new_unchecked(
         name: Component,
         uses: Vec<Component>,
         // This is needed because some cases call for empty rules and

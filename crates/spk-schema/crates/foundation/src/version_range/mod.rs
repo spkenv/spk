@@ -1210,8 +1210,15 @@ impl VersionFilter {
 
     /// Makes a VersionFilter from the given string, without checking
     /// that it is valid. This is used by indexing.
-    pub fn new_unchecked(filter_string: &str) -> Self {
-        VersionFilter::from_str(filter_string).unwrap()
+    ///
+    /// # Safety
+    ///
+    /// The caller must make sure the string parses ad a valid
+    /// VersionFilter.
+    pub unsafe fn new_unchecked(filter_string: &str) -> Self {
+        VersionFilter::from_str(filter_string).expect(
+            "A filter string given to VersionFilter::new_unchecked() should be a valid VersionFilter when parsed",
+        )
     }
 
     pub fn single(item: VersionRange) -> Self {

@@ -46,7 +46,14 @@ impl NormalizedVersionString {
         &self.0
     }
 
-    pub fn new_unchecked(normalized_version_string: String) -> Self {
+    /// Make a new NormalizedVersionString from a string without
+    /// checking its validity.
+    ///
+    /// # Safety
+    ///
+    /// The caller must make sure the string is a valid normalized
+    /// version string.
+    pub unsafe fn new_unchecked(normalized_version_string: String) -> Self {
         Self(normalized_version_string)
     }
 }
