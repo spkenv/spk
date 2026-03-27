@@ -325,6 +325,7 @@ impl FlatBufferRepoIndex {
         let mut num_versions = 0;
         let mut num_builds = 0;
         let mut num_erroring_builds = 0;
+        let mut num_deprecated_builds = 0;
 
         let mut traversal = repo_walker.walk();
         while let Some(item) = traversal.try_next().await? {
@@ -341,6 +342,9 @@ impl FlatBufferRepoIndex {
                 }
                 RepoWalkerItem::Build(build) => {
                     num_builds += 1;
+                    if build.spec.is_deprecated() {
+                        num_deprecated_builds += 1;
+                    }
 
                     // Add a build spec and related things
                     let build_ident = build.spec.ident();
@@ -385,7 +389,7 @@ impl FlatBufferRepoIndex {
         tracing::debug!("Globals found:\n\t{}", vars.into_iter().join("\n\t"));
 
         tracing::info!(
-            "Index for '{}' repo consists of {} packages, {num_versions} versions, {num_builds} builds ({num_erroring_builds} errors), with {} global vars",
+            "Index for '{}' repo consists of {} packages, {num_versions} versions, {num_builds} builds ({num_deprecated_builds} deprecated, {num_erroring_builds} errors), with {} global vars",
             repo.name(),
             packages.len(),
             global_vars.keys().len()
