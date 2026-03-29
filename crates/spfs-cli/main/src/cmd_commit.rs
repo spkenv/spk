@@ -134,7 +134,7 @@ impl CmdCommit {
         if let Some(path) = &self.path {
             let manifest = committer.commit_dir(path).await?;
             if manifest.is_empty() && !self.allow_empty {
-                return Err(spfs::Error::NothingToCommit);
+                return Err(spfs::runtime::Error::NothingToCommit.into());
             }
             return Ok(repo
                 .create_layer(&manifest.to_graph_manifest())
