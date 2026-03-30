@@ -98,10 +98,10 @@ impl Clone for IndexedPackage {
 
 impl std::hash::Hash for IndexedPackage {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.build_ident.hash(state);
         // Different packages from the same index will have different
         // offsets.
         self.offset.hash(state);
+        self.build_ident.hash(state);
         // The index bytes buf and cached fields are skipped
     }
 }
@@ -110,7 +110,7 @@ impl std::cmp::PartialEq for IndexedPackage {
     fn eq(&self, other: &Self) -> bool {
         // This deliberately ignores the buf field, offset field, and
         // all the caches.
-        self.build_ident == other.build_ident && self.offset == other.offset
+        self.offset == other.offset && self.build_ident == other.build_ident
     }
 }
 
