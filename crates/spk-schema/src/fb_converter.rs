@@ -62,7 +62,7 @@ macro_rules! flatbuffer_vector {
 // TODO: all these functions are here to keep the flatbuffer
 // conversions together while deciding on whether to replace the
 // backing of current rust objects with flatbuffer ones, like
-// SolverPackageSpec does. Or whether to split these functions up into
+// IndexedPackage does. Or whether to split these functions up into
 // a couple of traits (e.g. IntoFlatbuffer, FromFlatbuffer) across
 // each of the existing rust types.
 
