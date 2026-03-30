@@ -246,10 +246,11 @@ table SolverEmbeddedPackageSpec {
 
 // A Package/Version/Build containing what is needed when solving
 table BuildIndex {
-   // Older packages may have been published with non-normalized
-   // version numbers, e.g. '1.0' instead of '1.0.0'. The index will
-   // need to store original published version number for the build to
-   // make sure the exact build version numbers are available.
+   // Packages may have been published with non-normalized version
+   // numbers, e.g. '1.0' instead of '1.0.0'. The index needs to
+   // store original published version number, from the recipe spec,
+   // in the build to make sure the exact build version numbers are
+   // available.
    published_version: Version;
    // The build digest/identifier only. Must be combined with a field
    // from a PackageIndex and the published_version field above to
@@ -298,6 +299,7 @@ table Version {
 table VersionIndex {
     // The version number only
     version: Version (required);
+    // Unsorted
     builds: [BuildIndex];
 }
 
@@ -319,6 +321,8 @@ table GlobalVar {
 
 // The index for a repository
 table RepositoryIndex {
+    // For spk to check it supports this schema
+    index_schema_version: uint32 = 1;
     // Sorted by name
     packages: [PackageIndex];
     global_vars: [GlobalVar];
