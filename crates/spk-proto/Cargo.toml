@@ -24,7 +24,7 @@ serde = { workspace = true, optional = true }
 thiserror = { workspace = true }
 
 [build-dependencies]
-flatc-rust = "0.2"
+flatc-rust = { workspace = true }
 
 [dev-dependencies]
 ring = { workspace = true }
