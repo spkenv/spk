@@ -99,10 +99,10 @@ impl Clone for IndexedPackage {
 impl std::hash::Hash for IndexedPackage {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.build_ident.hash(state);
-        // TODO: skip this? It could be quite large?
-        self.buf.hash(state);
+        // Different packages from the same index will have different
+        // offsets.
         self.offset.hash(state);
-        // The cached fields are skipped
+        // The index bytes buf and cached fields are skipped
     }
 }
 
