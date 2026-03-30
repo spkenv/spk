@@ -5,11 +5,11 @@
 use clap::Parser;
 use rstest::rstest;
 use spfs::storage::prelude::*;
-use spk_schema::RuntimeEnvironment;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::{option_map, version_ident};
 use spk_schema::ident_component::Component;
 use spk_schema::option_map::HOST_OPTIONS;
+use spk_schema::{Package, RuntimeEnvironment};
 use spk_storage::fixtures::*;
 
 use super::Build;
@@ -836,4 +836,99 @@ install:
         !recipe.runtime_environment().is_empty(),
         "should have environment ops"
     );
+}
+
+#[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
+#[tokio::test]
+async fn test_package_can_opt_out_of_strongly_inherited_var(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
+    let rt = spfs_runtime().await;
+
+    build_package!(
+        tmpdir,
+        "base.spk.yaml",
+        br#"
+api: v0/package
+pkg: base/1.0.0
+build:
+  options:
+    - var: inherit-me/1.2.3
+      inheritance: Strong
+      description: test content
+  script:
+    - true
+"#,
+        solver_to_run
+    );
+
+    build_package!(
+        tmpdir,
+        "baseline.spk.yaml",
+        br#"
+api: v0/package
+pkg: baseline/1.0.0
+build:
+  options:
+    - pkg: base
+  script:
+    - true
+"#,
+        solver_to_run
+    );
+
+    let build = rt
+        .tmprepo
+        .list_package_builds(&version_ident!("baseline/1.0.0"))
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|b| !b.is_source())
+        .unwrap();
+
+    let pkg = rt.tmprepo.read_package(&build).await.unwrap();
+
+    let requirements = pkg.runtime_requirements();
+    // As written, if the strongly-inherited var is not suppressed, then the
+    // package should have one entry in the runtime_requirements list
+    assert_eq!(1, requirements.len(), "expected one requirement");
+
+    build_package!(
+        tmpdir,
+        "downstream.spk.yaml",
+        br#"
+api: v0/package
+pkg: downstream/1.0.0
+build:
+  options:
+    - pkg: base
+  script:
+    - true
+install:
+  requirements:
+    - var: base.inherit-me
+      suppress: "don't inherit this!"
+"#,
+        solver_to_run
+    );
+
+    let build = rt
+        .tmprepo
+        .list_package_builds(&version_ident!("downstream/1.0.0"))
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|b| !b.is_source())
+        .unwrap();
+
+    let pkg = rt.tmprepo.read_package(&build).await.unwrap();
+
+    let requirements = pkg.runtime_requirements();
+    // As written, if the strongly-inherited var is suppressed, then the package
+    // should have an empty runtime_requirements list
+    assert_eq!(0, requirements.len(), "expected an empty list");
 }

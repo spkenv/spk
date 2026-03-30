@@ -220,6 +220,11 @@ impl RequirementsList<PinnableRequest> {
                         }
                     }
                 }
+                PinnableRequest::Suppress(..) => {
+                    // Suppression rules are not carried over into built
+                    // packages
+                    None
+                }
             }
         }).collect::<Result<Vec<_>>>()?))
     }

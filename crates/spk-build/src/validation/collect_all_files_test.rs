@@ -52,6 +52,7 @@ async fn test_validate_build_changeset_collected() {
             environment_filesystem: Manifest::new(
                 spfs::tracking::Entry::empty_dir_with_open_perms_with_data(package.ident().clone()),
             ),
+            suppressed_requirements: Default::default(),
             package,
         },
     };

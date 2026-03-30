@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use spk_schema::foundation::ident_component::Component;
+use spk_schema::foundation::name::OptNameBuf;
 use spk_schema::{BuildIdent, Package, Variant};
 use spk_solve::Solution;
 
@@ -39,6 +40,9 @@ where
     /// where each entry is tagged with the package that owns
     /// it within the build environment.
     pub environment_filesystem: spfs::tracking::Manifest<BuildIdent>,
+    /// Var names that the recipe explicitly suppresses from strong
+    /// inheritance, used by the InheritRequirements validator.
+    pub suppressed_requirements: HashSet<OptNameBuf>,
 }
 
 /// Details about the generated files and resulting output of
