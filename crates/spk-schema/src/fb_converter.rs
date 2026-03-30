@@ -70,7 +70,14 @@ pub fn fb_prerelease_policy_to_prerelease_policy(
         spk_proto::PreReleasePolicy::None => None,
         spk_proto::PreReleasePolicy::ExcludeAll => Some(PreReleasePolicy::ExcludeAll),
         spk_proto::PreReleasePolicy::IncludeAll => Some(PreReleasePolicy::IncludeAll),
-        _ => None,
+        _ => {
+            // Covering up to ::MAX for the compiler, but this should not happen
+            debug_assert!(
+                false,
+                "Unhandled spk_proto::PreReleasePolicy enum number encountered"
+            );
+            None
+        }
     }
 }
 
@@ -82,7 +89,11 @@ pub fn fb_inclusion_policy_to_inclusion_policy(
         spk_proto::InclusionPolicy::Always => InclusionPolicy::Always,
         spk_proto::InclusionPolicy::IfAlreadyPresent => InclusionPolicy::IfAlreadyPresent,
         _ => {
-            // :MAX case for the compile, but it won't happen
+            // Covering up to ::MAX for the compiler, but this should not happen
+            debug_assert!(
+                false,
+                "Unhandled spk_proto::InclusionPolicy enum number encountered"
+            );
             InclusionPolicy::default()
         }
     }
@@ -119,8 +130,11 @@ pub fn fb_component_to_component(fb_component: &spk_proto::Component) -> Compone
             )
         }
         _ => {
-            // ::MAX coverage etc, which should not happen, but the compiler insists
-            tracing::error!("This should not happen!: {:?}", fb_component.kind());
+            // Covering up to ::MAX for the compiler, but this should not happen
+            debug_assert!(
+                false,
+                "Unhandled spk_proto::ComponentEnum enum number encountered"
+            );
             Component::Run
         }
     }
@@ -270,8 +284,11 @@ pub fn fb_requirements_to_requirements(
                     }
                 }
                 _ => {
-                    // Covering all the other values to ::MAX, but
-                    // this should not happen
+                    // Covering up to ::MAX for the compiler, but this should not happen
+                    debug_assert!(
+                        false,
+                        "Unhandled spk_proto::RequestWithOptions enum number encountered"
+                    );
                 }
             };
         }
@@ -420,7 +437,11 @@ pub fn fb_pin_policy_to_pin_policy(pin_policy: spk_proto::PinPolicy) -> PinPolic
         spk_proto::PinPolicy::Required => PinPolicy::Required,
         spk_proto::PinPolicy::IfPresentInBuildEnv => PinPolicy::IfPresentInBuildEnv,
         _ => {
-            // For the ::MAX value case, which won't happen
+            // Covering up to ::MAX for the compiler, but this should not happen
+            debug_assert!(
+                false,
+                "Unhandled spk_proto::PinPolicy enum number encountered"
+            );
             PinPolicy::Required
         }
     }
@@ -459,8 +480,14 @@ pub fn fb_var_opt_to_opt(fb_var_opt: spk_proto::VarOpt) -> Opt {
         spk_proto::Inheritance::Weak => Inheritance::Weak,
         spk_proto::Inheritance::StrongForBuildOnly => Inheritance::StrongForBuildOnly,
         spk_proto::Inheritance::Strong => Inheritance::Strong,
-        // Handle the everything up to max value cases with a default
-        _ => Inheritance::default(),
+        _ => {
+            // Covering up to ::MAX for the compiler, but this should not happen
+            debug_assert!(
+                false,
+                "Unhandled spk_proto::Inheritance enum number encountered"
+            );
+            Inheritance::default()
+        }
     };
 
     let compat = var_opt_fb_compat_to_var_opt_compat(fb_var_opt.compat());
@@ -497,8 +524,11 @@ pub fn fb_opt_to_opt(fb_opt: &spk_proto::Opt<'_>) -> Opt {
             }
         }
         _ => {
-            // Covering the rest up to ::MAX, but this should not
-            // happen in valid data.
+            // Covering up to ::MAX for the compiler, but this should not happen
+            debug_assert!(
+                false,
+                "Unhandled spk_proto::OptEnum enum number encountered"
+            );
             unreachable!(
                 "The opt_type flatbuffer data should be either OptEnum::PkgOpt or OptEnum::VarOpt"
             );
@@ -572,7 +602,11 @@ pub fn get_build_from_fb_pkg_request_with_options(
             })
         }
         _ => {
-            // covering the 0 and ::MAX, but this should not happen
+            // Covering up to ::MAX for the compiler, but this should not happen
+            debug_assert!(
+                false,
+                "Unhandled spk_proto::BuildId enum number encountered"
+            );
             Build::Source
         }
     };
@@ -599,7 +633,11 @@ pub fn get_build_from_fb_build_index(build_index: spk_proto::BuildIndex) -> Buil
             })
         }
         _ => {
-            // covering up to the ::MAX, but this should not happen
+            // Covering up to ::MAX for the compiler, but this should not happen
+            debug_assert!(
+                false,
+                "Unhandled spk_proto::BuildId enum number encountered"
+            );
             Build::Source
         }
     }
@@ -616,8 +654,14 @@ pub fn fb_version_to_version(ver: spk_proto::Version) -> Version {
             spk_proto::Epsilon::Minus => Epsilon::Minus,
             spk_proto::Epsilon::None => Epsilon::None,
             spk_proto::Epsilon::Plus => Epsilon::Plus,
-            // coverage for the ::MAX value, which should not happen
-            _ => Epsilon::None,
+            _ => {
+                // Covering up to ::MAX for the compiler, but this should not happen
+                debug_assert!(
+                    false,
+                    "Unhandled spk_proto::Episilon enum number encountered"
+                );
+                Epsilon::None
+            }
         },
     };
     let mut pre = BTreeMap::new();
@@ -808,8 +852,14 @@ fn lone_compat_rule_to_fb_lone_compat_rule(
         Some(compat_rule) => match compat_rule {
             CompatRule::API => spk_proto::LoneCompatRule::API,
             CompatRule::Binary => spk_proto::LoneCompatRule::Binary,
-            // CompatRule::None is not allowed in a lone compat rules.
-            _ => spk_proto::LoneCompatRule::None,
+            _ => {
+                // Covering up to ::MAX for the compiler, but this should not happen
+                debug_assert!(
+                    false,
+                    "Unhandled spk_proto::LoneCompatRule enum number encountered"
+                );
+                spk_proto::LoneCompatRule::None
+            }
         },
         None => spk_proto::LoneCompatRule::None,
     }
