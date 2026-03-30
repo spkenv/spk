@@ -120,7 +120,7 @@ pub use spk_schema_foundation::{
 };
 pub use template::{Template, TemplateData, TemplateExt};
 pub use test::{Test, TestStage};
-pub use v0::{AutoHostVars, RecipeComponentSpec, Script, SolverPackageSpec};
+pub use v0::{AutoHostVars, IndexedPackage, RecipeComponentSpec, Script};
 pub use validation::{ValidationRule, ValidationSpec};
 pub use variant::{Variant, VariantExt};
 

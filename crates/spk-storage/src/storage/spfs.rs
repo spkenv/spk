@@ -540,8 +540,8 @@ impl Storage for SpfsRepository {
                         });
                         Spec::V0Package(spec)
                     }
-                    Spec::V0SolverPackage(_) => {
-                        unreachable!("Can't read Spec::V0SolverPackage spec from an Spk SPFS repo. Those come from an SPK IndexedRepo.",)
+                    Spec::V0IndexedPackage(_) => {
+                        unreachable!("Can't read Spec::V0IndexedPackage spec from an Spk SPFS repo. Those come from an SPK IndexedRepo.",)
                     }
                 })
                 .map_err(|err| {
@@ -807,8 +807,8 @@ impl crate::Repository for SpfsRepository {
                         });
                         Spec::V0Package(spec)
                     }
-                    Spec::V0SolverPackage(_) => {
-                        unreachable!("Can't read Spec::V0SolverPackage spec from an Spk SPFS repo. Those come from an SPK IndexedRepo.",)
+                    Spec::V0IndexedPackage(_) => {
+                        unreachable!("Can't read Spec::V0IndexedPackage spec from an Spk SPFS repo. Those come from an SPK IndexedRepo.",)
                     }
                 })
                 .map_err(|err| {
