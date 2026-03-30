@@ -852,14 +852,10 @@ fn lone_compat_rule_to_fb_lone_compat_rule(
         Some(compat_rule) => match compat_rule {
             CompatRule::API => spk_proto::LoneCompatRule::API,
             CompatRule::Binary => spk_proto::LoneCompatRule::Binary,
-            _ => {
-                // Covering up to ::MAX for the compiler, but this should not happen
-                debug_assert!(
-                    false,
-                    "Unhandled spk_proto::LoneCompatRule enum number encountered"
-                );
-                spk_proto::LoneCompatRule::None
-            }
+            // CompatRule::None is not allowed in a lone compat rules
+            // used inside spk, but it still needs to be recorded in
+            // the index's enum.
+            CompatRule::None => spk_proto::LoneCompatRule::None,
         },
         None => spk_proto::LoneCompatRule::None,
     }
