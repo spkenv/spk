@@ -57,11 +57,9 @@ use crate::{
     fb_opts_to_opts,
 };
 
-// TODO: should this be IndexedPackageSpec or something else? It comes
-// from an index and requires one to function, but it is used/usable
-// only by the solver.
+// A package extracted from an index
 #[derive(Debug, Serialize)]
-pub struct SolverPackageSpec {
+pub struct IndexedPackage {
     build_ident: BuildIdent,
     #[serde(skip)]
     buf: bytes::Bytes,
@@ -83,7 +81,7 @@ pub struct SolverPackageSpec {
     cached_build_opts: ArcSwap<Vec<Opt>>,
 }
 
-impl Clone for SolverPackageSpec {
+impl Clone for IndexedPackage {
     fn clone(&self) -> Self {
         Self {
             build_ident: self.build_ident.clone(),
@@ -98,7 +96,7 @@ impl Clone for SolverPackageSpec {
     }
 }
 
-impl std::hash::Hash for SolverPackageSpec {
+impl std::hash::Hash for IndexedPackage {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.build_ident.hash(state);
         // TODO: skip this? It could be quite large?
@@ -108,7 +106,7 @@ impl std::hash::Hash for SolverPackageSpec {
     }
 }
 
-impl std::cmp::PartialEq for SolverPackageSpec {
+impl std::cmp::PartialEq for IndexedPackage {
     fn eq(&self, other: &Self) -> bool {
         // This deliberately ignores the buf field, offset field, and
         // all the caches.
@@ -116,22 +114,22 @@ impl std::cmp::PartialEq for SolverPackageSpec {
     }
 }
 
-impl std::cmp::Eq for SolverPackageSpec {}
+impl std::cmp::Eq for IndexedPackage {}
 
-impl PartialOrd for SolverPackageSpec {
+impl PartialOrd for IndexedPackage {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for SolverPackageSpec {
+impl Ord for IndexedPackage {
     fn cmp(&self, other: &Self) -> Ordering {
         self.build_ident.cmp(&other.build_ident)
     }
 }
 
-impl SolverPackageSpec {
-    pub fn new(build_ident: BuildIdent, buf: bytes::Bytes, offset: usize) -> SolverPackageSpec {
+impl IndexedPackage {
+    pub fn new(build_ident: BuildIdent, buf: bytes::Bytes, offset: usize) -> IndexedPackage {
         Self {
             build_ident,
             buf,
@@ -156,21 +154,21 @@ impl SolverPackageSpec {
     }
 }
 
-impl BuildOptions for SolverPackageSpec {
+impl BuildOptions for IndexedPackage {
     fn build_options(&self) -> Cow<'_, [Opt]> {
         self.get_build_options()
     }
 }
 
-impl Deprecate for SolverPackageSpec {
+impl Deprecate for IndexedPackage {
     fn is_deprecated(&self) -> bool {
         self.build_index().is_deprecated()
     }
 }
 
-impl DeprecateMut for SolverPackageSpec {
+impl DeprecateMut for IndexedPackage {
     fn deprecate(&mut self) -> Result<()> {
-        Err(Error::SpkIndexPackageDoesNotImplement(
+        Err(Error::SpkIndexedPackageDoesNotImplement(
             "DeprecateMut".to_string(),
             "deprecate".to_string(),
         ))
@@ -185,20 +183,20 @@ impl DeprecateMut for SolverPackageSpec {
     }
 
     fn undeprecate(&mut self) -> Result<()> {
-        Err(Error::SpkIndexPackageDoesNotImplement(
+        Err(Error::SpkIndexedPackageDoesNotImplement(
             "DeprecateMut".to_string(),
             "undeprecate".to_string(),
         ))
     }
 }
 
-impl Satisfy<PkgRequestWithOptions> for SolverPackageSpec {
+impl Satisfy<PkgRequestWithOptions> for IndexedPackage {
     fn check_satisfies_request(&self, pkg_request: &PkgRequestWithOptions) -> Compatibility {
         check_package_spec_satisfies_pkg_request(self, pkg_request)
     }
 }
 
-impl Satisfy<VarRequest<PinnedValue>> for SolverPackageSpec {
+impl Satisfy<VarRequest<PinnedValue>> for IndexedPackage {
     fn check_satisfies_request(&self, var_request: &VarRequest<PinnedValue>) -> Compatibility {
         // Copied from V0 Spec<BuildIdent> and slightly adjusted for
         // the flatbuffer data.
@@ -291,33 +289,33 @@ impl Satisfy<VarRequest<PinnedValue>> for SolverPackageSpec {
     }
 }
 
-impl HasVersion for SolverPackageSpec {
+impl HasVersion for IndexedPackage {
     fn version(&self) -> &Version {
         self.build_ident.version()
     }
 }
 
-impl HasBuild for SolverPackageSpec {
+impl HasBuild for IndexedPackage {
     fn build(&self) -> &Build {
         self.build_ident.build()
     }
 }
 
-impl HasBuildIdent for SolverPackageSpec {
+impl HasBuildIdent for IndexedPackage {
     fn build_ident(&self) -> &BuildIdent {
         &self.build_ident
     }
 }
 
-impl Named for SolverPackageSpec {
+impl Named for IndexedPackage {
     fn name(&self) -> &PkgName {
         self.build_ident.name()
     }
 }
 
-impl RuntimeEnvironment for SolverPackageSpec {
+impl RuntimeEnvironment for IndexedPackage {
     fn runtime_environment(&self) -> &[crate::EnvOp] {
-        let err = Error::SpkIndexPackageDoesNotImplement(
+        let err = Error::SpkIndexedPackageDoesNotImplement(
             "RuntimeEnvironment".to_string(),
             "runtime_environment".to_string(),
         );
@@ -328,7 +326,7 @@ impl RuntimeEnvironment for SolverPackageSpec {
     }
 }
 
-impl Versioned for SolverPackageSpec {
+impl Versioned for IndexedPackage {
     fn compat(&self) -> Cow<'_, Compat> {
         if self.cached_compat.load().is_none() {
             // The compat hasn't been read and decoded yet
@@ -342,7 +340,7 @@ impl Versioned for SolverPackageSpec {
     }
 }
 
-impl Components for SolverPackageSpec {
+impl Components for IndexedPackage {
     type ComponentSpecT = ComponentSpec;
 
     fn components(&self) -> Cow<'_, ComponentSpecList<Self::ComponentSpecT>> {
@@ -360,9 +358,9 @@ impl Components for SolverPackageSpec {
     }
 }
 
-impl Package for SolverPackageSpec {
+impl Package for IndexedPackage {
     // Only used for embedded_as_packages() method, which can't easily
-    // return a SolverPackageSpec for an embedded package without
+    // return a IndexedPackage for an embedded package without
     // generating a flatbuffer bytes representation of each decoded
     // EmbeddedPackageSpec pieces. So this uses a full package spec
     // for the return values of that method.
@@ -376,7 +374,7 @@ impl Package for SolverPackageSpec {
 
     fn metadata(&self) -> &crate::metadata::Meta {
         let err =
-            Error::SpkIndexPackageDoesNotImplement("Package".to_string(), "metadata".to_string());
+            Error::SpkIndexedPackageDoesNotImplement("Package".to_string(), "metadata".to_string());
         // TODO: should this change the return value, update all the
         // caller's handling, and return an error for this implementation?
         unreachable!("{err}");
@@ -409,7 +407,7 @@ impl Package for SolverPackageSpec {
 
     fn sources(&self) -> &Vec<SourceSpec> {
         let err =
-            Error::SpkIndexPackageDoesNotImplement("Package".to_string(), "sources".to_string());
+            Error::SpkIndexedPackageDoesNotImplement("Package".to_string(), "sources".to_string());
         // TODO: should this change the return value, update all the
         // caller's handling, and return an error for this implementation?
         unreachable!("{err}");
@@ -449,7 +447,7 @@ impl Package for SolverPackageSpec {
     }
 
     fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList<PinnedRequest>>> {
-        Err(Error::SpkIndexPackageDoesNotImplement(
+        Err(Error::SpkIndexedPackageDoesNotImplement(
             "Package".to_string(),
             "get_build_requirements".to_string(),
         ))
@@ -469,7 +467,7 @@ impl Package for SolverPackageSpec {
     }
 
     fn get_all_tests(&self) -> Vec<SpecTest> {
-        let err = Error::SpkIndexPackageDoesNotImplement(
+        let err = Error::SpkIndexedPackageDoesNotImplement(
             "Package".to_string(),
             "get_all_tests".to_string(),
         );
@@ -479,14 +477,14 @@ impl Package for SolverPackageSpec {
     }
 }
 
-impl DownstreamRequirements for SolverPackageSpec {
+impl DownstreamRequirements for IndexedPackage {
     fn downstream_build_requirements<'a>(
         &self,
         _components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
         // This is for build var requirements and inheritance used in
         // building. This kinds of package has no build data stored.
-        let err = Error::SpkIndexPackageDoesNotImplement(
+        let err = Error::SpkIndexedPackageDoesNotImplement(
             "DownstreamRequirements".to_string(),
             "downstream_build_requirements".to_string(),
         );
@@ -501,7 +499,7 @@ impl DownstreamRequirements for SolverPackageSpec {
     ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
         // This is also for build var requirements and inheritance
         // used in building. This package has no build data stored.
-        let err = Error::SpkIndexPackageDoesNotImplement(
+        let err = Error::SpkIndexedPackageDoesNotImplement(
             "DownstreamRequirements".to_string(),
             "downstream_runtime_requirements".to_string(),
         );
@@ -511,7 +509,7 @@ impl DownstreamRequirements for SolverPackageSpec {
     }
 }
 
-impl OptionValues for SolverPackageSpec {
+impl OptionValues for IndexedPackage {
     fn option_values(&self) -> OptionMap {
         let mut option_map = OptionMap::default();
 
@@ -525,9 +523,9 @@ impl OptionValues for SolverPackageSpec {
     }
 }
 
-impl PackageMut for SolverPackageSpec {
+impl PackageMut for IndexedPackage {
     fn set_build(&mut self, _build: Build) {
-        let err = Error::SpkIndexPackageDoesNotImplement(
+        let err = Error::SpkIndexedPackageDoesNotImplement(
             "PackageMut".to_string(),
             "set_build".to_string(),
         );
@@ -537,7 +535,7 @@ impl PackageMut for SolverPackageSpec {
     }
 
     fn insert_or_merge_install_requirement(&mut self, _req: PinnedRequest) -> Result<()> {
-        Err(Error::SpkIndexPackageDoesNotImplement(
+        Err(Error::SpkIndexedPackageDoesNotImplement(
             "PackageMut".to_string(),
             "insert_or_merge_install_requirement".to_string(),
         ))
