@@ -1031,27 +1031,31 @@ fn component_emb_pkgs_to_fb_component_emb_pkgs<'a>(
 > {
     let mut comp_emb_pkgs = Vec::new();
 
-    for emb_comp in component_emb_pkgs.iter() {
-        let fb_name = builder.create_string(emb_comp.pkg.name());
+    // A fabricated component embedded packages list should not be
+    // stored in the index. It should be treated as empty.
+    if !component_emb_pkgs.is_fabricated() {
+        for emb_comp in component_emb_pkgs.iter() {
+            let fb_name = builder.create_string(emb_comp.pkg.name());
 
-        let fb_version = emb_comp
-            .pkg
-            .target()
-            .as_ref()
-            .map(|ver| version_to_fb_version(builder, ver));
+            let fb_version = emb_comp
+                .pkg
+                .target()
+                .as_ref()
+                .map(|ver| version_to_fb_version(builder, ver));
 
-        let fb_components = components_set_to_fb_components(builder, emb_comp.components());
+            let fb_components = components_set_to_fb_components(builder, emb_comp.components());
 
-        let fb_emb_comp = spk_proto::ComponentEmbeddedPackage::create(
-            builder,
-            &spk_proto::ComponentEmbeddedPackageArgs {
-                name: Some(fb_name),
-                version: fb_version,
-                components: fb_components,
-            },
-        );
+            let fb_emb_comp = spk_proto::ComponentEmbeddedPackage::create(
+                builder,
+                &spk_proto::ComponentEmbeddedPackageArgs {
+                    name: Some(fb_name),
+                    version: fb_version,
+                    components: fb_components,
+                },
+            );
 
-        comp_emb_pkgs.push(fb_emb_comp);
+            comp_emb_pkgs.push(fb_emb_comp);
+        }
     }
     flatbuffer_vector!(builder, comp_emb_pkgs)
 }
