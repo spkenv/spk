@@ -658,7 +658,7 @@ pub fn fb_version_to_version(ver: spk_proto::Version) -> Version {
                 // Covering up to ::MAX for the compiler, but this should not happen
                 debug_assert!(
                     false,
-                    "Unhandled spk_proto::Episilon enum number encountered"
+                    "Unhandled spk_proto::Epsilon enum number encountered"
                 );
                 Epsilon::None
             }
