@@ -59,12 +59,8 @@ macro_rules! flatbuffer_vector {
     };
 }
 
-// TODO: all these functions are here to keep the flatbuffer
-// conversions together while deciding on whether to replace the
-// backing of current rust objects with flatbuffer ones, like
-// IndexedPackage does. Or whether to split these functions up into
-// a couple of traits (e.g. IntoFlatbuffer, FromFlatbuffer) across
-// each of the existing rust types.
+// Flatbuffer conversions functions. Kept together for now. In future,
+// they may be split up across objects and traits.
 
 #[inline]
 pub fn fb_prerelease_policy_to_prerelease_policy(
