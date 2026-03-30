@@ -381,7 +381,10 @@ impl Package for IndexedPackage {
     }
 
     fn matches_all_filters(&self, filter_by: &Option<Vec<OptFilter>>) -> bool {
-        // A copy of the code in V0 Spec's matchers_all_filters
+        // A duplicate of the code in V0 PackageSpec's matches_all_filters()
+        // method. It relies on self.check_satisfies_request() method
+        // which is not in the Package trait, or else this could be
+        // the default implementation for the Package trait.
         if let Some(filters) = filter_by {
             let settings = self.option_values();
 
