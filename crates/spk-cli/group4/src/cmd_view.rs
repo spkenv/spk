@@ -143,6 +143,12 @@ impl Run for View {
     type Output = i32;
 
     async fn run(&mut self) -> Result<Self::Output> {
+        // This command does not work correctly with IndexedRepo
+        // objects. The repos must be the underlying repo and not an
+        // indexed repo, so disable index use regardless of config or
+        // command line flags.
+        flags::disable_index_use();
+
         if self.variants || self.variants_with_tests {
             let options = self.options.get_options()?;
             let mut workspace = self

@@ -117,8 +117,6 @@ impl RepoCommand {
                         Err(err) => {
                             // There isn't an existing index, so generate one from scratch that
                             // will also include the update package version.
-                            // TODO: could also just error out and say run a full index first,
-                            // or ask the user "are you sure?" before continuing.
                             tracing::warn!("Failed to load flatbuffer index: {err}");
                             tracing::warn!("No current index to update. Creating a full index ...");
                             FlatBufferRepoIndex::index_repo(&repos).await?;
