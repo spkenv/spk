@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::{
     AsVersionIdent,
+    PinnableRequest,
     PinnedRequest,
     PkgRequestOptions,
     RangeIdent,
@@ -376,6 +377,14 @@ impl Recipe for RecipeSpec {
                 )
             })
             .collect::<Result<Vec<_>>>()?;
+        let suppressed_vars: std::collections::HashSet<OptNameBuf> = recipe_install
+            .requirements
+            .iter()
+            .filter_map(|r| match r {
+                PinnableRequest::Suppress(name, _) => Some(name.clone()),
+                _ => None,
+            })
+            .collect();
         let mut package_install = recipe_install.render_all_pins(&build_options, &specs)?;
 
         // Update metadata fields from the output of the executable.
@@ -433,6 +442,11 @@ impl Recipe for RecipeSpec {
                 Either::Right(embedded) => embedded.downstream_runtime_requirements([]),
             };
             for request in downstream_runtime.iter() {
+                if let RequestWithOptions::Var(var) = request
+                    && suppressed_vars.contains(&var.var)
+                {
+                    continue;
+                }
                 match package_install.requirements.contains_request(request) {
                     Compatibility::Compatible => continue,
                     Compatibility::Incompatible(_) => match request {
@@ -508,6 +522,17 @@ impl Recipe for RecipeSpec {
 
     fn validation(&self) -> &ValidationSpec {
         &self.build.validation
+    }
+
+    fn suppressed_requirements(&self) -> std::collections::HashSet<OptNameBuf> {
+        self.install
+            .requirements
+            .iter()
+            .filter_map(|r| match r {
+                PinnableRequest::Suppress(name, _) => Some(name.clone()),
+                _ => None,
+            })
+            .collect()
     }
 }
 

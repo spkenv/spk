@@ -3,10 +3,11 @@
 // https://github.com/spkenv/spk
 
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use spk_schema_foundation::ident::{RequestWithOptions, VersionIdent};
+use spk_schema_foundation::name::OptNameBuf;
 
 use crate::foundation::ident_build::BuildId;
 use crate::foundation::option_map::OptionMap;
@@ -113,6 +114,12 @@ pub trait Recipe:
 
     /// Return the set of configured validators when building this package
     fn validation(&self) -> &super::ValidationSpec;
+
+    /// Return the set of var names that this recipe explicitly suppresses
+    /// from being inherited via strong inheritance.
+    fn suppressed_requirements(&self) -> HashSet<OptNameBuf> {
+        HashSet::new()
+    }
 }
 
 forward_to_impl!(box = false, Recipe, {
@@ -182,5 +189,9 @@ forward_to_impl!(box = false, Recipe, {
 
     fn validation(&self) -> &super::ValidationSpec {
         (**self).validation()
+    }
+
+    fn suppressed_requirements(&self) -> HashSet<OptNameBuf> {
+        (**self).suppressed_requirements()
     }
 });

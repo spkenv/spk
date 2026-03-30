@@ -53,6 +53,7 @@ async fn test_build_package_downstream_build_requests() {
         environment_filesystem: Manifest::new(
             spfs::tracking::Entry::empty_dir_with_open_perms_with_data(package.ident().clone()),
         ),
+        suppressed_requirements: Default::default(),
         package,
     };
     let err = ValidationRule::Require {
@@ -124,6 +125,7 @@ async fn test_build_package_downstream_runtime_request() {
         environment_filesystem: Manifest::new(
             spfs::tracking::Entry::empty_dir_with_open_perms_with_data(package.ident().clone()),
         ),
+        suppressed_requirements: Default::default(),
         package,
     };
     let err = ValidationRule::Require {

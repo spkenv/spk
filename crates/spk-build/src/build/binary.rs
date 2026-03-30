@@ -392,6 +392,7 @@ where
             package,
             variant: full_variant,
             environment_filesystem,
+            suppressed_requirements: self.recipe.suppressed_requirements(),
         };
         let mut report = BuildReport {
             setup,
