@@ -24,11 +24,11 @@ use spk_schema::{
     BuildIdent,
     Components,
     Deprecate,
+    IndexedPackage,
     OptionValues,
     Package,
     PinnedRequest,
     RequestWithOptions,
-    SolverPackageSpec,
     Spec,
     SpecTest,
     build_to_fb_build,
@@ -52,6 +52,9 @@ use crate::{Error, RepoWalkerBuilder, RepoWalkerItem, Result};
 #[cfg(test)]
 #[path = "./flatbuffer_index_test.rs"]
 mod flatbuffer_index_test;
+
+// Index schema version supported by spk
+const COMPATIBLE_INDEX_SCHEMA_VERSION: u32 = 1;
 
 // Index name and kind constants
 pub const FLATBUFFER_INDEX: &str = "flatb";
@@ -130,6 +133,16 @@ impl FlatBufferRepoIndex {
             );
         } else {
             tracing::debug!("'{name}' repo index not verified before use : 0.0 secs");
+        }
+
+        // Check the index's schema version to ensure it is compatible
+        // with this spk's version.
+        if index.fb_index().index_schema_version() != COMPATIBLE_INDEX_SCHEMA_VERSION {
+            return Err(Error::String(format!(
+                "Index schema is version ({}) is not compatible with spk schema version ({})",
+                index.fb_index().index_schema_version(),
+                COMPATIBLE_INDEX_SCHEMA_VERSION
+            )));
         }
 
         tracing::debug!(
@@ -234,20 +247,20 @@ impl FlatBufferRepoIndex {
     }
 
     /// Internal method to create a valid Spec from a package held in the
-    /// index data as a flatbuffer backed SolverPackageSpec.
+    /// index data as a flatbuffer backed IndexedPackage.
     fn make_solver_package_spec(
         &self,
         package_build: BuildIdent,
         fb_build_index: &spk_proto::BuildIndex,
     ) -> Result<Spec> {
-        let build_spec = SolverPackageSpec::new(
+        let build_spec = IndexedPackage::new(
             package_build,
             // This is cheap because it is a bytes::Bytes
             self.data_buffer.clone(),
             fb_build_index._tab.loc(),
         );
 
-        Ok(Spec::V0SolverPackage(build_spec))
+        Ok(Spec::V0IndexedPackage(build_spec))
     }
 
     /// Gather packages and global vars from the given repos.
@@ -514,6 +527,7 @@ impl FlatBufferRepoIndex {
         let index = spk_proto::RepositoryIndex::create(
             &mut builder,
             &spk_proto::RepositoryIndexArgs {
+                index_schema_version: COMPATIBLE_INDEX_SCHEMA_VERSION,
                 packages: fb_packages,
                 global_vars: fb_global_vars,
             },
@@ -603,8 +617,12 @@ impl FlatBufferRepoIndex {
 
         let mut index_path = PathBuf::new();
         index_path.push(base_path);
+        // Index file name includes the repo name and index schema
+        // version for ease of identification and to get a compatible
+        // index - the index version is also checked when the bytes
+        // are turned into an index in memory.
         index_path.push(format!(
-            "{INDEX_FILE_PREFIX}{}.{INDEX_FILE_EXT}",
+            "{INDEX_FILE_PREFIX}{}_v{COMPATIBLE_INDEX_SCHEMA_VERSION}.{INDEX_FILE_EXT}",
             repo.name()
         ));
 
