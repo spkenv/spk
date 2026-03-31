@@ -18,7 +18,7 @@ use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Version;
 use spk_schema::ident::VersionIdent;
-use spk_schema::name::OptNameBuf;
+use spk_schema::name::{OptNameBuf, RepositoryName};
 use spk_schema::prelude::Versioned;
 use spk_schema::{
     BuildIdent,
@@ -71,6 +71,7 @@ const DEFAULT_CAPACITY: usize = 1024;
 // Flatbuffer verifier constants
 const MAX_FLATBUFFER_TABLES: usize = 100000000;
 const DO_NOT_VERIFY: bool = false;
+const VERIFY: bool = true;
 
 #[derive(Debug, Default)]
 pub struct FlatBufferRepoIndex {
@@ -155,14 +156,32 @@ impl FlatBufferRepoIndex {
 
     /// Create a FlatBufferRepoIndex from an index file in the repository
     pub async fn from_repo_file(repo: &crate::RepositoryHandle) -> Result<FlatBufferRepoIndex> {
-        let start = Instant::now();
-
         let filepath = Self::repo_index_location(repo).await?;
+
+        // Based on the configuration setting, decide whether to
+        // verify the flatbuffer data before use.
+        let config = spk_config::get_config()?;
+
         let name = repo.name();
         tracing::debug!(
             "Reading repo index file for: '{name}' from filepath: '{}'",
             filepath.display()
         );
+
+        FlatBufferRepoIndex::read_index_from_file(
+            name,
+            &filepath,
+            config.solver.verify_flatbuffers_index_before_use,
+        )
+        .await
+    }
+
+    async fn read_index_from_file(
+        name: &RepositoryName,
+        filepath: &PathBuf,
+        verify_index: bool,
+    ) -> Result<FlatBufferRepoIndex> {
+        let start = Instant::now();
 
         // Open and Memory map the data file
         let file = match std::fs::File::open(filepath) {
@@ -190,15 +209,7 @@ impl FlatBufferRepoIndex {
             start_bytes.elapsed().as_secs_f64()
         );
 
-        // Based on the configuration setting, decide whether to
-        // verify the flatbuffer data before use.
-        let config = spk_config::get_config()?;
-
-        let index = FlatBufferRepoIndex::try_from_bytes(
-            name,
-            data_buffer,
-            config.solver.verify_flatbuffers_index_before_use,
-        )?;
+        let index = FlatBufferRepoIndex::try_from_bytes(name, data_buffer, verify_index)?;
 
         Ok(index)
     }
@@ -635,12 +646,48 @@ impl FlatBufferRepoIndex {
         Ok(index_path)
     }
 
-    /// Save the index data to a file in the repo
+    /// Save the index data to a file in the repo. This will save the
+    /// index data to a temporary file, read it back in and verify it,
+    /// remove the old index file if any, and move the new temp file
+    /// into its place.
     async fn save_index<'a>(
         repo: &crate::RepositoryHandle,
         builder: &flatbuffers::FlatBufferBuilder<'a>,
     ) -> Result<PathBuf> {
+        let name = repo.name();
+
         let filepath = Self::repo_index_location(repo).await?;
+        let temp_file = PathBuf::from(format!("{}_being_generated", filepath.display()));
+        tracing::debug!("Index file path: {}", filepath.display());
+        tracing::debug!("Index temp file: {}", temp_file.display());
+
+        // Create the new index in a temp file with the correct permissions
+        if let Err(err) = tokio::fs::write(&temp_file, builder.finished_data()).await {
+            return Err(Error::IndexWriteError(
+                name.to_string(),
+                temp_file.display().to_string(),
+                err,
+            ));
+        } else {
+            // Ensure the file is readable and writable by everyone
+            #[cfg(unix)]
+            match tokio::fs::set_permissions(&temp_file, Permissions::from_mode(0o666)).await {
+                Err(err) => Err(Error::FileOpenError(temp_file.clone(), err)),
+                Ok(ok) => Ok(ok),
+            }?;
+
+            // Read in and verify the index
+            let _ = FlatBufferRepoIndex::read_index_from_file(name, &temp_file, VERIFY).await?;
+        }
+
+        // Count the number of tables and log as a percentage of
+        // the maximum allowed.
+        let num_tables = builder.num_written_vtables();
+        tracing::info!(
+            "Num tables in {}'s index: {num_tables} or {:2.6}% of Maximum",
+            repo.name(),
+            num_tables / MAX_FLATBUFFER_TABLES
+        );
 
         // Delete the old index file, if any. This should not impact
         // existing processes using that index.
@@ -656,18 +703,16 @@ impl FlatBufferRepoIndex {
             };
         }
 
-        // Create the new index file with the correct permissions
-        if let Err(err) = tokio::fs::write(&filepath, builder.finished_data()).await {
-            Err(Error::IndexWriteError(repo.name().to_string(), err))
-        } else {
-            #[cfg(unix)]
-            match tokio::fs::set_permissions(&filepath, Permissions::from_mode(0o666)).await {
-                Err(err) => Err(Error::FileOpenError(filepath.clone(), err)),
-                Ok(ok) => Ok(ok),
-            }?;
-
-            Ok(filepath)
+        // Move the index file to the correct place.
+        if let Err(err) = tokio::fs::rename(&temp_file, &filepath).await {
+            return Err(Error::String(format!(
+                "Unable to rename new temp index file '{}' to '{}' due to: {err}",
+                temp_file.display(),
+                filepath.display()
+            )));
         }
+
+        Ok(filepath)
     }
 }
 
