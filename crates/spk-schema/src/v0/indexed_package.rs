@@ -108,9 +108,12 @@ impl std::hash::Hash for IndexedPackage {
 
 impl std::cmp::PartialEq for IndexedPackage {
     fn eq(&self, other: &Self) -> bool {
-        // This deliberately ignores the buf field, offset field, and
-        // all the caches.
-        self.offset == other.offset && self.build_ident == other.build_ident
+        // This deliberately ignores the buf field and the caches.
+        if self.offset == other.offset {
+            true
+        } else {
+            self.build_ident == other.build_ident
+        }
     }
 }
 
