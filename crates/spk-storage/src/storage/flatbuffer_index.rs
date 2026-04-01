@@ -754,9 +754,6 @@ impl BuildInfo {
                 compat: fb_compat,
                 // Does not store any more details because the package
                 // is deprecated.
-                // TODO: might want to add something to load them from
-                // underlying repo if required, such as when the
-                // --deprecate flag is set.
                 build_options: None,
                 runtime_requirements: None,
                 embedded: None,
