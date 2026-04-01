@@ -194,14 +194,12 @@ async fn test_solver_no_requests(#[case] mut solver: SolverImpl) {
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_package_with_no_recipe(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
     random_build_id: BuildId,
 ) {
     let repo = RepositoryHandle::new_mem();
@@ -234,14 +232,12 @@ async fn test_solver_package_with_no_recipe(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_package_with_no_recipe_and_impossible_initial_checks(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
     random_build_id: BuildId,
 ) {
     init_logging();
@@ -277,14 +273,12 @@ async fn test_solver_package_with_no_recipe_and_impossible_initial_checks(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_package_with_no_recipe_from_cmd_line(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     let repo = RepositoryHandle::new_mem();
 
@@ -317,14 +311,12 @@ async fn test_solver_package_with_no_recipe_from_cmd_line(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_package_with_no_recipe_from_cmd_line_and_impossible_initial_checks(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     init_logging();
     let repo = RepositoryHandle::new_mem();
@@ -362,14 +354,12 @@ async fn test_solver_package_with_no_recipe_from_cmd_line_and_impossible_initial
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_single_package_no_deps(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     let options = option_map! {};
     let repo = make_repo!([{"pkg": "my-pkg/1.0.0"}], options=options.clone());
@@ -387,14 +377,12 @@ async fn test_solver_single_package_no_deps(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_single_package_simple_deps(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     let options = option_map! {};
     let repo = make_repo!(
@@ -421,14 +409,12 @@ async fn test_solver_single_package_simple_deps(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_dependency_abi_compat(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     let options = option_map! {};
     let repo = make_repo!(
@@ -458,14 +444,12 @@ async fn test_solver_dependency_abi_compat(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_dependency_incompatible(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test what happens when a dependency is added which is incompatible
     // with an existing request in the stack
@@ -492,14 +476,12 @@ async fn test_solver_dependency_incompatible(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_dependency_incompatible_stepback(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test what happens when a dependency is added which is incompatible
     // with an existing request in the stack - in this case we want the solver
@@ -533,14 +515,12 @@ async fn test_solver_dependency_incompatible_stepback(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_dependency_already_satisfied(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test what happens when a dependency is added which represents
     // a package which has already been resolved
@@ -573,14 +553,12 @@ async fn test_solver_dependency_already_satisfied(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_dependency_already_satisfied_conflicting_components(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // like test_solver_dependency_already_satisfied but with conflicting components
 
@@ -626,14 +604,12 @@ async fn test_solver_dependency_already_satisfied_conflicting_components(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_dependency_reopen_solvable(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test what happens when a dependency is added which represents
     // a package which has already been resolved
@@ -670,12 +646,13 @@ async fn test_solver_dependency_reopen_solvable(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_solver_dependency_reiterate(#[case] mut solver: SolverImpl, #[case] use_index: bool) {
+async fn test_solver_dependency_reiterate(
+    #[case] mut solver: SolverImpl,
+    #[values(true, false)] use_index: bool,
+) {
     // test what happens when a package iterator must be run through twice
     // - walking back up the solve graph should reset the iterator to where it was
 
@@ -710,14 +687,12 @@ async fn test_solver_dependency_reiterate(#[case] mut solver: SolverImpl, #[case
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_dependency_reopen_unsolvable(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test what happens when a dependency is added which represents
     // a package which has already been resolved
@@ -751,12 +726,13 @@ async fn test_solver_dependency_reopen_unsolvable(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_solver_pre_release_config(#[case] mut solver: SolverImpl, #[case] use_index: bool) {
+async fn test_solver_pre_release_config(
+    #[case] mut solver: SolverImpl,
+    #[values(true, false)] use_index: bool,
+) {
     let repo = make_repo!(
         [
             {"pkg": "my-pkg/0.9.0"},
@@ -790,14 +766,12 @@ async fn test_solver_pre_release_config(#[case] mut solver: SolverImpl, #[case] 
 /// Test that the solver can resolve a pre-release version of a package along
 /// with a package that requires it, when the pre-release version is requested
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_pre_release_config_with_requirements(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     let repo = make_repo!(
         [
@@ -824,12 +798,13 @@ async fn test_solver_pre_release_config_with_requirements(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_solver_constraint_only(#[case] mut solver: SolverImpl, #[case] use_index: bool) {
+async fn test_solver_constraint_only(
+    #[case] mut solver: SolverImpl,
+    #[values(true, false)] use_index: bool,
+) {
     // test what happens when a dependency is marked as a constraint/optional
     // and no other request is added
     // - the constraint is noted
@@ -857,14 +832,12 @@ async fn test_solver_constraint_only(#[case] mut solver: SolverImpl, #[case] use
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_constraint_and_request(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test what happens when a dependency is marked as a constraint/optional
     // and also requested by another package
@@ -900,14 +873,12 @@ async fn test_solver_constraint_and_request(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_option_compatibility(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
     #[values("~2.0", "~2.7", "~2.7.5", "2,<3", "2.7,<3", "3", "3.7", "3.7.3")] pyver: &str,
 ) {
     // test what happens when an option is given in the solver
@@ -985,12 +956,13 @@ async fn test_solver_option_compatibility(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_solver_option_injection(#[case] mut solver: SolverImpl, #[case] use_index: bool) {
+async fn test_solver_option_injection(
+    #[case] mut solver: SolverImpl,
+    #[values(true, false)] use_index: bool,
+) {
     // test the options that are defined when a package is resolved
     // - options are namespaced and added to the environment
     init_logging();
@@ -1043,12 +1015,13 @@ async fn test_solver_option_injection(#[case] mut solver: SolverImpl, #[case] us
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_solver_build_from_source(#[case] mut solver: SolverImpl, #[case] use_index: bool) {
+async fn test_solver_build_from_source(
+    #[case] mut solver: SolverImpl,
+    #[values(true, false)] use_index: bool,
+) {
     init_logging();
     // test when no appropriate build exists but the source is available
     // - the build is skipped
@@ -1103,14 +1076,12 @@ async fn test_solver_build_from_source(#[case] mut solver: SolverImpl, #[case] u
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_build_from_source_unsolvable(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     let log = init_logging();
 
@@ -1178,13 +1149,10 @@ async fn test_solver_build_from_source_unsolvable(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::resolvo(resolvo_solver(), false)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_solver_build_from_source_dependency(
-    #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
-) {
+async fn test_solver_build_from_source_dependency(#[case] mut solver: SolverImpl) {
     // test when no appropriate build exists but the source is available
     // - the existing build is skipped
     // - the source package is checked for current options
@@ -1227,7 +1195,6 @@ async fn test_solver_build_from_source_dependency(
         },
     });
     repo.force_publish_recipe(&recipe).await.unwrap();
-    let repo = wrap_repo_for_test(repo, use_index).await;
 
     // as above, the solver should not be able to get py 3.6 as a
     // dependency and so should propose a source build instead
@@ -1244,14 +1211,12 @@ async fn test_solver_build_from_source_dependency(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_build_from_source_dependency_but_hit_loop(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test when no appropriate build exists but the source is available
     // - the existing build is skipped
@@ -1312,12 +1277,13 @@ async fn test_solver_build_from_source_dependency_but_hit_loop(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_solver_deprecated_build(#[case] mut solver: SolverImpl, #[case] use_index: bool) {
+async fn test_solver_deprecated_build(
+    #[case] mut solver: SolverImpl,
+    #[values(true, false)] use_index: bool,
+) {
     let deprecated = make_build!({"pkg": "my-pkg/1.0.0", "deprecated": true});
     let deprecated_build = deprecated.ident().clone();
     let repo = make_repo!([
@@ -1359,12 +1325,13 @@ async fn test_solver_deprecated_build(#[case] mut solver: SolverImpl, #[case] us
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_solver_deprecated_version(#[case] mut solver: SolverImpl, #[case] use_index: bool) {
+async fn test_solver_deprecated_version(
+    #[case] mut solver: SolverImpl,
+    #[values(true, false)] use_index: bool,
+) {
     let deprecated = make_build!({"pkg": "my-pkg/1.0.0", "deprecated": true});
     let repo = make_repo!(
         [{"pkg": "my-pkg/0.9.0"}, {"pkg": "my-pkg/1.0.0", "deprecated": true}, deprecated]
@@ -1403,14 +1370,12 @@ async fn test_solver_deprecated_version(#[case] mut solver: SolverImpl, #[case] 
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_build_from_source_deprecated(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test when no appropriate build exists and the main package
     // has been deprecated, no source build should be allowed
@@ -1457,14 +1422,12 @@ async fn test_solver_build_from_source_deprecated(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_build_from_source_deprecated_and_impossible_initial_checks(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test when no appropriate build exists and the main package
     // has been deprecated, no source build should be allowed
@@ -1520,14 +1483,12 @@ async fn test_solver_build_from_source_deprecated_and_impossible_initial_checks(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_embedded_package_adds_request(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test when there is an embedded package
     // - the embedded package is added to the solution
@@ -1566,14 +1527,12 @@ async fn test_solver_embedded_package_adds_request(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_embedded_package_solvable(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test when there is an embedded package
     // - the embedded package is added to the solution
@@ -1612,14 +1571,12 @@ async fn test_solver_embedded_package_solvable(
 /// If the only option for a package request is an embedded package, the
 /// solution must also contain the parent package.
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_embedded_package_brings_parent(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     let repo = make_repo!(
         [
@@ -1650,14 +1607,12 @@ async fn test_solver_embedded_package_brings_parent(
 /// If a parent package contains a required var, the embedded stub should still
 /// be able to solve with its parent.
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_embedded_package_brings_parent_with_required_var(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     let repo = make_repo!(
         [
@@ -1702,14 +1657,12 @@ async fn test_solver_embedded_package_brings_parent_with_required_var(
 /// If a package declares an embedded package with a required var, the parent
 /// should be able to satisfy a request for the embedded package.
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_resolves_embedded_package_with_required_var(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     let repo = make_repo!(
         [
@@ -1761,14 +1714,12 @@ async fn test_solver_resolves_embedded_package_with_required_var(
 /// The src build should not depend on anything from the embedded package, in
 /// particular not the src build of the embedded package.
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn resolve_src_package_with_embedded_package(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     let repo = make_repo!(
         [
@@ -1793,14 +1744,12 @@ async fn resolve_src_package_with_embedded_package(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_embedded_package_unsolvable(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test when there is an embedded package
     // - the embedded package is added to the solution
@@ -1834,14 +1783,12 @@ async fn test_solver_embedded_package_unsolvable(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_embedded_package_replaces_real_package(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test when there is an embedded package
     // - the embedded package is added to the solution
@@ -1902,14 +1849,12 @@ async fn test_solver_embedded_package_replaces_real_package(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_initial_request_impossible_masks_embedded_package_solution(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test when an embedded package and its parent package are
     // requested and impossible checks are enabled for initial
@@ -1960,14 +1905,12 @@ async fn test_solver_initial_request_impossible_masks_embedded_package_solution(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_impossible_request_but_embedded_package_makes_solvable(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test when there is an embedded package
     // - the initial request depends on the same package as the embedded package
@@ -2049,14 +1992,12 @@ async fn test_solver_impossible_request_but_embedded_package_makes_solvable(
 /// When multiple packages try to embed the same package the solver doesn't
 /// panic.
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_multiple_packages_embed_same_package(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
     #[values(true, false)] resolve_validation_impossible_checks: bool,
 ) {
     init_logging();
@@ -2115,14 +2056,12 @@ async fn test_multiple_packages_embed_same_package(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_with_impossible_checks_in_build_keys(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     let options1 = option_map! {"dep" => "1.0.0"};
     let options2 = option_map! {"dep" => "2.0.0"};
@@ -2164,14 +2103,12 @@ async fn test_solver_with_impossible_checks_in_build_keys(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_some_versions_conflicting_requests(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test when there is a package with some version that have a conflicting dependency
     // - the solver passes over the one with conflicting
@@ -2209,14 +2146,12 @@ async fn test_solver_some_versions_conflicting_requests(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_embedded_request_invalidates(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test when a package is resolved with an incompatible embedded pkg
     // - the solver tries to resolve the package
@@ -2251,14 +2186,12 @@ async fn test_solver_embedded_request_invalidates(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_unknown_package_options(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test when a package is requested with specific options (eg: pkg.opt)
     // - the solver ignores versions that don't define the option
@@ -2284,12 +2217,13 @@ async fn test_solver_unknown_package_options(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_solver_var_requirements(#[case] mut solver: SolverImpl, #[case] use_index: bool) {
+async fn test_solver_var_requirements(
+    #[case] mut solver: SolverImpl,
+    #[values(true, false)] use_index: bool,
+) {
     // test what happens when a dependency is added which is incompatible
     // with an existing request in the stack
     let repo = make_repo!(
@@ -2338,14 +2272,12 @@ async fn test_solver_var_requirements(#[case] mut solver: SolverImpl, #[case] us
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_var_requirements_unresolve(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test when a package is resolved that conflicts in var requirements
     //  - the solver should unresolve the solved package
@@ -2400,14 +2332,12 @@ async fn test_solver_var_requirements_unresolve(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_build_options_dont_affect_compat(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test when a package is resolved with some build option
     //  - that option can conflict with another packages build options
@@ -2456,14 +2386,12 @@ async fn test_solver_build_options_dont_affect_compat(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_option_compat_intersection(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // A var option for spi-platform/~2022.4.1.4 should be able to resolve
     // with a build of openimageio that requires spi-platform/~2022.4.1.3.
@@ -2501,11 +2429,13 @@ async fn test_solver_option_compat_intersection(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
+#[case::step(step_solver())]
 // #[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_solver_components(#[case] mut solver: SolverImpl, #[case] use_index: bool) {
+async fn test_solver_components(
+    #[case] mut solver: SolverImpl,
+    #[values(true, false)] use_index: bool,
+) {
     // test when a package is requested with specific components
     // - all the aggregated components are selected in the resolve
     // - the final build has published layers for each component
@@ -2558,14 +2488,12 @@ async fn test_solver_components(#[case] mut solver: SolverImpl, #[case] use_inde
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_components_interaction_with_embeds(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // Test that a package can have a component that embeds a specific
     // component of some other package. This package must be included in a
@@ -2651,14 +2579,12 @@ async fn test_solver_components_interaction_with_embeds(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_components_when_no_components_requested(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test when a package is requested with no components and the
     // package is one that has components
@@ -2712,14 +2638,12 @@ async fn test_solver_components_when_no_components_requested(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_src_package_request_when_no_components_requested(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test when a /src package build is requested with no components
     // and a matching package with a /src package build exists in the repo
@@ -2749,12 +2673,13 @@ async fn test_solver_src_package_request_when_no_components_requested(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_solver_all_component(#[case] mut solver: SolverImpl, #[case] use_index: bool) {
+async fn test_solver_all_component(
+    #[case] mut solver: SolverImpl,
+    #[values(true, false)] use_index: bool,
+) {
     // test when a package is requested with the 'all' component
     // - all the specs components are selected in the resolve
     // - the final build has published layers for each component
@@ -2795,14 +2720,12 @@ async fn test_solver_all_component(#[case] mut solver: SolverImpl, #[case] use_i
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_component_availability(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test when a package is requested with some component
     // - all the specs components are selected in the resolve
@@ -2872,14 +2795,12 @@ async fn test_solver_component_availability(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_component_requirements(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test when a component has its own list of requirements
     // - the requirements are added to the existing set of requirements
@@ -2928,14 +2849,12 @@ async fn test_solver_component_requirements(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_component_requirements_extending(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test when an additional component is requested after a package is resolved
     // - the new components requirements are still added and resolved
@@ -2969,12 +2888,13 @@ async fn test_solver_component_requirements_extending(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
-async fn test_solver_component_embedded(#[case] mut solver: SolverImpl, #[case] use_index: bool) {
+async fn test_solver_component_embedded(
+    #[case] mut solver: SolverImpl,
+    #[values(true, false)] use_index: bool,
+) {
     // test when a component has its own list of embedded packages
     // - the embedded package is immediately selected
     // - it must be compatible with any previous requirements
@@ -3181,14 +3101,12 @@ async fn test_solver_component_embedded_multiple_versions(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_component_embedded_incompatible_requests(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // test when different components of a package embedded packages that
     // make incompatible requests
@@ -3477,14 +3395,12 @@ async fn test_version_number_masking(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn request_for_all_component_picks_correct_version(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
     #[values("1.0.0", "2.0.0", "3.0.0")] version: &str,
 ) {
     // A request for :all component still controls for version compatibility
@@ -3510,14 +3426,12 @@ async fn request_for_all_component_picks_correct_version(
 /// Verify that when solving the dependencies of a package, the build options of
 /// the candidates do not factor into the selection of the candidate.
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn build_options_not_checked_on_dependencies(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
 ) {
     // Suppose a platform exists
     let spi_platform_2024_1_1_1 =
@@ -3584,14 +3498,12 @@ async fn build_options_not_checked_on_dependencies(
 /// Any var install.requirements of packages in the Solution should be present
 /// in the Solution's options.
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::step_indexed(step_solver(), true)]
-#[case::resolvo(resolvo_solver(), false)]
-#[case::resolvo_indexed(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn install_requirement_vars_found_in_solution(
     #[case] mut solver: SolverImpl,
-    #[case] use_index: bool,
+    #[values(true, false)] use_index: bool,
     // test both non-namespaced and namespaced var names
     #[values(opt_name!("varname"), opt_name!("pkg.varname"))] var_name: &OptName,
 ) {
