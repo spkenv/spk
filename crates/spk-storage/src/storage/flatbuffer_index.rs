@@ -59,7 +59,7 @@ const COMPATIBLE_INDEX_SCHEMA_VERSION: u32 = 1;
 // Index name and kind constants
 pub const FLATBUFFER_INDEX: &str = "flatb";
 
-const INDEX_FILE_PREFIX: &str = "index_of_";
+const INDEX_FILE_PREFIX: &str = "index";
 const INDEX_FILE_EXT: &str = "fb";
 
 const INDEX_SUB_DIR: &str = "index";
@@ -628,13 +628,12 @@ impl FlatBufferRepoIndex {
 
         let mut index_path = PathBuf::new();
         index_path.push(base_path);
-        // Index file name includes the repo name and index schema
-        // version for ease of identification and to get a compatible
-        // index - the index version is also checked when the bytes
-        // are turned into an index in memory.
+        // Index file name contains the index schema version for ease
+        // of identifying a compatible index. The index version is
+        // also checked later when the bytes are turned into an index
+        // in memory.
         index_path.push(format!(
-            "{INDEX_FILE_PREFIX}{}_v{COMPATIBLE_INDEX_SCHEMA_VERSION}.{INDEX_FILE_EXT}",
-            repo.name()
+            "{INDEX_FILE_PREFIX}_v{COMPATIBLE_INDEX_SCHEMA_VERSION}.{INDEX_FILE_EXT}",
         ));
 
         tracing::debug!(
@@ -679,15 +678,6 @@ impl FlatBufferRepoIndex {
             // Read in and verify the index
             let _ = FlatBufferRepoIndex::read_index_from_file(name, &temp_file, VERIFY).await?;
         }
-
-        // Count the number of tables and log as a percentage of
-        // the maximum allowed.
-        let num_tables = builder.num_written_vtables();
-        tracing::info!(
-            "Num tables in {}'s index: {num_tables} or {:2.6}% of Maximum",
-            repo.name(),
-            num_tables / MAX_FLATBUFFER_TABLES
-        );
 
         // Delete the old index file, if any. This should not impact
         // existing processes using that index.
