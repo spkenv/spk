@@ -3,12 +3,13 @@
 // https://github.com/spkenv/spk
 
 use spk_schema::{Spec, SpecRecipe};
+use variantly::Variantly;
 
 use super::Repository;
 
 type Handle = dyn Repository<Recipe = SpecRecipe, Package = Spec>;
 
-#[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Clone)]
+#[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Clone, Variantly)]
 #[allow(clippy::large_enum_variant)]
 pub enum RepositoryHandle {
     SPFS(super::SpfsRepository),
@@ -29,22 +30,6 @@ impl RepositoryHandle {
     /// installed into the current spfs runtime.
     pub fn new_runtime() -> Self {
         Self::Runtime(Default::default())
-    }
-
-    pub fn is_spfs(&self) -> bool {
-        matches!(self, Self::SPFS(_))
-    }
-
-    pub fn is_mem(&self) -> bool {
-        matches!(self, Self::Mem(_))
-    }
-
-    pub fn is_runtime(&self) -> bool {
-        matches!(self, Self::Runtime(_))
-    }
-
-    pub fn is_indexed(&self) -> bool {
-        matches!(self, Self::Indexed(_))
     }
 
     pub fn to_repo(self) -> Box<Handle> {
