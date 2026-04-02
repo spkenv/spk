@@ -158,20 +158,20 @@ impl FlatBufferRepoIndex {
     pub async fn from_repo_file(repo: &crate::RepositoryHandle) -> Result<FlatBufferRepoIndex> {
         let filepath = Self::repo_index_location(repo).await?;
 
-        // Based on the configuration setting, decide whether to
-        // verify the flatbuffer data before use.
-        let config = spk_config::get_config()?;
-
         let name = repo.name();
         tracing::debug!(
             "Reading repo index file for: '{name}' from filepath: '{}'",
             filepath.display()
         );
 
+        // Based on the configuration setting, decide whether to
+        // verify the flatbuffer data before use.
+        let config = spk_config::get_config()?;
+
         FlatBufferRepoIndex::read_index_from_file(
             name,
             &filepath,
-            config.solver.verify_flatbuffers_index_before_use,
+            config.solver.verify_index_before_use,
         )
         .await
     }
