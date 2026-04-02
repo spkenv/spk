@@ -97,10 +97,10 @@ pub struct Solver {
     /// is 'flatb', a flatbuffers file based index.
     pub index_kind: String,
 
-    /// Whether to validate flatbuffers index data before using it.
-    /// Validating is safer but adds some overhead at the start of a
-    /// solve when using an index.
-    pub verify_flatbuffers_index_before_use: bool,
+    /// Whether to validate the index data before using it.
+    /// Validating is safer but can add some overhead at the start of
+    /// a solve when using indexes.
+    pub verify_index_before_use: bool,
 }
 
 /// The settings for a single repository
