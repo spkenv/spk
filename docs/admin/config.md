@@ -307,8 +307,8 @@ use_indexes = false
 # The kind of repository index format. SPK supports a flatbuffer based index.
 # index_kind = "flatb"
 
-# SPK supports validating flatbuffers index data before using it.
-# This can be disabled, but validating is safer even though it adds
-# some overhead at the start of solves using an index.
-verify_flatbuffers_index_before_use = true
+# SPK supports validating index data before using it.
+# This can be disabled, but validating is safer even though it can add
+# some overhead at the start of a solve, when using an index.
+verify_index_before_use = true
 ```
