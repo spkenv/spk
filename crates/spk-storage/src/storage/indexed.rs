@@ -3,6 +3,7 @@
 // https://github.com/spkenv/spk
 
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -58,6 +59,12 @@ impl IndexedRepository {
 
         tracing::debug!("Index kind from config: '{index_kind}'");
         Ok(index_kind)
+    }
+
+    /// Get the index path from the underlying spfs filesystem
+    /// repository, which may create it if needed.
+    pub async fn wrapped_repo_index_location_path(&self) -> Result<PathBuf> {
+        self.wrapped_repo.index_location_path().await
     }
 
     /// Set whether to update the internal index after any publish or

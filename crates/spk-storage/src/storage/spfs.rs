@@ -4,7 +4,7 @@
 
 use std::collections::{HashMap, HashSet, hash_map};
 use std::convert::{TryFrom, TryInto};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -16,7 +16,7 @@ use once_cell::sync::Lazy;
 use relative_path::RelativePathBuf;
 use serde::{Deserialize, Serialize};
 use spfs::prelude::{RepositoryExt as SpfsRepositoryExt, *};
-use spfs::storage::EntryType;
+use spfs::storage::{EntryType, IndexPath};
 use spfs::tracking::{self, TagSpec};
 use spk_schema::foundation::ident_build::{Build, parse_build};
 use spk_schema::foundation::ident_component::Component;
@@ -149,6 +149,15 @@ impl SpfsRepository {
     /// Access to the underlying [`spfs::storage::RepositoryHandle`].
     pub fn inner(&self) -> &spfs::storage::RepositoryHandle {
         &self.inner
+    }
+
+    /// Get the index path from the underlying spfs repository, which
+    /// may create it if needed.
+    pub async fn get_or_create_index_path(&self) -> Result<PathBuf> {
+        self.inner
+            .index_path()
+            .await
+            .map_err(|err| Error::IndexNoRepoPathError(self.name.to_string(), err.to_string()))
     }
 
     /// Pin this repository to a specific point in time, limiting

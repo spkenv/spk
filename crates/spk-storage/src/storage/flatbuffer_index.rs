@@ -13,7 +13,6 @@ use std::time::Instant;
 
 use futures::TryStreamExt;
 use itertools::Itertools;
-use spfs::prelude::FromUrl;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Version;
@@ -45,7 +44,6 @@ use spk_schema::{
     version_to_fb_version,
 };
 
-use super::repository::Repository;
 use crate::storage::{RepositoryIndex, RepositoryIndexMut};
 use crate::{Error, RepoWalkerBuilder, RepoWalkerItem, Result};
 
@@ -59,11 +57,9 @@ const COMPATIBLE_INDEX_SCHEMA_VERSION: u32 = 1;
 // Index name and kind constants
 pub const FLATBUFFER_INDEX: &str = "flatb";
 
+const SPK_INDEX_SUB_DIR_NAME: &str = "spk";
 const INDEX_FILE_PREFIX: &str = "index";
 const INDEX_FILE_EXT: &str = "fb";
-
-const INDEX_SUB_DIR: &str = "index";
-const SPK_INDEX_SUB_DIR_NAME: &str = "spk";
 
 // Flatbuffer builder constants
 const DEFAULT_CAPACITY: usize = 1024;
@@ -576,78 +572,18 @@ impl FlatBufferRepoIndex {
         Ok(builder)
     }
 
-    /// This will create the index path inside the repo, for spk
-    /// indexes, if it does not exist.
-    async fn get_index_path_from_repo_address(
-        repo_name: &str,
-        address_url: &url::Url,
-    ) -> Result<PathBuf> {
-        // Only handles urls that can parse as fs repo configs. Other
-        // repository types do not support storing index files.
-        let spfs_repo_config = match spfs::storage::fs::Config::from_url(address_url).await {
-            Ok(c) => c,
-            Err(err) => {
-                return Err(Error::IndexNoRepoPathError(
-                    repo_name.to_string(),
-                    err.to_string(),
-                ));
-            }
-        };
-
-        // TODO: consider making the base index path configurable,
-        // with the default being the repo base path + /index/spk.
-        let mut index_path = PathBuf::new();
-        index_path.push(spfs_repo_config.path);
-
-        index_path.push(INDEX_SUB_DIR);
-        spfs::runtime::makedirs_with_perms(&index_path, 0o777).map_err(|source| {
-            Error::String(format!(
-                "Unable to make '{INDEX_SUB_DIR}' sub-dir in '{repo_name}' repo: {source}"
-            ))
-        })?;
-
-        index_path.push(SPK_INDEX_SUB_DIR_NAME);
-        spfs::runtime::makedirs_with_perms(&index_path, 0o777)
-            .map_err(|source| Error::String(format!("Unable to make {SPK_INDEX_SUB_DIR_NAME} sub-dir in '{repo_name}'s index directory: {source}")))?;
-
-        Ok(index_path)
-    }
-
     async fn repo_index_location(repo: &crate::RepositoryHandle) -> Result<PathBuf> {
-        let base_path = match repo {
-            crate::RepositoryHandle::SPFS(spfs_repo) => {
-                Self::get_index_path_from_repo_address(spfs_repo.name(), spfs_repo.address())
-                    .await?
-            }
+        let base_path = repo.index_location_path().await?;
 
-            crate::RepositoryHandle::Mem(mem_repo) => {
-                // A mem repo doesn't have a usable location for files
-                return Err(Error::IndexNoRepoLocationError(
-                    mem_repo.name().to_string(),
-                    "Spk Mem".to_string(),
-                ));
-            }
-
-            crate::RepositoryHandle::Runtime(runtime_repo) => {
-                // A spfs runtime repo doesn't have a usable location
-                // for files.
-                return Err(Error::IndexNoRepoLocationError(
-                    runtime_repo.name().to_string(),
-                    "Spk Runtime".to_string(),
-                ));
-            }
-
-            crate::RepositoryHandle::Indexed(indexed_repo) => {
-                // Indexed repositories are store their index data
-                // based on the repo they wrap so use the underlying
-                // repo's location for indexes.
-                Self::get_index_path_from_repo_address(indexed_repo.name(), indexed_repo.address())
-                    .await?
-            }
-        };
-
+        // Make the spk specific sub-directory within the repo's index
+        // location.
         let mut index_path = PathBuf::new();
         index_path.push(base_path);
+        index_path.push(SPK_INDEX_SUB_DIR_NAME);
+
+        spfs::runtime::makedirs_with_perms(&index_path, 0o777)
+            .map_err(|source| Error::String(format!("Unable to make {SPK_INDEX_SUB_DIR_NAME} sub-dir in '{}'s index directory: {source}", repo.name())))?;
+
         // Index file name contains the index schema version for ease
         // of identifying a compatible index. The index version is
         // also checked later when the bytes are turned into an index
