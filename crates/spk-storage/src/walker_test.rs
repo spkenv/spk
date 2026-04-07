@@ -122,9 +122,9 @@ async fn test_walker_builder_walker_walk() {
         }),
         RepoWalkerItem::Build(WalkedBuild {
             repo_name,
-            spec: Arc::new(Spec::V0Package(spk_schema::v0::PackageSpec::new(
+            spec: Arc::new(Spec::V0Package(Box::new(spk_schema::v0::PackageSpec::new(
                 build_ident.clone(),
-            ))),
+            )))),
         }),
         RepoWalkerItem::Component(WalkedComponent {
             repo_name,
@@ -135,9 +135,9 @@ async fn test_walker_builder_walker_walk() {
         // Note: this doesn't check files
         RepoWalkerItem::EndOfBuild(WalkedBuild {
             repo_name,
-            spec: Arc::new(Spec::V0Package(spk_schema::v0::PackageSpec::new(
+            spec: Arc::new(Spec::V0Package(Box::new(spk_schema::v0::PackageSpec::new(
                 build_ident,
-            ))),
+            )))),
         }),
         RepoWalkerItem::EndOfVersion(WalkedVersion {
             repo_name,
