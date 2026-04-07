@@ -73,6 +73,21 @@ const MAX_FLATBUFFER_TABLES: usize = 100000000;
 const DO_NOT_VERIFY: bool = false;
 const VERIFY: bool = true;
 
+/// Helper function for removing a file with error conversion
+async fn remove_index_file(filepath: &PathBuf) -> Result<()> {
+    if let Err(err) = tokio::fs::remove_file(filepath).await {
+        match err.kind() {
+            std::io::ErrorKind::NotFound => Ok(()),
+            _ => Err(Error::String(format!(
+                "Unable to remove existing index file '{}' due to: {err}",
+                filepath.display()
+            ))),
+        }
+    } else {
+        Ok(())
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct FlatBufferRepoIndex {
     // The bytes of the index, usually read from a file
@@ -271,7 +286,7 @@ impl FlatBufferRepoIndex {
             fb_build_index._tab.loc(),
         );
 
-        Ok(Spec::V0IndexedPackage(build_spec))
+        Ok(Spec::V0IndexedPackage(Box::new(build_spec)))
     }
 
     /// Gather packages and global vars from the given repos.
@@ -656,12 +671,19 @@ impl FlatBufferRepoIndex {
         let name = repo.name();
 
         let filepath = Self::repo_index_location(repo).await?;
-        let temp_file = PathBuf::from(format!("{}_being_generated", filepath.display()));
+        let temp_file = PathBuf::from(format!(
+            "{}_being_generated_{}",
+            filepath.display(),
+            ulid::Ulid::new()
+        ));
+
         tracing::debug!("Index file path: {}", filepath.display());
         tracing::debug!("Index temp file: {}", temp_file.display());
 
         // Create the new index in a temp file with the correct permissions
         if let Err(err) = tokio::fs::write(&temp_file, builder.finished_data()).await {
+            // Clean up the temp file after the error
+            remove_index_file(&temp_file).await?;
             return Err(Error::IndexWriteError(
                 name.to_string(),
                 temp_file.display().to_string(),
@@ -671,7 +693,11 @@ impl FlatBufferRepoIndex {
             // Ensure the file is readable and writable by everyone
             #[cfg(unix)]
             match tokio::fs::set_permissions(&temp_file, Permissions::from_mode(0o666)).await {
-                Err(err) => Err(Error::FileOpenError(temp_file.clone(), err)),
+                Err(err) => {
+                    // Clean up the temp file after the error
+                    remove_index_file(&temp_file).await?;
+                    Err(Error::FileOpenError(temp_file.clone(), err))
+                }
                 Ok(ok) => Ok(ok),
             }?;
 
@@ -681,20 +707,16 @@ impl FlatBufferRepoIndex {
 
         // Delete the old index file, if any. This should not impact
         // existing processes using that index.
-        if let Err(err) = tokio::fs::remove_file(&filepath).await {
-            match err.kind() {
-                std::io::ErrorKind::NotFound => {}
-                _ => {
-                    return Err(Error::String(format!(
-                        "Unable to remove existing index file '{}' due to: {err}",
-                        filepath.display()
-                    )));
-                }
-            };
+        if let Err(err) = remove_index_file(&filepath).await {
+            // Clean up the temp file after the error
+            remove_index_file(&temp_file).await?;
+            return Err(err);
         }
 
         // Move the index file to the correct place.
         if let Err(err) = tokio::fs::rename(&temp_file, &filepath).await {
+            // Clean up the temp file after the error
+            remove_index_file(&temp_file).await?;
             return Err(Error::String(format!(
                 "Unable to rename new temp index file '{}' to '{}' due to: {err}",
                 temp_file.display(),
