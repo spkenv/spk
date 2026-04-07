@@ -388,7 +388,12 @@ impl Recipe for SpecRecipe {
     }
 
     fn generate_source_build(&self, root: &Path) -> Result<Self::Output> {
-        each_variant!(self, r, r.generate_source_build(root).map(Spec::V0Package))
+        each_variant!(
+            self,
+            r,
+            r.generate_source_build(root)
+                .map(|p| Spec::V0Package(Box::new(p)))
+        )
     }
 
     fn generate_binary_build<V, E, P>(self, variant: &V, build_env: &E) -> Result<Self::Output>
@@ -401,7 +406,7 @@ impl Recipe for SpecRecipe {
             self,
             r,
             r.generate_binary_build(variant, build_env)
-                .map(Spec::V0Package)
+                .map(|p| Spec::V0Package(Box::new(p)))
         )
     }
 
@@ -630,14 +635,13 @@ impl Test for SpecTest {
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize)]
 #[serde(tag = "api")]
 #[enum_dispatch(Deprecate, DeprecateMut)]
-#[allow(clippy::large_enum_variant)]
 pub enum Spec {
     #[serde(rename = "v0/package")]
-    V0Package(super::v0::PackageSpec),
+    V0Package(Box<super::v0::PackageSpec>),
     /// Package spec from an index, only usable in solves
     #[serde(skip)]
     #[serde(rename = "v0/indexedpackage")]
-    V0IndexedPackage(super::v0::IndexedPackage),
+    V0IndexedPackage(Box<super::v0::IndexedPackage>),
 }
 
 impl Components for Spec {
@@ -892,7 +896,19 @@ impl FromYaml for Spec {
 
 impl From<v0::EmbeddedPackageSpec> for Spec {
     fn from(value: v0::EmbeddedPackageSpec) -> Self {
-        Spec::V0Package(value.into())
+        Spec::V0Package(Box::new(value.into()))
+    }
+}
+
+impl From<v0::PackageSpec> for Spec {
+    fn from(value: v0::PackageSpec) -> Self {
+        Spec::V0Package(Box::new(value))
+    }
+}
+
+impl From<v0::IndexedPackage> for Spec {
+    fn from(value: v0::IndexedPackage) -> Self {
+        Spec::V0IndexedPackage(Box::new(value))
     }
 }
 
