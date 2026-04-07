@@ -3,6 +3,7 @@
 // https://github.com/spkenv/spk
 
 use std::borrow::Cow;
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -15,8 +16,12 @@ use super::prelude::*;
 use super::tag::TagSpecAndTagStream;
 use super::{TagNamespace, TagNamespaceBuf, TagStorageMut};
 use crate::graph::ObjectProto;
+use crate::storage::IndexPath;
 use crate::tracking::{self, BlobRead};
 use crate::{Error, Result, graph};
+
+// Index sub-directory inside a repository
+const INDEX_SUB_DIR: &str = "index";
 
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
@@ -147,6 +152,47 @@ macro_rules! each_variant {
 impl Address for RepositoryHandle {
     fn address(&self) -> Cow<'_, url::Url> {
         each_variant!(self, repo, { repo.address() })
+    }
+}
+
+#[async_trait::async_trait]
+impl IndexPath for RepositoryHandle {
+    async fn index_path(&self) -> Result<PathBuf> {
+        // Only FS repositories have a location for indexes at this time.
+        match self {
+            RepositoryHandle::FS(repo) => {
+                // Makes the spfs fs repository specific index
+                // sub-directory, if it does not exist, and returns
+                // the path to it.
+                let mut index_path = PathBuf::new();
+                index_path.push(repo.root());
+                index_path.push(INDEX_SUB_DIR);
+
+                crate::runtime::makedirs_with_perms(&index_path, 0o777).map_err(|source| {
+                    Error::String(format!(
+                        "Unable to make '{INDEX_SUB_DIR}' sub-directory in spfs filesystem repo: {source}"
+                    ))
+                })?;
+
+                Ok(index_path)
+            }
+
+            RepositoryHandle::Tar(repo) => {
+                Err(Error::NoIndexStorageLocation(repo.address().into_owned()))
+            }
+            RepositoryHandle::Rpc(repo) => {
+                Err(Error::NoIndexStorageLocation(repo.address().into_owned()))
+            }
+            RepositoryHandle::FallbackProxy(repo) => {
+                Err(Error::NoIndexStorageLocation(repo.address().into_owned()))
+            }
+            RepositoryHandle::Proxy(repo) => {
+                Err(Error::NoIndexStorageLocation(repo.address().into_owned()))
+            }
+            RepositoryHandle::Pinned(repo) => {
+                Err(Error::NoIndexStorageLocation(repo.address().into_owned()))
+            }
+        }
     }
 }
 
