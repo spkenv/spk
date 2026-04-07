@@ -5,6 +5,7 @@
 mod address;
 mod blob;
 mod error;
+mod index_path;
 mod layer;
 mod manifest;
 pub mod payload;
@@ -27,6 +28,7 @@ pub use address::Address;
 pub use blob::{BlobStorage, BlobStorageExt};
 pub use error::OpenRepositoryError;
 pub use handle::RepositoryHandle;
+pub use index_path::IndexPath;
 pub use layer::{LayerStorage, LayerStorageExt};
 pub use manifest::ManifestStorage;
 pub use payload::PayloadStorage;

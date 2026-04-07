@@ -2,10 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::path::PathBuf;
+
 use spk_schema::{Spec, SpecRecipe};
 use variantly::Variantly;
 
 use super::Repository;
+use crate::{Error, Result};
 
 type Handle = dyn Repository<Recipe = SpecRecipe, Package = Spec>;
 
@@ -38,6 +41,38 @@ impl RepositoryHandle {
             Self::Mem(repo) => Box::new(repo),
             Self::Runtime(repo) => Box::new(repo),
             Self::Indexed(repo) => Box::new(repo),
+        }
+    }
+
+    pub async fn index_location_path(&self) -> Result<PathBuf> {
+        match self {
+            Self::SPFS(spfs_repo) => spfs_repo.get_or_create_index_path().await,
+
+            Self::Mem(mem_repo) => {
+                // A mem repo does not have a usable location for
+                // index files.
+                Err(Error::IndexNoRepoLocationError(
+                    mem_repo.name().to_string(),
+                    "Spk Mem".to_string(),
+                ))
+            }
+
+            Self::Runtime(runtime_repo) => {
+                // A spk runtime repo does not have a usable location
+                // index files.
+                Err(Error::IndexNoRepoLocationError(
+                    runtime_repo.name().to_string(),
+                    "Spk Runtime".to_string(),
+                ))
+            }
+
+            Self::Indexed(indexed_repo) => {
+                // Indexed repositories store their index data based
+                // on the repo they wrap, so use the underlying repo's
+                // location. This is mildly recursive because the
+                // wrapped repo is a spk RepositoryHandle.
+                Box::pin(indexed_repo.wrapped_repo_index_location_path()).await
+            }
         }
     }
 }
