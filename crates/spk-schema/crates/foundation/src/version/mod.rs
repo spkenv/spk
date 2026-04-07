@@ -398,7 +398,7 @@ impl Version {
     ///
     /// The caller must make sure the string can be parsed as a valid
     /// Version.
-    pub unsafe fn new_unchecked(version_str: &str) -> Result<Self> {
+    pub fn new_unchecked(version_str: &str) -> Result<Self> {
         Version::try_from(version_str)
     }
 

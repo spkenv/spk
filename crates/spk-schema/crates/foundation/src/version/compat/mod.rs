@@ -704,7 +704,7 @@ impl Compat {
     /// # Safety
     ///
     /// The caller must ensure the string parses as a valid compat.
-    pub unsafe fn new_unchecked(compat: &str) -> Result<Self> {
+    pub fn new_unchecked(compat: &str) -> Result<Self> {
         // TODO: change this to be more direct once Compat objects are
         // directly represented in indexes.
         Self::from_str(compat)
