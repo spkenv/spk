@@ -407,7 +407,7 @@ fn var_opt_fb_compat_to_var_opt_compat(fb_compat: Option<&str>) -> Option<Compat
     // None stored as an fb_compat represents no compat specified at
     // all for a var opt. Some compat stored means a compat was
     // specified, and it may even be the same as the default compat.
-    fb_compat.map(|fc| unsafe {
+    fb_compat.map(|fc| {
         Compat::new_unchecked(fc)
             .expect("A Compat in flatbuffer data should be a valid Compat when parsed")
     })
@@ -416,7 +416,7 @@ fn var_opt_fb_compat_to_var_opt_compat(fb_compat: Option<&str>) -> Option<Compat
 #[inline]
 pub fn fb_compat_to_compat(fb_compat: Option<&str>) -> Compat {
     if let Some(compat) = fb_compat {
-        unsafe { Compat::new_unchecked(compat) }
+        { Compat::new_unchecked(compat) }
             .expect("A Compat in flatbuffer data should be a valid Compat when parsed")
     } else {
         // In this case, None, so nothing, stored as an fb_compat
