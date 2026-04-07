@@ -436,7 +436,7 @@ impl RequirementsList<RequestWithOptions> {
     ///
     /// # Safety
     ///
-    /// The caller must make sure the requests are valid and the they
+    /// The caller must make sure the requests are valid and they
     /// have already been merged if needed.
     pub unsafe fn new_checked(requests_with_options: Vec<RequestWithOptions>) -> Self {
         Self(requests_with_options)
