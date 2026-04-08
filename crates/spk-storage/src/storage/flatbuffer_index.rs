@@ -56,8 +56,6 @@ mod flatbuffer_index_test;
 const COMPATIBLE_INDEX_SCHEMA_VERSION: u32 = 1;
 
 // Index name and kind constants
-pub const FLATBUFFER_INDEX: &str = "flatb";
-
 const SPK_INDEX_SUB_DIR_NAME: &str = "spk";
 const INDEX_FILE_PREFIX: &str = "index";
 const INDEX_FILE_EXT: &str = "fb";
@@ -179,13 +177,16 @@ impl FlatBufferRepoIndex {
         // Based on the configuration setting, decide whether to
         // verify the flatbuffer data before use.
         let config = spk_config::get_config()?;
+        let verify_before_use =
+            if let Some(repo_config) = config.repositories.get(&repo.name().to_string()) {
+                repo_config.index.verify_before_use
+            } else {
+                // Default is to verify indexes before using them. This is
+                // safer but can add some overhead.
+                true
+            };
 
-        FlatBufferRepoIndex::read_index_from_file(
-            name,
-            &filepath,
-            config.solver.indexes.verify_before_use,
-        )
-        .await
+        FlatBufferRepoIndex::read_index_from_file(name, &filepath, verify_before_use).await
     }
 
     async fn read_index_from_file(
