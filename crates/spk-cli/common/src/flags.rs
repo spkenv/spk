@@ -1006,6 +1006,23 @@ where
     Ok((found, configured.template.file_path().to_owned()))
 }
 
+/// The index use command line setting options that can be used to
+/// override index usage set in the spk config file. The default for a
+/// repository in the spk config is to use an index if one exists,
+/// unless the repository is called 'local'. The setting for an
+/// individual repository can be changed in the config file, or by
+/// using the matching environment variables.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum IndexUse {
+    /// Use the index use settings from the repository configurations
+    /// in the spk config file (or their environment variable
+    /// overrides, if any are set).
+    ConfigFile,
+    /// Disable all index use globally regardless of any setting in
+    /// the spk config file (or environment variables).
+    Disabled,
+}
+
 #[derive(Args, Clone)]
 pub struct Repositories {
     /// This option will enable the local repository only.
@@ -1062,19 +1079,11 @@ pub struct Repositories {
     #[clap(long)]
     pub wrap_origin: Option<std::path::PathBuf>,
 
-    /// Get the package data from the repo indexes instead of the
-    /// repos. This only applies to non-destructive repo operations.
-    /// This can be configured as the default in spk's config file, or
-    /// on a per-repo basis in spk's config file.
+    /// Override how indexes will be used to get package data from the
+    /// repo indexes instead of the repos. This only applies to
+    /// non-destructive repository operations.
     #[clap(long)]
-    pub use_indexes: bool,
-
-    /// Do not get the package data from the repo index, always use
-    /// the repo instead. This only applies to non-destructive repo
-    /// operations. This option can be configured as the default in
-    /// spk's config file.
-    #[clap(long, conflicts_with = "use_indexes")]
-    pub no_indexes: bool,
+    pub index_use: Option<IndexUse>,
 }
 
 impl Repositories {
@@ -1181,31 +1190,35 @@ impl Repositories {
             return Ok(repos);
         }
 
-        // Check whether using the indexes for the repos is enabled or not
+        // Check whether using the indexes for the repos is globally
+        // disabled by the spk command, such as 'spk repo index' or
+        // 'spk info'.
         let disable_all_index_use = DISABLE_INDEX_USE.load(std::sync::atomic::Ordering::Relaxed);
 
-        // Get the overrides from the command line flags
-        let use_index_cli_override = if self.use_indexes || self.no_indexes {
-            if self.no_indexes {
-                // Don't use any indexes
-                Some(false)
-            } else {
-                // Use indexes, if the command line flag is given to use them
-                Some(self.use_indexes)
+        // Check the override from the command line flag, if any
+        let use_index_cli_override = match self.index_use {
+            Some(index_use) => {
+                match index_use {
+                    IndexUse::ConfigFile => {
+                        // Use the config file/env var settings.
+                        None
+                    }
+                    IndexUse::Disabled => {
+                        // This override disables all index use.
+                        Some(false)
+                    }
+                }
             }
-        } else {
-            // No command line index flags given, so there's no index override
-            None
+            _ => {
+                // There was no command line override, so use the
+                // config file/env var settings
+                None
+            }
         };
 
-        // Get the overall config setting, which includes env var
-        // setting for it, but not the per repo settings. Those are
-        // checked below as repos are created.
+        // Get the spk config, which includes env vars settings, for
+        // later use in the loop block.
         let config = spk_config::get_config()?;
-        let all_use_index_from_config = config.solver.use_indexes;
-        tracing::debug!(
-            "Disable all indexes: {disable_all_index_use}, Cli use all indexes: {use_index_cli_override:?}, Config use all indexes: {all_use_index_from_config}"
-        );
 
         // Add the enabled repos
         for (name, ts, is_default_origin) in enabled
@@ -1245,33 +1258,52 @@ impl Repositories {
                 repo.pin_at_time(ts);
             }
 
-            // Decide whether to use an index for this repository based on
-            // the various settings: all repos, per repo, and overrides.
+            // Decide whether to use an index for this repository
             let use_index = if disable_all_index_use {
-                // Disable all take precedence over everything
-                tracing::debug!("All index use disabled");
+                // The disable all setting takes precedence over everything else
+                tracing::debug!("All index use disabled. '{name}' will not use an index.");
                 false
-            } else if let Some(use_indexes) = use_index_cli_override {
-                // Otherwise the all indexes command line flag takes
-                // precedence over what was in the config file
-                tracing::debug!("A cli-based use index override was given as: {use_indexes}");
-                use_indexes
+            } else if let Some(use_index) = use_index_cli_override {
+                // Otherwise the command line flag takes precedence
+                // over what was in the config file.
+                tracing::debug!("A cli-based use index override was given: {use_index}");
+                use_index
             } else {
-                // Otherwise use this specific repository's config setting, if any
+                // Otherwise use this repository's spk config setting
                 match config.repositories.get(name) {
-                    Some(r_config) => {
-                        tracing::debug!("Using index for '{name}' repo");
-                        r_config.use_index
+                    Some(repo_config) => {
+                        tracing::debug!(
+                            "Using the '{name'} repo's use index setting, which is: {} ({} index use)",
+                            repo_config.use_index,
+                            if repo_config.use_index {
+                                "enable"
+                            } else {
+                                "disable"
+                            }
+                        );
+                        repo_config.use_index
                     }
-                    // And last use the all indexes env var and config
-                    // file setting.
+                    // The fallback default if there's no configuration for this repo.
                     None => {
-                        tracing::debug!("Using config settings for all indexes");
-                        all_use_index_from_config
+                        // Enable index use on all repositories, except the 'local' repo.
+                        let default_index_use = name != "local";
+                        tracing::debug!(
+                            "Using default use index setting for '{name}' repo, which is: {} ({} index use)",
+                            default_index_use,
+                            if default_index_use {
+                                "enable"
+                            } else {
+                                "disable"
+                            }
+                        );
+                        default_index_use
                     }
                 }
             };
-            tracing::debug!("Using index for '{name}': {use_index}");
+            tracing::debug!(
+                "Using index for '{name}': is {}",
+                if use_index { "enabled" } else { "disabled" }
+            );
 
             if use_index {
                 // Use the index for this repo, if there is one,
