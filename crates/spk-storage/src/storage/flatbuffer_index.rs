@@ -186,7 +186,7 @@ impl FlatBufferRepoIndex {
         FlatBufferRepoIndex::read_index_from_file(
             name,
             &filepath,
-            config.solver.verify_index_before_use,
+            config.solver.indexes.verify_before_use,
         )
         .await
     }
