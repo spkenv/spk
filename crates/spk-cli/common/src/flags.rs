@@ -1273,7 +1273,7 @@ impl Repositories {
                 match config.repositories.get(name) {
                     Some(repo_config) => {
                         tracing::debug!(
-                            "Using the '{name'} repo's use index setting, which is: {} ({} index use)",
+                            "Using the '{name}' repo's use index setting, which is: {} ({} index use)",
                             repo_config.use_index,
                             if repo_config.use_index {
                                 "enable"

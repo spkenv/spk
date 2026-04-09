@@ -9,7 +9,7 @@ use clap::{Args, Subcommand};
 use miette::{Context, Result};
 use spk_cli_common::{CommandArgs, Run, flags};
 use spk_schema::VersionIdent;
-use spk_storage::{self as storage, FlatBufferRepoIndex, RepositoryIndexMut};
+use spk_storage::{self as storage, FlatBufferRepoIndex, RepositoryHandle, RepositoryIndexMut};
 use storage::Repository;
 
 /// Perform repository-level actions and maintenance
@@ -51,8 +51,18 @@ pub enum RepoCommand {
     },
     /// Generate an index for a repository
     Index {
-        #[clap(flatten)]
-        repos: flags::Repositories,
+        /// Repositories to enable for the command
+        ///
+        /// Any configured spfs repository can be named here as well as "local" or
+        /// a path on disk or a full remote repository url. Repositories can also
+        /// be limited to a specific time by appending a relative or absolute time
+        /// specifier (eg: origin~10m, origin~5weeks, origin@2022-10-11,
+        /// origin@2022-10-11T13:00.12). This time affects all interactions and
+        /// queries in the repository, effectively making it look like it did in the past.
+        /// It will cause errors for any operation that attempts to make changes to
+        /// the repository, even if the time is in the future.
+        #[clap(long, short = 'r')]
+        repo: String,
 
         /// Package/version of a published package to update in an
         /// existing index.
@@ -84,20 +94,20 @@ impl RepoCommand {
             }
 
             // spk repo index ...
-            Self::Index { repos, update } => {
+            Self::Index { repo, update } => {
                 // Generate or update an index a repo. The repo must
-                // be the underlying repo and not an indexed repo. So
-                // this disables index use for this command regardless
-                // of config or command line flags.
+                // be the underlying repo and not an indexed repo. So as
+                // a safety measure, this disables index use for this
+                // command regardless of config or command line flags.
                 flags::disable_index_use();
-                let repos = repos.get_repos_for_non_destructive_operation().await?;
-                if repos.len() != 1 {
-                    tracing::error!(
-                        "{} repos specified, Can only index one repo at a time. Please specify a single repo.",
-                        repos.len()
-                    );
-                    return Ok(2);
-                }
+
+                // Construct the repo handle to operate on, and repo
+                // list that contains it.
+                let repo_to_index: RepositoryHandle = match repo.as_str() {
+                    "local" => storage::local_repository().await?.into(),
+                    name => storage::remote_repository(name).await?.into(),
+                };
+                let repos = vec![(repo_to_index.name().to_string(), repo_to_index.clone())];
 
                 if let Some(package_version) = update {
                     // Update the existing index for the given package/version
@@ -106,12 +116,10 @@ impl RepoCommand {
                     let mut was_full_index = String::from("");
 
                     // Load the current index for this repo now
-                    let repo = &repos[0].1;
-                    match FlatBufferRepoIndex::from_repo_file(repo).await {
+                    match FlatBufferRepoIndex::from_repo_file(&repo_to_index).await {
                         Ok(current_index) => {
-                            let repo = &repos[0].1;
                             current_index
-                                .update_repo_with_package_version(repo, &version_ident)
+                                .update_repo_with_package_version(&repo_to_index, &version_ident)
                                 .await?
                         }
                         Err(err) => {
@@ -127,7 +135,7 @@ impl RepoCommand {
 
                     tracing::info!(
                         "Index update for '{package_version}' in '{}' repo completed in: {} secs{was_full_index}",
-                        repo.name(),
+                        repo_to_index.name(),
                         start.elapsed().as_secs_f64()
                     );
                 } else {
@@ -135,10 +143,9 @@ impl RepoCommand {
                     let start = Instant::now();
                     FlatBufferRepoIndex::index_repo(&repos).await?;
 
-                    let repo = &repos[0].1;
                     tracing::info!(
                         "Index generation for '{}' repo completed in: {} secs",
-                        repo.name(),
+                        repo_to_index.name(),
                         start.elapsed().as_secs_f64()
                     );
                 }
