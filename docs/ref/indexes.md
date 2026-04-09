@@ -35,22 +35,21 @@ all of them, `spk` will use the indexes that exist.
 ### Enabling/Disabling Indexes
 
 `spk` index use can be enabled or disabled in the `spk` config file.
-It is disabled by default because index generation and updating needs
-to be set up on a per repository basis. Setting this up is recommended
-for repositories with a large number of packages.
+It is enabled by default but require index generation and index
+updating to be set up, on a per repository basis, before it will have
+an impact. Setting this up is recommended for repositories with a
+large number of packages.
 
-Most `spk` commands can use the `--use-indexes` and `--no-indexes`
-flags to override repository index use. The `spk repo index ...`
+Most `spk` commands can use the `--index-use <value>` option to override
+repository index use on a per command basis. The `spk repo index ...`
 command always has index use disabled because it operates on the
 indexes themselves. `spk info ...` also disables indexes because
 displaying complete package information requires reading the package
 from the repository directly, not from an index.
 
 If index use is enabled in the config file, it can be disabled with
-the `--no-indexes` command line flag.
+the `--index-use disabled` command line option.
 
-If index use is disabled in the config file, it can be enabled with the
-`--use-indexes` flag.
 
 ### Generating an Index
 
@@ -68,8 +67,7 @@ once for each repository.
 See `spk repo index -h` for more details.
 
 You do not have to generate a full index every time a package changes,
-you can also update a package in an existing index, see the next
-section.
+you can update a package in an existing index, see the next section.
 
 
 ### Updating an existing Index
@@ -153,10 +151,10 @@ index. It requires `flatc` to be installed to generate the rust code
 for the index schema.
 
 The schema is versioned internally, and the index file name contains
-the schema version number as well.
+the index schema version number as well.
 
 The index structure does not match the rust object structures
-1-to-1. This is partially due to only keeping things needed for
+one-to-one. This is partially due to only keeping things needed for
 solves, and partially due to what flatbuffers require, support, and
 recommend (lists not sets or mappings, removing duplication and
 intermediate structures).
