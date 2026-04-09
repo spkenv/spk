@@ -55,16 +55,15 @@ If index use is disabled in the config file, it can be enabled with the
 ### Generating an Index
 
 To generate an index for a repository (e.g. origin), run:
-`spk repo index --disable-repo local`
+`spk repo index -r origin`
 
 This will generate a flatbuffer schema based index file. The index
 file is stored in the underlying spfs repo (e.g. origin repo) in a
 `index/spk/` sub-directory.
 
-Index generation only works on one repository at a time (hence the
-`--disable-repo local` when working on the default `origin` repo). If
-you have multiple repositories to index you have to run `spk repo index
-...` once for each repository.
+Index generation only works on one repository at a time. If you have
+multiple repositories to index you have to run `spk repo index ...`
+once for each repository.
 
 See `spk repo index -h` for more details.
 
@@ -84,9 +83,9 @@ package is published, deprecated, undeprecated, or deleted. But
 regular periodic complete index generation may also work for a site,
 depending on the frequency of package changes and the periodic updates.
 
-To update an existing index, e.g. after a new `python` package was
-published, run:
-`spk repo index --disable-repo local --update python`
+To update an existing index, e.g. the `origin` repo's index after a
+new `python` package was published or deprecated, run:
+`spk repo index -r origin --update python`
 
 This will read in the existing index for the repository and update the
 versions and builds of the named package in the index. It is faster
