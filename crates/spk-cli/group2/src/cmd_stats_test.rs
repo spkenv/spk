@@ -47,7 +47,8 @@ async fn test_stats_on_empty_repo() {
     )
     .unwrap();
 
-    let mut opt = Opt::try_parse_from(["stats", "--show-top", "15"]).unwrap();
+    let mut opt =
+        Opt::try_parse_from(["stats", "--show-top", "15", "--index-use", "disabled"]).unwrap();
     let result = opt.stats.run().await.unwrap();
 
     assert_eq!(result, 0);
@@ -87,7 +88,7 @@ async fn test_stats() {
         .await
         .unwrap();
 
-    let mut opt = Opt::try_parse_from(["stats"]).unwrap();
+    let mut opt = Opt::try_parse_from(["stats", "--index-use", "disabled"]).unwrap();
     let result = opt.stats.run().await.unwrap();
 
     assert_eq!(result, 0);

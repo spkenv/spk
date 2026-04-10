@@ -9,6 +9,7 @@ use clap::Args;
 use futures::TryStreamExt;
 use miette::Result;
 use spfs::io::Pluralize;
+use spk_cli_common::flags::IndexUse;
 use spk_cli_common::{CommandArgs, Run, flags};
 use spk_schema::foundation::name::PkgNameBuf;
 use spk_schema::version::Version;
@@ -26,6 +27,7 @@ mod cmd_stats_test;
 
 pub const ONE_PACKAGE_WAIT_MESSAGE: &str = "This may take a few seconds, please wait ...";
 pub const ALL_PACKAGES_WAIT_MESSAGE: &str = "This may take a few minutes, please wait ...";
+pub const INDEX_USED_WAIT_MESSAGE: &str = "This may take a few seconds, please wait ...";
 
 // Counters for stats about a version's builds
 #[derive(Default, Debug)]
@@ -336,6 +338,8 @@ impl<T: Output> Run for Stats<T> {
         ));
         if self.package.is_some() {
             self.output.println(ONE_PACKAGE_WAIT_MESSAGE.to_string());
+        } else if self.repos.index_use != Some(IndexUse::Disabled) {
+            self.output.println(INDEX_USED_WAIT_MESSAGE.to_string());
         } else {
             self.output.println(ALL_PACKAGES_WAIT_MESSAGE.to_string());
         }

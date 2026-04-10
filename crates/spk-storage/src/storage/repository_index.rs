@@ -43,15 +43,15 @@ pub trait RepositoryIndexMut {
     #[allow(clippy::ptr_arg)]
     async fn index_repo(repos: &Vec<(String, crate::RepositoryHandle)>) -> miette::Result<()>;
 
-    // TODO: possible rename, should it be something like
-    // update_package_entry() instead?
-    /// Update an existing index for the given package/version. For
-    /// use when a package has been published to a repo to add it to
-    /// the index without generating the entire index from scratch.
-    async fn update_repo_with_package_version(
+    /// Update the existing index for the given package versions. The
+    /// package versions to update will have their data gathered from
+    /// the repository, rather than the current index. This is useful
+    /// when a package has been published to a repo to add it to the
+    /// index without generating the entire index from scratch.
+    async fn update_packages(
         &self,
         repo: &crate::RepositoryHandle,
-        package_version: &VersionIdent,
+        package_versions: &[VersionIdent],
     ) -> miette::Result<()>;
 }
 
