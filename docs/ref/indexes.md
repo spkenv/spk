@@ -85,10 +85,21 @@ To update an existing index, e.g. the `origin` repo's index after a
 new `python` package was published or deprecated, run:
 `spk repo index -r origin --update python`
 
-This will read in the existing index for the repository and update the
-versions and builds of the named package in the index. It is faster
-than generating an index from scratch. It has to be run once per
-repository and once per package.
+The `--update` option can be given multiple times to update several
+packages at a once, e.g.:
+`spk repo index -r origin --update python --update zlib`
+
+The `--update` option take a package/version as well. This lets the
+update be restricted to a specific version of a package. This can make
+for shorter update times for packages with large numbers of versions,
+or builds per version, e.g.: 
+`spk repo index -r origin --update python/3.10.8 --update zlib/1.2.12`
+
+Those commands will read in the existing index for the repository and
+update the versions and builds of the named package in the index. It
+is faster than generating an index from scratch. It has to be run once
+per repository to update the given package or packages in that
+repository's index.
 
 See `spk repo index -h` for more details.
 
