@@ -6,6 +6,7 @@ use std::str::FromStr;
 use std::time::Instant;
 
 use clap::{Args, Subcommand};
+use itertools::Itertools;
 use miette::{Context, Result};
 use spk_cli_common::{CommandArgs, Run, flags};
 use spk_schema::VersionIdent;
@@ -51,30 +52,22 @@ pub enum RepoCommand {
     },
     /// Generate an index for a repository
     Index {
-        /// Repositories to enable for the command
-        ///
-        /// Any configured spfs repository can be named here as well as "local" or
-        /// a path on disk or a full remote repository url. Repositories can also
-        /// be limited to a specific time by appending a relative or absolute time
-        /// specifier (eg: origin~10m, origin~5weeks, origin@2022-10-11,
-        /// origin@2022-10-11T13:00.12). This time affects all interactions and
-        /// queries in the repository, effectively making it look like it did in the past.
-        /// It will cause errors for any operation that attempts to make changes to
-        /// the repository, even if the time is in the future.
+        /// Repository to generate or update an index from.
         #[clap(long, short = 'r')]
         repo: String,
 
-        /// Package/version of a published package to update in an
-        /// existing index.
+        /// Package or package/version of a published package to
+        /// update in an existing index.
         ///
-        /// Other packages in the index will remain unchanged. Without
-        /// this the full index will be constructed from scratch. If
-        /// the repo does not have an index, a full index will be
-        /// constructed from scratch if possible.
+        /// Can be specified multiple times. Other packages in the
+        /// index will not be updated. Without this the full index
+        /// will be constructed from scratch. If the repo does not
+        /// have an index, a full index will be constructed from
+        /// scratch if the repository supports an index.
         ///
         /// This option is only supported for flatbuffer indexes.
         #[clap(long, name = "PACKAGE/VERSION")]
-        update: Option<String>,
+        update: Vec<String>,
     },
 }
 
@@ -109,17 +102,43 @@ impl RepoCommand {
                 };
                 let repos = vec![(repo_to_index.name().to_string(), repo_to_index.clone())];
 
-                if let Some(package_version) = update {
+                if !update.is_empty() {
                     // Update the existing index for the given package/version
                     let start = Instant::now();
-                    let version_ident = VersionIdent::from_str(package_version)?;
-                    let mut was_full_index = String::from("");
+                    let idents: Vec<VersionIdent> = update
+                        .iter()
+                        .filter_map(|pv| match VersionIdent::from_str(pv) {
+                            Ok(i) => Some(i),
+                            Err(err) => {
+                                tracing::warn!(
+                                    "Skipping '{pv}': Unable to parse it as a package/version: {err}"
+                                );
+                                None
+                            }
+                        })
+                        .collect();
+
+                    tracing::debug!(
+                        "Command line update option: [{}]",
+                        update.iter().map(ToString::to_string).join(", ")
+                    );
+                    tracing::info!(
+                        "Package/versions to update: [{}]",
+                        idents.iter().map(ToString::to_string).join(", ")
+                    );
+                    if idents.is_empty() {
+                        tracing::error!(
+                            "No valid package/versions given, nothing to update. Stopping."
+                        );
+                        return Ok(2);
+                    }
 
                     // Load the current index for this repo now
+                    let mut was_full_index = String::from("");
                     match FlatBufferRepoIndex::from_repo_file(&repo_to_index).await {
                         Ok(current_index) => {
                             current_index
-                                .update_repo_with_package_version(&repo_to_index, &version_ident)
+                                .update_packages(&repo_to_index, &idents)
                                 .await?
                         }
                         Err(err) => {
@@ -134,7 +153,8 @@ impl RepoCommand {
                     };
 
                     tracing::info!(
-                        "Index update for '{package_version}' in '{}' repo completed in: {} secs{was_full_index}",
+                        "Index update for '{}' in '{}' repo completed in: {} secs{was_full_index}",
+                        idents.iter().map(ToString::to_string).join(", "),
                         repo_to_index.name(),
                         start.elapsed().as_secs_f64()
                     );
