@@ -234,6 +234,7 @@
     "FETCHCONTENT",
     "fexceptions",
     "filehandle",
+    "filelock",
     "filesequence",
     "filesystems",
     "filesytem",
