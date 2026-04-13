@@ -395,7 +395,7 @@ impl SemverRange {
         }))
     }
 
-    pub fn minimum(&self) -> Cow<'_, Version> {
+    pub fn version(&self) -> Cow<'_, Version> {
         Cow::Borrowed(&self.minimum)
     }
 }
@@ -595,7 +595,7 @@ impl LowestSpecifiedRange {
         }
     }
 
-    pub fn base(&self) -> Cow<'_, Version> {
+    pub fn version(&self) -> Cow<'_, Version> {
         Cow::Borrowed(&self.base)
     }
 }
@@ -938,7 +938,7 @@ impl NotEqualsVersion {
         Self { specified, base }
     }
 
-    pub fn base(&self) -> Cow<'_, Version> {
+    pub fn version(&self) -> Cow<'_, Version> {
         Cow::Borrowed(&self.base)
     }
 }
@@ -1085,7 +1085,7 @@ impl DoubleNotEqualsVersion {
         Self { specified, base }
     }
 
-    pub fn base(&self) -> Cow<'_, Version> {
+    pub fn version(&self) -> Cow<'_, Version> {
         Cow::Borrowed(&self.base)
     }
 }
