@@ -13,6 +13,10 @@ description = { workspace = true }
 workspace = true
 
 [features]
+sentry = [
+    "dep:sentry",
+    "dep:sentry-miette",
+]
 
 [dependencies]
 arc-swap = { workspace = true }
@@ -33,6 +37,7 @@ glob = { workspace = true }
 ignore = "0.4.18"
 indexmap = { workspace = true }
 itertools = { workspace = true }
+libc = { workspace = true }
 memmap2 = { workspace = true }
 miette = { workspace = true }
 nom = { workspace = true }
@@ -44,6 +49,7 @@ relative-path = { workspace = true }
 ring = { workspace = true }
 rstest = { workspace = true }
 sentry = { workspace = true, optional = true }
+sentry-miette = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
@@ -61,6 +67,7 @@ tracing-subscriber = { workspace = true }
 ulid = { workspace = true }
 url = "2.2"
 variantly = { workspace = true }
+whoami = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }

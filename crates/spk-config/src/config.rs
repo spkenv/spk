@@ -104,6 +104,14 @@ pub struct Index {
     /// one kind of index available for the repository. The default is
     /// 'flatb', a flatbuffers file based index.
     pub kind: String,
+
+    /// Time to sleep between getting a write lock on the index data,
+    /// for index generation and updates.
+    pub lock_sleep_seconds: u64,
+
+    /// Maximum number of times to try to get a write lock on the
+    /// index data, for index generation and updates.
+    pub lock_max_tries: u64,
 }
 
 impl Default for Index {
@@ -113,6 +121,12 @@ impl Default for Index {
             // safer but can add some overhead.
             verify_before_use: true,
             kind: String::from(FLATBUFFER_INDEX_TOKEN),
+            // Sleeping for 6 seconds between write lock attempts and
+            // allowing 5 tries before bailing out, gives a total of
+            // about 30 seconds before timing out of getting a lock
+            // for index writing.
+            lock_sleep_seconds: 6,
+            lock_max_tries: 5,
         }
     }
 }
