@@ -91,6 +91,14 @@ pub enum Error {
     IndexFailedToGenerate(String),
     #[error("Unknown index kind: '{0}', unable to {1}load that kind of index")]
     IndexUnknownKind(String, String),
+    #[error("Unable to open the {0} lock file at all: {1}: {2}")]
+    UnableToOpenLockFileError(String, String, String),
+    #[error(
+        "Unable to lock the {0} file exclusively. {1} tries with {2} seconds between each. Lock is held by {3} for {4}. Giving up. Try again later, or investigate the process that made the lock file."
+    )]
+    UnableToGetWriteLockError(String, u64, u64, String, String),
+    #[error("Failed to remove the {0} lock file: {1}: {2}")]
+    UnableToRemoveWriteLockError(String, String, String),
 
     #[error("{0}")]
     String(String),
