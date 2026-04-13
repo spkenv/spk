@@ -453,16 +453,19 @@ impl FlatBufferRepoIndex {
         // Process the packages, checking for the ones to update and
         // pulling from the correct data source for each.
         for name in &package_names {
-            // Get the current versions from the repo to account for
-            // any deleted or newly published versions.
-            let p_v = repo.list_package_versions(name).await?;
-            let package_versions = (*p_v).clone();
+            // Get the current versions of the packages to update from
+            // the repository not the index, to account for any
+            // deleted, updated, or newly published versions.
+            let package_versions = if package_names_to_update.contains(name) {
+                repo.list_package_versions(name).await?
+            } else {
+                self.list_package_versions(name).await?
+            };
 
             let pkg_info = packages.entry(name.clone()).or_default();
 
             for version in package_versions.iter() {
                 pkg_info.versions.push((**version).clone());
-
                 let ver_info = pkg_info
                     .version_builds
                     .entry((**version).clone())
@@ -471,9 +474,9 @@ impl FlatBufferRepoIndex {
 
                 let version_ident = VersionIdent::new(name.clone(), (**version).clone());
 
-                // Check if this is the package and versions we want
-                // to update. An empty list of versions to update at
-                // this point means update all the package's versions.
+                // Check if this is the package and version we want to
+                // update. An empty list of versions to update means
+                // update all the package's versions.
                 if package_names_to_update.contains(name)
                     && let v2u = versions_to_update
                         .get(name)
