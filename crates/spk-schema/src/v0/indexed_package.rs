@@ -30,6 +30,7 @@ use crate::foundation::name::PkgName;
 use crate::foundation::spec_ops::prelude::*;
 use crate::foundation::version::{Compat, Compatibility, Version};
 use crate::ident::{Satisfy, VarRequest};
+use crate::option::VarOpt;
 use crate::package::OptionValues;
 use crate::spec::SpecTest;
 use crate::v0::EmbeddedPackageSpec;
@@ -155,6 +156,47 @@ impl IndexedPackage {
         unsafe {
             <spk_proto::BuildIndex as flatbuffers::Follow>::follow(&self.buf[..], self.offset)
         }
+    }
+
+    // Helper function for gathering and filtering downstream
+    // requirements trait implementation.
+    fn downstream_requirements<F>(&self, filter: F) -> Cow<'_, RequirementsList<RequestWithOptions>>
+    where
+        F: FnMut(&VarOpt) -> bool,
+    {
+        // This is a version of downstream_requirements() from
+        // v0/package_spec.rs modified for this kind of flatbuffer
+        // backed package.
+        let build_options = self.build_options();
+        let embedded = self.embedded();
+
+        let requests = build_options
+            .iter()
+            .filter_map(|opt| match opt {
+                Opt::Var(v) => Some(v.with_default_namespace(self.name())),
+                Opt::Pkg(_) => None,
+            })
+            .chain(embedded.iter().flat_map(|embed| {
+                embed.build().options.iter().filter_map(|opt| match opt {
+                    Opt::Var(v) => Some(v.with_default_namespace(embed.name())),
+                    Opt::Pkg(_) => None,
+                })
+            }))
+            .filter(filter)
+            .map(|o| {
+                VarRequest {
+                    // we are assuming that the var here will have a value because
+                    // this is a built binary package
+                    value: o.get_value(None).unwrap_or_default().into(),
+                    var: o.var,
+                    // Index doesn't store the an option's description
+                    description: None,
+                }
+            })
+            .map(RequestWithOptions::Var);
+        RequirementsList::<RequestWithOptions>::try_from_iter(requests)
+            .map(Cow::Owned)
+            .expect("build opts (from a RepoIndex) do not contain duplicates")
     }
 }
 
@@ -489,15 +531,9 @@ impl DownstreamRequirements for IndexedPackage {
         &self,
         _components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
-        // This is for build var requirements and inheritance used in
-        // building. This kinds of package has no build data stored.
-        let err = Error::SpkIndexedPackageDoesNotImplement(
-            "DownstreamRequirements".to_string(),
-            "downstream_build_requirements".to_string(),
-        );
-        // TODO: should this change the return value, update all the
-        // caller's handling, and return an error for this implementation?
-        unreachable!("{err}");
+        // This is used when doing a binary build to get additional
+        // information about the build environment.
+        self.downstream_requirements(|o| o.inheritance() != Inheritance::Weak)
     }
 
     fn downstream_runtime_requirements<'a>(
@@ -506,40 +542,7 @@ impl DownstreamRequirements for IndexedPackage {
     ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
         // This is used when deprecating an embedded stub/package
         // and this is exercised during the automated repository tests.
-
-        // This is a version of downstream_runtime_requirements() and
-        // downstream_requirements() from v0/package_spec.rs modified
-        // for this kind of flatbuffer backed package.
-        let build_options = self.build_options();
-        let embedded = self.embedded();
-
-        let requests = build_options
-            .iter()
-            .filter_map(|opt| match opt {
-                Opt::Var(v) => Some(v.with_default_namespace(self.name())),
-                Opt::Pkg(_) => None,
-            })
-            .chain(embedded.iter().flat_map(|embed| {
-                embed.build().options.iter().filter_map(|opt| match opt {
-                    Opt::Var(v) => Some(v.with_default_namespace(embed.name())),
-                    Opt::Pkg(_) => None,
-                })
-            }))
-            .filter(|o| o.inheritance() == Inheritance::Strong || o.required)
-            .map(|o| {
-                VarRequest {
-                    // we are assuming that the var here will have a value because
-                    // this is a built binary package
-                    value: o.get_value(None).unwrap_or_default().into(),
-                    var: o.var,
-                    // Index doesn't store the an option's description
-                    description: None,
-                }
-            })
-            .map(RequestWithOptions::Var);
-        RequirementsList::<RequestWithOptions>::try_from_iter(requests)
-            .map(Cow::Owned)
-            .expect("build opts (from a RepoIndex) do not contain duplicates")
+        self.downstream_requirements(|o| o.inheritance() == Inheritance::Strong || o.required)
     }
 }
 
