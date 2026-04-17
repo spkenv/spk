@@ -8,7 +8,7 @@ use std::sync::Arc;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Version;
-use spk_schema::ident::VersionIdent;
+use spk_schema::ident::{OptVersionIdent, VersionIdent};
 use spk_schema::name::OptNameBuf;
 use spk_schema::{BuildIdent, Spec};
 
@@ -51,7 +51,7 @@ pub trait RepositoryIndexMut {
     async fn update_packages(
         &self,
         repo: &crate::RepositoryHandle,
-        package_versions: &[VersionIdent],
+        package_versions: &[OptVersionIdent],
     ) -> miette::Result<()>;
 }
 

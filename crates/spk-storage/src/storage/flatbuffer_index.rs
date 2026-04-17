@@ -16,7 +16,7 @@ use itertools::Itertools;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Version;
-use spk_schema::ident::VersionIdent;
+use spk_schema::ident::{OptVersionIdent, VersionIdent};
 use spk_schema::name::{OptNameBuf, RepositoryName};
 use spk_schema::prelude::Versioned;
 use spk_schema::{
@@ -401,7 +401,7 @@ impl FlatBufferRepoIndex {
     async fn gather_updates_from_repo(
         &self,
         repo: &crate::RepositoryHandle,
-        package_versions: &[VersionIdent],
+        package_versions: &[OptVersionIdent],
     ) -> miette::Result<(HashMap<PkgNameBuf, PackageInfo>, GlobalVarsInfo)> {
         let start = Instant::now();
 
@@ -413,16 +413,14 @@ impl FlatBufferRepoIndex {
         // The 0.0.0 version number, which is the default and is used
         // if no version number is found when parsing a string into
         // VersionIdent.
-        let all_versions_version = Version::default();
-
         let mut versions_to_update: HashMap<PkgNameBuf, HashSet<Version>> = HashMap::new();
         for package_version in package_versions {
             let entry = versions_to_update
                 .entry(package_version.name().to_owned())
                 .or_default();
-            if *(package_version.version()) != all_versions_version {
+            if let Some(version) = package_version.target() {
                 tracing::info!("adding to versions: {package_version}");
-                entry.insert(package_version.version().clone());
+                entry.insert(version.clone());
             }
         }
 
@@ -480,7 +478,7 @@ impl FlatBufferRepoIndex {
                 if package_names_to_update.contains(name)
                     && let v2u = versions_to_update
                         .get(name)
-                        .expect("a package to update should have a version set, even an empty one")
+                        .expect("a package to update should have a versions set, even an empty one")
                     && (v2u.is_empty() || v2u.contains(version))
                 {
                     tracing::info!("Reached version {version} of the {name} package to update");
@@ -1056,7 +1054,7 @@ impl RepositoryIndexMut for FlatBufferRepoIndex {
     async fn update_packages(
         &self,
         repo: &crate::RepositoryHandle,
-        package_versions: &[VersionIdent],
+        package_versions: &[OptVersionIdent],
     ) -> miette::Result<()> {
         let (packages, global_vars) = self
             .gather_updates_from_repo(repo, package_versions)
