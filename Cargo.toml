@@ -16,6 +16,7 @@ members = [
     "crates/spk-config",
     "crates/spk-exec",
     "crates/spk-launcher",
+    "crates/spk-proto",
     "crates/spk-schema",
     "crates/spk-schema/crates/*",
     "crates/spk-solve",
@@ -63,6 +64,7 @@ dyn-clone = "1.0"
 enum_dispatch = "0.3.13"
 featurecomb = "0.1.3"
 flatbuffers = "25.2"
+flatc-rust = "0.2"
 format_serde_error = { version = "0.3", default-features = false }
 fuser = "0.16.0"
 futures = "0.3.28"
@@ -136,6 +138,7 @@ spk-cmd-repo = { path = "crates/spk-cli/cmd-repo" }
 spk-cmd-test = { path = "crates/spk-cli/cmd-test" }
 spk-config = { path = "crates/spk-config" }
 spk-exec = { path = "crates/spk-exec" }
+spk-proto = { path = "crates/spk-proto" }
 spk-schema = { path = "crates/spk-schema" }
 spk-schema-foundation = { path = "crates/spk-schema/crates/foundation" }
 spk-schema-tera = { path = "crates/spk-schema/crates/tera" }

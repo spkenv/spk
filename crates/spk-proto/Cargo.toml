@@ -1,7 +1,7 @@
 [package]
 authors = { workspace = true }
 edition = { workspace = true }
-name = "spfs-proto"
+name = "spk-proto"
 version = { workspace = true }
 license-file = { workspace = true }
 homepage = { workspace = true }

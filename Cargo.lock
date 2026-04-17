@@ -4655,13 +4655,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "spk-proto"
+version = "0.44.0"
+dependencies = [
+ "data-encoding",
+ "flatbuffers",
+ "flatc-rust",
+ "futures",
+ "miette",
+ "ring",
+ "rstest",
+ "serde",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "spk-schema"
 version = "0.44.0"
 dependencies = [
+ "arc-swap",
+ "bytes",
  "config",
  "data-encoding",
  "dunce",
  "enum_dispatch",
+ "flatbuffers",
  "format_serde_error",
  "ignore",
  "indexmap 2.11.0",
@@ -4681,6 +4699,7 @@ dependencies = [
  "shellexpand",
  "spfs",
  "spk-config",
+ "spk-proto",
  "spk-schema-foundation",
  "spk-schema-tera",
  "strum",
@@ -4697,10 +4716,12 @@ version = "0.44.0"
 dependencies = [
  "arc-swap",
  "async-trait",
+ "bytes",
  "colored",
  "data-encoding",
  "derive-where",
  "enum_dispatch",
+ "flatbuffers",
  "format_serde_error",
  "ignore",
  "indexmap 2.11.0",
@@ -4720,6 +4741,7 @@ dependencies = [
  "serde_yaml 0.9.34+deprecated",
  "serial_test",
  "spfs",
+ "spk-proto",
  "strum",
  "sys-info",
  "tap",

@@ -167,7 +167,7 @@ macro_rules! make_build_and_components {
             let name = spk_schema::foundation::ident_component::Component::parse(name).expect("invalid component name");
             components.insert(name, $crate::spfs::encoding::EMPTY_DIGEST.into());
         }
-        (spk_schema::Spec::V0Package(build), components)
+        (spk_schema::Spec::V0Package(Box::new(build)), components)
     }};
     (package = $package:ident, [$($dep:expr),*], $opts:expr, [$($component:expr),*]) => {{
         let mut components = std::collections::HashMap::<spk_schema::foundation::ident_component::Component, $crate::spfs::encoding::Digest>::new();
@@ -187,7 +187,7 @@ macro_rules! make_build_and_components {
                 }
             }
         }
-        (spk_schema::Spec::V0Package($package), components)
+        (spk_schema::Spec::V0Package(Box::new($package)), components)
     }};
     ($spec:tt, [$($dep:expr),*], $opts:expr, [$($component:expr),*]) => {{
         let json = $crate::serde_json::json!($spec);

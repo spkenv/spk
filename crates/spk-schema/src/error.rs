@@ -71,6 +71,8 @@ pub enum Error {
     #[error(transparent)]
     #[diagnostic(forward(0))]
     SpkConfigError(#[from] spk_config::Error),
+    #[error("{0}'s {1}() method not implemented for IndexedPackage")]
+    SpkIndexedPackageDoesNotImplement(String, String),
 }
 
 impl Error {
