@@ -405,14 +405,9 @@ impl FlatBufferRepoIndex {
     ) -> miette::Result<(HashMap<PkgNameBuf, PackageInfo>, GlobalVarsInfo)> {
         let start = Instant::now();
 
-        let package_names_to_update: HashSet<PkgNameBuf> = package_versions
-            .iter()
-            .map(|package_version| package_version.name().to_owned())
-            .collect();
-
-        // The 0.0.0 version number, which is the default and is used
-        // if no version number is found when parsing a string into
-        // VersionIdent.
+        // Gather the version sets for each package to update. A set
+        // can be empty, and that indicates all the versions of that
+        // package should be updated.
         let mut versions_to_update: HashMap<PkgNameBuf, HashSet<Version>> = HashMap::new();
         for package_version in package_versions {
             let entry = versions_to_update
@@ -424,18 +419,15 @@ impl FlatBufferRepoIndex {
             }
         }
 
-        let mut packages: HashMap<PkgNameBuf, PackageInfo> = HashMap::new();
-
-        let mut num_versions = 0;
-        let mut num_builds = 0;
-
-        // Gather the existing global vars. Any new ones from the updated
-        // package version will be added when its builds are processed.
-        let mut global_vars = GlobalVarsInfo(self.get_global_var_values());
-
-        // Used to work out the order of processing and where to pull
-        // in the updates from.
+        // Get the packages from the index and add the names of
+        // packages to update. These are used to process all the
+        // packages later and to work out where to get the data from.
         let mut package_names = self.list_packages().await?;
+
+        let package_names_to_update: HashSet<PkgNameBuf> = package_versions
+            .iter()
+            .map(|package_version| package_version.name().to_owned())
+            .collect();
 
         // Check update package name and make sure it is in the names list.
         for package_name_to_update in &package_names_to_update {
@@ -445,8 +437,17 @@ impl FlatBufferRepoIndex {
             }
         }
 
-        // Now all the names are present, make a set to help with global variables
+        // Now all the names are present, make a set to help with
+        // global variables later.
         let package_names_set = HashSet::from_iter(package_names.clone());
+
+        // Gather the existing global vars. Any new ones from the updated
+        // package version will be added when its builds are processed.
+        let mut global_vars = GlobalVarsInfo(self.get_global_var_values());
+
+        let mut packages: HashMap<PkgNameBuf, PackageInfo> = HashMap::new();
+        let mut num_versions = 0;
+        let mut num_builds = 0;
 
         // Process the packages, checking for the ones to update and
         // pulling from the correct data source for each.
@@ -468,6 +469,7 @@ impl FlatBufferRepoIndex {
                     .version_builds
                     .entry((**version).clone())
                     .or_default();
+
                 num_versions += 1;
 
                 let version_ident = VersionIdent::new(name.clone(), (**version).clone());
@@ -481,8 +483,8 @@ impl FlatBufferRepoIndex {
                         .expect("a package to update should have a versions set, even an empty one")
                     && (v2u.is_empty() || v2u.contains(version))
                 {
-                    tracing::info!("Reached version {version} of the {name} package to update");
                     // Get the updated data from the repo
+                    tracing::info!("Reached version {version} of the {name} package to update");
                     let version_builds = match repo.list_package_builds(&version_ident).await {
                         Ok(builds) => builds,
                         Err(err) => {
@@ -524,12 +526,12 @@ impl FlatBufferRepoIndex {
                         global_vars.extract_global_vars(&build_spec, &package_names_set)?;
                     }
                 } else {
+                    // Use what's already in the flatbuffer index
                     if package_names_to_update.contains(name) {
                         tracing::debug!(
                             "Using indexed version {version} of the {name} package to update"
                         );
                     }
-                    // Use what's there in the flatbuffer index
                     let version_builds = self.list_package_builds(&version_ident).await?;
 
                     for build_ident in version_builds {
