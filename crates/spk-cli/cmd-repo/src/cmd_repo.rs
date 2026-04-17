@@ -9,7 +9,7 @@ use clap::{Args, Subcommand};
 use itertools::Itertools;
 use miette::{Context, Result};
 use spk_cli_common::{CommandArgs, Run, flags};
-use spk_schema::VersionIdent;
+use spk_schema::ident::OptVersionIdent;
 use spk_storage::{self as storage, FlatBufferRepoIndex, RepositoryHandle, RepositoryIndexMut};
 use storage::Repository;
 
@@ -105,9 +105,9 @@ impl RepoCommand {
                 if !update.is_empty() {
                     // Update the existing index for the given package/version
                     let start = Instant::now();
-                    let idents: Vec<VersionIdent> = update
+                    let idents: Vec<OptVersionIdent> = update
                         .iter()
-                        .filter_map(|pv| match VersionIdent::from_str(pv) {
+                        .filter_map(|pv| match OptVersionIdent::from_str(pv) {
                             Ok(i) => Some(i),
                             Err(err) => {
                                 tracing::warn!(
