@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use crate::version::{Compat, Compatibility, Version};
@@ -25,7 +26,7 @@ pub trait WithVersion {
 #[enum_dispatch::enum_dispatch]
 pub trait Versioned: HasVersion {
     /// The compatibility guaranteed by this items versioning scheme
-    fn compat(&self) -> &Compat;
+    fn compat(&self) -> Cow<'_, Compat>;
 
     /// Check if this item's version is api-compatible with the provided one
     fn is_api_compatible(&self, base: &Version) -> Compatibility {
@@ -47,7 +48,7 @@ impl<T: HasVersion> HasVersion for Arc<T> {
 }
 
 impl<T: Versioned> Versioned for Arc<T> {
-    fn compat(&self) -> &Compat {
+    fn compat(&self) -> Cow<'_, Compat> {
         (**self).compat()
     }
 
@@ -67,7 +68,7 @@ impl<T: HasVersion> HasVersion for Box<T> {
 }
 
 impl<T: Versioned> Versioned for Box<T> {
-    fn compat(&self) -> &Compat {
+    fn compat(&self) -> Cow<'_, Compat> {
         (**self).compat()
     }
 
@@ -87,7 +88,7 @@ impl<T: HasVersion> HasVersion for &T {
 }
 
 impl<T: Versioned> Versioned for &T {
-    fn compat(&self) -> &Compat {
+    fn compat(&self) -> Cow<'_, Compat> {
         (**self).compat()
     }
 

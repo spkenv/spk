@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::borrow::Cow;
+
 use serde::{Deserialize, Serialize};
 use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::{AnyIdent, AsVersionIdent, VersionIdent};
@@ -102,8 +104,8 @@ impl AsVersionIdent for EmbeddedRecipeSpec {
 impl Components for EmbeddedRecipeSpec {
     type ComponentSpecT = RecipeComponentSpec;
 
-    fn components(&self) -> &ComponentSpecList<Self::ComponentSpecT> {
-        &self.install.components
+    fn components(&self) -> Cow<'_, ComponentSpecList<Self::ComponentSpecT>> {
+        Cow::Borrowed(&self.install.components)
     }
 }
 
@@ -138,8 +140,8 @@ impl Named for EmbeddedRecipeSpec {
 }
 
 impl Versioned for EmbeddedRecipeSpec {
-    fn compat(&self) -> &Compat {
-        &self.compat
+    fn compat(&self) -> Cow<'_, Compat> {
+        Cow::Borrowed(&self.compat)
     }
 }
 

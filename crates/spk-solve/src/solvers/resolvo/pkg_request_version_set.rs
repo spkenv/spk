@@ -170,7 +170,7 @@ impl LocatedBuildIdentWithComponent {
 
         // An intra-package request should satisfy any required options.
         let mut propagated_required_vars = PkgRequestOptions::default();
-        for build_option in pkg.get_build_options() {
+        for build_option in pkg.get_build_options().iter() {
             let Opt::Var(var_opt) = build_option else {
                 continue;
             };

@@ -175,8 +175,8 @@ impl RuntimeEnvironment for Platform {
 }
 
 impl Versioned for Platform {
-    fn compat(&self) -> &Compat {
-        &self.compat
+    fn compat(&self) -> Cow<'_, Compat> {
+        Cow::Borrowed(&self.compat)
     }
 }
 

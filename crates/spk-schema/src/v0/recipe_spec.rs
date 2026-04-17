@@ -151,8 +151,8 @@ impl RuntimeEnvironment for RecipeSpec {
 }
 
 impl Versioned for RecipeSpec {
-    fn compat(&self) -> &Compat {
-        &self.compat
+    fn compat(&self) -> Cow<'_, Compat> {
+        Cow::Borrowed(&self.compat)
     }
 }
 

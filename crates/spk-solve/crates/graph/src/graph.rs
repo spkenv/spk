@@ -298,10 +298,10 @@ impl<'state> DecisionBuilder<'state, '_> {
             let requested_by = RequestedBy::PackageBuild(requester_ident.clone());
             changes
                 .extend(self.requirements_to_changes(&spec.runtime_requirements(), &requested_by));
-            changes.extend(self.components_to_changes(spec.components(), requester_ident));
+            changes.extend(self.components_to_changes(&spec.components(), requester_ident));
             changes.extend(self.embedded_to_changes(
-                spec.embedded(),
-                spec.components(),
+                &spec.embedded(),
+                &spec.components(),
                 requester_ident,
             )?);
             changes.push(Self::options_to_change(spec));
@@ -359,10 +359,10 @@ impl<'state> DecisionBuilder<'state, '_> {
             changes.extend(self.pkg_request_to_changes(&pkg_request_with_options));
         }
         changes.extend(self.requirements_to_changes(&spec.runtime_requirements(), &requested_by));
-        changes.extend(self.components_to_changes(spec.components(), requester_ident));
+        changes.extend(self.components_to_changes(&spec.components(), requester_ident));
         changes.extend(self.embedded_to_changes(
-            spec.embedded(),
-            spec.components(),
+            &spec.embedded(),
+            &spec.components(),
             requester_ident,
         )?);
         changes.push(Self::options_to_change(&spec));

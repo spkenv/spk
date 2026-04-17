@@ -105,11 +105,12 @@ impl ComponentsValidator {
     {
         // Do the components available in the package match those
         // required by the request?
+        let pkg_components = package.components();
         let available_components: std::collections::HashSet<_> = match source {
             PackageSource::Repository { components, .. } => components.keys().collect(),
-            PackageSource::BuildFromSource { .. } => package.components().names(),
+            PackageSource::BuildFromSource { .. } => pkg_components.names(),
             PackageSource::Embedded { components, .. } => components.iter().collect(),
-            PackageSource::SpkInternalTest => package.components().names(),
+            PackageSource::SpkInternalTest => pkg_components.names(),
         };
 
         let required_components = package

@@ -284,7 +284,7 @@ impl Solver {
             let package = repo.read_package(ident.target()).await?;
             let rendered_version = package.compat().render(package.version());
             solution_options.insert(package.name().as_opt_name().to_owned(), rendered_version);
-            for option in package.get_build_options() {
+            for option in package.get_build_options().iter() {
                 match option {
                     spk_schema::Opt::Pkg(pkg_opt) => {
                         if let Some(value) = pkg_opt.get_value(None) {
@@ -328,7 +328,7 @@ impl Solver {
                         PackageSource::Repository {
                             repo: Arc::clone(repo),
                             // XXX: Why is this needed?
-                            components: repo.read_components(ident.target()).await?,
+                            components: { repo.read_components(ident.target()).await? },
                         }
                     }
                     spk_schema::ident_build::Build::Embedded(embedded_source) => {

@@ -135,13 +135,22 @@ impl SolvedRequest {
     }
 
     /// The expanded list of components selected for this resolved item
-    pub fn selected_components(&self) -> BTreeSet<&Component> {
-        let mut installed_components: BTreeSet<_> = self.request.pkg.components.iter().collect();
+    pub fn selected_components(&self) -> BTreeSet<Component> {
+        let mut installed_components =
+            BTreeSet::from_iter(self.request.pkg.components.iter().cloned());
+
         if installed_components.is_empty() || installed_components.remove(&Component::All) {
             if let PackageSource::Repository { components, .. } = &self.source {
-                installed_components.extend(components.keys());
+                installed_components.extend(components.keys().cloned());
             } else {
-                installed_components.extend(self.spec.components().names());
+                installed_components.extend(
+                    self.spec
+                        .components()
+                        .names()
+                        .iter()
+                        .map(|c| (*c).clone())
+                        .collect::<Vec<Component>>(),
+                );
             }
         }
         installed_components
@@ -151,11 +160,7 @@ impl SolvedRequest {
     pub fn format_as_installed_package(&self) -> String {
         let mut installed =
             PkgRequest::from_ident(self.spec.ident().to_any_ident(), RequestedBy::DoesNotMatter);
-        installed.pkg.components = self
-            .selected_components()
-            .into_iter()
-            .map(ToOwned::to_owned)
-            .collect();
+        installed.pkg.components = self.selected_components();
 
         let repo_name = if let PackageSource::Repository { repo, .. } = &self.source {
             Some(repo.name().to_owned())

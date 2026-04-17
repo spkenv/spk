@@ -56,7 +56,7 @@ impl super::Validator for InheritRequirementsValidator<'_> {
             for component in all_components {
                 let downstream_build = solved_request
                     .spec
-                    .downstream_build_requirements([component]);
+                    .downstream_build_requirements([&component]);
                 for request in downstream_build.iter() {
                     let compat = build_requirements.contains_request(request);
                     let status = match (self.kind, compat) {
@@ -86,7 +86,7 @@ impl super::Validator for InheritRequirementsValidator<'_> {
                 }
                 let downstream_runtime = solved_request
                     .spec
-                    .downstream_runtime_requirements([component]);
+                    .downstream_runtime_requirements([&component]);
                 for request in downstream_runtime.iter() {
                     let status = match (self.kind, runtime_requirements.contains_request(request)) {
                         (RuleKind::Allow, Compatibility::Compatible)

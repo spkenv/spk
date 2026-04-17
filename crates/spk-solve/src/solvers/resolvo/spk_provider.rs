@@ -1665,7 +1665,7 @@ impl DependencyProvider for SpkProvider {
                         );
                     }
                 }
-                for option in package.get_build_options() {
+                for option in package.get_build_options().iter() {
                     let Opt::Var(var_opt) = option else {
                         continue;
                     };
