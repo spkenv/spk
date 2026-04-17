@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::convert::{TryFrom, TryInto};
 use std::fmt::{Display, Write};
@@ -393,6 +394,10 @@ impl SemverRange {
             minimum: minimum.try_into()?,
         }))
     }
+
+    pub fn version(&self) -> Cow<'_, Version> {
+        Cow::Borrowed(&self.minimum)
+    }
 }
 
 impl Ranged for SemverRange {
@@ -477,6 +482,10 @@ impl WildcardRange {
             )));
         }
         Ok(VersionRange::Wildcard(range))
+    }
+
+    pub fn parts(&self) -> Cow<'_, Vec<Option<u32>>> {
+        Cow::Borrowed(&self.parts)
     }
 }
 
@@ -585,6 +594,10 @@ impl LowestSpecifiedRange {
             base,
         }
     }
+
+    pub fn version(&self) -> Cow<'_, Version> {
+        Cow::Borrowed(&self.base)
+    }
 }
 
 impl TryFrom<Version> for LowestSpecifiedRange {
@@ -647,6 +660,10 @@ impl GreaterThanRange {
             bound: boundary.try_into()?,
         }))
     }
+
+    pub fn version(&self) -> Cow<'_, Version> {
+        Cow::Borrowed(&self.bound)
+    }
 }
 
 impl Ranged for GreaterThanRange {
@@ -694,6 +711,10 @@ impl LessThanRange {
         Ok(VersionRange::LessThan(Self {
             bound: boundary.try_into()?,
         }))
+    }
+
+    pub fn version(&self) -> Cow<'_, Version> {
+        Cow::Borrowed(&self.bound)
     }
 }
 
@@ -743,6 +764,10 @@ impl GreaterThanOrEqualToRange {
             bound: boundary.try_into()?,
         }))
     }
+
+    pub fn version(&self) -> Cow<'_, Version> {
+        Cow::Borrowed(&self.bound)
+    }
 }
 
 impl Ranged for GreaterThanOrEqualToRange {
@@ -791,6 +816,10 @@ impl LessThanOrEqualToRange {
             bound: boundary.try_into()?,
         }))
     }
+
+    pub fn version(&self) -> Cow<'_, Version> {
+        Cow::Borrowed(&self.bound)
+    }
 }
 
 impl Ranged for LessThanOrEqualToRange {
@@ -834,6 +863,10 @@ impl EqualsVersion {
 
     pub fn version_range(version: Version) -> VersionRange {
         VersionRange::Equals(Self { version })
+    }
+
+    pub fn version(&self) -> Cow<'_, Version> {
+        Cow::Borrowed(&self.version)
     }
 }
 
@@ -903,6 +936,10 @@ pub struct NotEqualsVersion {
 impl NotEqualsVersion {
     pub fn new(specified: usize, base: Version) -> Self {
         Self { specified, base }
+    }
+
+    pub fn version(&self) -> Cow<'_, Version> {
+        Cow::Borrowed(&self.base)
     }
 }
 
@@ -977,6 +1014,10 @@ impl DoubleEqualsVersion {
     pub fn version_range(version: Version) -> VersionRange {
         VersionRange::DoubleEquals(Self { version })
     }
+
+    pub fn version(&self) -> Cow<'_, Version> {
+        Cow::Borrowed(&self.version)
+    }
 }
 
 impl From<Version> for DoubleEqualsVersion {
@@ -1042,6 +1083,10 @@ pub struct DoubleNotEqualsVersion {
 impl DoubleNotEqualsVersion {
     pub fn new(specified: usize, base: Version) -> Self {
         Self { specified, base }
+    }
+
+    pub fn version(&self) -> Cow<'_, Version> {
+        Cow::Borrowed(&self.base)
     }
 }
 
@@ -1131,6 +1176,14 @@ impl CompatRange {
         };
         Ok(VersionRange::Compat(compat_range))
     }
+
+    pub fn version(&self) -> Cow<'_, Version> {
+        Cow::Borrowed(&self.base)
+    }
+
+    pub fn required(&self) -> Option<CompatRule> {
+        self.required
+    }
 }
 
 impl Ranged for CompatRange {
@@ -1206,19 +1259,6 @@ impl VersionFilter {
         Self {
             rules: rules.into_iter().collect(),
         }
-    }
-
-    /// Makes a VersionFilter from the given string, without checking
-    /// that it is valid. This is used by indexing.
-    ///
-    /// # Safety
-    ///
-    /// The caller must make sure the string parses ad a valid
-    /// VersionFilter.
-    pub unsafe fn new_unchecked(filter_string: &str) -> Self {
-        VersionFilter::from_str(filter_string).expect(
-            "A filter string given to VersionFilter::new_unchecked() should be a valid VersionFilter when parsed",
-        )
     }
 
     pub fn single(item: VersionRange) -> Self {
