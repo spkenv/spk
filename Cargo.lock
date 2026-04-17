@@ -2246,6 +2246,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a282da65faaf38286cf3be983213fcf1d2e2a58700e808f83f4ea9a4804bc0"
 
 [[package]]
+name = "memmap2"
+version = "0.9.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "714098028fe011992e1c3962653c96b2d578c4b4bce9036e15ff220319b1e0e3"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "miette"
 version = "7.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4927,16 +4936,19 @@ dependencies = [
  "arc-swap",
  "async-stream",
  "async-trait",
+ "bytes",
  "colored",
  "dashmap",
  "data-encoding",
  "enum_dispatch",
+ "flatbuffers",
  "format_serde_error",
  "futures",
  "glob",
  "ignore",
  "indexmap 2.11.0",
  "itertools 0.14.0",
+ "memmap2",
  "miette",
  "nom",
  "nom-supreme",
@@ -4951,7 +4963,10 @@ dependencies = [
  "serde_json",
  "serde_yaml 0.9.34+deprecated",
  "spfs",
+ "spk-config",
+ "spk-proto",
  "spk-schema",
+ "spk-solve-macros",
  "sys-info",
  "tar",
  "tempfile",

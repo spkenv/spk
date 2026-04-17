@@ -24,10 +24,13 @@ pub use disk_usage::{
 pub use error::{Error, InvalidPackageSpec, Result};
 pub use storage::{
     CachePolicy,
+    FlatBufferRepoIndex,
+    IndexedRepository,
     MemRepository,
     NameAndRepository,
     Repository,
     RepositoryHandle,
+    RepositoryIndexMut,
     RuntimeRepository,
     SpfsRepository,
     Storage,

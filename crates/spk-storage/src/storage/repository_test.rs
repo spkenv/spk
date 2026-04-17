@@ -28,6 +28,7 @@ use crate::fixtures::*;
 #[rstest]
 #[case::mem(RepoKind::Mem)]
 #[case::spfs(RepoKind::Spfs)]
+#[case::indexed(RepoKind::IndexedMem)]
 #[tokio::test]
 async fn test_repo_list_empty(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
@@ -40,6 +41,7 @@ async fn test_repo_list_empty(#[case] repo: RepoKind) {
 #[rstest]
 #[case::mem(RepoKind::Mem)]
 #[case::spfs(RepoKind::Spfs)]
+#[case::indexed(RepoKind::IndexedMem)]
 #[tokio::test]
 async fn test_repo_list_package_versions_empty(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
@@ -55,6 +57,7 @@ async fn test_repo_list_package_versions_empty(#[case] repo: RepoKind) {
 #[rstest]
 #[case::mem(RepoKind::Mem)]
 #[case::spfs(RepoKind::Spfs)]
+#[case::indexed(RepoKind::IndexedMem)]
 #[tokio::test]
 async fn test_repo_list_package_builds_empty(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
@@ -68,6 +71,7 @@ async fn test_repo_list_package_builds_empty(#[case] repo: RepoKind) {
 #[rstest]
 #[case::mem(RepoKind::Mem)]
 #[case::spfs(RepoKind::Spfs)]
+#[case::indexed(RepoKind::IndexedMem)]
 #[tokio::test]
 async fn test_repo_read_recipe_empty(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
@@ -81,6 +85,7 @@ async fn test_repo_read_recipe_empty(#[case] repo: RepoKind) {
 #[rstest]
 #[case::mem(RepoKind::Mem)]
 #[case::spfs(RepoKind::Spfs)]
+#[case::indexed(RepoKind::IndexedMem)]
 #[tokio::test]
 async fn test_repo_read_package_empty(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
@@ -94,6 +99,7 @@ async fn test_repo_read_package_empty(#[case] repo: RepoKind) {
 #[rstest]
 #[case::mem(RepoKind::Mem)]
 #[case::spfs(RepoKind::Spfs)]
+#[case::indexed(RepoKind::IndexedMem)]
 #[tokio::test]
 async fn test_repo_publish_recipe(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
@@ -134,6 +140,7 @@ async fn test_repo_publish_recipe(#[case] repo: RepoKind) {
 #[rstest]
 #[case::mem(RepoKind::Mem)]
 #[case::spfs(RepoKind::Spfs)]
+#[case::indexed(RepoKind::IndexedMem)]
 #[tokio::test]
 async fn test_repo_publish_package(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
@@ -209,6 +216,7 @@ async fn create_repo_for_embed_stubs_test(repo: &TempRepo) -> (SpecRecipe, Spec)
 #[rstest]
 #[case::mem(RepoKind::Mem)]
 #[case::spfs(RepoKind::Spfs)]
+#[case::indexed(RepoKind::IndexedMem)]
 #[tokio::test]
 async fn test_repo_publish_spec_updates_embed_stubs(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
@@ -377,6 +385,7 @@ async fn test_repo_update_and_deprecate_spec_updates_embed_stubs(#[case] repo: R
 #[rstest]
 #[case::mem(RepoKind::Mem)]
 #[case::spfs(RepoKind::Spfs)]
+#[case::indexed(RepoKind::IndexedMem)]
 #[tokio::test]
 async fn test_repo_publish_package_creates_embed_stubs(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
@@ -397,6 +406,7 @@ async fn test_repo_publish_package_creates_embed_stubs(#[case] repo: RepoKind) {
 #[rstest]
 #[case::mem(RepoKind::Mem)]
 #[case::spfs(RepoKind::Spfs)]
+#[case::indexed(RepoKind::IndexedMem)]
 #[tokio::test]
 async fn test_embedded_stub_build_version_is_normalized(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;
@@ -447,6 +457,7 @@ async fn test_embedded_stub_build_version_is_normalized(#[case] repo: RepoKind) 
 #[rstest]
 #[case::mem(RepoKind::Mem)]
 #[case::spfs(RepoKind::Spfs)]
+#[case::indexed(RepoKind::IndexedMem)]
 #[tokio::test]
 async fn test_repo_remove_package_removes_embed_stubs(#[case] repo: RepoKind) {
     let repo = make_repo(repo).await;

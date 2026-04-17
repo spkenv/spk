@@ -10,7 +10,7 @@ use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName, RepositoryNameBuf};
 use spk_schema::foundation::version::Version;
-use spk_schema::{BuildIdent, Spec, SpecRecipe, VersionIdent};
+use spk_schema::{BuildIdent, Deprecate, Spec, SpecRecipe, VersionIdent};
 use tokio::sync::RwLock;
 
 use super::Repository;
@@ -326,6 +326,11 @@ where
             .map(|(_, build_map)| build_map)
             .map(|cmpts| cmpts.keys().cloned().collect::<Vec<_>>())
             .unwrap_or_default())
+    }
+
+    async fn is_build_deprecated(&self, build: &BuildIdent) -> Result<bool> {
+        let spec = self.read_package(build).await?;
+        Ok(spec.is_deprecated())
     }
 
     fn name(&self) -> &RepositoryName {

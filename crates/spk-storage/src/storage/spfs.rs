@@ -26,7 +26,17 @@ use spk_schema::ident::{AsVersionIdent, VersionIdent};
 use spk_schema::ident_build::parsing::embedded_source_package;
 use spk_schema::ident_build::{EmbeddedSource, EmbeddedSourcePackage};
 use spk_schema::ident_ops::TagPath;
-use spk_schema::{AnyIdent, BuildIdent, FromYaml, Opt, Package, Recipe, Spec, SpecRecipe};
+use spk_schema::{
+    AnyIdent,
+    BuildIdent,
+    Deprecate,
+    FromYaml,
+    Opt,
+    Package,
+    Recipe,
+    Spec,
+    SpecRecipe,
+};
 use tokio::io::AsyncReadExt;
 
 use super::CachePolicy;
@@ -761,6 +771,11 @@ impl crate::Repository for SpfsRepository {
             .list_build_components
             .insert(pkg.to_owned(), r.as_ref().cloned().into());
         r
+    }
+
+    async fn is_build_deprecated(&self, build: &BuildIdent) -> Result<bool> {
+        let spec = self.read_package(build).await?;
+        Ok(spec.is_deprecated())
     }
 
     fn name(&self) -> &RepositoryName {
