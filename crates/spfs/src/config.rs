@@ -71,6 +71,14 @@ const fn default_fuse_heartbeat_grace_period_seconds() -> NonZeroU64 {
     unsafe { NonZeroU64::new_unchecked(300) }
 }
 
+const fn default_fuse_blob_cache_max_bytes() -> usize {
+    256 * 1024 * 1024 // 256 MiB
+}
+
+const fn default_fuse_blob_cache_max_single_bytes() -> usize {
+    64 * 1024 * 1024 // 64 MiB
+}
+
 pub fn default_proxy_repo_include_secondary_tags() -> bool {
     true
 }
@@ -542,6 +550,19 @@ pub struct Fuse {
     /// Whether to include tags from secondary repos in lookup methods
     #[serde(default = "default_proxy_repo_include_secondary_tags")]
     pub include_secondary_tags: bool,
+    /// Maximum total bytes for the FUSE in-memory remote blob cache.
+    ///
+    /// Remote blobs smaller than `blob_cache_max_single_bytes` are buffered
+    /// here so that they can be sought and read at arbitrary offsets.
+    /// Default: 256 MiB.
+    #[serde(default = "default_fuse_blob_cache_max_bytes")]
+    pub blob_cache_max_bytes: usize,
+    /// Maximum bytes for a single remote blob to be held in the in-memory
+    /// cache.  Blobs larger than this threshold are instead downloaded once
+    /// to the local repository so that future opens skip the network entirely.
+    /// Default: 64 MiB.
+    #[serde(default = "default_fuse_blob_cache_max_single_bytes")]
+    pub blob_cache_max_single_bytes: usize,
 }
 
 impl Fuse {
@@ -562,6 +583,8 @@ impl Default for Fuse {
             heartbeat_interval_seconds: default_fuse_heartbeat_interval_seconds(),
             heartbeat_grace_period_seconds: default_fuse_heartbeat_grace_period_seconds(),
             include_secondary_tags: default_proxy_repo_include_secondary_tags(),
+            blob_cache_max_bytes: default_fuse_blob_cache_max_bytes(),
+            blob_cache_max_single_bytes: default_fuse_blob_cache_max_single_bytes(),
         }
     }
 }

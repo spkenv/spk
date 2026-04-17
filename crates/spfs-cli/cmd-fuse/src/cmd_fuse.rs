@@ -141,6 +141,8 @@ impl CmdFuse {
             remotes: Vec::new(),
             mount_options: required_opts.into_iter().collect(),
             include_secondary_tags: config.fuse.include_secondary_tags,
+            blob_cache_max_bytes: config.fuse.blob_cache_max_bytes,
+            blob_cache_max_single_bytes: config.fuse.blob_cache_max_single_bytes,
         };
 
         let parsed_opts = parse_options_from_args(&self.options);
