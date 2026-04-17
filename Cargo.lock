@@ -4950,6 +4950,7 @@ dependencies = [
  "ignore",
  "indexmap 2.11.0",
  "itertools 0.14.0",
+ "libc",
  "memmap2",
  "miette",
  "nom",
@@ -4961,6 +4962,7 @@ dependencies = [
  "ring",
  "rstest",
  "sentry",
+ "sentry-miette",
  "serde",
  "serde_json",
  "serde_yaml 0.9.34+deprecated",
@@ -4979,6 +4981,7 @@ dependencies = [
  "ulid",
  "url",
  "variantly",
+ "whoami",
 ]
 
 [[package]]

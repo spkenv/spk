@@ -7,9 +7,9 @@ use std::collections::{HashMap, HashSet};
 use std::fs::Permissions;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use futures::TryStreamExt;
 use itertools::Itertools;
@@ -44,6 +44,7 @@ use spk_schema::{
     version_to_fb_version,
 };
 
+use super::RepositoryHandle;
 use crate::storage::{RepositoryIndex, RepositoryIndexMut};
 use crate::{Error, RepoWalkerBuilder, RepoWalkerItem, Result};
 
@@ -79,6 +80,288 @@ async fn remove_index_file(filepath: &PathBuf) -> Result<()> {
         }
     } else {
         Ok(())
+    }
+}
+
+/// Helper to make a lock file for the index
+async fn lock_index_file(repo: &RepositoryHandle) -> Result<FileLock> {
+    // Create a lock for the index file
+    let filepath = FlatBufferRepoIndex::repo_index_location(repo).await?;
+
+    let hostname = whoami::fallible::hostname().unwrap_or_else(|_| "unknown host".to_string());
+    let pid = std::process::id();
+    let lock_contents = format!("host: {hostname}\npid: {pid}");
+
+    let index_config = match spk_config::get_config() {
+        Ok(config) => {
+            if let Some(repo_config) = config.repositories.get(&repo.name().to_string()) {
+                repo_config.index.clone()
+            } else {
+                spk_config::Index::default()
+            }
+        }
+        Err(err) => {
+            tracing::warn!("Unable to read spk config file, using defaults, due to: {err}");
+            spk_config::Index::default()
+        }
+    };
+
+    FileLock::new(
+        filepath,
+        format!("{} index", repo.name()),
+        Some(lock_contents),
+        index_config.lock_sleep_seconds,
+        index_config.lock_max_tries,
+    )
+    .await
+}
+
+#[cfg(feature = "sentry")]
+fn add_filelock_sentry_breadcrumb(
+    lock_file: &Path,
+    contents: Option<String>,
+    held_for: Option<String>,
+    sleep_seconds: Option<u64>,
+    max_tries: Option<u64>,
+) {
+    let mut data = std::collections::BTreeMap::new();
+    data.insert(
+        String::from("lock_file"),
+        serde_json::json!(lock_file.display().to_string()),
+    );
+    if let Some(c) = contents {
+        data.insert(String::from("contents"), serde_json::json!(c));
+    }
+    if let Some(s) = held_for {
+        data.insert(String::from("held_for"), serde_json::json!(s));
+    }
+    if let Some(s) = sleep_seconds {
+        data.insert(String::from("sleep_seconds"), serde_json::json!(s));
+    }
+    if let Some(t) = max_tries {
+        data.insert(String::from("max_tries"), serde_json::json!(t));
+    }
+
+    sentry::add_breadcrumb(sentry::Breadcrumb {
+        category: Some("filelock".into()),
+        message: Some(String::from("FileLock data")),
+        data,
+        level: sentry::Level::Info,
+        ..Default::default()
+    });
+}
+
+// TODO: probably should be in its own file/place
+/// Helper for file locking used when saving data to a file
+struct FileLock {
+    // Path to the lock file
+    lock_file: PathBuf,
+    // A label about the kind of file being locked for log messages
+    label: String,
+    // Whether the lock file has already been deleted (unlocked)
+    has_been_deleted: bool,
+}
+
+impl FileLock {
+    const LOCK_EXT: &'static str = "write_lock";
+
+    /// Create a lock file for the given data file
+    pub async fn new<P: AsRef<Path>>(
+        file_path: P,
+        label: String,
+        contents: Option<String>,
+        sleep_seconds: u64,
+        max_tries: u64,
+    ) -> Result<FileLock> {
+        use spfs::OsError;
+
+        let mut lock_file = file_path.as_ref().to_path_buf();
+        lock_file.set_extension(Self::LOCK_EXT);
+
+        let mut num_tries = 0;
+        while num_tries < max_tries {
+            num_tries += 1;
+
+            match tokio::fs::OpenOptions::new()
+                .create_new(true)
+                .write(true)
+                .open(&lock_file)
+                .await
+            {
+                Ok(_file) => {
+                    // Write any given contents to the lock file as well
+                    if let Some(ref data) = contents
+                        && let Err(err) = tokio::fs::write(&lock_file, data).await
+                    {
+                        tracing::warn!("Unable to write contents to {label} lock file: {err}");
+                    }
+
+                    // The write lock has been set up successfully
+                    return Ok(FileLock {
+                        lock_file,
+                        label,
+                        has_been_deleted: false,
+                    });
+                }
+                Err(err) => {
+                    match err.os_error() {
+                        Some(libc::EEXIST) => {
+                            // Wait until the timeout before trying to acquire the
+                            // lock again, but fail immediately for other [non-temporary]
+                            // problems, e.g. directory not existing.
+                            tracing::info!(
+                                "Lock file for {label} exists, unable to write exclusively. Sleeping for {} seconds before trying again ... ({num_tries} of {} tries)",
+                                sleep_seconds,
+                                max_tries
+                            );
+                            tokio::time::sleep(Duration::from_secs(sleep_seconds)).await;
+                            continue;
+                        }
+                        _ => {
+                            return Err(Error::UnableToOpenLockFileError(
+                                label,
+                                lock_file.display().to_string(),
+                                err.to_string(),
+                            ));
+                        }
+                    };
+                }
+            }
+        }
+
+        // Unable to get a lock at this point. Read the existing lock
+        // file for the lock data and add it to the returned error.
+        use std::io::Read;
+        let mut lock_data = String::new();
+        let held_for = match std::fs::File::open(&lock_file) {
+            Ok(mut f) => {
+                f.read_to_string(&mut lock_data).unwrap_or_else(|err| {
+                    lock_data = format!("Unknown due to error ({err})");
+                    0
+                });
+
+                match std::fs::File::metadata(&f) {
+                    Ok(metadata) => match metadata.modified() {
+                        Ok(time) => match time.elapsed() {
+                            Ok(duration) => format!("{} seconds", duration.as_secs()),
+                            Err(err) => format!("Unknown due to error ({err})"),
+                        },
+                        Err(mod_time_err) => format!("Unknown due to error ({mod_time_err})"),
+                    },
+                    Err(metadata_err) => format!("Unknown due to error ({metadata_err})"),
+                }
+            }
+            Err(open_err) => {
+                lock_data = format!("Unknown due to error ({open_err})");
+                String::from("Unknown seconds")
+            }
+        };
+        lock_data = lock_data.replace("\n", " ");
+
+        // Extra sentry data is added here because this does not send
+        // directly to sentry. That happens in the top level cli error
+        // handler, and that handle can also adjust the scope.
+        #[cfg(feature = "sentry")]
+        add_filelock_sentry_breadcrumb(
+            &lock_file,
+            contents,
+            Some(held_for.clone()),
+            Some(sleep_seconds),
+            Some(max_tries),
+        );
+
+        Err(Error::UnableToGetWriteLockError(
+            label,
+            max_tries,
+            sleep_seconds,
+            lock_data,
+            held_for,
+        ))
+    }
+
+    /// Unlock this file lock by removing the lock file
+    ///
+    /// # Safety:
+    /// File locks are used to ensure that only one process is writing
+    /// to a data file at a time. Removing the lock file without
+    /// ensuring that the data file is not being written to may cause
+    /// the data within the file to become corrupt.
+    pub unsafe fn unlock(&mut self) -> Result<()> {
+        // Need to keep these if-statements separate to allow
+        // remove_file() to be called, and set the has_been_deleted
+        // flag only if it succeeds in removing the file.
+        #[allow(clippy::collapsible_if)]
+        if !self.has_been_deleted {
+            if let Err(err) = std::fs::remove_file(&self.lock_file) {
+                // File not found errors are ignored.
+                if err.kind() != std::io::ErrorKind::NotFound {
+                    // Log this issue directly with sentry to ensure
+                    // it does not get lost if unlock() is called from
+                    // the drop handler. This can adjust the scope and
+                    // add breadcrumbs because it sends directly to sentry.
+                    #[cfg(feature = "sentry")]
+                    {
+                        // Unfortunately, most of the breadcrumb data
+                        // is not available here. But still want to
+                        // attach the path to the lock file in the breadcrumb.
+                        add_filelock_sentry_breadcrumb(&self.lock_file, None, None, None, None);
+                        sentry::with_scope(
+                            |scope| {
+                                // Make a new context section for the sentry message
+                                let mut data = std::collections::BTreeMap::new();
+                                data.insert(String::from("label"), serde_json::json!(self.label));
+                                data.insert(
+                                    String::from("lockfile"),
+                                    serde_json::json!(self.lock_file),
+                                );
+                                scope.set_context(
+                                    "LockFile",
+                                    sentry::protocol::Context::Other(data),
+                                );
+
+                                let fingerprints: Vec<&str> = vec!["{{ error.value }}"];
+                                scope.set_fingerprint(Some(&fingerprints));
+                            },
+                            || {
+                                // The Error enums are not clonable so a duplicate is
+                                // made here to send to sentry directly.
+                                let unlock_error = Error::UnableToRemoveWriteLockError(
+                                    self.label.clone(),
+                                    self.lock_file.display().to_string(),
+                                    err.to_string(),
+                                );
+                                sentry_miette::capture_miette(&(unlock_error.into()));
+                            },
+                        );
+                    }
+
+                    let unlock_error = Error::UnableToRemoveWriteLockError(
+                        self.label.clone(),
+                        self.lock_file.display().to_string(),
+                        err.to_string(),
+                    );
+
+                    return Err(unlock_error);
+                }
+            } else {
+                // The remove_file() call above has succeeded and the
+                // lock file has been deleted.
+                self.has_been_deleted = true;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Drop for FileLock {
+    fn drop(&mut self) {
+        if !self.has_been_deleted
+            && let Err(err) = unsafe { self.unlock() }
+        {
+            // Can only the problem here. The unlock() method will
+            // have sent it to sentry, if that feature is enabled.
+            tracing::warn!("{err}");
+        }
     }
 }
 
@@ -1024,11 +1307,14 @@ impl RepositoryIndexMut for FlatBufferRepoIndex {
             )
             .into());
         }
+        let repo = &repos[0].1;
+
+        // Lock the index file until the data has been updated
+        let mut _lock = lock_index_file(repo).await?;
 
         let (packages, global_vars) = FlatBufferRepoIndex::gather_all_data_from_repo(repos).await?;
 
         // Assemble the data into a flatbuffer index and save it
-        let repo = &repos[0].1;
         let builder =
             FlatBufferRepoIndex::generate_index_builder(repo, packages, global_vars).await?;
 
@@ -1051,6 +1337,10 @@ impl RepositoryIndexMut for FlatBufferRepoIndex {
         repo: &crate::RepositoryHandle,
         package_versions: &[OptVersionIdent],
     ) -> miette::Result<()> {
+        // Lock the index file until the data has been updated
+        let mut _lock = lock_index_file(repo).await?;
+
+        // Get the updated package data from the index and the repo
         let (packages, global_vars) = self
             .gather_updates_from_repo(repo, package_versions)
             .await?;
