@@ -311,4 +311,13 @@ use_indexes = false
 # This can be disabled, but validating is safer even though it can add
 # some overhead at the start of a solve, when using an index.
 verify_index_before_use = true
+
+# SPK can send messages to external messaging systems when packages are:
+# published, modified, or removed. Each messaging system must be configured here.
+# Currently, only kafka is supported.
+#
+# To send messages to a kafka system, the brokers and package_updates_topic_name
+# must be configured. The timeout_ms is optional and defaults to 5 seconds:
+# [[messaging]]
+# kafka = { brokers = [ "brokername:port", "otherbrokername:port", ... ], package_updates_topic_name = "spk-package-updates-or-whatever-your-topic-name-is", timeout_ms = 5000 }
 ```

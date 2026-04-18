@@ -15,6 +15,8 @@ use spk_schema::option_map::get_host_options_filters;
 use spk_schema::{BuildIdent, Components, Deprecate, Package, PackageMut, VersionIdent};
 
 use self::internal::RepositoryExt;
+use super::announce_package_event;
+use crate::storage::messaging::PackageEvent;
 use crate::{Error, Result};
 
 #[cfg(test)]
@@ -429,6 +431,8 @@ pub trait Repository: Storage + Sync {
             }
         }
 
+        announce_package_event(PackageEvent::Published, self.address(), package.ident()).await?;
+
         Ok(())
     }
 
@@ -538,6 +542,8 @@ pub trait Repository: Storage + Sync {
         // else if there was no original spec, assume there is nothing needed
         // to do.
 
+        announce_package_event(PackageEvent::Modified, self.address(), package.ident()).await?;
+
         Ok(())
     }
 
@@ -557,7 +563,9 @@ pub trait Repository: Storage + Sync {
             }
         }
 
-        self.remove_package_from_storage(pkg).await
+        self.remove_package_from_storage(pkg).await?;
+
+        announce_package_event(PackageEvent::Removed, self.address(), pkg).await
     }
 
     /// Identify the payloads for this identified package's components.
