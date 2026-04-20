@@ -39,7 +39,7 @@ jobs:
       - name: Install prerequisites
         run: |
           apt-get update
-          apt-get install --yes build-essential libcap2-bin sudo cmake tcsh rsync protobuf-compiler fuse libfuse-dev curl unzip pkg-config libssl-dev git
+          apt-get install --yes build-essential libcap2-bin sudo cmake tcsh rsync protobuf-compiler fuse libfuse-dev curl unzip pkg-config libssl-dev git libcurl4-openssl-dev
           # spfs-fuse requires this option enabled
           echo user_allow_other >> /etc/fuse.conf
           FB_REL=https://github.com/google/flatbuffers/releases/
