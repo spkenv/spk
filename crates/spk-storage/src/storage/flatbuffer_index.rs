@@ -633,7 +633,7 @@ impl FlatBufferRepoIndex {
         index_path.push(base_path);
         index_path.push(SPK_INDEX_SUB_DIR_NAME);
 
-        spfs::runtime::makedirs_with_perms(&index_path, 0o777);
+        spfs::runtime::makedirs_with_perms(&index_path, 0o777).map_err(|source| Error::String(format!("Unable to make {SPK_INDEX_SUB_DIR_NAME} sub-dir in '{}'s index directory: {source}", repo.name())))?;
 
         // Index file name contains the index schema version for ease
         // of identifying a compatible index. The index version is
