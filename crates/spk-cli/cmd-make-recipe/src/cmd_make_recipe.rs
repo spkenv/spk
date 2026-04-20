@@ -3,9 +3,10 @@
 // https://github.com/spkenv/spk
 
 use clap::Args;
-use miette::{Context, IntoDiagnostic, Result};
+use miette::{Context, Result};
 use spk_cli_common::{CommandArgs, Run, flags};
 use spk_schema::foundation::format::FormatOptionMap;
+use spk_schema::template::TemplateRenderConfig;
 use spk_schema::{SpecFileData, Template};
 
 /// Render a package spec template into a recipe
@@ -47,30 +48,29 @@ impl Run for MakeRecipe {
         let options = self.options.get_options()?;
         let mut workspace = self.workspace.load_or_default()?;
 
-        let configured = match self.package.as_ref() {
+        let template = match self.package.as_ref() {
             Some(p) => workspace.find_or_load_package_template(p),
             None => workspace.default_package_template().map_err(From::from),
         }
         .wrap_err("did not find recipe template")?;
 
-        if let Some(name) = configured.template.name() {
+        if let Some(name) = template.name() {
             tracing::info!("rendering template for {name}");
         } else {
             tracing::info!("rendering template without a name");
         }
         tracing::info!("using options {}", options.format_option_map());
-        let data = spk_schema::TemplateData::new(&options);
-        tracing::debug!("full template data: {data:#?}");
-        let rendered = spk_schema_tera::render_template(
-            configured.template.file_path().to_string_lossy(),
-            configured.template.source(),
-            &data,
-        )
-        .into_diagnostic()
-        .wrap_err("Failed to render template")?;
+        let rendered = template
+            .render_to_string(TemplateRenderConfig {
+                options: options.clone(),
+                ..Default::default()
+            })
+            .wrap_err("Failed to render template")?;
         print!("{rendered}");
-
-        match configured.template.render(&options) {
+        match template.render(TemplateRenderConfig {
+            options: options.clone(),
+            ..Default::default()
+        }) {
             Err(err) => {
                 tracing::error!("This template did not render into a valid spec {err}");
                 Ok(1)

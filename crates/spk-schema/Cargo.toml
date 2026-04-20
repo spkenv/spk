@@ -15,6 +15,7 @@ workspace = true
 [features]
 
 [dependencies]
+bracoxide = { workspace = true }
 config = { workspace = true }
 data-encoding = "2.3"
 dunce = { workspace = true }
@@ -30,11 +31,13 @@ itertools = { workspace = true }
 miette = { workspace = true }
 nom = { workspace = true }
 nom-supreme = { workspace = true }
+once_cell = { workspace = true }
 regex = { workspace = true }
 relative-path = { workspace = true }
 ring = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+serde-peekable = { workspace = true }
 serde_yaml = { workspace = true }
 shellexpand = "3.1.0"
 spfs = { workspace = true }
@@ -47,6 +50,7 @@ tempfile = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 variantly = { workspace = true }
+url = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
 proptest = "1.0.0"

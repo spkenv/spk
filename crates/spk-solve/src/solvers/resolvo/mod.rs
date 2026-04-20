@@ -319,6 +319,7 @@ impl Solver {
                 match ident.build() {
                     spk_schema::ident_build::Build::Source if *requires_build_from_source => {
                         PackageSource::BuildFromSource {
+                            repo: Arc::clone(repo),
                             recipe: repo.read_recipe(&ident.clone().to_version_ident()).await?,
                         }
                     }

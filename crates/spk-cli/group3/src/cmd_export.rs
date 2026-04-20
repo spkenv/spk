@@ -52,7 +52,9 @@ impl Run for Export {
             .iter()
             .map(|repo| match &**repo {
                 storage::RepositoryHandle::SPFS(repo) => Ok(repo),
-                storage::RepositoryHandle::Mem(_) | storage::RepositoryHandle::Runtime(_) => {
+                storage::RepositoryHandle::Mem(_)
+                | storage::RepositoryHandle::Runtime(_)
+                | storage::RepositoryHandle::Workspace(_) => {
                     bail!("Only spfs repositories are supported")
                 }
             })

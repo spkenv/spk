@@ -73,6 +73,8 @@ fn test_git_sources(tmpdir: tempfile::TempDir) {
                 "user.name=Test User",
                 "-c",
                 "user.email=<testuser@invalid.invalid>",
+                "-c",
+                "commit.gpgsign=false",
                 "commit",
                 "--author",
                 "Test User <testuser@invalid.invalid>",
