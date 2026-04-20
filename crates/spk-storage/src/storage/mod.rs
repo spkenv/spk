@@ -13,7 +13,7 @@ mod runtime;
 mod spfs;
 
 pub use archive::export_package;
-pub use flatbuffer_index::{FLATBUFFER_INDEX, FlatBufferRepoIndex};
+pub use flatbuffer_index::FlatBufferRepoIndex;
 pub use handle::RepositoryHandle;
 pub use indexed::IndexedRepository;
 pub use mem::MemRepository;

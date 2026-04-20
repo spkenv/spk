@@ -300,4 +300,22 @@ host_filtering = false
 # Set a default compat rule for this distro. For example, on Rocky Linux
 # packages built on 9.3 would be usable on 9.4.
 compat_rule = "x.ab"
+
+# SPK supports using pre-generated repository indexes to speed up solves.
+# The index must be created separately. If the index does not exist for a
+# repository SPK will continue to solve without it.
+#
+# Index use can be enabled for each named repository. For example,
+# for the 'origin' repository.
+[repositories.origin]
+use_index = true
+# Once enabled, the index settings can be configured for each named repository
+[repositories.origin.index]
+# SPK supports validating index data before using it. This can be disabled,
+# but validating is safer even though it can add some overhead to a solve
+# when using an index.
+verify_index_before_use = true
+# The kind of index format to use for this repository. SPK currently supports
+# a flatbuffer based index.
+# index_kind = "flatb"
 ```

@@ -13,11 +13,10 @@ use std::time::Instant;
 
 use futures::TryStreamExt;
 use itertools::Itertools;
-use spfs::prelude::FromUrl;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf};
 use spk_schema::foundation::version::Version;
-use spk_schema::ident::VersionIdent;
+use spk_schema::ident::{OptVersionIdent, VersionIdent};
 use spk_schema::name::{OptNameBuf, RepositoryName};
 use spk_schema::prelude::Versioned;
 use spk_schema::{
@@ -45,7 +44,6 @@ use spk_schema::{
     version_to_fb_version,
 };
 
-use super::repository::Repository;
 use crate::storage::{RepositoryIndex, RepositoryIndexMut};
 use crate::{Error, RepoWalkerBuilder, RepoWalkerItem, Result};
 
@@ -57,13 +55,9 @@ mod flatbuffer_index_test;
 const COMPATIBLE_INDEX_SCHEMA_VERSION: u32 = 1;
 
 // Index name and kind constants
-pub const FLATBUFFER_INDEX: &str = "flatb";
-
+const SPK_INDEX_SUB_DIR_NAME: &str = "spk";
 const INDEX_FILE_PREFIX: &str = "index";
 const INDEX_FILE_EXT: &str = "fb";
-
-const INDEX_SUB_DIR: &str = "index";
-const SPK_INDEX_SUB_DIR_NAME: &str = "spk";
 
 // Flatbuffer builder constants
 const DEFAULT_CAPACITY: usize = 1024;
@@ -144,7 +138,7 @@ impl FlatBufferRepoIndex {
             let start_check_fb = Instant::now();
             index.check_fb_index()?;
             tracing::debug!(
-                "'{name}' repo index checked as flatb RepositoryIndex: {} secs",
+                "'{name}' repo index verified before use     : {} secs",
                 start_check_fb.elapsed().as_secs_f64()
             );
         } else {
@@ -162,7 +156,7 @@ impl FlatBufferRepoIndex {
         }
 
         tracing::debug!(
-            "'{name}' repo index flatbuffer total time   : {} secs",
+            "'{name}' repo index flatbuffer from bytes in: {} secs",
             start.elapsed().as_secs_f64()
         );
 
@@ -182,13 +176,16 @@ impl FlatBufferRepoIndex {
         // Based on the configuration setting, decide whether to
         // verify the flatbuffer data before use.
         let config = spk_config::get_config()?;
+        let verify_before_use =
+            if let Some(repo_config) = config.repositories.get(&repo.name().to_string()) {
+                repo_config.index.verify_before_use
+            } else {
+                // Default is to verify indexes before using them. This is
+                // safer but can add some overhead.
+                true
+            };
 
-        FlatBufferRepoIndex::read_index_from_file(
-            name,
-            &filepath,
-            config.solver.indexes.verify_before_use,
-        )
-        .await
+        FlatBufferRepoIndex::read_index_from_file(name, &filepath, verify_before_use).await
     }
 
     async fn read_index_from_file(
@@ -324,20 +321,28 @@ impl FlatBufferRepoIndex {
 
         let mut num_versions = 0;
         let mut num_builds = 0;
+        let mut num_erroring_builds = 0;
+        let mut num_deprecated_builds = 0;
 
         let mut traversal = repo_walker.walk();
         while let Some(item) = traversal.try_next().await? {
             match item {
                 RepoWalkerItem::Version(version) => {
+                    num_versions += 1;
+
                     let name = version.ident.name();
                     let v = version.ident.version().clone();
 
                     let pkg_info = packages.entry(name.into()).or_default();
                     pkg_info.versions.push(v.clone());
                     let _ver_info = pkg_info.version_builds.entry(v).or_default();
-                    num_versions += 1;
                 }
                 RepoWalkerItem::Build(build) => {
+                    num_builds += 1;
+                    if build.spec.is_deprecated() {
+                        num_deprecated_builds += 1;
+                    }
+
                     // Add a build spec and related things
                     let build_ident = build.spec.ident();
 
@@ -351,6 +356,7 @@ impl FlatBufferRepoIndex {
                     let component_map = match repo.read_components(build.spec.ident()).await {
                         Ok(c) => c,
                         Err(err) => {
+                            num_erroring_builds += 1;
                             tracing::warn!(
                                 "Problem reading published components for '{}': {err}. Skipping it.",
                                 build.spec.ident()
@@ -367,8 +373,6 @@ impl FlatBufferRepoIndex {
                     ver_info.build_specs.push(build_info);
 
                     global_vars.extract_global_vars(&build.spec, &package_names)?;
-
-                    num_builds += 1;
                 }
 
                 // Ignore everything else
@@ -379,14 +383,12 @@ impl FlatBufferRepoIndex {
         // Debugging and logging
         let mut vars: Vec<String> = global_vars.keys().map(|k| k.to_string()).collect();
         vars.sort();
-        tracing::info!("Globals found:\n\t{}", vars.into_iter().join("\n\t"));
+        tracing::debug!("Globals found:\n\t{}", vars.into_iter().join("\n\t"));
 
         tracing::info!(
-            "Index for '{}' repo consists of {} packages, {} versions, {} builds, with {} global vars",
+            "Index for '{}' repo consists of {} packages, {num_versions} versions, {num_builds} builds ({num_deprecated_builds} deprecated, {num_erroring_builds} errors), with {} global vars",
             repo.name(),
             packages.len(),
-            num_versions,
-            num_builds,
             global_vars.keys().len()
         );
 
@@ -394,80 +396,123 @@ impl FlatBufferRepoIndex {
     }
 
     /// Internal method to get the current information on the builds
-    /// of package version and any global vars they provide. Useful
-    /// when updating an existing index.
+    /// of the given package versions and any global vars they
+    /// provide. Used when updating an existing index.
     async fn gather_updates_from_repo(
         &self,
         repo: &crate::RepositoryHandle,
-        package_version: &VersionIdent,
+        package_versions: &[OptVersionIdent],
     ) -> miette::Result<(HashMap<PkgNameBuf, PackageInfo>, GlobalVarsInfo)> {
         let start = Instant::now();
 
-        let package_name_to_update = package_version.name().to_owned();
-        let arc_version_to_update = Arc::new(package_version.version().clone());
+        // Gather the version sets for each package to update. A set
+        // can be empty, and that indicates all the versions of that
+        // package should be updated.
+        let mut versions_to_update: HashMap<PkgNameBuf, HashSet<Version>> = HashMap::new();
+        for package_version in package_versions {
+            let entry = versions_to_update
+                .entry(package_version.name().to_owned())
+                .or_default();
+            if let Some(version) = package_version.target() {
+                tracing::info!("adding to versions: {package_version}");
+                entry.insert(version.clone());
+            }
+        }
 
-        let mut packages: HashMap<PkgNameBuf, PackageInfo> = HashMap::new();
+        // Get the packages from the index and add the names of
+        // packages to update. These are used to process all the
+        // packages later and to work out where to get the data from.
+        let mut package_names = self.list_packages().await?;
 
-        let mut num_versions = 0;
-        let mut num_builds = 0;
+        let package_names_to_update: HashSet<PkgNameBuf> = package_versions
+            .iter()
+            .map(|package_version| package_version.name().to_owned())
+            .collect();
+
+        // Check update package name and make sure it is in the names list.
+        for package_name_to_update in &package_names_to_update {
+            if !package_names.contains(package_name_to_update) {
+                tracing::debug!("'{package_name_to_update}' not in package_names, injecting it",);
+                package_names.push(package_name_to_update.clone());
+            }
+        }
+
+        // Now all the names are present, make a set to help with
+        // global variables later.
+        let package_names_set = HashSet::from_iter(package_names.clone());
 
         // Gather the existing global vars. Any new ones from the updated
         // package version will be added when its builds are processed.
         let mut global_vars = GlobalVarsInfo(self.get_global_var_values());
 
-        // Used to work out the order of processing and where to pull
-        // in the updates from.
-        let mut package_names = self.list_packages().await?;
+        let mut packages: HashMap<PkgNameBuf, PackageInfo> = HashMap::new();
+        let mut num_versions = 0;
+        let mut num_builds = 0;
 
-        // Check update package name and make sure it is in the names list.
-        if !package_names.contains(&package_name_to_update) {
-            tracing::debug!("'{package_name_to_update}' not in package_names, injecting it",);
-            package_names.push(package_name_to_update.clone());
-        }
-
-        // Now all the names are present, make a set to help with global variables
-        let package_names_set = HashSet::from_iter(package_names.clone());
-
-        // Process the packages, checking for the one to update and
+        // Process the packages, checking for the ones to update and
         // pulling from the correct data source for each.
         for name in &package_names {
-            let p_v = self.list_package_versions(name).await?;
-            let mut package_versions = (*p_v).clone();
-
-            if package_name_to_update == *name && !package_versions.contains(&arc_version_to_update)
-            {
-                tracing::debug!("{arc_version_to_update} not in package_versions, injecting it",);
-                package_versions.push(arc_version_to_update.clone());
-                package_versions.sort_by_cached_key(|v| std::cmp::Reverse(v.clone()));
-            }
+            // Get the current versions of the packages to update from
+            // the repository not the index, to account for any
+            // deleted, updated, or newly published versions.
+            let package_versions = if package_names_to_update.contains(name) {
+                repo.list_package_versions(name).await?
+            } else {
+                self.list_package_versions(name).await?
+            };
 
             let pkg_info = packages.entry(name.clone()).or_default();
 
             for version in package_versions.iter() {
                 pkg_info.versions.push((**version).clone());
-
                 let ver_info = pkg_info
                     .version_builds
                     .entry((**version).clone())
                     .or_default();
+
                 num_versions += 1;
 
                 let version_ident = VersionIdent::new(name.clone(), (**version).clone());
 
-                // Check if this is the version we want to update
-                if package_name_to_update == *name && arc_version_to_update == *version {
-                    tracing::info!("Reached the {version} of the package to update");
+                // Check if this is the package and version we want to
+                // update. An empty list of versions to update means
+                // update all the package's versions.
+                if package_names_to_update.contains(name)
+                    && let v2u = versions_to_update
+                        .get(name)
+                        .expect("a package to update should have a versions set, even an empty one")
+                    && (v2u.is_empty() || v2u.contains(version))
+                {
                     // Get the updated data from the repo
-                    let version_builds = repo.list_package_builds(&version_ident).await?;
+                    tracing::info!("Reached version {version} of the {name} package to update");
+                    let version_builds = match repo.list_package_builds(&version_ident).await {
+                        Ok(builds) => builds,
+                        Err(err) => {
+                            tracing::warn!("Problem listing package builds: {err}. Skipping it.");
+                            continue;
+                        }
+                    };
 
                     for build_ident in version_builds {
-                        let build_spec = repo.read_package_from_storage(&build_ident).await?;
+                        let build_spec = match repo.read_package_from_storage(&build_ident).await {
+                            Ok(build) => build,
+                            Err(err) => {
+                                tracing::warn!("Problem reading package: {err}. Skipping it.");
+                                continue;
+                            }
+                        };
                         let spec = build_spec.clone();
 
-                        let component_map = repo
-                            .read_components_from_storage(build_spec.ident())
-                            .await?;
-                        let published_components = component_map.keys().cloned().collect();
+                        let published_components =
+                            match repo.read_components_from_storage(build_spec.ident()).await {
+                                Ok(component_map) => component_map.keys().cloned().collect(),
+                                Err(err) => {
+                                    tracing::warn!(
+                                        "Problem reading published components: {err}. Skipping it."
+                                    );
+                                    continue;
+                                }
+                            };
 
                         let build_info = BuildInfo {
                             spec,
@@ -481,7 +526,12 @@ impl FlatBufferRepoIndex {
                         global_vars.extract_global_vars(&build_spec, &package_names_set)?;
                     }
                 } else {
-                    // Use what's there in the flatbuffer index
+                    // Use what's already in the flatbuffer index
+                    if package_names_to_update.contains(name) {
+                        tracing::debug!(
+                            "Using indexed version {version} of the {name} package to update"
+                        );
+                    }
                     let version_builds = self.list_package_builds(&version_ident).await?;
 
                     for build_ident in version_builds {
@@ -539,7 +589,10 @@ impl FlatBufferRepoIndex {
 
         for name in package_names {
             if let Some(pkg_info) = repo_packages.get(&name) {
-                tracing::debug!("package: {name}  [{} versions]", pkg_info.versions.len());
+                tracing::debug!(
+                    "Adding package to index: {name}  [{} versions]",
+                    pkg_info.versions.len()
+                );
                 let package = pkg_info.to_fb_package_index(&mut builder, &name);
                 packages.push(package);
             };
@@ -571,78 +624,18 @@ impl FlatBufferRepoIndex {
         Ok(builder)
     }
 
-    /// This will create the index path inside the repo, for spk
-    /// indexes, if it does not exist.
-    async fn get_index_path_from_repo_address(
-        repo_name: &str,
-        address_url: &url::Url,
-    ) -> Result<PathBuf> {
-        // Only handles urls that can parse as fs repo configs. Other
-        // repository types do not support storing index files.
-        let spfs_repo_config = match spfs::storage::fs::Config::from_url(address_url).await {
-            Ok(c) => c,
-            Err(err) => {
-                return Err(Error::IndexNoRepoPathError(
-                    repo_name.to_string(),
-                    err.to_string(),
-                ));
-            }
-        };
-
-        // TODO: consider making the base index path configurable,
-        // with the default being the repo base path + /index/spk.
-        let mut index_path = PathBuf::new();
-        index_path.push(spfs_repo_config.path);
-
-        index_path.push(INDEX_SUB_DIR);
-        spfs::runtime::makedirs_with_perms(&index_path, 0o777).map_err(|source| {
-            Error::String(format!(
-                "Unable to make '{INDEX_SUB_DIR}' sub-dir in '{repo_name}' repo: {source}"
-            ))
-        })?;
-
-        index_path.push(SPK_INDEX_SUB_DIR_NAME);
-        spfs::runtime::makedirs_with_perms(&index_path, 0o777)
-            .map_err(|source| Error::String(format!("Unable to make {SPK_INDEX_SUB_DIR_NAME} sub-dir in '{repo_name}'s index directory: {source}")))?;
-
-        Ok(index_path)
-    }
-
     async fn repo_index_location(repo: &crate::RepositoryHandle) -> Result<PathBuf> {
-        let base_path = match repo {
-            crate::RepositoryHandle::SPFS(spfs_repo) => {
-                Self::get_index_path_from_repo_address(spfs_repo.name(), spfs_repo.address())
-                    .await?
-            }
+        let base_path = repo.index_location_path().await?;
 
-            crate::RepositoryHandle::Mem(mem_repo) => {
-                // A mem repo doesn't have a usable location for files
-                return Err(Error::IndexNoRepoLocationError(
-                    mem_repo.name().to_string(),
-                    "Spk Mem".to_string(),
-                ));
-            }
-
-            crate::RepositoryHandle::Runtime(runtime_repo) => {
-                // A spfs runtime repo doesn't have a usable location
-                // for files.
-                return Err(Error::IndexNoRepoLocationError(
-                    runtime_repo.name().to_string(),
-                    "Spk Runtime".to_string(),
-                ));
-            }
-
-            crate::RepositoryHandle::Indexed(indexed_repo) => {
-                // Indexed repositories are store their index data
-                // based on the repo they wrap so use the underlying
-                // repo's location for indexes.
-                Self::get_index_path_from_repo_address(indexed_repo.name(), indexed_repo.address())
-                    .await?
-            }
-        };
-
+        // Make the spk specific sub-directory within the repo's index
+        // location.
         let mut index_path = PathBuf::new();
         index_path.push(base_path);
+        index_path.push(SPK_INDEX_SUB_DIR_NAME);
+
+        spfs::runtime::makedirs_with_perms(&index_path, 0o777)
+            .map_err(|source| Error::String(format!("Unable to make {SPK_INDEX_SUB_DIR_NAME} sub-dir in '{}'s index directory: {source}", repo.name())))?;
+
         // Index file name contains the index schema version for ease
         // of identifying a compatible index. The index version is
         // also checked later when the bytes are turned into an index
@@ -1050,15 +1043,17 @@ impl RepositoryIndexMut for FlatBufferRepoIndex {
         Ok(())
     }
 
-    // Index and the package version to update within it. The package
-    // version to update will have its data gathered from the
-    // repository rather than the current index.
-    async fn update_repo_with_package_version(
+    /// Update the existing index for the given the package versions.
+    /// The package versions to update will have their data gathered
+    /// from the repository, rather than the current index.
+    async fn update_packages(
         &self,
         repo: &crate::RepositoryHandle,
-        package_version: &VersionIdent,
+        package_versions: &[OptVersionIdent],
     ) -> miette::Result<()> {
-        let (packages, global_vars) = self.gather_updates_from_repo(repo, package_version).await?;
+        let (packages, global_vars) = self
+            .gather_updates_from_repo(repo, package_versions)
+            .await?;
 
         // Assemble the data into a flatbuffer index and save it
         let builder =

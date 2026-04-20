@@ -12,6 +12,8 @@ use spfs::Sentry;
 
 use crate::Result;
 
+pub const FLATBUFFER_INDEX_TOKEN: &str = "flatb";
+
 #[cfg(test)]
 #[path = "./config_test.rs"]
 mod config_test;
@@ -87,18 +89,10 @@ pub struct Solver {
 
     /// Name of the solver whose output to show  when multiple solvers are being run.
     pub solver_to_show: String,
-
-    /// Whether to get the solver to use repository indexes, if
-    /// available, instead of the repository directly.
-    pub use_indexes: bool,
-
-    /// Default setting for indexes, if using indexes is enabled for
-    /// the solver.
-    pub indexes: Index,
 }
 
-/// The settings for one or more indexes
-#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+/// The settings for a spk repository index
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Index {
     /// Whether to validate the index data before using it.
@@ -112,8 +106,19 @@ pub struct Index {
     pub kind: String,
 }
 
+impl Default for Index {
+    fn default() -> Self {
+        Self {
+            // Default to verifying indexes before using them. This is
+            // safer but can add some overhead.
+            verify_before_use: true,
+            kind: String::from(FLATBUFFER_INDEX_TOKEN),
+        }
+    }
+}
+
 /// The settings for a single repository
-#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Repository {
     /// Whether to use an index with this repository, if one is
@@ -122,6 +127,15 @@ pub struct Repository {
 
     /// Setting for the repositories index, if an index is enabled.
     pub index: Index,
+}
+
+impl Default for Repository {
+    fn default() -> Self {
+        Self {
+            use_index: true,
+            index: Default::default(),
+        }
+    }
 }
 
 #[derive(Clone, Default, Debug, Deserialize, Serialize)]

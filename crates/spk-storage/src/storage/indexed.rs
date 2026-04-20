@@ -3,9 +3,12 @@
 // https://github.com/spkenv/spk
 
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
 
 use arc_swap::ArcSwap;
+use spk_config::FLATBUFFER_INDEX_TOKEN;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::foundation::name::{PkgName, PkgNameBuf, RepositoryName};
@@ -16,7 +19,7 @@ use spk_schema::name::OptNameBuf;
 use spk_schema::{BuildIdent, Spec, SpecRecipe};
 
 use super::repository::{PublishPolicy, Repository, Storage};
-use crate::storage::{FLATBUFFER_INDEX, FlatBufferRepoIndex, RepoIndex, RepositoryIndex};
+use crate::storage::{FlatBufferRepoIndex, RepoIndex, RepositoryIndex};
 use crate::{Error, Result};
 
 /// A spk repository that wraps another repository with that
@@ -46,17 +49,23 @@ impl Clone for IndexedRepository {
 impl IndexedRepository {
     /// Get the name of the kind of index from spk's config. This is
     /// used to work out what kind of index to load or save.
-    fn get_index_kind_from_config() -> Result<String> {
+    fn get_index_kind_from_config(repo_name: &RepositoryName) -> Result<String> {
         let config = spk_config::get_config()?;
-
-        let index_kind = if config.solver.indexes.kind != String::default() {
-            config.solver.indexes.kind.clone()
+        let index_kind = if let Some(repo_config) = config.repositories.get(&repo_name.to_string())
+        {
+            repo_config.index.kind.clone()
         } else {
-            String::from(FLATBUFFER_INDEX)
+            String::from(FLATBUFFER_INDEX_TOKEN)
         };
 
         tracing::debug!("Index kind from config: '{index_kind}'");
         Ok(index_kind)
+    }
+
+    /// Get the index path from the underlying spfs filesystem
+    /// repository, which may create it if needed.
+    pub async fn wrapped_repo_index_location_path(&self) -> Result<PathBuf> {
+        self.wrapped_repo.index_location_path().await
     }
 
     /// Set whether to update the internal index after any publish or
@@ -71,26 +80,30 @@ impl IndexedRepository {
     pub async fn load_from_repo(
         repo_to_wrap: Arc<crate::RepositoryHandle>,
     ) -> Result<IndexedRepository> {
-        let index_kind = IndexedRepository::get_index_kind_from_config()?;
+        let start = Instant::now();
+        let index_kind = IndexedRepository::get_index_kind_from_config(repo_to_wrap.name())?;
 
-        let index = match index_kind.as_ref() {
-            FLATBUFFER_INDEX => {
-                tracing::debug!("Flatbuffer index selected");
+        let index = if index_kind == FLATBUFFER_INDEX_TOKEN {
+            tracing::debug!("Flatbuffer index selected");
 
-                match FlatBufferRepoIndex::from_repo_file(&repo_to_wrap).await {
-                    Ok(i) => RepoIndex::Flat(i),
-                    Err(err) => {
-                        return Err(Error::IndexFailedToLoad(err.to_string()));
-                    }
+            match FlatBufferRepoIndex::from_repo_file(&repo_to_wrap).await {
+                Ok(i) => RepoIndex::Flat(i),
+                Err(err) => {
+                    return Err(Error::IndexFailedToLoad(err.to_string()));
                 }
             }
-            _ => {
-                return Err(Error::IndexUnknownKind(
-                    index_kind,
-                    "load from file".to_string(),
-                ));
-            }
+        } else {
+            return Err(Error::IndexUnknownKind(
+                index_kind,
+                "load from file".to_string(),
+            ));
         };
+
+        tracing::debug!(
+            "'{}' repo index flatbuffer total load in: {} secs",
+            repo_to_wrap.name(),
+            start.elapsed().as_secs_f64()
+        );
 
         Ok(IndexedRepository {
             index: ArcSwap::new(Arc::new(index)),
@@ -103,21 +116,20 @@ impl IndexedRepository {
     async fn generate_in_memory_index_from_repo(
         repo_to_wrap: &Arc<crate::RepositoryHandle>,
     ) -> Result<RepoIndex> {
-        let index_kind = IndexedRepository::get_index_kind_from_config()?;
+        let index_kind = IndexedRepository::get_index_kind_from_config(repo_to_wrap.name())?;
 
-        match index_kind.as_ref() {
-            FLATBUFFER_INDEX => {
-                tracing::debug!("Flatbuffer index selected");
+        if index_kind == FLATBUFFER_INDEX_TOKEN {
+            tracing::debug!("Flatbuffer index selected");
 
-                match FlatBufferRepoIndex::from_repo_in_memory(repo_to_wrap).await {
-                    Ok(i) => Ok(RepoIndex::Flat(i)),
-                    Err(err) => Err(Error::IndexFailedToGenerate(err.to_string())),
-                }
+            match FlatBufferRepoIndex::from_repo_in_memory(repo_to_wrap).await {
+                Ok(i) => Ok(RepoIndex::Flat(i)),
+                Err(err) => Err(Error::IndexFailedToGenerate(err.to_string())),
             }
-            _ => Err(Error::IndexUnknownKind(
+        } else {
+            Err(Error::IndexUnknownKind(
                 index_kind,
                 "create in memory".to_string(),
-            )),
+            ))
         }
     }
 

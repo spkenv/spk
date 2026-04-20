@@ -7,9 +7,11 @@ mod variant;
 use std::collections::HashSet;
 use std::convert::From;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use clap::{Args, ValueEnum, ValueHint};
 use miette::{Context, IntoDiagnostic, Result, bail, miette};
+use once_cell::sync::Lazy;
 use solve::{
     DEFAULT_SOLVER_RUN_FILE_PREFIX,
     DecisionFormatter,
@@ -45,6 +47,7 @@ use spk_solve as solve;
 #[cfg(feature = "statsd")]
 use spk_solve::{SPK_RUN_TIME_METRIC, get_metrics_client};
 use spk_storage as storage;
+use spk_storage::IndexedRepository;
 use spk_workspace::{FindOrLoadPackageTemplateError, FindPackageTemplateError};
 pub use variant::{Variant, VariantBuildStatus, VariantLocation};
 
@@ -60,6 +63,12 @@ static SPK_KEEP_RUNTIME: &str = "SPK_KEEP_RUNTIME";
 static SPK_SOLVER_OUTPUT_TO_DIR: &str = "SPK_SOLVER_OUTPUT_TO_DIR";
 static SPK_SOLVER_OUTPUT_TO_DIR_MIN_VERBOSITY: &str = "SPK_SOLVER_OUTPUT_TO_DIR_MIN_VERBOSITY";
 static SPK_SOLVER_OUTPUT_FILE_PREFIX: &str = "SPK_SOLVER_OUTPUT_FILE_PREFIX";
+
+static DISABLE_INDEX_USE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+
+pub fn disable_index_use() {
+    DISABLE_INDEX_USE.store(true, std::sync::atomic::Ordering::Release);
+}
 
 #[derive(Args, Clone)]
 pub struct Runtime {
@@ -997,6 +1006,23 @@ where
     Ok((found, configured.template.file_path().to_owned()))
 }
 
+/// The index use command line setting options that can be used to
+/// override index usage set in the spk config file. The default for a
+/// repository in the spk config is to use an index if one exists,
+/// unless the repository is called 'local'. The setting for an
+/// individual repository can be changed in the config file, or by
+/// using the matching environment variables.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum IndexUse {
+    /// Use the index use settings from the repository configurations
+    /// in the spk config file (or their environment variable
+    /// overrides, if any are set).
+    ConfigFile,
+    /// Disable all index use globally regardless of any setting in
+    /// the spk config file (or environment variables).
+    Disabled,
+}
+
 #[derive(Args, Clone)]
 pub struct Repositories {
     /// This option will enable the local repository only.
@@ -1052,6 +1078,12 @@ pub struct Repositories {
     /// per-job or per-show repos.
     #[clap(long)]
     pub wrap_origin: Option<std::path::PathBuf>,
+
+    /// Override how indexes will be used to get package data from the
+    /// repo indexes instead of the repos. This only applies to
+    /// non-destructive repository operations.
+    #[clap(long)]
+    pub index_use: Option<IndexUse>,
 }
 
 impl Repositories {
@@ -1152,8 +1184,43 @@ impl Repositories {
             repos.push(("local".into(), repo.into()));
         }
         if self.local_repo_only {
+            // Local repo only case does not use indexes because they
+            // are typically small and not indexed. If local repos
+            // became large and were indexed, this might change.
             return Ok(repos);
         }
+
+        // Check whether using the indexes for the repos is globally
+        // disabled by the spk command, such as 'spk repo index' or
+        // 'spk info'.
+        let disable_all_index_use = DISABLE_INDEX_USE.load(std::sync::atomic::Ordering::Relaxed);
+
+        // Check the override from the command line flag, if any
+        let use_index_cli_override = match self.index_use {
+            Some(index_use) => {
+                match index_use {
+                    IndexUse::ConfigFile => {
+                        // Use the config file/env var settings.
+                        None
+                    }
+                    IndexUse::Disabled => {
+                        // This override disables all index use.
+                        Some(false)
+                    }
+                }
+            }
+            _ => {
+                // There was no command line override, so use the
+                // config file/env var settings
+                None
+            }
+        };
+
+        // Get the spk config, which includes env vars settings, for
+        // later use in the loop block.
+        let config = spk_config::get_config()?;
+
+        // Add the enabled repos
         for (name, ts, is_default_origin) in enabled
             .into_iter()
             .map(|(name, ts)| (name, ts, false))
@@ -1190,7 +1257,76 @@ impl Repositories {
             if let Some(ts) = ts.as_ref().or(self.when.as_ref()) {
                 repo.pin_at_time(ts);
             }
-            repos.push((name.into(), repo.into()));
+
+            // Decide whether to use an index for this repository
+            let use_index = if disable_all_index_use {
+                // The disable all setting takes precedence over everything else
+                tracing::debug!("All index use disabled. '{name}' will not use an index.");
+                false
+            } else if let Some(use_index) = use_index_cli_override {
+                // Otherwise the command line flag takes precedence
+                // over what was in the config file.
+                tracing::debug!("A cli-based use index override was given: {use_index}");
+                use_index
+            } else {
+                // Otherwise use this repository's spk config setting
+                match config.repositories.get(name) {
+                    Some(repo_config) => {
+                        tracing::debug!(
+                            "Using the '{name}' repo's use index setting, which is: {} ({} index use)",
+                            repo_config.use_index,
+                            if repo_config.use_index {
+                                "enable"
+                            } else {
+                                "disable"
+                            }
+                        );
+                        repo_config.use_index
+                    }
+                    // The fallback default if there's no configuration for this repo.
+                    None => {
+                        // Enable index use on all repositories, except the 'local' repo.
+                        let default_index_use = name != "local";
+                        tracing::debug!(
+                            "Using default use index setting for '{name}' repo, which is: {} ({} index use)",
+                            default_index_use,
+                            if default_index_use {
+                                "enable"
+                            } else {
+                                "disable"
+                            }
+                        );
+                        default_index_use
+                    }
+                }
+            };
+            tracing::debug!(
+                "Using index for '{name}': is {}",
+                if use_index { "enabled" } else { "disabled" }
+            );
+
+            if use_index {
+                // Use the index for this repo, if there is one,
+                // otherwise use the repo itself.
+                tracing::debug!("Using a repo index for '{name}'");
+                let indexed_repo = match IndexedRepository::load_from_repo(Arc::new(
+                    repo.clone().into(),
+                ))
+                .await
+                {
+                    Ok(ir) => ir.into(),
+                    Err(_err) => {
+                        tracing::warn!(
+                            "Failed to load index for '{name}' repo, falling back to the repo itself"
+                        );
+                        repo.into()
+                    }
+                };
+                repos.push((name.to_string(), indexed_repo));
+            } else {
+                tracing::debug!("Not using a repo index for '{name}' repo");
+                repos.push((name.to_string(), repo.into()));
+            }
         }
         Ok(repos)
     }

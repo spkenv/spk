@@ -316,10 +316,10 @@ impl ResolvoPackageName {
                     // Filter builds that don't conform to global options
                     // XXX: This find runtime will add up.
                     let repo = provider
-                .repos
-                .iter()
-                .find(|repo| repo.name() == ident.repository_name())
-                .expect("Expected solved package's repository to be in the list of repositories");
+                        .repos
+                        .iter()
+                        .find(|repo| repo.name() == ident.repository_name())
+                        .expect("Expected solved package's repository to be in the list of repositories");
 
                     if requires_build_from_source {
                         match provider.can_build_from_source(&ident).await {
@@ -609,16 +609,19 @@ impl SpkProvider {
 
     pub fn new(
         repos: Vec<Arc<RepositoryHandle>>,
+        known_global_vars: HashMap<OptNameBuf, HashSet<VarValue>>,
         binary_only: bool,
         build_from_source_trail: HashSet<LocatedBuildIdent>,
     ) -> Self {
+        let known_global_var_values = RefCell::new(known_global_vars);
+
         Self {
             pool: Pool::new(),
             repos,
             global_pkg_requests: Default::default(),
             global_var_requests: Default::default(),
             interned_solvables: Default::default(),
-            known_global_var_values: Default::default(),
+            known_global_var_values,
             queried_global_var_values: Default::default(),
             cancel_solving: Default::default(),
             binary_only,
@@ -1093,12 +1096,13 @@ impl DependencyProvider for SpkProvider {
                             );
                             // XXX: This find runtime will add up.
                             let repo = self
-                        .repos
-                        .iter()
-                        .find(|repo| repo.name() == located_build_ident_with_component.ident.repository_name())
-                        .expect(
-                            "Expected solved package's repository to be in the list of repositories",
-                        );
+                                .repos
+                                .iter()
+                                .find(|repo| repo.name() == located_build_ident_with_component.ident.repository_name())
+                                .expect(
+                                    "Expected solved package's repository to be in the list of repositories",
+                                );
+
                             if let Ok(package) = repo
                                 .read_package(located_build_ident_with_component.ident.target())
                                 .await

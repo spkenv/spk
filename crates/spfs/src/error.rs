@@ -104,6 +104,8 @@ pub enum Error {
         #[source]
         source: storage::OpenRepositoryError,
     },
+    #[error("Repository does not support index storage location: {0:?}")]
+    NoIndexStorageLocation(url::Url),
 
     #[error("No remote named '{0}' configured")]
     #[diagnostic(
