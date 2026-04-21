@@ -3,9 +3,10 @@
 // https://github.com/spkenv/spk
 
 use rstest::rstest;
+use spk_schema::RequestWithOptions;
 use spk_schema::foundation::name::OptName;
 use spk_schema::foundation::option_map::OptionMap;
-use spk_schema::ident::VarRequest;
+use spk_schema::ident::{PkgRequestOptionValue, VarRequest};
 use spk_schema::option_map::HOST_OPTIONS;
 use spk_solve::Solver;
 
@@ -114,4 +115,41 @@ async fn test_get_solver_with_host_options(
             assert!(var_requests.contains(&var_request));
         }
     }
+}
+
+#[tokio::test]
+async fn test_parse_request_includes_matching_cli_options() {
+    let request_flags = crate::flags::Requests {
+        pre: false,
+        workspace: crate::flags::Workspace::default(),
+    };
+    let options_flags = crate::flags::Options {
+        no_host: true,
+        options: vec![
+            "mylib.namespace_style=major_minor".to_string(),
+            "other.namespace_style=ignored".to_string(),
+        ],
+    };
+    let repos: &[std::sync::Arc<spk_storage::RepositoryHandle>] = &[];
+
+    let (request, extra_options) = request_flags
+        .parse_request("mylib", &options_flags, repos)
+        .await
+        .unwrap();
+
+    assert!(extra_options.is_empty());
+
+    let RequestWithOptions::Pkg(pkg_request) = request else {
+        panic!("expected package request");
+    };
+
+    let matching_opt = OptName::new("mylib.namespace_style").unwrap().to_owned();
+    assert_eq!(
+        pkg_request.options.get(&matching_opt),
+        Some(&PkgRequestOptionValue::Complete("major_minor".to_string()))
+    );
+    assert_eq!(pkg_request.options.len(), 1);
+
+    let unrelated_opt = OptName::new("other.namespace_style").unwrap().to_owned();
+    assert!(!pkg_request.options.contains_key(&unrelated_opt));
 }

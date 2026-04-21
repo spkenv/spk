@@ -32,15 +32,25 @@ use spk_schema::ident::{
     PinnableRequest,
     PinnedValue,
     PkgRequest,
+    PkgRequestOptionValue,
+    PkgRequestOptions,
+    PkgRequestWithOptions,
     RangeIdent,
-    RequestWithOptions,
     RequestedBy,
     VarRequest,
     parse_ident,
 };
 use spk_schema::option_map::HOST_OPTIONS;
-use spk_schema::{Recipe, SpecFileData, SpecRecipe, Template, TestStage, VariantExt};
-use spk_solve as solve;
+use spk_schema::{
+    Recipe,
+    RequestWithOptions,
+    SpecFileData,
+    SpecRecipe,
+    Template,
+    TestStage,
+    VariantExt,
+};
+use spk_solve::{self as solve};
 #[cfg(unix)]
 #[cfg(feature = "statsd")]
 use spk_solve::{SPK_RUN_TIME_METRIC, get_metrics_client};
@@ -673,7 +683,23 @@ impl Requests {
         if req.required_compat.is_none() {
             req.required_compat = Some(CompatRule::API);
         }
-        out.push(req.into());
+        let mut pkg_request_options = PkgRequestOptions::default();
+        for (opt_name, value) in options.iter() {
+            if let Some(ns) = opt_name.namespace()
+                && ns == req.pkg.name
+            {
+                pkg_request_options.insert(
+                    opt_name.clone(),
+                    // `--opt` from the command line apply to all requests
+                    // equally therefore this value is `Complete`.
+                    PkgRequestOptionValue::Complete(value.clone()),
+                );
+            }
+        }
+        out.push(RequestWithOptions::Pkg(PkgRequestWithOptions {
+            pkg_request: req,
+            options: pkg_request_options,
+        }));
 
         Ok(out)
     }
