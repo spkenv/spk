@@ -18,6 +18,19 @@ pub struct CmdPush {
     #[clap(flatten)]
     pub(crate) repos: cli::Repositories,
 
+    /// The source repository to push from
+    ///
+    /// Can be a remote name or address. Defaults to the local repository.
+    #[clap(long)]
+    from: Option<String>,
+
+    /// The destination repository to push to
+    ///
+    /// Can be a remote name or address. Defaults to "origin".
+    /// Cannot be used together with --remote.
+    #[clap(long, conflicts_with = "remote")]
+    to: Option<String>,
+
     /// The reference(s) to push
     ///
     /// These can be individual tags or digests, or they may also
@@ -28,23 +41,23 @@ pub struct CmdPush {
 
 impl CmdPush {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
-        // Default to the remote to "origin" to match spfs push's
-        // behaviour before the "repos" argument added above.
-        if self.repos.remote.is_none() {
-            self.repos.remote = Some("origin".to_string());
-        }
+        // --remote is an alias for --to
+        let to = self
+            .to
+            .take()
+            .or_else(|| self.repos.remote.take())
+            .or_else(|| Some("origin".to_string()));
 
-        let (repo, remote) = tokio::try_join!(
-            config.get_local_repository_handle(),
-            spfs::config::open_repository_from_string(config, self.repos.remote.as_ref()),
-        )?;
+        let src = spfs::config::open_repository_from_string(config, self.from.as_ref());
+        let dest = spfs::config::open_repository_from_string(config, to.as_ref());
+        let (src, dest) = tokio::try_join!(src, dest)?;
 
         let env_spec = self.refs.iter().cloned().collect();
         // the latest tag is always synced when pushing
         self.sync.sync = true;
         let summary = self
             .sync
-            .get_syncer(&repo, &remote)
+            .get_syncer(&src, &dest)
             .sync_env(env_spec)
             .await?
             .summary();
