@@ -4,7 +4,7 @@
 
 use async_trait::async_trait;
 
-use super::OpenRepositoryError;
+use super::{OpenRepositoryError, RepositoryHandle};
 
 pub type OpenRepositoryResult<T> = std::result::Result<T, OpenRepositoryError>;
 
@@ -20,16 +20,5 @@ pub trait FromUrl: Sized {
 pub trait FromConfig: Sized {
     type Config: FromUrl + Send;
 
-    async fn from_config(config: Self::Config) -> OpenRepositoryResult<Self>;
-}
-
-#[async_trait]
-impl<T> FromUrl for T
-where
-    T: FromConfig + Send + Sync + Sized,
-{
-    async fn from_url(url: &url::Url) -> OpenRepositoryResult<Self> {
-        let config = T::Config::from_url(url).await?;
-        Self::from_config(config).await
-    }
+    async fn from_config(config: Self::Config) -> OpenRepositoryResult<RepositoryHandle>;
 }

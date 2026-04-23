@@ -32,7 +32,7 @@ use fuser::{
 };
 use spfs::OsError;
 use spfs::prelude::*;
-use spfs::storage::LocalRepository;
+use spfs::storage::LocalPayloads;
 #[cfg(feature = "fuse-backend-abi-7-31")]
 use spfs::tracking::BlobRead;
 use spfs::tracking::{Entry, EntryKind, EnvSpec, Manifest};
@@ -381,9 +381,13 @@ impl Filesystem {
         #[allow(unused_mut)]
         let mut flags = FOPEN_KEEP_CACHE;
         for repo in self.repos.iter() {
-            match &**repo {
-                spfs::storage::RepositoryHandle::FS(fs_repo) => {
-                    let Ok(fs_repo) = fs_repo.opened().await else {
+            // XXX: Using a macro here for an easy fix but it would be nicer
+            // if there was a way to borrow the RepositoryHandle as a
+            // `&MaybeOpenFsRepository<NoRenderStore>` since this code
+            // doesn't need to access renders.
+            macro_rules! read_fs {
+                ($fs_repo:ident) => {
+                    let Ok(fs_repo) = $fs_repo.opened().await else {
                         reply.error(libc::ENOENT);
                         return;
                     };
@@ -398,6 +402,17 @@ impl Filesystem {
                         }
                         Err(err) => err!(reply, err),
                     }
+                };
+            }
+            match &**repo {
+                spfs::storage::RepositoryHandle::FSWithMaybeRenders(fs_repo) => {
+                    read_fs!(fs_repo);
+                }
+                spfs::storage::RepositoryHandle::FSWithRenders(fs_repo) => {
+                    read_fs!(fs_repo);
+                }
+                spfs::storage::RepositoryHandle::FSWithoutRenders(fs_repo) => {
+                    read_fs!(fs_repo);
                 }
                 #[cfg(feature = "fuse-backend-abi-7-31")]
                 repo => match repo.open_payload(*digest).await {
@@ -749,8 +764,7 @@ impl SessionInner {
                     .map_err(|source| spfs::Error::FailedToOpenRepository {
                         repository: "<FUSE Repository Stack>".into(),
                         source,
-                    })?
-                    .into();
+                    })?;
 
                 tracing::debug!("Computing environment manifest...");
                 let manifest = spfs::compute_environment_manifest(&self.reference, &repo).await?;

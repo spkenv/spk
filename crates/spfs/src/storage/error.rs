@@ -21,6 +21,10 @@ pub enum OpenRepositoryError {
         source: std::io::Error,
     },
 
+    #[error("Render store not available")]
+    #[diagnostic(code("spfs::storage::fs::no_render_store"))]
+    RenderStorageUnavailable,
+
     #[error("Could not validate repository version")]
     FsMigration(#[from] super::fs::migrations::MigrationError),
 
@@ -105,6 +109,9 @@ pub enum OpenRepositoryError {
 
     #[error("Unsupported repository type: {0}")]
     UnsupportedRepositoryType(String),
+
+    #[error("Invalid render store creation policy: {0}")]
+    InvalidRenderStoreCreationPolicy(String),
 }
 
 impl OpenRepositoryError {

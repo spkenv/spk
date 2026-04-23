@@ -13,7 +13,7 @@ use miette::{Error, IntoDiagnostic, Result, WrapErr};
 #[cfg(feature = "sentry")]
 use once_cell::sync::OnceCell;
 use spfs::io::Pluralize;
-use spfs::storage::LocalRepository;
+use spfs::storage::LocalPayloads;
 use tracing_subscriber::prelude::*;
 
 const SPFS_LOG: &str = "SPFS_LOG";
@@ -140,7 +140,7 @@ impl Render {
         reporter: Reporter,
     ) -> spfs::storage::fs::Renderer<'repo, Repo, Reporter>
     where
-        Repo: spfs::storage::Repository + LocalRepository,
+        Repo: spfs::storage::Repository + LocalPayloads,
         Reporter: spfs::storage::fs::RenderReporter,
     {
         spfs::storage::fs::Renderer::new(repo)

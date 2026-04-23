@@ -16,6 +16,7 @@ use arc_swap::ArcSwap;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
 use futures::Stream;
+use variantly::Variantly;
 
 use super::FsHashStore;
 use super::hash_store::PROXY_DIRNAME;
@@ -24,13 +25,20 @@ use crate::config::{ToAddress, pathbuf_deserialize_with_tilde_expansion};
 use crate::runtime::makedirs_with_perms;
 use crate::storage::prelude::*;
 use crate::storage::{
-    LocalRepository,
+    LocalPayloads,
+    LocalRenderStore,
     OpenRepositoryError,
     OpenRepositoryResult,
+    RenderStoreForUser,
     TagNamespace,
     TagNamespaceBuf,
+    TryRenderStore,
 };
 use crate::{Error, Result};
+
+#[cfg(test)]
+#[path = "./repository_test.rs"]
+mod repository_test;
 
 /// The directory name within the repo where durable runtimes keep
 /// their upper path roots and upper/work directories.
@@ -67,6 +75,15 @@ pub struct Params {
     #[serde(default)]
     pub lazy: bool,
     pub tag_namespace: Option<TagNamespaceBuf>,
+    #[serde(default = "Params::default_create_renders")]
+    pub create_renders: bool,
+}
+
+impl Params {
+    /// Whether to create the render store if it doesn't already exist. Defaults to true.
+    fn default_create_renders() -> bool {
+        true
+    }
 }
 
 #[async_trait::async_trait]
@@ -89,46 +106,267 @@ impl FromUrl for Config {
 }
 
 /// Renders need a place for proxy files and the rendered hard links.
+///
+/// An instance of `RenderStore` represents a valid render store that has
+/// already been created.
+#[derive(Debug)]
 pub struct RenderStore {
+    url: url::Url,
     pub proxy: FsHashStore,
     pub renders: FsHashStore,
 }
 
-impl RenderStore {
-    pub fn for_user<P: AsRef<Path>>(root: &Path, username: P) -> Result<Self> {
-        let username = username.as_ref();
+impl DefaultRenderStoreCreationPolicy for RenderStore {
+    fn default_creation_policy() -> RenderStoreCreationPolicy {
+        RenderStoreCreationPolicy::CreateIfMissing
+    }
+}
+
+impl LocalRenderStore for RenderStore {
+    fn render_store(&self) -> &RenderStore {
+        self
+    }
+}
+
+impl RenderStoreForUser for RenderStore {
+    type RenderStore = Self;
+
+    fn render_store_for_user(
+        creation_policy: RenderStoreCreationPolicy,
+        url: url::Url,
+        root: &Path,
+        username: &Path,
+    ) -> OpenRepositoryResult<Self>
+    where
+        Self: Sized,
+    {
         let renders_dir = root.join("renders").join(username);
-        FsHashStore::open(renders_dir.join(PROXY_DIRNAME))
-            .and_then(|proxy| {
-                FsHashStore::open(&renders_dir).map(|renders| RenderStore { proxy, renders })
+        let proxy_dir = renders_dir.join(PROXY_DIRNAME);
+
+        // Verify the renders directory exists.
+        let stat = std::fs::symlink_metadata(&proxy_dir);
+
+        match creation_policy {
+            RenderStoreCreationPolicy::CreateIfMissing => match stat {
+                Ok(_) => {}
+                Err(source) if source.kind() == std::io::ErrorKind::NotFound => {
+                    makedirs_with_perms(&proxy_dir, 0o777).map_err(|source| {
+                        OpenRepositoryError::PathNotInitialized {
+                            path: proxy_dir.clone(),
+                            source,
+                        }
+                    })?;
+                }
+                Err(source) => {
+                    return Err(OpenRepositoryError::PathNotInitialized {
+                        path: proxy_dir,
+                        source,
+                    });
+                }
+            },
+            RenderStoreCreationPolicy::DoNotCreate => {
+                if let Err(source) = stat {
+                    return Err(OpenRepositoryError::PathNotInitialized {
+                        path: proxy_dir,
+                        source,
+                    });
+                }
+            }
+        };
+
+        FsHashStore::open(proxy_dir).and_then(|proxy| {
+            FsHashStore::open(&renders_dir).map(|renders| RenderStore {
+                url,
+                proxy,
+                renders,
             })
-            .map_err(|source| Error::FailedToOpenRepository {
-                repository: format!("<Render Storage for {}>", username.display()),
-                source,
-            })
+        })
+    }
+}
+
+impl TryRenderStore for RenderStore {
+    fn try_render_store(&self) -> OpenRepositoryResult<Cow<'_, RenderStore>> {
+        Ok(Cow::Borrowed(self))
+    }
+
+    fn proxy_path(&self) -> Option<Cow<'_, std::path::Path>> {
+        Some(Cow::Borrowed(self.proxy.root()))
     }
 }
 
 impl Clone for RenderStore {
     fn clone(&self) -> Self {
         Self {
+            url: self.url.clone(),
             proxy: FsHashStore::open_unchecked(self.proxy.root()),
             renders: FsHashStore::open_unchecked(self.renders.root()),
         }
     }
 }
 
+#[derive(Clone, Debug)]
+enum InnerMaybeRenderStore {
+    /// The render store has not been created or validated yet.
+    StatusUnknown {
+        url: url::Url,
+        root: PathBuf,
+        username: PathBuf,
+    },
+    /// The render store is known to exist and is valid.
+    Valid { renders: RenderStore },
+}
+
+pub trait DefaultRenderStoreCreationPolicy {
+    fn default_creation_policy() -> RenderStoreCreationPolicy;
+}
+
+#[derive(Clone, Copy, Debug, Variantly)]
+pub enum RenderStoreCreationPolicy {
+    CreateIfMissing,
+    DoNotCreate,
+}
+
+/// A render store flavor for repositories that may support renders, but the
+/// storage may not have been created or validated.
+#[derive(Clone, Debug)]
+pub struct MaybeRenderStore {
+    /// If the store should be created if necessary.
+    creation_policy: RenderStoreCreationPolicy,
+    inner: Arc<ArcSwap<InnerMaybeRenderStore>>,
+}
+
+impl MaybeRenderStore {
+    /// Return a new instance of this render store with creation disabled. The render
+    /// store will only be accessible if it already exists, but will not be created on demand.
+    fn without_render_creation(self) -> Self {
+        Self {
+            creation_policy: RenderStoreCreationPolicy::DoNotCreate,
+            inner: self.inner,
+        }
+    }
+}
+
+impl TryFrom<MaybeRenderStore> for RenderStore {
+    type Error = OpenRepositoryError;
+
+    fn try_from(value: MaybeRenderStore) -> OpenRepositoryResult<Self> {
+        Ok(value.try_render_store()?.into_owned())
+    }
+}
+
+impl DefaultRenderStoreCreationPolicy for MaybeRenderStore {
+    fn default_creation_policy() -> RenderStoreCreationPolicy {
+        RenderStoreCreationPolicy::CreateIfMissing
+    }
+}
+
+impl TryRenderStore for MaybeRenderStore {
+    fn try_render_store(&self) -> OpenRepositoryResult<Cow<'_, RenderStore>> {
+        match &**self.inner.load() {
+            InnerMaybeRenderStore::StatusUnknown {
+                url,
+                root,
+                username,
+            } => {
+                // Create the render store if it doesn't exist (if requested), or
+                // return an error if it doesn't already exist.
+                match RenderStore::render_store_for_user(
+                    self.creation_policy,
+                    url.clone(),
+                    root,
+                    username,
+                ) {
+                    Ok(store) => {
+                        self.inner.rcu(|_| InnerMaybeRenderStore::Valid {
+                            renders: store.clone(),
+                        });
+                        Ok(Cow::Owned(store))
+                    }
+                    Err(err) => Err(err),
+                }
+            }
+            InnerMaybeRenderStore::Valid { renders } => {
+                // Can't borrow from the temporary returned by ArcSwap::load().
+                Ok(Cow::Owned(renders.clone()))
+            }
+        }
+    }
+
+    fn proxy_path(&self) -> Option<Cow<'_, std::path::Path>> {
+        self.try_render_store()
+            .ok()
+            .map(|store| Cow::Owned(store.proxy.root().to_owned()))
+    }
+}
+
+impl RenderStoreForUser for MaybeRenderStore {
+    type RenderStore = Self;
+
+    fn render_store_for_user(
+        creation_policy: RenderStoreCreationPolicy,
+        url: url::Url,
+        root: &Path,
+        username: &Path,
+    ) -> OpenRepositoryResult<Self> {
+        Ok(Self {
+            creation_policy,
+            inner: Arc::new(ArcSwap::new(Arc::new(
+                InnerMaybeRenderStore::StatusUnknown {
+                    url,
+                    root: root.to_owned(),
+                    username: username.to_owned(),
+                },
+            ))),
+        })
+    }
+}
+
+/// Represents a render store flavor for repositories that don't have renders
+/// and/or don't support renders, like tar repositories, or when accessing a
+/// repository in a way that doesn't require renders.
+#[derive(Clone, Debug)]
+pub struct NoRenderStore;
+
+impl DefaultRenderStoreCreationPolicy for NoRenderStore {
+    fn default_creation_policy() -> RenderStoreCreationPolicy {
+        RenderStoreCreationPolicy::DoNotCreate
+    }
+}
+
+impl RenderStoreForUser for NoRenderStore {
+    type RenderStore = Self;
+
+    fn render_store_for_user(
+        _creation_policy: RenderStoreCreationPolicy,
+        _url: url::Url,
+        _root: &Path,
+        _username: &Path,
+    ) -> OpenRepositoryResult<Self> {
+        Ok(Self)
+    }
+}
+
+impl TryRenderStore for NoRenderStore {
+    fn try_render_store(&self) -> OpenRepositoryResult<Cow<'_, RenderStore>> {
+        Err(OpenRepositoryError::RenderStorageUnavailable)
+    }
+
+    fn proxy_path(&self) -> Option<Cow<'_, std::path::Path>> {
+        None
+    }
+}
+
 /// Operations on a FsRepository.
 #[async_trait::async_trait]
 pub trait FsRepositoryOps: Send + Sync {
-    /// True if this repo is setup to generate local manifest renders.
-    fn has_renders(&self) -> bool;
-
     fn iter_rendered_manifests(
         &self,
     ) -> Pin<Box<dyn Stream<Item = Result<crate::encoding::Digest>> + Send + Sync + '_>>;
 
-    fn proxy_path(&self) -> Option<&std::path::Path>;
+    /// Return the path to the proxy directory for this repository, if it
+    /// exists. Some render store types may create this directory on demand,
+    /// if it didn't already exist.
+    fn proxy_path(&self) -> Option<Cow<'_, std::path::Path>>;
 
     /// Remove the identified render from this storage.
     async fn remove_rendered_manifest(&self, digest: crate::encoding::Digest) -> Result<()>;
@@ -152,17 +390,13 @@ impl<T> FsRepositoryOps for &T
 where
     T: FsRepositoryOps,
 {
-    fn has_renders(&self) -> bool {
-        T::has_renders(*self)
-    }
-
     fn iter_rendered_manifests(
         &self,
     ) -> Pin<Box<dyn Stream<Item = Result<crate::encoding::Digest>> + Send + Sync + '_>> {
         T::iter_rendered_manifests(*self)
     }
 
-    fn proxy_path(&self) -> Option<&std::path::Path> {
+    fn proxy_path(&self) -> Option<Cow<'_, std::path::Path>> {
         T::proxy_path(*self)
     }
 
@@ -198,22 +432,58 @@ impl<FS> std::ops::Deref for FsRepository<FS> {
     }
 }
 
+impl TryFrom<FsRepository<MaybeOpenFsRepositoryImpl<MaybeRenderStore>>>
+    for FsRepository<MaybeOpenFsRepositoryImpl<RenderStore>>
+{
+    type Error = OpenRepositoryError;
+
+    fn try_from(
+        value: FsRepository<MaybeOpenFsRepositoryImpl<MaybeRenderStore>>,
+    ) -> OpenRepositoryResult<Self> {
+        Ok(Self {
+            fs_impl: Arc::new(Arc::unwrap_or_clone(value.fs_impl).try_into()?),
+        })
+    }
+}
+
+impl TryFrom<FsRepository<OpenFsRepositoryImpl<MaybeRenderStore>>>
+    for FsRepository<OpenFsRepositoryImpl<RenderStore>>
+{
+    type Error = OpenRepositoryError;
+
+    fn try_from(
+        value: FsRepository<OpenFsRepositoryImpl<MaybeRenderStore>>,
+    ) -> OpenRepositoryResult<Self> {
+        Ok(Self {
+            fs_impl: Arc::new(Arc::unwrap_or_clone(value.fs_impl).try_into()?),
+        })
+    }
+}
+
+impl FsRepository<MaybeOpenFsRepositoryImpl<MaybeRenderStore>> {
+    /// Return a new instance of this repository with render store creation
+    /// disabled. The render store will only be accessible if it already exists,
+    /// but will not be created on demand.
+    pub fn without_render_creation(self) -> Self {
+        let new_impl = Arc::unwrap_or_clone(self.fs_impl);
+        Self {
+            fs_impl: Arc::new(new_impl.without_render_creation()),
+        }
+    }
+}
+
 #[async_trait::async_trait]
 impl<FS> FsRepositoryOps for FsRepository<FS>
 where
     FS: FsRepositoryOps,
 {
-    fn has_renders(&self) -> bool {
-        self.fs_impl.has_renders()
-    }
-
     fn iter_rendered_manifests(
         &self,
     ) -> Pin<Box<dyn Stream<Item = Result<crate::encoding::Digest>> + Send + Sync + '_>> {
         self.fs_impl.iter_rendered_manifests()
     }
 
-    fn proxy_path(&self) -> Option<&std::path::Path> {
+    fn proxy_path(&self) -> Option<Cow<'_, std::path::Path>> {
         self.fs_impl.proxy_path()
     }
 
@@ -245,38 +515,86 @@ where
     }
 }
 
-impl<FS> LocalRepository for FsRepository<FS>
+impl<FS> LocalPayloads for FsRepository<FS>
 where
-    FS: LocalRepository,
+    FS: LocalPayloads,
 {
     fn payloads(&self) -> &FsHashStore {
         self.fs_impl.payloads()
     }
+}
 
-    fn render_store(&self) -> Result<&RenderStore> {
+impl<FS> LocalRenderStore for FsRepository<FS>
+where
+    FS: LocalRenderStore,
+{
+    fn render_store(&self) -> &RenderStore {
         self.fs_impl.render_store()
     }
 }
 
-pub type MaybeOpenFsRepository = FsRepository<MaybeOpenFsRepositoryImpl>;
-pub type OpenFsRepository = FsRepository<OpenFsRepositoryImpl>;
+impl<FS, RS> RenderStoreForUser for FsRepository<FS>
+where
+    FS: RenderStoreForUser<RenderStore = RS>,
+{
+    type RenderStore = RS;
 
-impl MaybeOpenFsRepository {
+    fn render_store_for_user(
+        creation_policy: RenderStoreCreationPolicy,
+        url: url::Url,
+        root: &Path,
+        username: &Path,
+    ) -> OpenRepositoryResult<Self::RenderStore> {
+        FS::render_store_for_user(creation_policy, url, root, username)
+    }
+}
+
+impl<FS> TryRenderStore for FsRepository<FS>
+where
+    FS: TryRenderStore,
+{
+    fn try_render_store(&self) -> OpenRepositoryResult<Cow<'_, RenderStore>> {
+        self.fs_impl.try_render_store()
+    }
+
+    fn proxy_path(&self) -> Option<Cow<'_, std::path::Path>> {
+        self.fs_impl.proxy_path()
+    }
+}
+
+pub type MaybeOpenFsRepository<RS> = FsRepository<MaybeOpenFsRepositoryImpl<RS>>;
+pub type OpenFsRepository<RS> = FsRepository<OpenFsRepositoryImpl<RS>>;
+
+impl<RS> MaybeOpenFsRepository<RS>
+where
+    RS: DefaultRenderStoreCreationPolicy
+        + RenderStoreForUser<RenderStore = RS>
+        + Send
+        + Sync
+        + 'static,
+{
     /// Get the opened version of this repository, performing
     /// any required opening and validation as needed
-    pub fn opened(&self) -> impl futures::Future<Output = Result<OpenFsRepository>> + 'static {
+    pub fn opened(&self) -> impl futures::Future<Output = Result<OpenFsRepository<RS>>> + 'static {
         let fs_impl = Arc::clone(&self.fs_impl);
         async move {
             let fs_impl = fs_impl
                 .opened_and_map_err(Error::failed_to_open_repository)
                 .await?;
-            Ok(OpenFsRepository { fs_impl })
+            Ok(OpenFsRepository::<RS> { fs_impl })
         }
     }
 
     /// Open a filesystem repository, creating it if necessary
-    pub async fn create<P: AsRef<Path>>(root: P) -> OpenRepositoryResult<Self> {
-        MaybeOpenFsRepositoryImpl::create(root)
+    pub async fn create(root: impl AsRef<Path>) -> OpenRepositoryResult<Self> {
+        MaybeOpenFsRepositoryImpl::<RS>::create(root)
+            .await
+            .map(Into::into)
+            .map(|fs_impl| FsRepository { fs_impl })
+    }
+
+    async fn from_fs_config(config: Config) -> crate::storage::OpenRepositoryResult<Self> {
+        MaybeOpenFsRepositoryImpl::<RS>::from_config(config)
             .await
             .map(Into::into)
             .map(|fs_impl| FsRepository { fs_impl })
@@ -284,43 +602,69 @@ impl MaybeOpenFsRepository {
 }
 
 #[async_trait::async_trait]
-impl FromConfig for MaybeOpenFsRepository {
+impl FromConfig for MaybeOpenFsRepository<MaybeRenderStore> {
     type Config = Config;
 
-    async fn from_config(config: Self::Config) -> crate::storage::OpenRepositoryResult<Self> {
-        MaybeOpenFsRepositoryImpl::from_config(config)
-            .await
-            .map(Into::into)
-            .map(|fs_impl| FsRepository { fs_impl })
-    }
-}
-
-impl OpenFsRepository {
-    /// Establish a new filesystem repository
-    pub async fn create<P: AsRef<Path>>(root: P) -> OpenRepositoryResult<Self> {
-        OpenFsRepositoryImpl::create(root)
-            .await
-            .map(Into::into)
-            .map(|fs_impl| FsRepository { fs_impl })
-    }
-}
-
-impl From<OpenFsRepository> for MaybeOpenFsRepository {
-    fn from(value: OpenFsRepository) -> Self {
-        MaybeOpenFsRepository {
-            fs_impl: Arc::new(MaybeOpenFsRepositoryImpl(Arc::new(ArcSwap::new(Arc::new(
-                InnerFsRepository::Open(value.fs_impl),
-            ))))),
+    async fn from_config(
+        config: Self::Config,
+    ) -> crate::storage::OpenRepositoryResult<crate::storage::RepositoryHandle> {
+        if config.params.create_renders {
+            MaybeOpenFsRepository::<MaybeRenderStore>::from_fs_config(config)
+                .await
+                .map(Into::into)
+        } else {
+            MaybeOpenFsRepository::<NoRenderStore>::from_fs_config(config)
+                .await
+                .map(Into::into)
         }
     }
 }
 
-impl From<Arc<OpenFsRepository>> for MaybeOpenFsRepository {
-    fn from(value: Arc<OpenFsRepository>) -> Self {
+impl<RS> OpenFsRepository<RS>
+where
+    RS: DefaultRenderStoreCreationPolicy + RenderStoreForUser<RenderStore = RS>,
+{
+    /// Establish a new filesystem repository
+    pub async fn create(root: impl AsRef<Path>) -> OpenRepositoryResult<Self> {
+        OpenFsRepositoryImpl::<RS>::create(root)
+            .await
+            .map(Into::into)
+            .map(|fs_impl| FsRepository { fs_impl })
+    }
+}
+
+impl<RS> From<OpenFsRepository<RS>> for MaybeOpenFsRepository<RS> {
+    fn from(value: OpenFsRepository<RS>) -> Self {
+        MaybeOpenFsRepository::<RS> {
+            fs_impl: Arc::new(MaybeOpenFsRepositoryImpl::<RS>(Arc::new(ArcSwap::new(
+                Arc::new(InnerFsRepository::Open(value.fs_impl)),
+            )))),
+        }
+    }
+}
+
+impl<RS> From<Arc<OpenFsRepository<RS>>> for MaybeOpenFsRepository<RS> {
+    fn from(value: Arc<OpenFsRepository<RS>>) -> Self {
         MaybeOpenFsRepository {
-            fs_impl: Arc::new(MaybeOpenFsRepositoryImpl(Arc::new(ArcSwap::new(Arc::new(
-                InnerFsRepository::Open(Arc::clone(&value.fs_impl)),
-            ))))),
+            fs_impl: Arc::new(MaybeOpenFsRepositoryImpl::<RS>(Arc::new(ArcSwap::new(
+                Arc::new(InnerFsRepository::Open(Arc::clone(&value.fs_impl))),
+            )))),
+        }
+    }
+}
+
+impl From<MaybeOpenFsRepository<MaybeRenderStore>> for MaybeOpenFsRepository<NoRenderStore> {
+    fn from(value: MaybeOpenFsRepository<MaybeRenderStore>) -> Self {
+        Self {
+            fs_impl: Arc::new(Arc::unwrap_or_clone(value.fs_impl).into()),
+        }
+    }
+}
+
+impl From<MaybeOpenFsRepository<RenderStore>> for MaybeOpenFsRepository<NoRenderStore> {
+    fn from(value: MaybeOpenFsRepository<RenderStore>) -> Self {
+        Self {
+            fs_impl: Arc::new(Arc::unwrap_or_clone(value.fs_impl).into()),
         }
     }
 }
@@ -333,56 +677,116 @@ impl From<Arc<OpenFsRepository>> for MaybeOpenFsRepository {
 /// An [`OpenFsRepository`] is more useful than this one, but
 /// can also be easily retrieved via the [`Self::opened`].
 #[derive(Clone)]
-pub struct MaybeOpenFsRepositoryImpl(Arc<ArcSwap<InnerFsRepository>>);
+pub struct MaybeOpenFsRepositoryImpl<RS>(Arc<ArcSwap<InnerFsRepository<RS>>>);
 
-enum InnerFsRepository {
+enum InnerFsRepository<RS> {
     Closed(Config),
-    Open(Arc<OpenFsRepositoryImpl>),
+    Open(Arc<OpenFsRepositoryImpl<RS>>),
 }
 
-impl From<OpenFsRepositoryImpl> for MaybeOpenFsRepositoryImpl {
-    fn from(value: OpenFsRepositoryImpl) -> Self {
+impl<RS> From<OpenFsRepositoryImpl<RS>> for MaybeOpenFsRepositoryImpl<RS> {
+    fn from(value: OpenFsRepositoryImpl<RS>) -> Self {
         Arc::new(value).into()
     }
 }
 
-impl From<Arc<OpenFsRepositoryImpl>> for MaybeOpenFsRepositoryImpl {
-    fn from(value: Arc<OpenFsRepositoryImpl>) -> Self {
+impl<RS> From<Arc<OpenFsRepositoryImpl<RS>>> for MaybeOpenFsRepositoryImpl<RS> {
+    fn from(value: Arc<OpenFsRepositoryImpl<RS>>) -> Self {
         Self(Arc::new(ArcSwap::new(Arc::new(InnerFsRepository::Open(
             value,
         )))))
     }
 }
 
-#[async_trait::async_trait]
-impl FromConfig for MaybeOpenFsRepositoryImpl {
-    type Config = Config;
-
-    async fn from_config(config: Self::Config) -> crate::storage::OpenRepositoryResult<Self> {
-        if config.params.lazy {
-            Ok(Self(Arc::new(ArcSwap::new(Arc::new(
-                InnerFsRepository::Closed(config),
-            )))))
-        } else {
-            Ok(OpenFsRepositoryImpl::from_config(config).await?.into())
+impl From<MaybeOpenFsRepositoryImpl<MaybeRenderStore>>
+    for MaybeOpenFsRepositoryImpl<NoRenderStore>
+{
+    fn from(value: MaybeOpenFsRepositoryImpl<MaybeRenderStore>) -> Self {
+        match &**value.0.load() {
+            InnerFsRepository::Closed(config) => Self(Arc::new(ArcSwap::new(Arc::new(
+                InnerFsRepository::Closed(config.clone()),
+            )))),
+            InnerFsRepository::Open(repo) => Self(Arc::new(ArcSwap::new(Arc::new(
+                InnerFsRepository::Open(Arc::new((**repo).clone().into())),
+            )))),
         }
     }
 }
 
-impl MaybeOpenFsRepositoryImpl {
+impl From<MaybeOpenFsRepositoryImpl<RenderStore>> for MaybeOpenFsRepositoryImpl<NoRenderStore> {
+    fn from(value: MaybeOpenFsRepositoryImpl<RenderStore>) -> Self {
+        match &**value.0.load() {
+            InnerFsRepository::Closed(config) => Self(Arc::new(ArcSwap::new(Arc::new(
+                InnerFsRepository::Closed(config.clone()),
+            )))),
+            InnerFsRepository::Open(repo) => Self(Arc::new(ArcSwap::new(Arc::new(
+                InnerFsRepository::Open(Arc::new((**repo).clone().into())),
+            )))),
+        }
+    }
+}
+
+impl TryFrom<MaybeOpenFsRepositoryImpl<MaybeRenderStore>>
+    for MaybeOpenFsRepositoryImpl<RenderStore>
+{
+    type Error = OpenRepositoryError;
+
+    fn try_from(value: MaybeOpenFsRepositoryImpl<MaybeRenderStore>) -> OpenRepositoryResult<Self> {
+        Ok(Self(Arc::new(ArcSwap::new(Arc::new({
+            match &**value.0.load() {
+                InnerFsRepository::Closed(config) => InnerFsRepository::Closed(config.clone()),
+                InnerFsRepository::Open(o) => {
+                    InnerFsRepository::Open(Arc::new((**o).clone().try_into()?))
+                }
+            }
+        })))))
+    }
+}
+
+impl<RS> MaybeOpenFsRepositoryImpl<RS>
+where
+    RS: DefaultRenderStoreCreationPolicy
+        + RenderStoreForUser<RenderStore = RS>
+        + Send
+        + Sync
+        + 'static,
+{
+    async fn from_config(config: Config) -> crate::storage::OpenRepositoryResult<Self> {
+        if config.params.lazy {
+            Ok(Self(Arc::new(ArcSwap::new(Arc::new(InnerFsRepository::<
+                RS,
+            >::Closed(
+                config
+            ))))))
+        } else {
+            Ok(OpenFsRepositoryImpl::<RS>::from_fs_config(config)
+                .await?
+                .into())
+        }
+    }
+}
+
+impl<RS> MaybeOpenFsRepositoryImpl<RS>
+where
+    RS: DefaultRenderStoreCreationPolicy
+        + RenderStoreForUser<RenderStore = RS>
+        + Send
+        + Sync
+        + 'static,
+{
     /// Open a filesystem repository, creating it if necessary
-    pub async fn create<P: AsRef<Path>>(root: P) -> OpenRepositoryResult<Self> {
-        Ok(Self(Arc::new(ArcSwap::new(Arc::new(
-            InnerFsRepository::Open(Arc::new(OpenFsRepositoryImpl::create(root).await?)),
+    pub async fn create(root: impl AsRef<Path>) -> OpenRepositoryResult<Self> {
+        Ok(MaybeOpenFsRepositoryImpl(Arc::new(ArcSwap::new(Arc::new(
+            InnerFsRepository::Open(Arc::new(OpenFsRepositoryImpl::<RS>::create(root).await?)),
         )))))
     }
 
     // Open a repository over the given directory, which must already
     // exist and be properly setup as a repository
-    pub async fn open<P: AsRef<Path>>(root: P) -> OpenRepositoryResult<Self> {
+    pub async fn open(root: impl AsRef<Path>) -> OpenRepositoryResult<Self> {
         let root = root.as_ref();
-        Ok(Self(Arc::new(ArcSwap::new(Arc::new(
-            InnerFsRepository::Open(Arc::new(OpenFsRepositoryImpl::open(&root).await?)),
+        Ok(MaybeOpenFsRepositoryImpl(Arc::new(ArcSwap::new(Arc::new(
+            InnerFsRepository::Open(Arc::new(OpenFsRepositoryImpl::<RS>::open(&root).await?)),
         )))))
     }
 
@@ -390,7 +794,7 @@ impl MaybeOpenFsRepositoryImpl {
     /// any required opening and validation as needed
     pub fn opened(
         &self,
-    ) -> impl futures::Future<Output = Result<Arc<OpenFsRepositoryImpl>>> + 'static {
+    ) -> impl futures::Future<Output = Result<Arc<OpenFsRepositoryImpl<RS>>>> + 'static {
         self.opened_and_map_err(Error::failed_to_open_repository)
     }
 
@@ -398,7 +802,7 @@ impl MaybeOpenFsRepositoryImpl {
     /// any required opening and validation as needed
     pub fn try_open(
         &self,
-    ) -> impl futures::Future<Output = OpenRepositoryResult<Arc<OpenFsRepositoryImpl>>> + 'static
+    ) -> impl futures::Future<Output = OpenRepositoryResult<Arc<OpenFsRepositoryImpl<RS>>>> + 'static
     {
         self.opened_and_map_err(|_, e| e)
     }
@@ -406,7 +810,7 @@ impl MaybeOpenFsRepositoryImpl {
     fn opened_and_map_err<F, E>(
         &self,
         map: F,
-    ) -> impl futures::Future<Output = std::result::Result<Arc<OpenFsRepositoryImpl>, E>> + 'static
+    ) -> impl futures::Future<Output = std::result::Result<Arc<OpenFsRepositoryImpl<RS>>, E>> + 'static
     where
         F: FnOnce(&Self, OpenRepositoryError) -> E + 'static,
     {
@@ -415,26 +819,20 @@ impl MaybeOpenFsRepositoryImpl {
             match &**inner.load() {
                 InnerFsRepository::Closed(config) => {
                     let config = config.clone();
-                    let opened = match OpenFsRepositoryImpl::from_config(config).await {
+                    let opened = match OpenFsRepositoryImpl::<RS>::from_fs_config(config).await {
                         Ok(o) => Arc::new(o),
                         Err(err) => return Err(map(&Self(inner), err)),
                     };
                     inner.rcu(|_| InnerFsRepository::Open(Arc::clone(&opened)));
                     Ok(opened)
                 }
-                InnerFsRepository::Open(o) => Ok(Arc::clone(o)),
+                InnerFsRepository::<RS>::Open(o) => Ok(Arc::clone(o)),
             }
         }
     }
+}
 
-    /// The filesystem root path of this repository
-    pub fn root(&self) -> PathBuf {
-        match &**self.0.load() {
-            InnerFsRepository::Closed(config) => config.path.clone(),
-            InnerFsRepository::Open(o) => o.root(),
-        }
-    }
-
+impl<RS> MaybeOpenFsRepositoryImpl<RS> {
     pub fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
         match &**self.0.load() {
             InnerFsRepository::Open(repo) => repo
@@ -450,6 +848,19 @@ impl MaybeOpenFsRepositoryImpl {
         }
     }
 
+    /// The filesystem root path of this repository
+    pub fn root(&self) -> PathBuf {
+        match &**self.0.load() {
+            InnerFsRepository::Closed(config) => config.path.clone(),
+            InnerFsRepository::Open(o) => o.root(),
+        }
+    }
+}
+
+impl<RS> MaybeOpenFsRepositoryImpl<RS>
+where
+    RS: Clone,
+{
     pub fn set_tag_namespace(
         &mut self,
         tag_namespace: Option<TagNamespaceBuf>,
@@ -472,20 +883,39 @@ impl MaybeOpenFsRepositoryImpl {
     }
 }
 
-impl Address for MaybeOpenFsRepositoryImpl {
+impl MaybeOpenFsRepositoryImpl<MaybeRenderStore> {
+    /// Return a new version of this repository with render store creation
+    /// disabled. The render store will only be accessible if it already exists,
+    /// but will not be created on demand.
+    pub fn without_render_creation(self) -> Self {
+        self.0.rcu(|inner| match &**inner {
+            InnerFsRepository::Open(repo) => {
+                InnerFsRepository::Open(Arc::new((**repo).clone().without_render_creation()))
+            }
+            InnerFsRepository::Closed(config) => InnerFsRepository::Closed({
+                let mut config = config.clone();
+                config.params.create_renders = false;
+                config
+            }),
+        });
+        self
+    }
+}
+
+impl<RS> Address for MaybeOpenFsRepositoryImpl<RS> {
     fn address(&self) -> Cow<'_, url::Url> {
         Cow::Owned(url::Url::from_directory_path(self.root()).unwrap())
     }
 }
 
-impl std::fmt::Debug for MaybeOpenFsRepositoryImpl {
+impl<RS> std::fmt::Debug for MaybeOpenFsRepositoryImpl<RS> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("FsRepository @ {:?}", self.root()))
     }
 }
 
 /// A validated and opened fs repository.
-pub struct OpenFsRepositoryImpl {
+pub struct OpenFsRepositoryImpl<RS> {
     root: PathBuf,
     /// the namespace to use for tag resolution. If set, then this is treated
     /// as "chroot" of the real tag root.
@@ -495,18 +925,62 @@ pub struct OpenFsRepositoryImpl {
     /// stores all digraph object data for this repo
     pub objects: FsHashStore,
     /// stores rendered file system layers for use in overlayfs
-    pub renders: Option<RenderStore>,
+    pub rs_impl: RS,
 }
 
-#[async_trait::async_trait]
-impl FromConfig for OpenFsRepositoryImpl {
-    type Config = Config;
+impl TryFrom<OpenFsRepositoryImpl<MaybeRenderStore>> for OpenFsRepositoryImpl<RenderStore> {
+    type Error = OpenRepositoryError;
 
-    async fn from_config(config: Self::Config) -> crate::storage::OpenRepositoryResult<Self> {
-        let repo = if config.params.create {
-            Self::create(&config.path).await
+    fn try_from(value: OpenFsRepositoryImpl<MaybeRenderStore>) -> OpenRepositoryResult<Self> {
+        Ok(Self {
+            root: value.root,
+            tag_namespace: value.tag_namespace,
+            payloads: value.payloads,
+            objects: value.objects,
+            rs_impl: value.rs_impl.try_into()?,
+        })
+    }
+}
+
+impl From<OpenFsRepositoryImpl<MaybeRenderStore>> for OpenFsRepositoryImpl<NoRenderStore> {
+    fn from(value: OpenFsRepositoryImpl<MaybeRenderStore>) -> Self {
+        Self {
+            root: value.root,
+            tag_namespace: value.tag_namespace,
+            payloads: value.payloads,
+            objects: value.objects,
+            rs_impl: NoRenderStore,
+        }
+    }
+}
+
+impl From<OpenFsRepositoryImpl<RenderStore>> for OpenFsRepositoryImpl<NoRenderStore> {
+    fn from(value: OpenFsRepositoryImpl<RenderStore>) -> Self {
+        Self {
+            root: value.root,
+            tag_namespace: value.tag_namespace,
+            payloads: value.payloads,
+            objects: value.objects,
+            rs_impl: NoRenderStore,
+        }
+    }
+}
+
+impl<RS> OpenFsRepositoryImpl<RS>
+where
+    RS: DefaultRenderStoreCreationPolicy + RenderStoreForUser<RenderStore = RS> + Send + Sync,
+{
+    async fn from_fs_config(config: Config) -> crate::storage::OpenRepositoryResult<Self> {
+        let creation_policy = if config.params.create_renders {
+            RenderStoreCreationPolicy::CreateIfMissing
         } else {
-            Self::open(&config.path).await
+            RenderStoreCreationPolicy::DoNotCreate
+        };
+
+        let repo = if config.params.create {
+            Self::create_with_policy(&config.path, creation_policy).await
+        } else {
+            Self::open_with_policy(&config.path, creation_policy).await
         };
         repo.map(|mut repo| {
             repo.set_tag_namespace(config.params.tag_namespace);
@@ -515,34 +989,68 @@ impl FromConfig for OpenFsRepositoryImpl {
     }
 }
 
-impl Clone for OpenFsRepositoryImpl {
+impl<RS: Clone> Clone for OpenFsRepositoryImpl<RS> {
     fn clone(&self) -> Self {
         let root = self.root.clone();
         Self {
             objects: FsHashStore::open_unchecked(root.join("objects")),
             payloads: FsHashStore::open_unchecked(root.join("payloads")),
-            renders: self.renders.clone(),
+            rs_impl: self.rs_impl.clone(),
             root,
             tag_namespace: self.tag_namespace.clone(),
         }
     }
 }
 
-impl LocalRepository for OpenFsRepositoryImpl {
+impl<RS> LocalPayloads for OpenFsRepositoryImpl<RS> {
     #[inline]
     fn payloads(&self) -> &FsHashStore {
         &self.payloads
     }
+}
 
-    #[inline]
-    fn render_store(&self) -> Result<&RenderStore> {
-        self.renders
-            .as_ref()
-            .ok_or_else(|| Error::NoRenderStorage(self.address()))
+impl<RS> LocalRenderStore for OpenFsRepositoryImpl<RS>
+where
+    RS: LocalRenderStore<RenderStore = RS>,
+{
+    fn render_store(&self) -> &RenderStore {
+        self.rs_impl.render_store()
     }
 }
 
-impl OpenFsRepositoryImpl {
+impl<RS> RenderStoreForUser for OpenFsRepositoryImpl<RS>
+where
+    RS: RenderStoreForUser<RenderStore = RS>,
+{
+    type RenderStore = RS;
+
+    fn render_store_for_user(
+        creation_policy: RenderStoreCreationPolicy,
+        url: url::Url,
+        root: &Path,
+        username: &Path,
+    ) -> OpenRepositoryResult<Self::RenderStore> {
+        RS::render_store_for_user(creation_policy, url, root, username)
+    }
+}
+
+impl<RS> TryRenderStore for OpenFsRepositoryImpl<RS>
+where
+    RS: TryRenderStore,
+{
+    fn try_render_store(&self) -> OpenRepositoryResult<Cow<'_, RenderStore>> {
+        self.rs_impl.try_render_store()
+    }
+
+    fn proxy_path(&self) -> Option<Cow<'_, std::path::Path>> {
+        self.rs_impl.proxy_path()
+    }
+}
+
+impl<RS> OpenFsRepositoryImpl<RS>
+where
+    RS: DefaultRenderStoreCreationPolicy,
+{
     /// The address of this repository that can be used to re-open it
     pub fn address(&self) -> url::Url {
         Config {
@@ -551,14 +1059,34 @@ impl OpenFsRepositoryImpl {
                 create: false,
                 lazy: false,
                 tag_namespace: self.tag_namespace.clone(),
+                create_renders: RS::default_creation_policy().is_create_if_missing(),
             },
         }
         .to_address()
         .expect("repository address is valid")
     }
+}
 
-    /// Establish a new filesystem repository
-    pub async fn create<P: AsRef<Path>>(root: P) -> OpenRepositoryResult<Self> {
+impl<RS> OpenFsRepositoryImpl<RS> {
+    /// The latest repository version that this was migrated to.
+    pub async fn last_migration(&self) -> MigrationResult<semver::Version> {
+        Ok(read_last_migration_version(self.root())
+            .await?
+            .unwrap_or_else(|| {
+                semver::Version::parse(crate::VERSION)
+                    .expect("crate::VERSION is a valid semver value")
+            }))
+    }
+}
+
+impl<RS> OpenFsRepositoryImpl<RS>
+where
+    RS: DefaultRenderStoreCreationPolicy + RenderStoreForUser<RenderStore = RS>,
+{
+    async fn create_with_policy(
+        root: impl AsRef<Path>,
+        creation_policy: RenderStoreCreationPolicy,
+    ) -> OpenRepositoryResult<Self> {
         let root = root.as_ref();
         // avoid creating any blocking tasks so as to not spawn
         // threads for the case where this repo is being opened as
@@ -575,12 +1103,11 @@ impl OpenFsRepositoryImpl {
                 source,
             }
         })?;
-        let username = whoami::username();
+        // let username = whoami::username();
         for path in [
             root.join("tags"),
             root.join("objects"),
             root.join("payloads"),
-            root.join("renders").join(username).join(PROXY_DIRNAME),
             root.join(DURABLE_EDITS_DIR),
         ] {
             makedirs_with_perms(&path, 0o777)
@@ -592,35 +1119,13 @@ impl OpenFsRepositoryImpl {
         // `VERSION` to our version, so it is compatible.
         // FIXME: No attempt to check if the repo already existed and is
         // actually incompatible.
-        unsafe { Self::open_unchecked(root) }
+        unsafe { Self::open_unchecked_with_policy(root, creation_policy) }
     }
 
-    pub(crate) fn get_render_storage(&self) -> Result<&crate::storage::fs::FsHashStore> {
-        match &self.renders {
-            Some(render_store) => Ok(&render_store.renders),
-            None => Err(Error::NoRenderStorage(self.address())),
-        }
-    }
-
-    /// Return the configured tag namespace, if any.
-    #[inline]
-    pub fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
-        self.tag_namespace.as_deref().map(Cow::Borrowed)
-    }
-
-    /// The latest repository version that this was migrated to.
-    pub async fn last_migration(&self) -> MigrationResult<semver::Version> {
-        Ok(read_last_migration_version(self.root())
-            .await?
-            .unwrap_or_else(|| {
-                semver::Version::parse(crate::VERSION)
-                    .expect("crate::VERSION is a valid semver value")
-            }))
-    }
-
-    // Open a repository over the given directory, which must already
-    // exist and be a repository
-    pub async fn open<P: AsRef<Path>>(root: P) -> OpenRepositoryResult<Self> {
+    async fn open_with_policy(
+        root: impl AsRef<Path>,
+        creation_policy: RenderStoreCreationPolicy,
+    ) -> OpenRepositoryResult<Self> {
         // although this is an async function, we avoid spawning a blocking task
         // here for the cases where a local fs repo is opened to spawn a runtime
         // and the program cannot spawn another thread without angering the kernel
@@ -636,7 +1141,7 @@ impl OpenFsRepositoryImpl {
 
         // Safety: we canonicalized `root` and check the version compatibility
         // in the next step.
-        let repo = unsafe { Self::open_unchecked(&root)? };
+        let repo = unsafe { Self::open_unchecked_with_policy(&root, creation_policy)? };
 
         let current_version = semver::Version::parse(crate::VERSION).unwrap();
         let repo_version = repo.last_migration().await?;
@@ -650,8 +1155,20 @@ impl OpenFsRepositoryImpl {
         Ok(repo)
     }
 
+    /// Establish a new filesystem repository
+    pub async fn create(root: impl AsRef<Path>) -> OpenRepositoryResult<Self> {
+        Self::create_with_policy(root, RS::default_creation_policy()).await
+    }
+
+    // Open a repository over the given directory, which must already
+    // exist and be a repository
+    pub async fn open(root: impl AsRef<Path>) -> OpenRepositoryResult<Self> {
+        Self::open_with_policy(root, RS::default_creation_policy()).await
+    }
+
     /// Open a repository at the given directory, without reading or verifying
-    /// the migration version of the repository.
+    /// the migration version of the repository, with explicit render-store
+    /// creation policy.
     ///
     /// # Safety
     ///
@@ -659,16 +1176,36 @@ impl OpenFsRepositoryImpl {
     ///
     /// The caller must ensure that the repository version is compatible with
     /// this version of spfs before using the repository.
-    unsafe fn open_unchecked<P: AsRef<Path>>(root: P) -> OpenRepositoryResult<Self> {
+    unsafe fn open_unchecked_with_policy(
+        root: impl AsRef<Path>,
+        creation_policy: RenderStoreCreationPolicy,
+    ) -> OpenRepositoryResult<Self> {
         let root = root.as_ref();
-        let username = whoami::username();
-        Ok(Self {
+        let username = PathBuf::from(whoami::username());
+        let url = url::Url::from_directory_path(root).map_err(|()| {
+            OpenRepositoryError::PathNotInitialized {
+                path: root.to_owned(),
+                source: std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "repository path is not a valid directory URL",
+                ),
+            }
+        })?;
+        Ok(OpenFsRepositoryImpl::<RS> {
             objects: FsHashStore::open(root.join("objects"))?,
             payloads: FsHashStore::open(root.join("payloads"))?,
-            renders: RenderStore::for_user(root, username).ok(),
+            rs_impl: RS::render_store_for_user(creation_policy, url, root, &username)?,
             root: root.to_owned(),
             tag_namespace: None,
         })
+    }
+}
+
+impl<RS> OpenFsRepositoryImpl<RS> {
+    /// Return the configured tag namespace, if any.
+    #[inline]
+    pub fn get_tag_namespace(&self) -> Option<Cow<'_, TagNamespace>> {
+        self.tag_namespace.as_deref().map(Cow::Borrowed)
     }
 
     /// The filesystem root path of this repository
@@ -693,41 +1230,53 @@ impl OpenFsRepositoryImpl {
     }
 }
 
-#[async_trait::async_trait]
-impl FsRepositoryOps for OpenFsRepositoryImpl {
-    /// True if this repo is setup to generate local manifest renders.
-    fn has_renders(&self) -> bool {
-        self.renders.is_some()
+impl OpenFsRepositoryImpl<MaybeRenderStore> {
+    /// Return a new version of this repository with render store creation
+    /// disabled. The render store will only be accessible if it already exists,
+    /// but will not be created on demand.
+    pub fn without_render_creation(self) -> Self {
+        Self {
+            root: self.root,
+            tag_namespace: self.tag_namespace,
+            payloads: self.payloads,
+            objects: self.objects,
+            rs_impl: self.rs_impl.without_render_creation(),
+        }
     }
+}
 
+#[async_trait::async_trait]
+impl<RS> FsRepositoryOps for OpenFsRepositoryImpl<RS>
+where
+    RS: TryRenderStore + RenderStoreForUser<RenderStore = RS> + Send + Sync,
+{
     fn iter_rendered_manifests(
         &self,
     ) -> Pin<Box<dyn Stream<Item = Result<crate::encoding::Digest>> + Send + Sync + '_>> {
         Box::pin(try_stream! {
-            let renders = self.get_render_storage()?;
-            for await digest in renders.iter() {
-                yield digest?;
+            if let Ok(store) = self.rs_impl.try_render_store() {
+                for await digest in store.renders.iter() {
+                    yield digest?;
+                }
             }
         })
     }
 
-    fn proxy_path(&self) -> Option<&std::path::Path> {
-        self.renders
-            .as_ref()
-            .map(|render_store| render_store.proxy.root())
+    fn proxy_path(&self) -> Option<Cow<'_, std::path::Path>> {
+        self.rs_impl.proxy_path()
     }
 
     async fn remove_rendered_manifest(&self, digest: crate::encoding::Digest) -> Result<()> {
-        let renders = match &self.renders {
-            Some(render_store) => &render_store.renders,
-            None => return Ok(()),
-        };
+        let renders = &self
+            .try_render_store()
+            .map_err(|source| Error::failed_to_open_repository(self, source))?
+            .renders;
         let rendered_dirpath = renders.build_digest_path(&digest);
         let workdir = renders.workdir();
         makedirs_with_perms(&workdir, renders.directory_permissions).map_err(|source| {
             Error::StorageWriteError("remove render create workdir", workdir.clone(), source)
         })?;
-        OpenFsRepository::remove_dir_atomically(&rendered_dirpath, &workdir).await
+        OpenFsRepository::<RS>::remove_dir_atomically(&rendered_dirpath, &workdir).await
     }
 
     async fn remove_rendered_manifest_if_older_than(
@@ -735,10 +1284,10 @@ impl FsRepositoryOps for OpenFsRepositoryImpl {
         older_than: DateTime<Utc>,
         digest: crate::encoding::Digest,
     ) -> Result<bool> {
-        let renders = match &self.renders {
-            Some(render_store) => &render_store.renders,
-            None => return Ok(false),
-        };
+        let renders = &self
+            .try_render_store()
+            .map_err(|source| Error::failed_to_open_repository(self, source))?
+            .renders;
         let rendered_dirpath = renders.build_digest_path(&digest);
 
         let metadata = match tokio::fs::symlink_metadata(&rendered_dirpath).await {
@@ -774,16 +1323,29 @@ impl FsRepositoryOps for OpenFsRepositoryImpl {
     ///
     /// Returns tuples of (username, `ManifestViewer`).
     fn renders_for_all_users(&self) -> Result<Vec<(String, impl FsRepositoryOps)>> {
-        if !self.has_renders() {
-            return Ok(Vec::new());
-        }
-
         let mut render_dirs = Vec::new();
 
         let renders_dir = self.root.join("renders");
-        for entry in std::fs::read_dir(&renders_dir).map_err(|err| {
-            Error::StorageReadError("read_dir on renders dir", renders_dir.clone(), err)
-        })? {
+        for entry in {
+            match std::fs::read_dir(&renders_dir) {
+                Ok(entries) => entries,
+                Err(err) => {
+                    match err.kind() {
+                        std::io::ErrorKind::NotFound => {
+                            // no renders dir means no renders, so just return empty
+                            return Ok(Vec::new());
+                        }
+                        _ => {
+                            return Err(Error::StorageReadError(
+                                "read_dir on renders dir",
+                                renders_dir.clone(),
+                                err,
+                            ));
+                        }
+                    }
+                }
+            }
+        } {
             let entry = entry.map_err(|err| {
                 Error::StorageReadError("entry in renders dir", renders_dir.clone(), err)
             })?;
@@ -792,44 +1354,91 @@ impl FsRepositoryOps for OpenFsRepositoryImpl {
             if !dir.is_dir() {
                 continue;
             }
-            render_dirs.push((
+            render_dirs.push(
                 entry
                     .file_name()
                     .to_str()
                     .expect("filename is valid utf8")
                     .to_string(),
-                dir,
-            ));
+            );
         }
 
-        Ok(render_dirs
+        render_dirs
             .into_iter()
-            .map(|(username, dir)| -> (String, Self) {
-                (
-                    username,
-                    Self {
-                        objects: FsHashStore::open_unchecked(self.root.join("objects")),
-                        payloads: FsHashStore::open_unchecked(self.root.join("payloads")),
-                        renders: self
-                            .renders
-                            .as_ref()
-                            .and_then(|_| RenderStore::for_user(self.root.as_ref(), dir).ok()),
-                        root: self.root.clone(),
-                        tag_namespace: self.tag_namespace.clone(),
-                    },
-                )
+            .filter_map(|username| {
+                // Pre-validate the proxy directory on disk before calling
+                // render_store_for_user. Some RS types (e.g. MaybeRenderStore)
+                // defer validation, so render_store_for_user alone may succeed
+                // even when the on-disk proxy directory is missing.
+                let proxy_dir = self
+                    .root
+                    .join("renders")
+                    .join(&username)
+                    .join(PROXY_DIRNAME);
+                match std::fs::symlink_metadata(&proxy_dir) {
+                    Ok(_) => {}
+                    Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                        tracing::warn!(
+                            %username,
+                            "Skipping per-user render store (proxy directory not found)"
+                        );
+                        return None;
+                    }
+                    Err(err) => {
+                        tracing::warn!(
+                            %username,
+                            ?err,
+                            "Skipping per-user render store (unable to read proxy directory)"
+                        );
+                        return None;
+                    }
+                }
+
+                let rs_impl = match RS::render_store_for_user(
+                    RenderStoreCreationPolicy::DoNotCreate,
+                    self.address().into_owned(),
+                    &self.root,
+                    Path::new(&username),
+                ) {
+                    Ok(rs) => rs,
+                    Err(
+                        OpenRepositoryError::PathNotInitialized { .. }
+                        | OpenRepositoryError::RenderStorageUnavailable,
+                    ) => {
+                        tracing::warn!(
+                            %username,
+                            "Skipping per-user render store (not initialized or unavailable)"
+                        );
+                        return None;
+                    }
+                    Err(source) => {
+                        return Some(Err(Error::FailedToOpenRepository {
+                            repository: format!("<Render Storage for {username}>"),
+                            source,
+                        }));
+                    }
+                };
+
+                let fs_impl = Self {
+                    objects: FsHashStore::open_unchecked(self.root.join("objects")),
+                    payloads: FsHashStore::open_unchecked(self.root.join("payloads")),
+                    rs_impl,
+                    root: self.root.clone(),
+                    tag_namespace: self.tag_namespace.clone(),
+                };
+                Some(Ok((username, fs_impl)))
             })
-            .collect())
+            .collect::<Result<Vec<_>>>()
     }
 }
 
-impl Address for OpenFsRepositoryImpl {
+impl<RS> Address for OpenFsRepositoryImpl<RS> {
     fn address(&self) -> Cow<'_, url::Url> {
         Cow::Owned(url::Url::from_directory_path(self.root()).unwrap())
     }
 }
 
-impl std::fmt::Debug for OpenFsRepositoryImpl {
+impl<RS> std::fmt::Debug for OpenFsRepositoryImpl<RS> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("OpenFsRepositoryImpl @ {:?}", self.root()))
     }

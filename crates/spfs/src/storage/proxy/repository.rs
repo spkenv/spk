@@ -93,7 +93,9 @@ impl ProxyRepository {
 impl storage::FromConfig for ProxyRepository {
     type Config = Config;
 
-    async fn from_config(config: Self::Config) -> OpenRepositoryResult<Self> {
+    async fn from_config(
+        config: Self::Config,
+    ) -> OpenRepositoryResult<crate::storage::RepositoryHandle> {
         let spfs_config =
             crate::Config::current().map_err(|source| OpenRepositoryError::FailedToLoadConfig {
                 source: Box::new(source),
@@ -124,7 +126,8 @@ impl storage::FromConfig for ProxyRepository {
             primary,
             secondary,
             include_secondary_tags: config.include_secondary_tags,
-        })
+        }
+        .into())
     }
 }
 

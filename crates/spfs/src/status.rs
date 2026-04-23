@@ -62,7 +62,6 @@ pub async fn get_runtime_backing_repo(
                 repository: RUNTIME_REPO_NAME.into(),
                 source,
             })
-            .map(Into::into)
     }
 }
 
