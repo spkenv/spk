@@ -4166,6 +4166,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "spfstest"
+version = "0.44.0"
+dependencies = [
+ "spfstest-macro",
+ "tokio",
+]
+
+[[package]]
+name = "spfstest-macro"
+version = "0.44.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.106",
+]
+
+[[package]]
 name = "spk"
 version = "0.44.0"
 dependencies = [
@@ -4221,6 +4238,7 @@ dependencies = [
  "serial_test",
  "spdx",
  "spfs",
+ "spfstest",
  "spk-exec",
  "spk-schema",
  "spk-solve",
