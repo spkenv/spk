@@ -5,6 +5,7 @@
 use clap::Parser;
 use rstest::rstest;
 use spfs::storage::prelude::*;
+use spfstest::spfstest;
 use spk_schema::RuntimeEnvironment;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::{option_map, version_ident};
@@ -24,6 +25,7 @@ struct Opt {
     build: Build,
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -69,6 +71,7 @@ build:
     assert_eq!(non_src_builds.count(), 3, "Expected three distinct builds");
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -150,6 +153,7 @@ build:
     assert_eq!(non_src_builds.count(), 1, "Expected one build");
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -232,6 +236,7 @@ install:
     r.1.expect("Expected build of one to succeed");
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -353,6 +358,7 @@ build:
     }
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -420,6 +426,7 @@ build:
     );
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -535,6 +542,7 @@ build:
     );
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -647,6 +655,7 @@ build:
 mod workaround_rstest_not_preserving_attrs {
     use super::*;
 
+    #[spfstest]
     #[rstest]
     // cases not involving host options
     #[should_panic]
@@ -719,6 +728,7 @@ build:
     }
 }
 
+#[spfstest]
 /// A package may contain files/directories with a leading dot
 #[rstest]
 #[case::cli("cli")]
@@ -798,6 +808,7 @@ build:
     }
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]

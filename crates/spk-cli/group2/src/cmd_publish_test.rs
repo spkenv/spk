@@ -10,6 +10,7 @@ use spfs::RemoteAddress;
 use spfs::config::Remote;
 use spfs::prelude::*;
 use spfs::storage::EntryType;
+use spfstest::spfstest;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::recipe;
 use spk_solve::spec;
@@ -24,6 +25,7 @@ struct Opt {
     publish: Publish,
 }
 
+#[spfstest]
 /// Test when publishing a package that normalized tags are used when writing to
 /// storage.
 ///

@@ -4,6 +4,7 @@
 
 use clap::Parser;
 use rstest::rstest;
+use spfstest::spfstest;
 use spk_cli_common::Run;
 use spk_cmd_build::build_package;
 use spk_schema::foundation::fixtures::*;
@@ -17,6 +18,7 @@ struct TestOpt {
     test: CmdTest,
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -63,6 +65,7 @@ tests:
     opt.test.run().await.unwrap();
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -123,6 +126,7 @@ tests:
         .expect("spk test should not have a solver error");
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -198,6 +202,7 @@ tests:
         .expect("spk test should not have a solver error");
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -278,6 +283,7 @@ tests:
         .expect("spk test should not have a solver error");
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -387,6 +393,7 @@ tests:
         .expect("spk test should not have a solver error");
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -542,6 +549,7 @@ tests:
         .expect_err("the test run should fail, otherwise the selectors aren't working properly");
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]

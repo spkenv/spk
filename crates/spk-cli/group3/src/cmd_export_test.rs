@@ -4,6 +4,7 @@
 
 use rstest::rstest;
 use spfs::prelude::*;
+use spfstest::spfstest;
 use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_schema::foundation::option_map;
 use spk_schema::{Package, recipe};
@@ -18,6 +19,7 @@ fn resolvo_solver() -> SolverImpl {
     SolverImpl::Resolvo(spk_solve::ResolvoSolver::default())
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]

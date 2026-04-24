@@ -6,6 +6,7 @@ use clap::Parser;
 use rstest::rstest;
 use spfs::RemoteAddress;
 use spfs::config::Remote;
+use spfstest::spfstest;
 use spk_cli_common::Run;
 use spk_solve::{Component, recipe, spec};
 use spk_storage::fixtures::{empty_layer_digest, spfs_runtime, spfsrepo};
@@ -18,6 +19,7 @@ struct Opt {
     bake: Bake,
 }
 
+#[spfstest]
 #[rstest]
 #[tokio::test]
 async fn test_bake() {
@@ -54,6 +56,7 @@ async fn test_bake() {
     assert_eq!(result, 0);
 }
 
+#[spfstest]
 #[rstest]
 #[tokio::test]
 async fn test_bake_incompatible_merged_request() {

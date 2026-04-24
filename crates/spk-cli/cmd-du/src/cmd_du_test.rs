@@ -11,6 +11,7 @@ use itertools::Itertools;
 use rstest::rstest;
 use spfs::RemoteAddress;
 use spfs::config::Remote;
+use spfstest::spfstest;
 use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_config::Config;
 use spk_schema::foundation::option_map;
@@ -59,6 +60,7 @@ fn resolvo_solver() -> SolverImpl {
     SolverImpl::Resolvo(spk_solve::ResolvoSolver::default())
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
@@ -121,6 +123,7 @@ async fn test_du_works_on_whole_repo(#[case] solver: SolverImpl) {
     assert_eq!(expected_output.len(), 0);
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
@@ -154,6 +157,7 @@ async fn test_du_non_existing_version(#[case] solver: SolverImpl) {
     assert_eq!(opt.du.output.vec.lock().unwrap().len(), 0);
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
@@ -191,6 +195,7 @@ async fn test_du_out_of_range_input(#[case] solver: SolverImpl) {
     assert_eq!(opt.du.output.vec.lock().unwrap().len(), 0);
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
@@ -237,6 +242,7 @@ async fn test_du_is_not_counting_links(#[case] solver: SolverImpl) {
     assert_ne!(build_component_output[0].parse::<i32>().unwrap(), 0);
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
@@ -286,6 +292,7 @@ async fn test_du_is_counting_links(#[case] solver: SolverImpl) {
     );
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
@@ -335,6 +342,7 @@ async fn test_du_total_size(#[case] solver: SolverImpl) {
     assert_eq!(total, calculated_total_size_from_output);
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
@@ -381,6 +389,7 @@ async fn test_du_summarize_output_enabled(#[case] solver: SolverImpl) {
     assert_eq!(generated_output, expected_output);
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
@@ -442,6 +451,7 @@ async fn test_du_summarize_output_is_not_enabled(#[case] solver: SolverImpl) {
     assert_eq!(expected_output.len(), 0);
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
@@ -499,6 +509,7 @@ async fn test_deprecate_flag(#[case] solver: SolverImpl) {
     assert_eq!(expected_output, generated_output);
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]

@@ -120,6 +120,7 @@ tonic-build = { workspace = true }
 criterion = { version = "0.3", features = ["async_tokio", "html_reports"] }
 rstest = { workspace = true }
 serial_test = { workspace = true }
+spfstest = { workspace = true }
 static_assertions = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 

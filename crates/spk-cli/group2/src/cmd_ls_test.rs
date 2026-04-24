@@ -5,6 +5,7 @@
 use clap::Parser;
 use spfs::RemoteAddress;
 use spfs::config::Remote;
+use spfstest::spfstest;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::name::OptName;
 use spk_schema::recipe;
@@ -36,6 +37,7 @@ struct Opt {
     ls: Ls<OutputToVec>,
 }
 
+#[spfstest]
 #[tokio::test]
 async fn test_ls_trivially_works() {
     let mut rt = spfs_runtime().await;
@@ -54,6 +56,7 @@ async fn test_ls_trivially_works() {
     assert_eq!(opt.ls.output.vec.len(), 0);
 }
 
+#[spfstest]
 /// `spk ls --no-host` is expected to list all packages in the configured
 /// remote repositories.
 #[tokio::test]
@@ -90,6 +93,7 @@ async fn test_ls_shows_remote_packages_with_no_host() {
     assert_ne!(opt.ls.output.vec.len(), 0);
 }
 
+#[spfstest]
 /// `spk ls` is expected to list packages in the configured remote
 /// repositories that match the default filter for the current host
 #[tokio::test]
@@ -152,6 +156,7 @@ async fn test_ls_shows_remote_packages_with_host_default_filter() {
     }).await.unwrap();
 }
 
+#[spfstest]
 /// `spk ls` is expected to list packages in the configured remote
 /// repositories that match the default filter for the current host
 #[tokio::test]
@@ -236,6 +241,7 @@ async fn test_ls_shows_remote_packages_with_host_default_filter_multiple_builds(
     }).await.unwrap();
 }
 
+#[spfstest]
 /// `spk ls` is expected to list packages in both the local and the configured
 /// remote repositories.
 #[tokio::test]
@@ -285,6 +291,7 @@ async fn test_ls_shows_local_and_remote_packages() {
     assert_eq!(opt.ls.output.vec.len(), 2);
 }
 
+#[spfstest]
 /// `spk ls -l` is expected to list packages in only the local repository.
 #[tokio::test]
 async fn test_ls_dash_l_shows_local_packages_only() {
@@ -334,6 +341,7 @@ async fn test_ls_dash_l_shows_local_packages_only() {
     assert_eq!(opt.ls.output.vec.first().unwrap(), "my-local-pkg");
 }
 
+#[spfstest]
 /// `spk ls -r origin` is expected to list packages in both the origin
 /// and local repositories.
 #[tokio::test]
@@ -383,6 +391,7 @@ async fn test_ls_dash_r_shows_local_and_remote_packages() {
     assert_eq!(opt.ls.output.vec.len(), 2);
 }
 
+#[spfstest]
 /// `spk ls --no-local-repo` is expected to list packages in only the remote
 /// repositories.
 #[tokio::test]
@@ -433,6 +442,7 @@ async fn test_ls_dash_dash_no_local_repo_shows_remote_packages_only() {
     assert_eq!(opt.ls.output.vec.first().unwrap(), "my-remote-pkg");
 }
 
+#[spfstest]
 /// `spk ls --disable-repo origin` is expected to list packages in only the
 /// local repository.
 #[tokio::test]
@@ -483,6 +493,7 @@ async fn test_ls_dash_dash_disable_repo_shows_local_packages_only() {
     assert_eq!(opt.ls.output.vec.first().unwrap(), "my-local-pkg");
 }
 
+#[spfstest]
 #[tokio::test]
 async fn test_ls_succeeds_for_package_with_no_version_spec() {
     let mut rt = spfs_runtime().await;
@@ -520,6 +531,7 @@ async fn test_ls_succeeds_for_package_with_no_version_spec() {
     assert_eq!(opt.ls.output.vec.first().unwrap(), "1.0.0");
 }
 
+#[spfstest]
 #[tokio::test]
 async fn test_ls_hides_deprecated_version() {
     let mut rt = spfs_runtime().await;
@@ -577,6 +589,7 @@ async fn test_ls_hides_deprecated_version() {
     assert!(opt.ls.output.vec.first().unwrap().contains("DEPRECATED"));
 }
 
+#[spfstest]
 #[tokio::test]
 async fn test_ls_shows_partially_deprecated_version() {
     let mut rt = spfs_runtime().await;

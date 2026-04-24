@@ -57,3 +57,5 @@ nix = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
+
+spfstest = { workspace = true }

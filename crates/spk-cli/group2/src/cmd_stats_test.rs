@@ -5,6 +5,7 @@
 use clap::Parser;
 use spfs::RemoteAddress;
 use spfs::config::Remote;
+use spfstest::spfstest;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::{recipe, spec};
 use spk_storage::fixtures::*;
@@ -34,6 +35,7 @@ struct Opt {
     stats: Stats<OutputToVec>,
 }
 
+#[spfstest]
 #[tokio::test]
 async fn test_stats_on_empty_repo() {
     let mut rt = spfs_runtime().await;
@@ -60,6 +62,7 @@ async fn test_stats_on_empty_repo() {
     );
 }
 
+#[spfstest]
 #[tokio::test]
 async fn test_stats() {
     let mut rt = spfs_runtime().await;
@@ -101,6 +104,7 @@ async fn test_stats() {
     );
 }
 
+#[spfstest]
 #[tokio::test]
 async fn test_stats_single_package() {
     let mut rt = spfs_runtime().await;
@@ -142,6 +146,7 @@ async fn test_stats_single_package() {
     );
 }
 
+#[spfstest]
 #[tokio::test]
 async fn test_stats_single_package_with_deprecated() {
     let mut rt = spfs_runtime().await;

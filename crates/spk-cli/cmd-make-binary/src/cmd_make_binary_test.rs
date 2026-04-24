@@ -7,6 +7,7 @@ use std::io::Write;
 
 use clap::Parser;
 use rstest::rstest;
+use spfstest::spfstest;
 use spk_cli_common::Run;
 use spk_schema::foundation::fixtures::*;
 use spk_storage::fixtures::*;
@@ -19,6 +20,7 @@ struct Opt {
     mkb: MakeBinary,
 }
 
+#[spfstest]
 #[rstest]
 #[tokio::test]
 async fn test_build_options_are_respected(tmpdir: tempfile::TempDir) {

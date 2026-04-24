@@ -3,6 +3,7 @@
 // https://github.com/spkenv/spk
 
 use rstest::rstest;
+use spfstest::spfstest;
 use spk_schema::Package;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::ident::AsVersionIdent;
@@ -11,6 +12,7 @@ use spk_storage::fixtures::*;
 
 use super::Publisher;
 
+#[spfstest]
 #[rstest]
 #[tokio::test]
 async fn test_publish_no_version_spec() {
@@ -37,6 +39,7 @@ async fn test_publish_no_version_spec() {
     destination.read_components(spec.ident()).await.unwrap();
 }
 
+#[spfstest]
 #[rstest]
 #[tokio::test]
 async fn test_publish_build_also_publishes_spec() {
@@ -73,6 +76,7 @@ async fn test_publish_build_also_publishes_spec() {
     )
 }
 
+#[spfstest]
 #[rstest]
 #[tokio::test]
 async fn test_publish_multiple_builds_individually() {

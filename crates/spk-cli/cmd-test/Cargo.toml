@@ -29,4 +29,5 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
+spfstest = { workspace = true }
 spk-cmd-build = { workspace = true }

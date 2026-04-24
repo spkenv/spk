@@ -143,6 +143,7 @@ async fn test_sources_subdir(tmpdir: tempfile::TempDir) {
     assert!(dest_dir.join("local/source_file.txt").is_file());
 }
 
+#[spfstest]
 #[rstest]
 #[tokio::test]
 async fn test_sources_environment(_tmpdir: tempfile::TempDir) {

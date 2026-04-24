@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use rstest::{fixture, rstest};
+use spfstest::spfstest;
 use spk_cmd_build::build_package;
 use spk_schema::foundation::build_ident;
 use spk_schema::foundation::fixtures::*;
@@ -20,6 +21,7 @@ fn solver() -> StepSolver {
     StepSolver::default()
 }
 
+#[spfstest]
 /// If two layers contribute files to the same subdirectory, the Manifest is
 /// expected to contain both files.
 #[rstest]
