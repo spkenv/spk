@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use spk_schema::ident::RequestWithOptions;
 use spk_schema::name::PkgNameBuf;
 use spk_schema::validation::{
     ValidationMatcherDiscriminants,
@@ -88,6 +89,11 @@ impl super::Validator for InheritRequirementsValidator<'_> {
                     .spec
                     .downstream_runtime_requirements([&component]);
                 for request in downstream_runtime.iter() {
+                    if let RequestWithOptions::Var(var) = request
+                        && setup.suppressed_requirements.contains(&var.var)
+                    {
+                        continue;
+                    }
                     let status = match (self.kind, runtime_requirements.contains_request(request)) {
                         (RuleKind::Allow, Compatibility::Compatible)
                         | (RuleKind::Allow, Compatibility::Incompatible(_))

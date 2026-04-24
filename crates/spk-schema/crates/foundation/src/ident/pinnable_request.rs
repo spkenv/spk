@@ -195,10 +195,33 @@ impl<'de> Deserialize<'de> for PinPolicy {
 
 /// Represents a constraint added to a resolved environment.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Variantly)]
-#[cfg_attr(feature = "parsedbuf-serde", derive(Serialize), serde(untagged))]
 pub enum PinnableRequest {
     Pkg(PkgRequest),
     Var(VarRequest<PinnableValue>),
+    /// Prevent the package from inheriting the var named.
+    /// Contains the var name and an optional comment explaining
+    /// why the suppression is needed.
+    Suppress(OptNameBuf, String),
+}
+
+#[cfg(feature = "parsedbuf-serde")]
+impl Serialize for PinnableRequest {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            PinnableRequest::Pkg(pkg) => pkg.serialize(serializer),
+            PinnableRequest::Var(var) => var.serialize(serializer),
+            PinnableRequest::Suppress(var, comment) => {
+                use serde::ser::SerializeMap;
+                let mut map = serializer.serialize_map(Some(2))?;
+                map.serialize_entry("var", var.as_str())?;
+                map.serialize_entry("suppress", comment)?;
+                map.end()
+            }
+        }
+    }
 }
 
 impl crate::spec_ops::Named<OptName> for PinnableRequest {
@@ -206,6 +229,7 @@ impl crate::spec_ops::Named<OptName> for PinnableRequest {
         match self {
             PinnableRequest::Var(r) => &r.var,
             PinnableRequest::Pkg(r) => r.pkg.name.as_opt_name(),
+            PinnableRequest::Suppress(var, _) => var,
         }
     }
 }
@@ -215,6 +239,7 @@ impl std::fmt::Display for PinnableRequest {
         match self {
             Self::Pkg(p) => p.fmt(f),
             Self::Var(v) => v.fmt(f),
+            Self::Suppress(v, _) => v.fmt(f),
         }
     }
 }
@@ -281,6 +306,7 @@ impl<'de> Deserialize<'de> for PinnableRequest {
             var: Option<OptNameBuf>,
             value: Option<String>,
             description: Option<String>,
+            suppress: Option<serde_yaml::Value>,
 
             // Both
             pin: Option<PinValue>,
@@ -319,6 +345,7 @@ impl<'de> Deserialize<'de> for PinnableRequest {
                         }
                         "value" => self.value = Some(map.next_value::<String>()?),
                         "description" => self.description = Some(map.next_value::<String>()?),
+                        "suppress" => self.suppress = Some(map.next_value::<serde_yaml::Value>()?),
                         _ => {
                             // unrecognized fields are explicitly ignored in case
                             // they were added in a newer version of spk. We assume
@@ -348,6 +375,16 @@ impl<'de> Deserialize<'de> for PinnableRequest {
                         required_compat: None,
                         requested_by: Default::default(),
                     })),
+                    (None, Some(var)) if self.suppress.is_some() => {
+                        let comment = match self.suppress.unwrap() {
+                            serde_yaml::Value::String(s) => s,
+                            other => serde_yaml::to_string(&other)
+                                .unwrap_or_default()
+                                .trim()
+                                .to_string(),
+                        };
+                        Ok(PinnableRequest::Suppress(var, comment))
+                    }
                     (None, Some(var)) => {
                         let mut value = self
                             .pin

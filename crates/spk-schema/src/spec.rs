@@ -412,6 +412,12 @@ impl Recipe for SpecRecipe {
     fn validation(&self) -> &ValidationSpec {
         each_variant!(self, r, r.validation())
     }
+
+    fn suppressed_requirements(
+        &self,
+    ) -> std::collections::HashSet<spk_schema_foundation::name::OptNameBuf> {
+        each_variant!(self, r, r.suppressed_requirements())
+    }
 }
 
 impl HasVersion for SpecRecipe {

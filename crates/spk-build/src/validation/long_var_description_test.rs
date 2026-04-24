@@ -44,6 +44,7 @@ async fn test_for_description_over_limit() {
         environment_filesystem: Manifest::new(
             spfs::tracking::Entry::empty_dir_with_open_perms_with_data(package.ident().clone()),
         ),
+        suppressed_requirements: Default::default(),
         package,
     };
 

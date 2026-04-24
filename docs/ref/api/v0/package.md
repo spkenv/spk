@@ -386,6 +386,7 @@ A build option can be one of [VariableRequest](#variablerequest), or [PackageReq
 | var                 | _str_  | The requested value of a package build variable in the form`name=value`, this can reference a specific package or the global variable (eg `debug=on`, or `python.abi=cp37`)                  |
 | fromBuildEnv        | _bool_ | If true, replace the requested value of this variable with the value used in the build environment                                                                                           |
 | ifPresentInBuildEnv | _bool_ | Either true or false; if true, then `fromBuildEnv` only applies if the variable was present in the build environment. This allows different variants to have different runtime requirements. |
+| suppress            | _str_  | If set, prevents this variable from being inherited from upstream packages with Strong inheritance. The value serves as documentation for why the suppression is needed.                     |
 
 #### PackageRequest
 
