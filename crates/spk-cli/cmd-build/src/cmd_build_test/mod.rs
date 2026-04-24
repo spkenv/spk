@@ -803,6 +803,56 @@ build:
 #[case::checks("checks")]
 #[case::resolvo("resolvo")]
 #[tokio::test]
+async fn test_build_package_with_required_var_dependency(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
+    let _rt = spfs_runtime().await;
+
+    build_package!(
+        tmpdir,
+        "mylib.spk.yaml",
+        br#"
+api: v0/package
+pkg: mylib/1.0.0
+
+build:
+  options:
+    - var: namespace_style/major_minor
+      required: true
+      description: "The namespace style to use"
+  script:
+    - "true"
+"#,
+        solver_to_run
+    );
+
+    try_build_package!(
+        tmpdir,
+        "mypkg.spk.yaml",
+        br#"
+api: v0/package
+pkg: mypkg/1.0.0
+
+build:
+  options:
+    - pkg: mylib
+    - var: mylib.namespace_style/major_minor
+      description: "The namespace style to use"
+  script:
+    - "true"
+"#,
+        solver_to_run
+    )
+    .1
+    .expect("Expected build of mypkg to succeed");
+}
+
+#[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
+#[tokio::test]
 async fn test_package_with_environment_ops_preserves_ops_in_recipe(
     tmpdir: tempfile::TempDir,
     #[case] solver_to_run: &str,
