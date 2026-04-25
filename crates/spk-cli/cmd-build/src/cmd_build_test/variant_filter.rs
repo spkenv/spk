@@ -4,6 +4,7 @@
 
 use clap::Parser;
 use rstest::rstest;
+use spfstest::spfstest;
 use spk_cli_common::BuildArtifact;
 use spk_cli_common::flags::VariantLocation;
 use spk_schema::foundation::fixtures::*;
@@ -21,6 +22,7 @@ struct Opt {
     build: Build,
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -79,6 +81,7 @@ build:
     );
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -138,6 +141,7 @@ build:
     );
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -175,6 +179,7 @@ build:
     result.expect_err("Expected build to fail");
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -230,6 +235,7 @@ build:
     );
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -263,6 +269,7 @@ build:
     result.expect_err("Expected build to fail");
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -318,6 +325,7 @@ build:
     );
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -382,6 +390,7 @@ build:
     );
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -419,6 +428,7 @@ build:
     result.expect_err("Expected build to fail");
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -485,6 +495,7 @@ build:
     );
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -547,6 +558,7 @@ build:
     );
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -614,6 +626,7 @@ build:
     );
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -675,6 +688,7 @@ build:
     );
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
@@ -742,6 +756,7 @@ build:
     );
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]

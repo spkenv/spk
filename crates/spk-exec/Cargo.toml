@@ -31,6 +31,7 @@ tracing = { workspace = true }
 [dev-dependencies]
 clap = { workspace = true }
 rstest = { workspace = true }
+spfstest = { workspace = true }
 spk-cli-common = { workspace = true }
 spk-cmd-build = { workspace = true }
 spk-solve-macros = { workspace = true }

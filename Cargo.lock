@@ -3917,6 +3917,7 @@ dependencies = [
  "shellexpand",
  "spfs-encoding",
  "spfs-proto",
+ "spfstest",
  "static_assertions",
  "strum",
  "tar",
@@ -4166,6 +4167,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "spfstest"
+version = "0.44.0"
+dependencies = [
+ "spfstest-macro",
+ "tokio",
+]
+
+[[package]]
+name = "spfstest-macro"
+version = "0.44.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.106",
+]
+
+[[package]]
 name = "spk"
 version = "0.44.0"
 dependencies = [
@@ -4221,6 +4239,7 @@ dependencies = [
  "serial_test",
  "spdx",
  "spfs",
+ "spfstest",
  "spk-exec",
  "spk-schema",
  "spk-solve",
@@ -4254,6 +4273,7 @@ dependencies = [
  "serde_json",
  "serde_yaml 0.9.34+deprecated",
  "spfs",
+ "spfstest",
  "spk-build",
  "spk-config",
  "spk-exec",
@@ -4286,6 +4306,7 @@ dependencies = [
  "serde_json",
  "serde_yaml 0.9.34+deprecated",
  "spfs",
+ "spfstest",
  "spk-cli-common",
  "spk-schema",
  "spk-solve",
@@ -4313,6 +4334,7 @@ dependencies = [
  "rstest",
  "serial_test",
  "spfs",
+ "spfstest",
  "spk-cli-common",
  "spk-config",
  "spk-schema",
@@ -4335,6 +4357,7 @@ dependencies = [
  "rstest",
  "spfs",
  "spfs-cli-common",
+ "spfstest",
  "spk-build",
  "spk-cli-common",
  "spk-schema",
@@ -4388,6 +4411,7 @@ dependencies = [
  "rstest",
  "serial_test",
  "spfs",
+ "spfstest",
  "spk-cli-common",
  "spk-cmd-make-binary",
  "spk-cmd-make-source",
@@ -4443,6 +4467,7 @@ dependencies = [
  "rstest",
  "serial_test",
  "spfs",
+ "spfstest",
  "spk-build",
  "spk-cli-common",
  "spk-config",
@@ -4512,6 +4537,7 @@ dependencies = [
  "miette",
  "rstest",
  "spfs",
+ "spfstest",
  "spk-build",
  "spk-cli-common",
  "spk-schema",
@@ -4590,6 +4616,7 @@ dependencies = [
  "miette",
  "rstest",
  "spfs",
+ "spfstest",
  "spk-build",
  "spk-cli-common",
  "spk-cmd-build",
@@ -4631,6 +4658,7 @@ dependencies = [
  "rstest",
  "serde_json",
  "spfs",
+ "spfstest",
  "spk-cli-common",
  "spk-cmd-build",
  "spk-schema",
@@ -4929,6 +4957,7 @@ dependencies = [
  "serde_json",
  "serde_yaml 0.9.34+deprecated",
  "spfs",
+ "spfstest",
  "spk-schema",
  "sys-info",
  "tar",

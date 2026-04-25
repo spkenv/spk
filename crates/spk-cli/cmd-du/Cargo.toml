@@ -32,3 +32,6 @@ spk-storage = { workspace = true }
 spk-schema = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
+
+[dev-dependencies]
+spfstest = { workspace = true }

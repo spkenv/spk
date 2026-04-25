@@ -4,6 +4,7 @@
 
 use rstest::rstest;
 use spfs::storage::{LayerStorage, ManifestStorage, PayloadStorage};
+use spfstest::spfstest;
 use spk_cli_common::BuildArtifact;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::ident_component::Component;
@@ -20,6 +21,7 @@ use crate::try_build_package;
     "- { set: TEST_VAR, value: \"$$HOME/${SPK_PKG_VERSION_MAJOR}.${SPK_PKG_VERSION_MINOR}\" }",
     "export TEST_VAR=\"$HOME/1.2\"\n"
 )]
+#[spfstest]
 #[tokio::test]
 async fn basic_environment_generation(
     tmpdir: tempfile::TempDir,

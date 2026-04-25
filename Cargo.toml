@@ -22,6 +22,8 @@ members = [
     "crates/spk-solve/crates/*",
     "crates/spk-storage",
     "crates/spk-workspace",
+    "crates/spfstest",
+    "crates/spfstest-macro",
 ]
 resolver = "2"
 
@@ -111,6 +113,8 @@ serde_yaml = "0.9.25"
 serial_test = "3.1"
 shellexpand = "3.1.0"
 spdx = "0.10"
+spfstest = { path = "crates/spfstest" }
+spfstest-macro = { path = "crates/spfstest-macro" }
 spfs = { path = "crates/spfs" }
 spfs-cli-common = { path = "crates/spfs-cli/common" }
 spfs-encoding = { path = "crates/spfs-encoding" }

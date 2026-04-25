@@ -37,5 +37,6 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
+spfstest = { workspace = true }
 spk-solve-macros = { workspace = true }
 spk-solve-solution = { workspace = true }

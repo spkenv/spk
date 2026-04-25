@@ -6,6 +6,7 @@
 use std::sync::Arc;
 
 use rstest::rstest;
+use spfstest::spfstest;
 
 use super::resolve_stack_to_layers;
 use crate::fixtures::*;
@@ -34,6 +35,7 @@ async fn test_stack_to_layers_dedupe(#[future] tmprepo: TempRepo) {
 #[cfg(unix)]
 /// Test that if there are too many layers to fit on a single mount
 /// that enough layers are merged together so the mount will succeed.
+#[spfstest]
 #[rstest]
 #[tokio::test]
 async fn test_auto_merge_layers(tmpdir: tempfile::TempDir) {
@@ -92,6 +94,7 @@ async fn test_auto_merge_layers(tmpdir: tempfile::TempDir) {
 /// Test that if there are too many layers to fit on a single mount
 /// and the topmost layer contains an edit of the next top most layer
 /// that after merging layers the edit remains in the merged layer
+#[spfstest]
 #[rstest]
 #[tokio::test]
 async fn test_auto_merge_layers_with_edit(tmpdir: tempfile::TempDir) {

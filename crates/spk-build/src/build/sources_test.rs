@@ -5,6 +5,7 @@
 use std::io::Write;
 
 use rstest::rstest;
+use spfstest::spfstest;
 use spk_schema::foundation::build_ident;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::{GitSource, LocalSource, ScriptSource, SourceSpec, Spec, TarSource, v0};
@@ -47,6 +48,7 @@ fn test_validate_sources_changeset_ok() {
     assert!(res.is_ok());
 }
 
+#[spfstest]
 #[rstest]
 #[tokio::test]
 async fn test_sources_subdir(tmpdir: tempfile::TempDir) {
@@ -141,6 +143,7 @@ async fn test_sources_subdir(tmpdir: tempfile::TempDir) {
     assert!(dest_dir.join("local/source_file.txt").is_file());
 }
 
+#[spfstest]
 #[rstest]
 #[tokio::test]
 async fn test_sources_environment(_tmpdir: tempfile::TempDir) {

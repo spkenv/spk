@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use rstest::rstest;
 use spfs::encoding::EMPTY_DIGEST;
 use spfs::prelude::*;
+use spfstest::spfstest;
 use spk_schema::foundation::env::data_path;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::ident_component::Component;
@@ -119,6 +120,7 @@ fn resolvo_solver() -> SolverImpl {
     SolverImpl::Resolvo(spk_solve::ResolvoSolver::default())
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
@@ -152,6 +154,7 @@ async fn test_build_workdir(tmpdir: tempfile::TempDir, #[case] solver: SolverImp
     );
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
@@ -220,6 +223,7 @@ async fn test_build_package_options(#[case] solver: SolverImpl) {
     );
 }
 
+#[spfstest]
 #[rstest]
 #[case::camel_case("fromBuildEnv")]
 #[case::lower_case("frombuildenv")]
@@ -270,6 +274,7 @@ async fn test_build_package_pinning(
     }
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
@@ -334,6 +339,7 @@ async fn test_build_package_pinning_optional_requirement(#[case] solver: SolverI
     }
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
@@ -400,6 +406,7 @@ async fn test_build_package_pinning_optional_requirement_without_frombuildenv(
     }
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
@@ -471,6 +478,7 @@ async fn test_build_var_pinning_optional_requirement(#[case] solver: SolverImpl)
     }
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
@@ -496,6 +504,7 @@ async fn test_build_package_missing_deps(#[case] solver: SolverImpl) {
         .unwrap();
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
@@ -641,6 +650,7 @@ async fn embedded_package_pkg_pinning() {
     // If the above does not panic, the test passes.
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
@@ -674,6 +684,7 @@ async fn test_build_bad_options(#[case] solver: SolverImpl) {
     );
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
@@ -741,6 +752,7 @@ async fn test_build_package_source_cleanup(#[case] solver: SolverImpl) {
     );
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
@@ -846,6 +858,7 @@ async fn test_build_filters_reset_files(#[case] solver: SolverImpl) {
     }
 }
 
+#[spfstest]
 #[rstest]
 #[tokio::test]
 async fn test_default_build_component() {
@@ -878,6 +891,7 @@ async fn test_default_build_component() {
     }
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
@@ -924,6 +938,7 @@ async fn test_build_components_metadata(#[case] solver: SolverImpl) {
     }
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
@@ -977,6 +992,7 @@ async fn test_build_add_startup_files(tmpdir: tempfile::TempDir, #[case] solver:
     assert_eq!(String::from_utf8_lossy(&tcsh_value), "1.7:true:append\n");
 }
 
+#[spfstest]
 #[rstest]
 #[tokio::test]
 #[should_panic]
@@ -998,6 +1014,7 @@ async fn test_build_multiple_priority_startup_files() {
     let _ = recipe.generate_binary_build(&option_map! {}, &Solution::default());
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
@@ -1031,6 +1048,7 @@ async fn test_build_priority_startup_files(tmpdir: tempfile::TempDir, #[case] so
     assert!(tcsh_file.exists());
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
@@ -1134,6 +1152,7 @@ async fn test_variable_substitution_in_build_env(
     assert_eq!(String::from_utf8_lossy(&tcsh_value), "1.0.0\n");
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
@@ -1212,6 +1231,7 @@ fn test_path_and_parents() {
     );
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]

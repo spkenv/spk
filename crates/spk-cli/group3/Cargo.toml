@@ -27,6 +27,7 @@ tracing = { workspace = true }
 tokio = { workspace = true }
 
 [dev-dependencies]
+spfstest = { workspace = true }
 tar = "0.4.45"
 spk-build = { workspace = true }
 spk-solve = { workspace = true }

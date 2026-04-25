@@ -3,6 +3,7 @@
 // https://github.com/spkenv/spk
 
 use rstest::rstest;
+use spfstest::spfstest;
 use spk_build::{BinaryPackageBuilder, BuildSource};
 use spk_cli_common::Run;
 use spk_schema::foundation::option_map;
@@ -18,6 +19,7 @@ fn resolvo_solver() -> SolverImpl {
     SolverImpl::Resolvo(spk_solve::ResolvoSolver::default())
 }
 
+#[spfstest]
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]

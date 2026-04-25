@@ -83,7 +83,12 @@ release-spfs:
 .PHONY: test
 test: FEATURES?=server,spfs/server
 test:
-	spfs run - -- cargo test $(cargo_features_arg) $(cargo_packages_arg) -- $(TEST_ARGS)
+	cargo test $(cargo_features_arg) $(cargo_packages_arg) -- $(TEST_ARGS)
+
+.PHONY: nextest
+nextest: FEATURES?=server,spfs/server
+nextest:
+	cargo nextest run $(cargo_features_arg) $(cargo_packages_arg) $(TEST_ARGS)
 
 .PHONY: converters
 converters:
@@ -140,6 +145,10 @@ coverage:
 	echo "coverage made dir 1, about to make dir 2"
 	mkdir -p target/debug/coverage
 	echo "coverage made dir 2, about to run cargo test"
+	# Coverage instrumentation conflicts with the #[spfstest] re-exec
+	# approach because the subprocess inherits RUSTFLAGS but not the
+	# profraw output path, causing profile data to be lost or misplaced.
+	# Use a global spfs runtime wrapper here instead.
 	RUSTFLAGS='-C instrument-coverage' LLVM_PROFILE_FILE='profraw/spk-%p-%m.profraw' spfs run - -- cargo test --workspace --features ${FEATURES} 2>&1
 	echo "coverage cargo test run, about to run grcov"
 	grcov . -s . --binary-path ./target/debug/ --branch --ignore-not-existing --keep-only 'crates/*' -t lcov,cobertura -o ./target/debug/coverage/

@@ -7,6 +7,7 @@ use futures::TryStreamExt;
 use itertools::zip_eq;
 use spfs::RemoteAddress;
 use spfs::config::Remote;
+use spfstest::spfstest;
 use spk_schema::foundation::ident_component::Component;
 use spk_schema::ident::parse_version_ident;
 use spk_schema::ident_build::Build;
@@ -26,6 +27,7 @@ use crate::walker::{
 };
 use crate::{RepoWalkerItem, RepositoryHandle, remote_repository};
 
+#[spfstest]
 #[tokio::test]
 async fn test_walker_builder_with_calls() {
     // Set up a test repo in the runtime
@@ -74,6 +76,7 @@ async fn test_walker_builder_with_calls() {
         .build();
 }
 
+#[spfstest]
 #[tokio::test]
 async fn test_walker_builder_walker_walk() {
     // Set up a test repo in the runtime
@@ -177,6 +180,7 @@ async fn test_walker_builder_walker_walk() {
     assert_eq!(count, expected.len());
 }
 
+#[spfstest]
 #[tokio::test]
 async fn test_walker_builder_walker_walk_with_calc_deprecated_versions() {
     // Set up a test repo in the runtime

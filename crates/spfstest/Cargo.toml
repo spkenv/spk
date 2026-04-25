@@ -1,0 +1,16 @@
+[package]
+name = "spfstest"
+version = { workspace = true }
+license-file = { workspace = true }
+homepage = { workspace = true }
+repository = { workspace = true }
+readme = { workspace = true }
+description = { workspace = true }
+edition = { workspace = true }
+
+[lints]
+workspace = true
+
+[dependencies]
+spfstest-macro = { workspace = true }
+tokio = { workspace = true, features = ["process"] }
