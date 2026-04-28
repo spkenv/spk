@@ -225,3 +225,111 @@ embedded:
         "expecting embedded to be expanded correctly"
     );
 }
+
+#[rstest]
+fn test_fabricated_embedded_not_serialized() {
+    // When per-component embedded entries are auto-populated from top-level
+    // embedded packages, they should be marked as fabricated and skipped
+    // during serialization.
+    let install = serde_yaml::from_str::<InstallSpec<PinnableRequest>>(
+        r#"
+embedded:
+  - pkg: "embedded/1.0.0/embedded"
+        "#,
+    )
+    .unwrap();
+
+    // Verify fabricated entries exist at runtime.
+    assert!(
+        !install.components.is_empty(),
+        "expecting default components to be present"
+    );
+    for component in install.components.iter() {
+        assert!(
+            !component.embedded.is_empty(),
+            "expecting fabricated embedded entries to be populated"
+        );
+        assert!(
+            component.embedded.is_fabricated(),
+            "expecting auto-populated embedded entries to be marked as fabricated"
+        );
+    }
+
+    // Serialize and verify per-component embedded fields are absent.
+    let yaml = serde_yaml::to_string(&install).unwrap();
+    let doc: serde_yaml::Value = serde_yaml::from_str(&yaml).unwrap();
+    let components = doc.get("components").expect("expected components key");
+    for component in components.as_sequence().unwrap() {
+        assert!(
+            component.get("embedded").is_none(),
+            "fabricated embedded should not appear in serialized output, got: {yaml}"
+        );
+    }
+}
+
+#[rstest]
+fn test_explicit_embedded_is_serialized() {
+    // When per-component embedded entries are explicitly provided, they
+    // should not be marked as fabricated and should be serialized.
+    let install = serde_yaml::from_str::<InstallSpec<PinnableRequest>>(
+        r#"
+components:
+  - name: build
+    embedded:
+      - embedded:build/1.0.0/embedded
+  - name: run
+    embedded:
+      - embedded:run/1.0.0/embedded
+embedded:
+  - pkg: "embedded/1.0.0/embedded"
+        "#,
+    )
+    .unwrap();
+
+    // Verify entries are not fabricated.
+    for component in install.components.iter() {
+        assert!(
+            !component.embedded.is_fabricated(),
+            "expecting explicitly provided embedded entries to not be fabricated"
+        );
+    }
+
+    // Serialize and verify per-component embedded fields are present.
+    let yaml = serde_yaml::to_string(&install).unwrap();
+    let doc: serde_yaml::Value = serde_yaml::from_str(&yaml).unwrap();
+    let components = doc.get("components").expect("expected components key");
+    for component in components.as_sequence().unwrap() {
+        assert!(
+            component.get("embedded").is_some(),
+            "explicit embedded should appear in serialized output, got: {yaml}"
+        );
+    }
+}
+
+#[rstest]
+fn test_explicit_embedded_roundtrip() {
+    // Explicitly provided embedded entries should survive a full
+    // serialize-deserialize round-trip.
+    let original = serde_yaml::from_str::<InstallSpec<PinnableRequest>>(
+        r#"
+components:
+  - name: build
+    embedded:
+      - embedded:build/1.0.0/embedded
+  - name: run
+    embedded:
+      - embedded:run/1.0.0/embedded
+embedded:
+  - pkg: "embedded/1.0.0/embedded"
+        "#,
+    )
+    .unwrap();
+
+    let yaml = serde_yaml::to_string(&original).unwrap();
+    let roundtripped = serde_yaml::from_str::<InstallSpec<PinnableRequest>>(&yaml).unwrap();
+
+    assert_eq!(
+        original, roundtripped,
+        "expected no changes through yaml round-trip"
+    );
+}
