@@ -30,7 +30,13 @@ use crate::version::parsing::{version, version_str};
 mod ident;
 mod request;
 
-pub use ident::{IdentParts, IdentPartsBuf, ident_parts, ident_parts_with_components};
+pub use ident::{
+    IdentParts,
+    IdentPartsBuf,
+    NormalizedVersionString,
+    ident_parts,
+    ident_parts_with_components,
+};
 pub use request::{range_ident_pkg_name, request_pkg_name_and_version};
 
 pub static KNOWN_REPOSITORY_NAMES: Lazy<HashSet<&'static str>> = Lazy::new(|| {

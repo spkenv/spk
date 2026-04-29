@@ -99,7 +99,7 @@ macro_rules! parsed {
             }
         }
 
-        // Allow tests to manufacture owned instances with known good values.
+        // Allow tests and indexes to manufacture owned instances with known good values.
         #[allow(dead_code)]
         impl $owned_type_name {
             $crate::paste::paste! {

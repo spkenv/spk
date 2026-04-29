@@ -392,6 +392,16 @@ impl Version {
         }
     }
 
+    /// Make a new Version from a string without checking it.
+    ///
+    /// # Safety
+    ///
+    /// The caller must make sure the string can be parsed as a valid
+    /// Version.
+    pub fn new_unchecked(version_str: &str) -> Result<Self> {
+        Version::try_from(version_str)
+    }
+
     /// The major version number (first component)
     pub fn major(&self) -> u32 {
         self.parts.first().copied().unwrap_or_default()

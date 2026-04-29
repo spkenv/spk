@@ -55,12 +55,20 @@ pub enum CompatRule {
     Binary,
 }
 
+// TODO: CompatRules that allow ::None are used in Compat
+// structs. CompatRules that do not allow ::None are used in
+// required_compat's in Requests. They should be separate types,
+// perhaps one wrapping the other, to clarify where ::None is and is
+// not a valid value.
 impl std::fmt::Display for CompatRule {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         if f.alternate() {
             // Request for alternate (long form) names.
             f.write_str(match self {
-                CompatRule::None => unreachable!(),
+                CompatRule::None => unreachable!(
+                    "CompatRule '{}' fmt() cannot be displayed when using the alternate flag",
+                    self
+                ),
                 CompatRule::API => API_STR,
                 CompatRule::Binary => BINARY_STR,
             })
@@ -688,6 +696,18 @@ impl Compat {
             parts: vec![first, second, third],
             ..Default::default()
         }
+    }
+
+    /// Create a compat from the given string without checking it. For
+    /// internal use only for data from a index.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure the string parses as a valid compat.
+    pub fn new_unchecked(compat: &str) -> Result<Self> {
+        // TODO: change this to be more direct once Compat objects are
+        // directly represented in indexes.
+        Self::from_str(compat)
     }
 
     /// Return true if the two versions are api compatible by this compat rule.
