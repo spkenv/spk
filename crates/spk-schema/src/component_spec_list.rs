@@ -58,6 +58,10 @@ impl<ComponentSpecT> ComponentSpecList<ComponentSpecT>
 where
     ComponentSpecT: ComponentOps,
 {
+    pub fn new(component_specs: Vec<ComponentSpecT>) -> Self {
+        ComponentSpecList(component_specs)
+    }
+
     /// Collect the names of all components in this list
     pub fn names(&self) -> HashSet<&Component> {
         self.iter().map(|i| i.name()).collect()
