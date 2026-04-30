@@ -859,6 +859,97 @@ build:
     .expect("Expected build of mypkg to succeed");
 }
 
+#[spfstest]
+#[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
+#[tokio::test]
+async fn test_build_var_name_collides_with_package_name(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
+    let _rt = spfs_runtime().await;
+
+    build_package!(
+        tmpdir,
+        "demo.spk.yaml",
+        br#"
+api: v0/package
+pkg: demo/1.0.0
+
+build:
+  options:
+    - var: samenameaspkg/true
+  script:
+    - "true"
+"#,
+        solver_to_run
+    );
+
+    build_package!(
+        tmpdir,
+        "samenameaspkg.spk.yaml",
+        br#"
+api: v0/package
+pkg: samenameaspkg/1.2.3
+
+build:
+  script:
+    - "true"
+"#,
+        solver_to_run
+    );
+
+    build_package!(
+        tmpdir,
+        "middle.spk.yaml",
+        br#"
+api: v0/package
+pkg: middle/1.0.0
+
+build:
+  options:
+    - pkg: demo
+    - var: demo.samenameaspkg/true
+  script:
+    - "true"
+
+install:
+  requirements:
+    - pkg: demo
+      fromBuildEnv: true
+    - var: demo.samenameaspkg/true
+"#,
+        solver_to_run
+    );
+
+    // Building `consumer` brings both the `samenameaspkg` package and the
+    // `middle` package (which carries an install requirement for the
+    // namespaced var `demo.samenameaspkg/true`) into the same environment.
+    // A namespaced var is scoped to its package, so the `demo.samenameaspkg`
+    // var must not be confused with the unrelated `samenameaspkg` package's
+    // version. All solvers should agree that this build succeeds.
+    try_build_package!(
+        tmpdir,
+        "consumer.spk.yaml",
+        br#"
+api: v0/package
+pkg: consumer/1.0.0
+
+build:
+  options:
+    - pkg: samenameaspkg
+    - pkg: middle
+  script:
+    - "true"
+"#,
+        solver_to_run
+    )
+    .1
+    .expect("Expected build of consumer to succeed");
+}
+
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]
