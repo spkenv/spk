@@ -394,11 +394,7 @@ impl Version {
 
     /// Make a new Version from a string without checking it.
     ///
-    /// # Safety
-    ///
-    /// The caller must make sure the string can be parsed as a valid
-    /// Version.
-    pub fn new_unchecked(version_str: &str) -> Result<Self> {
+    pub fn new_from_version_str(version_str: &str) -> Result<Self> {
         Version::try_from(version_str)
     }
 

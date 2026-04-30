@@ -701,10 +701,7 @@ impl Compat {
     /// Create a compat from the given string without checking it. For
     /// internal use only for data from a index.
     ///
-    /// # Safety
-    ///
-    /// The caller must ensure the string parses as a valid compat.
-    pub fn new_unchecked(compat: &str) -> Result<Self> {
+    pub fn new_from_compat_str(compat: &str) -> Result<Self> {
         // TODO: change this to be more direct once Compat objects are
         // directly represented in indexes.
         Self::from_str(compat)
