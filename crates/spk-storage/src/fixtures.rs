@@ -96,9 +96,21 @@ pub async fn spfsrepo() -> TempRepo {
     make_repo(RepoKind::Spfs).await
 }
 
+pub fn disable_messaging_channels_for_tests() {
+    let config = spk_config::get_config().unwrap();
+
+    let mut test_config = (*config).clone();
+    // Removing all the MessageChannels from the config will stop all
+    // messaging.
+    test_config.messaging.clear();
+    test_config.make_current().unwrap();
+}
+
 /// Create a temporary repository of the desired flavor
 pub async fn make_repo(kind: RepoKind) -> TempRepo {
     tracing::trace!(?kind, "creating repo for test...");
+
+    disable_messaging_channels_for_tests();
 
     let tmpdir = tempfile::Builder::new()
         .prefix("spk-test-spfs-repo")

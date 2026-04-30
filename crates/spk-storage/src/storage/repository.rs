@@ -431,7 +431,13 @@ pub trait Repository: Storage + Sync {
             }
         }
 
-        announce_package_event(PackageEvent::Published, self.address(), package.ident()).await?;
+        announce_package_event(
+            PackageEvent::Published,
+            self.address(),
+            self.name(),
+            package.ident(),
+        )
+        .await?;
 
         Ok(())
     }
@@ -542,7 +548,13 @@ pub trait Repository: Storage + Sync {
         // else if there was no original spec, assume there is nothing needed
         // to do.
 
-        announce_package_event(PackageEvent::Modified, self.address(), package.ident()).await?;
+        announce_package_event(
+            PackageEvent::Modified,
+            self.address(),
+            self.name(),
+            package.ident(),
+        )
+        .await?;
 
         Ok(())
     }
@@ -565,7 +577,7 @@ pub trait Repository: Storage + Sync {
 
         self.remove_package_from_storage(pkg).await?;
 
-        announce_package_event(PackageEvent::Removed, self.address(), pkg).await
+        announce_package_event(PackageEvent::Removed, self.address(), self.name(), pkg).await
     }
 
     /// Identify the payloads for this identified package's components.

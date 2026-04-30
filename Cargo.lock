@@ -4377,6 +4377,7 @@ name = "spk-cli-group1"
 version = "0.44.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "clap 4.5.47",
  "clap_complete",
  "colored",
@@ -4405,6 +4406,7 @@ name = "spk-cli-group2"
 version = "0.44.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "clap 4.5.47",
  "colored",
  "futures",
@@ -4686,6 +4688,7 @@ dependencies = [
  "itertools 0.14.0",
  "miette",
  "spk-cli-common",
+ "spk-config",
  "spk-schema",
  "spk-storage",
  "tracing",
@@ -4727,6 +4730,7 @@ dependencies = [
  "spfs",
  "thiserror 1.0.69",
  "tokio",
+ "tracing",
  "whoami",
 ]
 
@@ -5040,6 +5044,7 @@ dependencies = [
  "async-stream",
  "async-trait",
  "bytes",
+ "chrono",
  "colored",
  "dashmap",
  "data-encoding",

@@ -18,6 +18,7 @@ sentry = ["spk-solve/sentry"]
 [dependencies]
 miette = { workspace = true, features = ["fancy"] }
 async-trait = { workspace = true }
+chrono = { workspace = true }
 clap = { workspace = true }
 clap_complete = { workspace = true }
 colored = { workspace = true }

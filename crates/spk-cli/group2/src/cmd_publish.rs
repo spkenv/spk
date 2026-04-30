@@ -3,12 +3,14 @@
 // https://github.com/spkenv/spk
 
 use std::sync::Arc;
+use std::time::Instant;
 
+use chrono::{DateTime, Utc};
 use clap::Args;
 use miette::Result;
 use spk_cli_common::{CommandArgs, PublishLabel, Publisher, Run};
 use spk_schema::AnyIdent;
-use spk_storage as storage;
+use spk_storage::{self as storage};
 
 #[cfg(test)]
 #[path = "./cmd_publish_test.rs"]
@@ -57,13 +59,17 @@ impl Run for Publish {
     type Output = i32;
 
     async fn run(&mut self) -> Result<Self::Output> {
+        let start = Instant::now();
+
         let (source, target) = tokio::try_join!(storage::local_repository(), async {
             Ok(Into::<storage::RepositoryHandle>::into(
                 storage::remote_repository(&self.target_repo).await?,
             ))
         })?;
 
-        let publisher = Publisher::new(Arc::new(source.into()), Arc::new(target))
+        let destination = Arc::new(target);
+
+        let publisher = Publisher::new(Arc::new(source.into()), destination.clone())
             .skip_source_packages(self.no_source)
             .allow_existing_with_label(self.allow_existing_with_label.clone())
             .force(self.force);
@@ -77,6 +83,17 @@ impl Run for Publish {
             tracing::warn!(
                 "No packages were published, did you forget to specify a version number? (spk publish my-package/1.0.2)"
             )
+        } else {
+            tracing::debug!(
+                "Published {} packages in {} seconds",
+                published.len(),
+                start.elapsed().as_secs()
+            );
+
+            // Wait for the index to be updated before finishing
+            let utc_now: DateTime<Utc> = Utc::now();
+            let publish_ended = utc_now.timestamp();
+            destination.wait_for_index_to_update(publish_ended).await?;
         }
 
         tracing::info!("done");

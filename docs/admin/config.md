@@ -318,13 +318,64 @@ verify_index_before_use = true
 # The kind of index format to use for this repository. SPK currently supports
 # a flatbuffer based index.
 index_kind = "flatb"
+# Time to sleep between getting a write lock on the index data,
+# for index generation and updates.
+lock_sleep_seconds = 6
+# Maximum number of times to try to get a write lock on this index's
+# data, for index generation and updates.
+lock_max_tries = 5
+# Name of the configured messaging channel (see MessageChannels below)
+# to send index status update messages too.
+update_message_channel = "kafka"
+# How often index generation and update processing should send
+# index update event messages, in milliseconds.
+update_event_send_freq_ms = 5000
 
 # SPK can send messages to external messaging systems when packages are:
 # published, modified, or removed. Each messaging system must be configured here.
 # Currently, only kafka is supported.
 #
-# To send messages to a kafka system, the brokers and package_updates_topic_name
-# must be configured. The timeout_ms is optional and defaults to 5 seconds:
+# To send messages to a kafka system: the name, the brokers, package_updates_topic_name,
+# index_updates_topic_name, and the repo_names list must be configured.
 # [[messaging]]
-# kafka = { brokers = [ "brokername:port", "otherbrokername:port", ... ], package_updates_topic_name = "spk-package-updates-or-whatever-your-topic-name-is", timeout_ms = 5000 }
+# kafka = { brokers = [ name = "kafka", "brokername:port", "otherbrokername:port", ... ], package_updates_topic_name = "spk-package-updates-or-whatever-your-topic-name-is", index_updates_topic_name = "spk-index-updates-or-whatever-your-topic-name-is", repo_names = [ "origin" ] }
+#
+# SPK supports other optional properties for configuring a kafka messaging system.
+# They are shown below with their defaults. Each must be added to the kafka = { ... } 
+# table above to configure them for that messaging channel
+# The kafka message sending timeout in milliseconds:
+#   message_timeout_ms = 5000
+# The kafka producer send queue timeout in milliseconds:
+#   producer_queue_timeout_ms = 4000
+# The timeout while waiting for an index update to complete, in milliseconds
+#   index_update_listener_timeout_ms = 10000,
+# The kafka message reading session timeout in milliseconds
+#   index_update_listener_session_timeout_ms = 10000,
+# The index listener's maximum polling interval in milliseconds
+#   index_update_listener_max_polling_interval_ms = 10000,
+# How far back in time is consider recent enough for messages to be current, in seconds
+#   index_update_listener_recent_past_duration_s = 120,
+# The timeout for fetching data from the brokers
+#   index_update_listener_broker_fetch_timeout_s = 20,
+# For example, a kafka messaging channel with all the settings configured
+# would look like this:
+kafka = { brokers = [ name = "kafka", "brokername:port", "otherbrokername:port", ... ], package_updates_topic_name = "spk-package-updates-or-whatever-your-topic-name-is", index_updates_topic_name = "spk-index-updates-or-whatever-your-topic-name-is", repo_names = [ "origin" ], message_timeout_ms = 5000, producer_queue_timeout_ms = 4000, index_update_listener_timeout_ms = 10000, index_update_listener_session_timeout_ms = 10000, index_update_listener_max_polling_interval_ms = 10000, index_update_listener_recent_past_duration_s = 120, index_update_listener_broker_fetch_timeout_s = 20 }
+
+# SPK can run an index update server, known  as an indexer, When a messaging system
+# is configured. An indexer will update a single repository' index when package changes
+# happen.
+#
+# Indexers are configured to use a named message channel (one configured above)
+[indexers.kafka]
+message_channel_name = "kafka"
+# The name of the repository this indexer will monitor.
+# An indexer works on a single repository.
+repo_name = "origin"
+# How often the indexer should send heartbeat messages, to indicate it
+# is running, to the messaging system's 'index_updates_topic_name' topic/queue
+heartbeat_freq_ms = 60000
+# The kafka session timeout for the indexer
+session_timeout_ms = 120000
+# The maximum polling interval for an indexer for keeping in touch with the kafka brokers
+max_polling_interval_ms = 86400000
 ```

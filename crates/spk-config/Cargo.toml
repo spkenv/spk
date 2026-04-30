@@ -24,6 +24,7 @@ serde_json = { workspace = true }
 spfs = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
+tracing = { workspace = true }
 whoami = { workspace = true }
 
 [dev-dependencies]
