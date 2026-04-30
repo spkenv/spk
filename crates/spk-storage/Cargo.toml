@@ -18,10 +18,12 @@ workspace = true
 arc-swap = { workspace = true }
 async-trait = { workspace = true }
 async-stream = { workspace = true }
+bytes = { workspace = true }
 colored = { workspace = true }
 dashmap = { workspace = true }
 data-encoding = "2.3.0"
 enum_dispatch = { workspace = true }
+flatbuffers = { workspace = true }
 format_serde_error = { workspace = true, default-features = false, features = [
     "colored",
     "serde_yaml",
@@ -31,6 +33,7 @@ glob = { workspace = true }
 ignore = "0.4.18"
 indexmap = { workspace = true }
 itertools = { workspace = true }
+memmap2 = { workspace = true }
 miette = { workspace = true }
 nom = { workspace = true }
 nom-supreme = { workspace = true }
@@ -45,6 +48,8 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 spfs = { workspace = true }
+spk-config = { workspace = true }
+spk-proto = { workspace = true }
 spk-schema = { workspace = true }
 sys-info = "0.9.0"
 tar = "0.4.45"
@@ -59,3 +64,5 @@ variantly = { workspace = true }
 
 [dev-dependencies]
 spfstest = { workspace = true }
+rstest = { workspace = true }
+spk-solve-macros = { workspace = true }

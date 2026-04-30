@@ -43,6 +43,7 @@ use crate::{
     DownstreamRequirements,
     EmbeddedPackagesList,
     Error,
+    Inheritance,
     Opt,
     Package,
     PackageMut,
@@ -503,15 +504,42 @@ impl DownstreamRequirements for IndexedPackage {
         &self,
         _components: impl IntoIterator<Item = &'a Component>,
     ) -> Cow<'_, RequirementsList<RequestWithOptions>> {
-        // This is also for build var requirements and inheritance
-        // used in building. This package has no build data stored.
-        let err = Error::SpkIndexedPackageDoesNotImplement(
-            "DownstreamRequirements".to_string(),
-            "downstream_runtime_requirements".to_string(),
-        );
-        // TODO: should this change the return value, update all the
-        // caller's handling, and return an error for this implementation?
-        unreachable!("{err}");
+        // This is used when deprecating an embedded stub/package
+        // and this is exercised during the automated repository tests.
+
+        // This is a version of downstream_runtime_requirements() and
+        // downstream_requirements() from v0/package_spec.rs modified
+        // for this kind of flatbuffer backed package.
+        let build_options = self.build_options();
+        let embedded = self.embedded();
+
+        let requests = build_options
+            .iter()
+            .filter_map(|opt| match opt {
+                Opt::Var(v) => Some(v.with_default_namespace(self.name())),
+                Opt::Pkg(_) => None,
+            })
+            .chain(embedded.iter().flat_map(|embed| {
+                embed.build().options.iter().filter_map(|opt| match opt {
+                    Opt::Var(v) => Some(v.with_default_namespace(embed.name())),
+                    Opt::Pkg(_) => None,
+                })
+            }))
+            .filter(|o| o.inheritance() == Inheritance::Strong || o.required)
+            .map(|o| {
+                VarRequest {
+                    // we are assuming that the var here will have a value because
+                    // this is a built binary package
+                    value: o.get_value(None).unwrap_or_default().into(),
+                    var: o.var,
+                    // Index doesn't store the an option's description
+                    description: None,
+                }
+            })
+            .map(RequestWithOptions::Var);
+        RequirementsList::<RequestWithOptions>::try_from_iter(requests)
+            .map(Cow::Owned)
+            .expect("build opts (from a RepoIndex) do not contain duplicates")
     }
 }
 

@@ -336,6 +336,9 @@ pub trait Repository: Storage + Sync {
     /// Returns the set of components published for a package build
     async fn list_build_components(&self, pkg: &BuildIdent) -> Result<Vec<Component>>;
 
+    /// Returns the true if the given package/version/build is deprecated.
+    async fn is_build_deprecated(&self, _build: &BuildIdent) -> Result<bool>;
+
     /// Return the repository's name, as in "local" or its name in the config file.
     fn name(&self) -> &RepositoryName;
 
