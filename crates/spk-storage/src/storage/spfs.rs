@@ -540,6 +540,9 @@ impl Storage for SpfsRepository {
                         });
                         Spec::V0Package(spec)
                     }
+                    Spec::V0IndexedPackage(_) => {
+                        unreachable!("Can't read Spec::V0IndexedPackage spec from an Spk SPFS repo. Those come from an SPK IndexedRepo.",)
+                    }
                 })
                 .map_err(|err| {
                     Error::InvalidPackageSpec(Box::new(InvalidPackageSpec(
@@ -803,6 +806,9 @@ impl crate::Repository for SpfsRepository {
                             }
                         });
                         Spec::V0Package(spec)
+                    }
+                    Spec::V0IndexedPackage(_) => {
+                        unreachable!("Can't read Spec::V0IndexedPackage spec from an Spk SPFS repo. Those come from an SPK IndexedRepo.",)
                     }
                 })
                 .map_err(|err| {
