@@ -683,7 +683,9 @@ impl FlatBufferRepoIndex {
         // Create the new index in a temp file with the correct permissions
         if let Err(err) = tokio::fs::write(&temp_file, builder.finished_data()).await {
             // Clean up the temp file after the error
-            remove_index_file(&temp_file).await?;
+            if let Err(temp_err) = remove_index_file(&temp_file).await {
+                tracing::error!("Unable to remove temp index file due to: {temp_err}");
+            }
             return Err(Error::IndexWriteError(
                 name.to_string(),
                 temp_file.display().to_string(),
@@ -695,7 +697,9 @@ impl FlatBufferRepoIndex {
             match tokio::fs::set_permissions(&temp_file, Permissions::from_mode(0o666)).await {
                 Err(err) => {
                     // Clean up the temp file after the error
-                    remove_index_file(&temp_file).await?;
+                    if let Err(temp_err) = remove_index_file(&temp_file).await {
+                        tracing::error!("Unable to remove temp index file due to: {temp_err}");
+                    };
                     Err(Error::FileOpenError(temp_file.clone(), err))
                 }
                 Ok(ok) => Ok(ok),
@@ -709,14 +713,18 @@ impl FlatBufferRepoIndex {
         // existing processes using that index.
         if let Err(err) = remove_index_file(&filepath).await {
             // Clean up the temp file after the error
-            remove_index_file(&temp_file).await?;
+            if let Err(temp_err) = remove_index_file(&temp_file).await {
+                tracing::error!("Unable to remove temp index file due to: {temp_err}");
+            }
             return Err(err);
         }
 
         // Move the index file to the correct place.
         if let Err(err) = tokio::fs::rename(&temp_file, &filepath).await {
             // Clean up the temp file after the error
-            remove_index_file(&temp_file).await?;
+            if let Err(temp_err) = remove_index_file(&temp_file).await {
+                tracing::error!("Unable to remove temp index file due to: {temp_err}");
+            }
             return Err(Error::String(format!(
                 "Unable to rename new temp index file '{}' to '{}' due to: {err}",
                 temp_file.display(),
