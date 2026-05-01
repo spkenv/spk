@@ -143,6 +143,12 @@ impl Run for View {
     type Output = i32;
 
     async fn run(&mut self) -> Result<Self::Output> {
+        // This command does not work correctly with IndexedRepo
+        // objects. The repos must be the underlying repo and not an
+        // indexed repo, so disable index use regardless of config or
+        // command line flags.
+        flags::disable_index_use();
+
         if self.variants || self.variants_with_tests {
             let options = self.options.get_options()?;
             let mut workspace = self
@@ -781,6 +787,11 @@ impl View {
 
     /// Display the contents of a package spec
     fn print_build_spec(&self, package_spec: Arc<Spec>) -> Result<i32> {
+        // TODO: does not handle packages from indexes. This will
+        // crash if --use-indexes was used. Those packages would need
+        // to be converted to something that could be serialized, or
+        // pieces extracted individually from the index packages, for
+        // this to work.
         match &self.format.clone().unwrap_or_default() {
             OutputFormat::Yaml => serde_yaml::to_writer(std::io::stdout(), &*package_spec)
                 .into_diagnostic()
