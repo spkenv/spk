@@ -196,6 +196,30 @@ pub struct HostOptions {
     pub distro_rules: HashMap<String, DistroRule>,
 }
 
+/// Helper for testing default kafka timeout ms when not specified in
+/// config
+fn default_kafka_timeout_ms() -> u64 {
+    5000
+}
+
+/// Configuration for using Kafka as a message channel.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct KafkaChannel {
+    /// List of brokers to connect to, specified as "hostname:port"
+    pub brokers: Vec<String>,
+    /// Topic name to push package updates to
+    pub package_updates_topic_name: Option<String>,
+    /// Message timeout in milliseconds, defaults to 5000 ms (5 seconds)
+    #[serde(default = "default_kafka_timeout_ms")]
+    pub timeout_ms: u64,
+}
+
+/// Types of message channels.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum MessageChannel {
+    Kafka(KafkaChannel),
+}
+
 /// Configuration values for spk.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
@@ -210,6 +234,7 @@ pub struct Config {
     pub metadata: Metadata,
     pub cli: Cli,
     pub host_options: HostOptions,
+    pub messaging: Vec<MessageChannel>,
 }
 
 impl Config {

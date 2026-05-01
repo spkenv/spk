@@ -318,4 +318,14 @@ verify_index_before_use = true
 # The kind of index format to use for this repository. SPK currently supports
 # a flatbuffer based index.
 # index_kind = "flatb"
+
+# SPK can send messages to external messaging systems when packages are:
+# published, modified, or removed. Each messaging system must be configured here.
+# Currently, only kafka is supported.
+#
+# To send messages to a kafka system, the brokers and package_updates_topic_name
+# must be configured. The timeout_ms is optional and defaults to 5 seconds:
+# [[messaging]]
+# kafka = { brokers = [ "brokername:port", "otherbrokername:port", ... ], package_updates_topic_name = "spk-package-updates-or-whatever-your-topic-name-is", timeout_ms = 5000 }
+
 ```
