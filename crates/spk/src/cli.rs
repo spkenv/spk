@@ -101,6 +101,18 @@ impl Opt {
                     // from io::Decision::Formatter before it returns
                     // these errors.
                 }
+                Some(Error::SpkStorageError(storage_error))
+                    if matches!(
+                        &**storage_error,
+                        spk_storage::Error::UnableToRemoveWriteLockError(..)
+                    ) =>
+                {
+                    // UnableToRemoveWriteLock errors are not sent to
+                    // sentry here. A message has already been sent to
+                    // sentry from the FileLock's unlock() method before
+                    // it returns the error (even when it has been
+                    // hidden by the FileLock's drop handler).
+                }
                 _ => {
                     // Send all other errors that reach this level to sentry
                     sentry::with_scope(

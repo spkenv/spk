@@ -135,22 +135,36 @@ impl RepoCommand {
 
                     // Load the current index for this repo now
                     let mut was_full_index = String::from("");
-                    match FlatBufferRepoIndex::from_repo_file(&repo_to_index).await {
+                    let result = match FlatBufferRepoIndex::from_repo_file(&repo_to_index).await {
                         Ok(current_index) => {
-                            current_index
-                                .update_packages(&repo_to_index, &idents)
-                                .await?
+                            current_index.update_packages(&repo_to_index, &idents).await
                         }
                         Err(err) => {
                             // There isn't an existing index, so generate one from scratch that
                             // will also include the update package version.
                             tracing::warn!("Failed to load flatbuffer index: {err}");
                             tracing::warn!("No current index to update. Creating a full index ...");
-                            FlatBufferRepoIndex::index_repo(&repos).await?;
                             was_full_index =
-                                " [no previous index, so a full index was created]".to_string()
+                                " [no previous index, so a full index was created]".to_string();
+                            FlatBufferRepoIndex::index_repo(&repos).await
                         }
                     };
+
+                    if result.is_err() {
+                        // Need to keep these if-statements separate
+                        // to allow for two different error handling cases.
+                        #[allow(clippy::collapsible_if)]
+                        if let Some(err) = result.err() {
+                            if let Some(spk_storage::Error::UnableToGetWriteLockError(..)) =
+                                err.root_cause().downcast_ref::<spk_storage::Error>()
+                            {
+                                tracing::error!("{err}");
+                                // A distinct exit code when unable to lock the index file.
+                                return Ok(3);
+                            }
+                            return Err(err);
+                        }
+                    }
 
                     tracing::info!(
                         "Index update for '{}' in '{}' repo completed in: {} secs{was_full_index}",
