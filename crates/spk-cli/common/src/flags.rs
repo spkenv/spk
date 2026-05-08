@@ -6,8 +6,7 @@ mod variant;
 
 use std::collections::HashSet;
 use std::convert::From;
-use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, Mutex};
 
 use clap::{Args, ValueEnum, ValueHint};
 use miette::{Context, IntoDiagnostic, Result, bail, miette};
@@ -64,10 +63,13 @@ static SPK_SOLVER_OUTPUT_TO_DIR: &str = "SPK_SOLVER_OUTPUT_TO_DIR";
 static SPK_SOLVER_OUTPUT_TO_DIR_MIN_VERBOSITY: &str = "SPK_SOLVER_OUTPUT_TO_DIR_MIN_VERBOSITY";
 static SPK_SOLVER_OUTPUT_FILE_PREFIX: &str = "SPK_SOLVER_OUTPUT_FILE_PREFIX";
 
-static DISABLE_INDEX_USE: Lazy<AtomicBool> = Lazy::new(|| AtomicBool::new(false));
+static DISABLE_INDEX_USE: Lazy<Mutex<bool>> = Lazy::new(|| Mutex::new(false));
 
 pub fn disable_index_use() {
-    DISABLE_INDEX_USE.store(true, std::sync::atomic::Ordering::Release);
+    let mut lock = DISABLE_INDEX_USE
+        .lock()
+        .expect("Should be able to get DISABLE_INDEX_USE value to update it");
+    *lock = true;
 }
 
 #[derive(Args, Clone)]
@@ -1006,17 +1008,16 @@ where
     Ok((found, configured.template.file_path().to_owned()))
 }
 
-/// The index use command line setting options that can be used to
-/// override index usage set in the spk config file. The default for a
-/// repository in the spk config is to use an index if one exists,
-/// unless the repository is called 'local'. The setting for an
-/// individual repository can be changed in the config file, or by
-/// using the matching environment variables.
+/// The command line options that can be used to override the index
+/// usage configured in the spk config file. The default is to use an
+/// index if one exists, unless the repository is called 'local'. The
+/// setting for an individual repository can be changed in the config
+/// file, or by using the matching environment variables.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum IndexUse {
-    /// Use the index use settings from the repository configurations
-    /// in the spk config file (or their environment variable
-    /// overrides, if any are set).
+    /// Use the settings from the repository configurations in the spk
+    /// config file (or their environment variable overrides, if any
+    /// are set).
     ConfigFile,
     /// Disable all index use globally regardless of any setting in
     /// the spk config file (or environment variables).
@@ -1193,7 +1194,9 @@ impl Repositories {
         // Check whether using the indexes for the repos is globally
         // disabled by the spk command, such as 'spk repo index' or
         // 'spk info'.
-        let disable_all_index_use = DISABLE_INDEX_USE.load(std::sync::atomic::Ordering::Relaxed);
+        let disable_all_index_use = *DISABLE_INDEX_USE
+            .lock()
+            .expect("Should be able to get a lock on DISABLE_INDEX_USE setting");
 
         // Check the override from the command line flag, if any
         let use_index_cli_override = match self.index_use {

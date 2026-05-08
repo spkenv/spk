@@ -317,5 +317,5 @@ use_index = true
 verify_index_before_use = true
 # The kind of index format to use for this repository. SPK currently supports
 # a flatbuffer based index.
-# index_kind = "flatb"
+index_kind = "flatb"
 ```

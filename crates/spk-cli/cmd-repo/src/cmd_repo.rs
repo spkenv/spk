@@ -88,7 +88,7 @@ impl RepoCommand {
 
             // spk repo index ...
             Self::Index { repo, update } => {
-                // Generate or update an index a repo. The repo must
+                // Generate or update an index in a repo. The repo must
                 // be the underlying repo and not an indexed repo. So as
                 // a safety measure, this disables index use for this
                 // command regardless of config or command line flags.
@@ -141,7 +141,7 @@ impl RepoCommand {
                                 .update_packages(&repo_to_index, &idents)
                                 .await?
                         }
-                        Err(err) => {
+                        Err(storage::Error::IndexOpenError(err)) => {
                             // There isn't an existing index, so generate one from scratch that
                             // will also include the update package version.
                             tracing::warn!("Failed to load flatbuffer index: {err}");
@@ -149,6 +149,9 @@ impl RepoCommand {
                             FlatBufferRepoIndex::index_repo(&repos).await?;
                             was_full_index =
                                 " [no previous index, so a full index was created]".to_string()
+                        }
+                        Err(err) => {
+                            return Err(err.into());
                         }
                     };
 

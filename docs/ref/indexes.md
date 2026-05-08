@@ -4,9 +4,9 @@ summary: Indexes for improving solve times
 weight: 120
 ---
 
-This explains indexes, indexing, index controls, and index requirements in `spk`.
+This explains indexes, indexing, index controls, and index requirements in `SPK`.
 
-## Spk Repository Indexes
+## SPK Repository Indexes
 
 `SPK` supports generating a packages index for a repository to help
 with solves. An index must have been generated separately for a
@@ -17,30 +17,30 @@ The index is designed to help the solvers with solves (package
 look-ups, deprecation checks, pre-loading non-package variable
 references, getting install requirements, etc.). It does not contain
 the full package data. So it does not have the information needed to
-help other `spk` operations, e.g. building or testing a package.
+help other `SPK` operations, e.g. building or testing a package.
 
 If indexing is enabled, you have to generate an index before trying to
 use it in a solve. They are not generated on the fly (outside of tiny
 repositories for automated tests).
 
 If index use is enabled, but no index has been generated for a
-repository, `spk` will fallback to using the underlying repository's
+repository, `SPK` will fallback to using the underlying repository's
 packages directly. This typically results in slower solves,
 particularly with larger repositories.
 
 If a solve uses multiple repositories and indexes exist for some or
-all of them, `spk` will use the indexes that exist.
+all of them, `SPK` will use the indexes that exist.
 
 
 ### Enabling/Disabling Indexes
 
-`spk` index use can be enabled or disabled in the `spk` config file.
+`SPK` index use can be enabled or disabled in the `SPK` config file.
 It is enabled by default but require index generation and index
 updating to be set up, on a per repository basis, before it will have
 an impact. Setting this up is recommended for repositories with a
 large number of packages.
 
-Most `spk` commands can use the `--index-use <value>` option to override
+Most `SPK` commands can use the `--index-use <value>` option to override
 repository index use on a per command basis. The `spk repo index ...`
 command always has index use disabled because it operates on the
 indexes themselves. `spk info ...` also disables indexes because
@@ -70,12 +70,12 @@ You do not have to generate a full index every time a package changes,
 you can update a package in an existing index, see the next section.
 
 
-### Updating an existing Index
+### Updating an Existing Index
 
 Updating a package in an existing index, such as after a new build is
 published or a package is deprecated, is not automatic.
 
-A site using `spk` has to set up a system to trigger index updates
+A site using `SPK` has to set up a system to trigger index updates
 when they want them to happen. The recommendation is after a new
 package is published, deprecated, undeprecated, or deleted. But
 regular periodic complete index generation may also work for a site,
@@ -89,22 +89,22 @@ The `--update` option can be given multiple times to update several
 packages at a once, e.g.:
 `spk repo index -r origin --update python --update zlib`
 
-The `--update` option take a package/version as well. This lets the
+The `--update` option takes a package/version as well. This lets the
 update be restricted to a specific version of a package. This can make
-for shorter update times for packages with large numbers of versions,
+for shorter update times for packages with a large number of versions,
 or builds per version, e.g.: 
 `spk repo index -r origin --update python/3.10.8 --update zlib/1.2.12`
 
 Those commands will read in the existing index for the repository and
 update the versions and builds of the named package in the index. It
 is faster than generating an index from scratch. It has to be run once
-per repository to update the given package or packages in that
+per repository to update the given package or packages in each
 repository's index.
 
 See `spk repo index -h` for more details.
 
 
-## Index vs Repository mismatches - updates are important
+## Index vs Repository Mismatches - Updates are Important
 
 When index use is enabled, it is important to update the indexes when
 changes happen to the repository and its packages. Otherwise, the
@@ -115,15 +115,15 @@ can lead to discrepancies in solves.
 
 ## Index Details
 
-### Index file location
+### Index File Location
 
 An index is stored in a file inside the repository it indexes. Only
-spk filesystem repositories (based on spfs fs repositories) support
+SPK filesystem repositories (based on spfs fs repositories) support
 indexes. The file will be kept in the `index/spk/` sub-directory of an
 spfs fs repository.
 
 
-### Structure and types in SPK
+### Structure and Types in SPK
 
 An index is implemented by a set of types in the spk-storage and
 spk-schema crates that work together to wrap a repository with its
@@ -149,15 +149,15 @@ in the 'spk-schema' crate:
 
 
 
-### Flatbuffer index schema
+### Flatbuffer Index Schema
 
-`spk` uses flatbuffers for the index data format on disk. This is fast
+`SPK` uses flatbuffers for the index data format on disk. This is fast
 to read and use, but slow to generate. Updates to an existing index
 require an index to be read in completely and written out again with
 the updated data. It does not support updating complex structures
 in-place.
 
-The `spk-proto` crate contains spk's flatbuffers schema for an
+The `spk-proto` crate contains SPK's flatbuffers schema for an
 index. It requires `flatc` to be installed to generate the rust code
 for the index schema.
 
@@ -193,74 +193,74 @@ including which fields of rust objects are being ignored, omitted from
 an index.
 
 
-### How to evolve the index schema
+### How to Evolve the Index Schema
 
 The flatbuffers data format supports adding new fields and structures
 without breaking existing code, provided fields are not deleted. New
 fields should be added only to the ends of tables.
 
-The index schema's version number lets `spk` check that the index data
-is compatible with the current spk being run. That is, that the code
+The index schema's version number lets `SPK` check that the index data
+is compatible with the current `SPK` being run. That is, that the code
 understands this version of the schema. There will be situations where
-multiple versions of spk are being used in a site and they may not all
-be able to use index data generated by other versions of spk.
+multiple versions of `SPK` are being used in a site and they may not all
+be able to use index data generated by other versions of `SPK`.
 
-Spk includes the schema version number in the index file name to allow
+`SPK` includes the schema version number in the index file name to allow
 multiple index schemas to co-exist during a transition between index
 versions.
 
-#### Adding a new field
+#### Adding a New Field
 
 When a new field needs to be added to the index schema, the developer should:
 - Increment the schema version number
 - Add the new field to the schema
-- Increment spk's compatible schema version number
-- Add spk code to read and write the new field
-- Make a new release of spk
-- Generate a new index using the new spk build
-- Transition the site to the new spk release
+- Increment `SPK`'s compatible schema version number
+- Add SPK code to read and write the new field
+- Make a new release of SPK
+- Generate a new index using the new SPK
+- Transition the site to the new SPK release
 - Once the transition is complete, retire the older index data file and generation
 
-During the transition the older version of spk will use the older
-index format(s) and the newer spk will use the newer one. Both indexes
+During the transition the older version of SPK will use the older
+index format(s) and the newer SPK will use the newer one. Both indexes
 will have to be generated and kept up to date during the transition.
-Once the older spk version is fully retired, the older index data can
+Once the older SPK version is fully retired, the older index data can
 be retired too.
 
 
-#### Stop reading an existing field
+#### Stop Reading an Existing Field
 
 When an older field does not need to be read anymore, the developer should:
-- Add spk code to stop reading the old field
-- Make a new release of spk that no longer reads the field
-- Transition the site to the new spk release
+- Add SPK code to stop reading the old field
+- Make a new release of SPK that no longer reads the field
+- Transition the site to the new SPK release
 
 There is no need to change the index schema version for to stop reading
 a field, and index generation remains unchanged (even though it
-includes data that is not read by spk anymore).
+includes data that is not read by SPK anymore).
 
 
-#### Stop populating an existing field
+#### Stop Populating an Existing Field
 
 If an older field no longer needs to be populated, the developer should:
 - Check the field is no longer read (see above). If it is still being read then continuing may cause unexpected results.
 - Increment the schema version number
-- Increment spk's compatible schema version number
-- Add spk code to write None (or the default enum entry depending on the field type) into the index
-- Make a new release of spk that contains this change
-- Transition the site to the new spk release
+- Increment SPK's compatible schema version number
+- Add SPK code to write None (or the default enum entry depending on the field type) into the index
+- Make a new release of SPK that contains this change
+- Transition the site to the new SPK release
 
 Technically, the field will still be present in the index schema, and
 be set in index generation because it is needed in the index's object
 constructors. But the None values will reduce the space the field
 takes up. And while this kind of change in backwards compatible, the
-empty field may be treated a default value by older versions of spk
+empty field may be treated a default value by older versions of SPK
 when read from the index - thus the need to version up the index
 schema to ensure this does not cause unexpected behaviour when
-multiple versions of spk are in use.
+multiple versions of SPK are in use.
 
 
-#### Removing an old field
+#### Removing an Old Field
 
 Removing an old field will break backwards compatibility of the
 flatbuffers format. It is not something that should be done lightly.
@@ -268,19 +268,19 @@ flatbuffers format. It is not something that should be done lightly.
 When a new field needs to be removed from the index schema, the developer should:
 - Double check the reason for removing the field, it may not be worth the trouble. This is a 2 stage process:
 - Stage 1:
-   - Add spk code to stop reading the old field
-   - Make a new release of spk that no longer reads the field
-   - Transition the site to the new spk release
+   - Add SPK code to stop reading the old field
+   - Make a new release of SPK that no longer reads the field
+   - Transition the site to the new SPK release
 - Stage 2:
    - Increment the schema version number
-   - Increment spk's compatible schema version number
-   - Add spk code to stop writing the old field at all
-   - Make another new release of spk that no longer writes the field
-   - Transition the site to the new spk release
+   - Increment SPK's compatible schema version number
+   - Add SPK code to stop writing the old field at all
+   - Make another new release of SPK that no longer writes the field
+   - Transition the site to the new SPK release
    - Once that transition is complete, retire the older index data file and generation process
 
-During the transition the older version of spk will use the older
-index format(s) and the newer spk will use the newer one. Both indexes
+During the transition the older version of SPK will use the older
+index format(s) and the newer SPK will use the newer one. Both indexes
 will have to be generated and kept up to date during the transition.
-Once the older spk version is fully retired, the older index data and
+Once the older SPK version is fully retired, the older index data and
 its generation can be retired too.

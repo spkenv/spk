@@ -410,9 +410,16 @@ impl FlatBufferRepoIndex {
         // package should be updated.
         let mut versions_to_update: HashMap<PkgNameBuf, HashSet<Version>> = HashMap::new();
         for package_version in package_versions {
+            // This sets the entry to an empty set if the
+            // package_version is really just a package without a
+            // target version number.
             let entry = versions_to_update
                 .entry(package_version.name().to_owned())
                 .or_default();
+
+            // A package_version with a version number (target) will
+            // have that version number added to the existing set of
+            // versions.
             if let Some(version) = package_version.target() {
                 tracing::info!("adding to versions: {package_version}");
                 entry.insert(version.clone());
@@ -449,6 +456,8 @@ impl FlatBufferRepoIndex {
         let mut num_versions = 0;
         let mut num_builds = 0;
 
+        let empty_set = HashSet::new();
+
         // Process the packages, checking for the ones to update and
         // pulling from the correct data source for each.
         for name in &package_names {
@@ -478,9 +487,10 @@ impl FlatBufferRepoIndex {
                 // update. An empty list of versions to update means
                 // update all the package's versions.
                 if package_names_to_update.contains(name)
-                    && let v2u = versions_to_update
-                        .get(name)
-                        .expect("a package to update should have a versions set, even an empty one")
+                    && let v2u = match versions_to_update.get(name) {
+                        Some(version_set) => version_set,
+                        None => &empty_set,
+                    }
                     && (v2u.is_empty() || v2u.contains(version))
                 {
                     // Get the updated data from the repo
