@@ -456,8 +456,6 @@ impl FlatBufferRepoIndex {
         let mut num_versions = 0;
         let mut num_builds = 0;
 
-        let empty_set = HashSet::new();
-
         // Process the packages, checking for the ones to update and
         // pulling from the correct data source for each.
         for name in &package_names {
@@ -487,11 +485,9 @@ impl FlatBufferRepoIndex {
                 // update. An empty list of versions to update means
                 // update all the package's versions.
                 if package_names_to_update.contains(name)
-                    && let v2u = match versions_to_update.get(name) {
-                        Some(version_set) => version_set,
-                        None => &empty_set,
-                    }
-                    && (v2u.is_empty() || v2u.contains(version))
+                    && versions_to_update
+                        .get(name)
+                        .is_some_and(|v2u| v2u.is_empty() || v2u.contains(version))
                 {
                     // Get the updated data from the repo
                     tracing::info!("Reached version {version} of the {name} package to update");
