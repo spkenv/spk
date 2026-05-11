@@ -17,6 +17,10 @@ use tokio::sync::Mutex;
 use crate::storage::messaging::PackageEvent;
 use crate::{Error, Result};
 
+/// The queue timeout for a producer sending a message to a queue.
+/// This determines how to long retry for if the producer queue is full.
+const PRODUCER_QUEUE_TIMEOUT_S: u64 = 4;
+
 type ProducersByBrokers = HashMap<Vec<String>, std::result::Result<FutureProducer, KafkaError>>;
 
 static KAFKA_PRODUCERS: Lazy<Mutex<ProducersByBrokers>> = Lazy::new(|| Mutex::new(HashMap::new()));
@@ -40,7 +44,10 @@ pub(crate) async fn announce_package_event(
                 // XXX: probably should expose all configuration parameters in
                 // spk config
                 .set("bootstrap.servers", kafka_channel.brokers.join(","))
-                .set("message.timeout.ms", kafka_channel.timeout_ms.to_string())
+                .set(
+                    "message.timeout.ms",
+                    kafka_channel.message_timeout_ms.to_string(),
+                )
                 .create()
         })
         .as_ref()
@@ -65,7 +72,7 @@ pub(crate) async fn announce_package_event(
                     })
                     .to_string(),
                 ),
-            Duration::from_secs(0),
+            Duration::from_secs(PRODUCER_QUEUE_TIMEOUT_S),
         )
         .await
         .map_err(|err| Error::String(format!("failed to send kafka message: {err:?}")))?;

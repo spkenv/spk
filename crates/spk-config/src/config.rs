@@ -198,7 +198,7 @@ pub struct HostOptions {
 
 /// Helper for testing default kafka timeout ms when not specified in
 /// config
-fn default_kafka_timeout_ms() -> u64 {
+fn default_kafka_message_timeout_ms() -> u64 {
     5000
 }
 
@@ -210,8 +210,8 @@ pub struct KafkaChannel {
     /// Topic name to push package updates to
     pub package_updates_topic_name: Option<String>,
     /// Message timeout in milliseconds, defaults to 5000 ms (5 seconds)
-    #[serde(default = "default_kafka_timeout_ms")]
-    pub timeout_ms: u64,
+    #[serde(default = "default_kafka_message_timeout_ms")]
+    pub message_timeout_ms: u64,
 }
 
 /// Types of message channels.
