@@ -19,7 +19,7 @@ use crate::{Error, Result};
 
 /// The queue timeout for a producer sending a message to a queue.
 /// This determines how to long retry for if the producer queue is full.
-const PRODUCER_QUEUE_TIMEOUT_S: u64 = 4;
+const PRODUCER_QUEUE_TIMEOUT: Duration = Duration::from_secs(4);
 
 type ProducersByBrokers = HashMap<Vec<String>, std::result::Result<FutureProducer, KafkaError>>;
 
@@ -72,7 +72,7 @@ pub(crate) async fn announce_package_event(
                     })
                     .to_string(),
                 ),
-            Duration::from_secs(PRODUCER_QUEUE_TIMEOUT_S),
+            PRODUCER_QUEUE_TIMEOUT,
         )
         .await
         .map_err(|err| Error::String(format!("failed to send kafka message: {err:?}")))?;
