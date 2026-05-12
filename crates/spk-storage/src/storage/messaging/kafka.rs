@@ -55,6 +55,9 @@ pub(crate) async fn announce_package_event(
 ) -> Result<()> {
     // Only send a message if the package events topic is configured
     let Some(topic_name) = kafka_channel.package_updates_topic_name.as_ref() else {
+        tracing::debug!(
+            "Not sending package event: no 'package_updates_topic_name' configured for kafka messaging channel",
+        );
         return Ok(());
     };
 
@@ -104,6 +107,10 @@ pub(crate) async fn announce_package_event(
             ))
         })?;
 
+    tracing::debug!(
+        "Sent package update message: {event} - {repo_name} - {to} - {ident} as:\n{message:?}"
+    );
+
     Ok(())
 }
 
@@ -117,6 +124,9 @@ pub(crate) async fn announce_index_event(
 ) -> Result<()> {
     // Only send a message if the index updates topic is configured
     let Some(topic_name) = kafka_channel.index_updates_topic_name.as_ref() else {
+        tracing::debug!(
+            "Not sending index event: no 'index_updates_topic_name' configured for kafka messaging channel",
+        );
         return Ok(());
     };
 

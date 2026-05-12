@@ -1430,7 +1430,7 @@ impl RepositoryIndexMut for FlatBufferRepoIndex {
 
         // Lock the index file until the data has been updated
         let lock_guard = lock_index_file(repo).await?;
-        let index_start_time = lock.locked_at_timestamp()?;
+        let index_start_time = lock_guard.locked_at_timestamp()?;
 
         // Send start index event
         announce_index_event(
@@ -1505,7 +1505,7 @@ impl RepositoryIndexMut for FlatBufferRepoIndex {
         // Lock the index file until the data has been updated
         tracing::debug!("Locking index file for update packages...");
         let lock_guard = lock_index_file(repo).await?;
-        let index_start_time = lock.locked_at_timestamp()?;
+        let index_start_time = lock_guard.locked_at_timestamp()?;
         tracing::debug!("Index file locked at: {index_start_time}");
 
         // Send start index event

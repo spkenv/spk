@@ -63,12 +63,22 @@ pub(crate) async fn announce_package_event(
     // Sends an index event message to all configured messaging systems
     let name = repo_name.to_string();
     for channel in &config.messaging {
+        tracing::debug!("Found a configured messaging channel for a package event");
         match channel {
             MessageChannel::Kafka(kafka_channel) => {
+                tracing::debug!(
+                    "Found kafka messaging channel called: '{}' for index event",
+                    kafka_channel.name
+                );
                 // Filter on the configured repo_name
                 if kafka_channel.repo_names.contains(&name) {
                     kafka::announce_package_event(kafka_channel, event, to, repo_name, ident)
                         .await?
+                } else {
+                    tracing::debug!(
+                        "Kafka messaging channel '{}' is not configured for '{name}' repo package events",
+                        kafka_channel.name
+                    );
                 }
             }
         }
@@ -127,6 +137,10 @@ pub(crate) async fn announce_index_event(
     for channel in &config.messaging {
         match channel {
             MessageChannel::Kafka(kafka_channel) => {
+                tracing::debug!(
+                    "Found kafka messaging channel called: '{}' for index event",
+                    kafka_channel.name
+                );
                 kafka::announce_index_event(kafka_channel, event, to, repo_name, index_start_time)
                     .await?
             }
