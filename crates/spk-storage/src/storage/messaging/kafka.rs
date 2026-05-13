@@ -13,6 +13,8 @@ use itertools::Itertools;
 use once_cell::sync::Lazy;
 use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
 use rdkafka::error::KafkaError;
+#[cfg(feature = "sentry")]
+use rdkafka::message::{BorrowedMessage, Headers};
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::util::Timeout;
 use rdkafka::{ClientConfig, Message, Offset, TopicPartitionList};
@@ -381,7 +383,10 @@ pub(crate) async fn listen_to_index_status_updates(
                         };
 
                         if let Ok(index_update) = serde_json::from_str::<IndexUpdateMessage>(&payload).inspect_err(|err| {
-                            tracing::warn!("Failed to index update message parse payload ('{payload}') as IndexUpdateMessage: {err}");
+                            let warning_message = format!("Ignoring message. Index consumer failed parse index update message payload ('{payload}'): {err}");
+                            tracing::warn!(warning_message);
+                            #[cfg(feature = "sentry")]
+                            send_ignored_message_to_sentry(warning_message, &message);
                         }) {
                             // This is a valid recent message, so reset the
                             // "indexer might be down" timeout timer.
@@ -443,9 +448,54 @@ pub(crate) async fn listen_to_index_status_updates(
     Ok(())
 }
 
-fn send_issue_to_sentry(message: String, err: &Error) {
-    tracing::warn!("Sending messaging issue to sentry is not implemented: {message} - {err}");
-    // TODO: implement this
+/// Helper for sending non-fatal messaging issues to sentry, such as when the
+/// message payload does not parse correctly.
+#[cfg(feature = "sentry")]
+pub(crate) fn send_ignored_message_to_sentry(issue: String, message: &BorrowedMessage) {
+    // Get additional data from the message and add it to a sentry breadcrumb
+    use std::collections::BTreeMap;
+    let timestamp = message.timestamp().to_millis().unwrap_or_default();
+    let key = match message.key() {
+        Some(k) => String::from_utf8_lossy(k).to_string(),
+        None => "None".to_string(),
+    };
+
+    let message_headers: BTreeMap<_, _> = if let Some(headers) = message.headers() {
+        headers
+            .iter()
+            .map(|h| (h.key.to_string(), h.value))
+            .collect()
+    } else {
+        Default::default()
+    };
+
+    let mut data = std::collections::BTreeMap::new();
+    data.insert(String::from("created"), serde_json::json!(timestamp));
+    data.insert(String::from("topic"), serde_json::json!(message.topic()));
+    data.insert(
+        String::from("partition"),
+        serde_json::json!(message.partition()),
+    );
+    data.insert(String::from("offset"), serde_json::json!(message.offset()));
+    data.insert(String::from("key"), serde_json::json!(key));
+    data.insert(String::from("headers"), serde_json::json!(message_headers));
+
+    sentry::add_breadcrumb(sentry::Breadcrumb {
+        category: Some("Problem message".into()),
+        message: Some("Kafka message details".into()),
+        data,
+        level: sentry::Level::Warning,
+        ..Default::default()
+    });
+
+    // First closure configures the scope for this message.
+    // Second closure makes and sends the message.
+    sentry::with_scope(
+        |_scope| {
+            // Nothing to configure
+        },
+        || sentry::capture_message(&issue, sentry::Level::Warning),
+    );
 }
 
 // Runs an indexer to continuously listen to package update messages,
@@ -561,9 +611,10 @@ pub async fn listen_to_package_events_and_run_index_updates(
 
                         if let Ok(package_event) = serde_json::from_str::<PackageEventMessage>(&payload).inspect_err(|err| {
                             // This problem message will be discarded
-                            let message = format!("Indexer failed to parse package event message payload ('{payload}') as PackageEventMessage: {err}");
-                            tracing::warn!(message);
-                            send_issue_to_sentry(message, &Error::String(err.to_string()));
+                            let warning_message = format!("Ignoring message. Indexer failed to parse package event message payload ('{payload}'): {err}");
+                            tracing::warn!(warning_message);
+                            #[cfg(feature = "sentry")]
+                            send_ignored_message_to_sentry(warning_message, &message);
                         }) {
                             // Process a valid message
                             tracing::debug!("Indexer read package event message: {package_event:?}");
@@ -582,14 +633,15 @@ pub async fn listen_to_package_events_and_run_index_updates(
                                     // Capture the package/version that was updated from the message,
                                     // It will have build ident (pkg/ver/build) in it, but only the
                                     // pkg/ver matters for index updates.
-                                    let package_ident = match parse_build_ident(package_event.package) {
+                                    let package_ident = match parse_build_ident(&package_event.package) {
                                         Ok(ident) => ident,
                                         Err(err) => {
-                                            let message = format!(
-                                                "Ignoring message. Indexer unable to get package ident from package event message: {err}"
+                                            let warning_message = format!(
+                                                "Ignoring message. Indexer unable to get ident from a package field ('{}') in package event message: {err}", package_event.package
                                             );
-                                            tracing::warn!(message);
-                                            send_issue_to_sentry(message, &Error::SpkIdentError(err));
+                                            tracing::warn!(warning_message);
+                                            #[cfg(feature = "sentry")]
+                                            send_ignored_message_to_sentry(warning_message, &message);
                                             continue;
                                         },
                                     };
