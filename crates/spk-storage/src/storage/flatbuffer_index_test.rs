@@ -22,6 +22,7 @@ use spk_schema::{
     ComponentSpec,
     Components,
     Deprecate,
+    DownstreamRequirements,
     OptionMap,
     OptionValues,
     Package,
@@ -262,7 +263,17 @@ fn assert_packages_are_equivalent(build_from_repo: Arc<Spec>, build_from_index: 
 
     //  fn get_all_tests(&self) -> Vec<SpecTest> - not implemented by SolverPackageSpec
 
-    // DownstreamRequirements - not implemented by SolverPackageSpec
+    // DownstreamRequirements
+    assert_eq!(
+        build_from_repo.downstream_build_requirements([]),
+        build_from_index.downstream_build_requirements([]),
+        "downstream_build_requirements() don't match [{pkg}]",
+    );
+    assert_eq!(
+        build_from_repo.downstream_runtime_requirements([]),
+        build_from_index.downstream_runtime_requirements([]),
+        "downstream_runtime_requirements() don't match [{pkg}]",
+    );
 
     // OptionValues
     assert_eq!(
