@@ -4,7 +4,6 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::str::FromStr;
-use std::sync::Arc;
 
 use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::{
@@ -1096,7 +1095,7 @@ pub fn component_specs_to_fb_component_specs<'a>(
 
 pub fn embedded_pkg_specs_to_fb_embedded_package_specs<'a>(
     builder: &mut flatbuffers::FlatBufferBuilder<'a>,
-    embedded: Arc<EmbeddedPackagesList<EmbeddedPackageSpec>>,
+    embedded: &EmbeddedPackagesList<EmbeddedPackageSpec>,
 ) -> Option<
     flatbuffers::WIPOffset<
         flatbuffers::Vector<

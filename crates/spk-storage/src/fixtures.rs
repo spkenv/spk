@@ -13,8 +13,7 @@ use spfs::prelude::*;
 use spk_schema::foundation::fixtures::*;
 use tokio::sync::{Mutex, MutexGuard};
 
-use crate as storage;
-use crate::NameAndRepository;
+use crate::{self as storage, IndexedRepository, NameAndRepository};
 
 static SPFS_RUNTIME_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
@@ -54,6 +53,7 @@ impl Drop for RuntimeLock {
 pub enum RepoKind {
     Mem,
     Spfs,
+    IndexedMem,
 }
 
 /// A temporary repository of some type for use in testing
@@ -134,6 +134,17 @@ pub async fn make_repo(kind: RepoKind) -> TempRepo {
             )
         }
         RepoKind::Mem => storage::RepositoryHandle::new_mem(),
+        RepoKind::IndexedMem => {
+            let repo = storage::RepositoryHandle::new_mem();
+
+            let mut indexed_repo = IndexedRepository::generate_from_repo(repo.into())
+                .await
+                .unwrap();
+            // For the publishing/writing tests
+            indexed_repo.set_update_index_after_any_publish(true);
+
+            storage::RepositoryHandle::Indexed(indexed_repo)
+        }
     };
 
     let repo = Arc::new(repo);

@@ -3,17 +3,19 @@
 // https://github.com/spkenv/spk
 
 use spk_schema::{Spec, SpecRecipe};
+use variantly::Variantly;
 
 use super::Repository;
 
 type Handle = dyn Repository<Recipe = SpecRecipe, Package = Spec>;
 
-#[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Clone, Variantly)]
 #[allow(clippy::large_enum_variant)]
 pub enum RepositoryHandle {
     SPFS(super::SpfsRepository),
     Mem(super::MemRepository<SpecRecipe>),
     Runtime(super::RuntimeRepository),
+    Indexed(super::IndexedRepository),
 }
 
 impl RepositoryHandle {
@@ -30,23 +32,12 @@ impl RepositoryHandle {
         Self::Runtime(Default::default())
     }
 
-    pub fn is_spfs(&self) -> bool {
-        matches!(self, Self::SPFS(_))
-    }
-
-    pub fn is_mem(&self) -> bool {
-        matches!(self, Self::Mem(_))
-    }
-
-    pub fn is_runtime(&self) -> bool {
-        matches!(self, Self::Runtime(_))
-    }
-
     pub fn to_repo(self) -> Box<Handle> {
         match self {
             Self::SPFS(repo) => Box::new(repo),
             Self::Mem(repo) => Box::new(repo),
             Self::Runtime(repo) => Box::new(repo),
+            Self::Indexed(repo) => Box::new(repo),
         }
     }
 }
@@ -59,6 +50,7 @@ impl std::ops::Deref for RepositoryHandle {
             RepositoryHandle::SPFS(repo) => repo,
             RepositoryHandle::Mem(repo) => repo,
             RepositoryHandle::Runtime(repo) => repo,
+            RepositoryHandle::Indexed(repo) => repo,
         }
     }
 }
@@ -69,6 +61,7 @@ impl std::ops::DerefMut for RepositoryHandle {
             RepositoryHandle::SPFS(repo) => repo,
             RepositoryHandle::Mem(repo) => repo,
             RepositoryHandle::Runtime(repo) => repo,
+            RepositoryHandle::Indexed(repo) => repo,
         }
     }
 }
@@ -88,5 +81,11 @@ impl From<super::MemRepository<SpecRecipe>> for RepositoryHandle {
 impl From<super::RuntimeRepository> for RepositoryHandle {
     fn from(repo: super::RuntimeRepository) -> Self {
         RepositoryHandle::Runtime(repo)
+    }
+}
+
+impl From<super::IndexedRepository> for RepositoryHandle {
+    fn from(repo: super::IndexedRepository) -> Self {
+        RepositoryHandle::Indexed(repo)
     }
 }

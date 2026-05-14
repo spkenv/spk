@@ -44,7 +44,9 @@ async fn test_archive_io(#[case] solver: SolverImpl) {
     filename.ensure();
     let repo = match &*rt.tmprepo {
         spk_solve::RepositoryHandle::SPFS(repo) => repo,
-        spk_solve::RepositoryHandle::Mem(_) | spk_solve::RepositoryHandle::Runtime(_) => {
+        spk_solve::RepositoryHandle::Mem(_)
+        | spk_solve::RepositoryHandle::Runtime(_)
+        | spk_solve::RepositoryHandle::Indexed(_) => {
             panic!("only spfs repositories are supported")
         }
     };
