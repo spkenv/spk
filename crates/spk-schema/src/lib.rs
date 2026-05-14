@@ -28,7 +28,7 @@ pub mod validation;
 pub mod variant;
 
 pub use build_spec::BuildSpec;
-pub use component_embedded_packages::ComponentEmbeddedPackagesList;
+pub use component_embedded_packages::{ComponentEmbeddedPackage, ComponentEmbeddedPackagesList};
 pub use component_spec::ComponentSpec;
 pub use component_spec_list::ComponentSpecList;
 pub use deprecate::{Deprecate, DeprecateMut};

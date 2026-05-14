@@ -16,6 +16,18 @@ impl BuildId {
         Self(chars)
     }
 
+    /// Make a new BuildId from a list of chars without checking
+    /// them.
+    ///
+    /// # Safety
+    ///
+    /// The caller must make sure the chars represent a valid BuildId.
+    pub unsafe fn new_unchecked(value: Vec<char>) -> Self {
+        let mut chars = [0 as char; Self::SIZE];
+        chars.copy_from_slice(&value);
+        Self::new(chars)
+    }
+
     pub fn new_from_bytes(bytes: &[u8]) -> Self {
         let encoded = data_encoding::BASE32.encode(bytes);
         Self(

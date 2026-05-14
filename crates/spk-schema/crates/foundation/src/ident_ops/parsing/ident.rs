@@ -45,6 +45,17 @@ impl NormalizedVersionString {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    /// Make a new NormalizedVersionString from a string without
+    /// checking its validity.
+    ///
+    /// # Safety
+    ///
+    /// The caller must make sure the string is a valid normalized
+    /// version string.
+    pub unsafe fn new_unchecked(normalized_version_string: String) -> Self {
+        Self(normalized_version_string)
+    }
 }
 
 impl std::fmt::Display for NormalizedVersionString {
