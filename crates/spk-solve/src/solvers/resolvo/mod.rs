@@ -21,7 +21,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Instant;
 
-use pkg_request_version_set::{SpkSolvable, SyntheticComponent};
+use pkg_request_version_set::{SpkSolvable, SyntheticComponent, VarValue};
 use spk_provider::SpkProvider;
 use spk_schema::ident::{
     InclusionPolicy,
@@ -36,7 +36,7 @@ use spk_schema::ident::{
     VarRequest,
 };
 use spk_schema::ident_component::Component;
-use spk_schema::name::PkgNameBuf;
+use spk_schema::name::{OptNameBuf, PkgNameBuf};
 use spk_schema::prelude::{HasVersion, Named, Versioned};
 use spk_schema::version_range::VersionFilter;
 use spk_schema::{OptionMap, Package, Spec};
@@ -146,7 +146,28 @@ impl Solver {
         self.build_from_source_trail = trail;
     }
 
-    pub async fn solve(&self) -> Result<Solution> {
+    pub async fn solve(&mut self) -> Result<Solution> {
+        let mut known_global_vars: HashMap<OptNameBuf, HashSet<VarValue>> = Default::default();
+
+        // Gather the global vars from any indexed repos and use them
+        // to prime the known global vars cache.
+        for repo in self.repos.iter() {
+            if let RepositoryHandle::Indexed(indexed_repo) = &**repo {
+                let start_gv = Instant::now();
+                for (name, values) in indexed_repo.get_global_var_values().into_iter() {
+                    let entry = known_global_vars.entry(name).or_default();
+                    for v in values {
+                        entry.insert(VarValue::Owned(v));
+                    }
+                }
+                tracing::debug!(
+                    "Resolvo: gathered global var from '{}' in: {} secs",
+                    repo.name(),
+                    start_gv.elapsed().as_secs_f64()
+                );
+            }
+        }
+
         let repos = self.repos.clone();
         let requests = self.requests.clone();
         let binary_only = self.binary_only;
@@ -155,6 +176,7 @@ impl Solver {
         let solvables = tokio::task::spawn_blocking(move || {
             let mut provider = Some(SpkProvider::new(
                 repos.clone(),
+                known_global_vars.clone(),
                 binary_only,
                 build_from_source_trail,
             ));

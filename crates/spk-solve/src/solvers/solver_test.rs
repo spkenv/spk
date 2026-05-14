@@ -2430,7 +2430,6 @@ async fn test_solver_option_compat_intersection(
 
 #[rstest]
 #[case::step(step_solver())]
-// #[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_components(
     #[case] mut solver: SolverImpl,
