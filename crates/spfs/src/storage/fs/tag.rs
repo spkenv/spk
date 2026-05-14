@@ -953,7 +953,7 @@ impl TagLock {
     /// # Safety:
     /// Tag locks are used to ensure that only one process is writing to a tag file at a time.
     /// Removing the lock file without ensuring that the tag file is not being written to may
-    /// cause the data within the file to become corrupt.
+    /// cause the data within the tag file to become corrupt.
     pub unsafe fn remove<P: AsRef<Path>>(tag_file: P) -> Result<()> {
         let mut lock_file = tag_file.as_ref().to_path_buf();
         lock_file.set_extension(Self::LOCK_EXT);
