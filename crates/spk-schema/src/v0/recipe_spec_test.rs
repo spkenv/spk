@@ -44,16 +44,20 @@ fn test_sources_relative_to_spec_file(tmpdir: tempfile::TempDir) {
         .unwrap()
         .render(&OptionMap::default())
         .unwrap();
-    let crate::Spec::V0Package(recipe) = spec
+    if let crate::Spec::V0Package(recipe) = spec
         .into_recipe()
         .unwrap()
         .generate_source_build(&spec_dir)
-        .unwrap();
-    if let Some(SourceSpec::Local(local)) = recipe.sources.first() {
-        assert_eq!(local.path, spec_dir);
+        .unwrap()
+    {
+        if let Some(SourceSpec::Local(local)) = recipe.sources.first() {
+            assert_eq!(local.path, spec_dir);
+        } else {
+            panic!("expected spec to have one local source spec");
+        }
     } else {
-        panic!("expected spec to have one local source spec");
-    }
+        panic!("expected spec to be a V0Package");
+    };
 }
 
 #[rstest]

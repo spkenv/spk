@@ -20,10 +20,12 @@ parsedbuf-serde = []
 [dependencies]
 arc-swap = { workspace = true }
 async-trait = { workspace = true }
+bytes = { workspace = true }
 colored = { workspace = true }
 data-encoding = "2.3"
 derive-where = { workspace = true }
 enum_dispatch = { workspace = true }
+flatbuffers = { workspace = true }
 format_serde_error = { workspace = true, default-features = false, features = [
     "serde_yaml",
     "colored",
@@ -43,6 +45,7 @@ rstest = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_yaml = { workspace = true }
 serial_test = { workspace = true }
+spk-proto = { workspace = true }
 spfs = { workspace = true }
 strum = { workspace = true, features = ["derive"] }
 sys-info = "0.9.0"
