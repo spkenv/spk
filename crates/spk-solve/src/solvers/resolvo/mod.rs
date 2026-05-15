@@ -232,6 +232,11 @@ impl Solver {
         .map_err(|err| Error::String(format!("Tokio panicked? {err}")))??;
 
         let mut solution_options = OptionMap::default();
+        for request in &self.requests {
+            if let RequestWithOptions::Var(var_req) = request {
+                solution_options.insert(var_req.var.clone(), var_req.value.to_string());
+            }
+        }
         let mut solution_adds = Vec::with_capacity(solvables.len());
         // Keep track of the index of each package added to `solution_adds` in
         // order to merge components. Components of a package come out of the
