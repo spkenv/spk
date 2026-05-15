@@ -14,6 +14,7 @@ use spk_schema_foundation::IsDefault;
 use spk_schema_foundation::ident::{
     AsVersionIdent,
     PinnedRequest,
+    PkgRequestOptionValue,
     PkgRequestOptions,
     RangeIdent,
     VersionIdent,
@@ -208,6 +209,26 @@ impl Recipe for RecipeSpec {
         let options = self.resolve_options(variant)?;
         let build_digest = Build::BuildId(self.build_digest(variant)?);
         let mut requests = RequirementsList::<RequestWithOptions>::default();
+
+        // Collect namespaced var options keyed by their package namespace so
+        // they can be attached to the corresponding package request.
+        let mut pkg_var_options: HashMap<String, PkgRequestOptions> = HashMap::new();
+        for opt in opts.iter() {
+            if let Opt::Var(var_opt) = opt
+                && let Some(ns) = var_opt.var.namespace()
+                && let Some(value) = options.get(&var_opt.var)
+                && !value.is_empty()
+            {
+                pkg_var_options
+                    .entry(ns.as_str().to_owned())
+                    .or_default()
+                    .insert(
+                        var_opt.var.clone(),
+                        PkgRequestOptionValue::Complete(value.to_string()),
+                    );
+            }
+        }
+
         for opt in opts {
             match opt {
                 Opt::Pkg(opt) => {
@@ -220,10 +241,11 @@ impl Recipe for RecipeSpec {
                         // inject the default component for this context if needed
                         req.pkg.components.insert(Component::default_for_build());
                     }
+                    let pkg_options = pkg_var_options.remove(opt.pkg.as_str()).unwrap_or_default();
                     requests.insert_or_merge_with_options(RequestWithOptions::Pkg(
                         PkgRequestWithOptions {
                             pkg_request: req,
-                            options: PkgRequestOptions::default(),
+                            options: pkg_options,
                         },
                     ))?;
                 }
