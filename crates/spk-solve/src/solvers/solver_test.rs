@@ -3529,3 +3529,28 @@ async fn install_requirement_vars_found_in_solution(
         solution.options()
     );
 }
+
+/// Build-environment var options with assigned values should appear in the
+/// resulting Solution options.
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
+#[tokio::test]
+async fn build_environment_var_options_found_in_solution(#[case] mut solver: SolverImpl) {
+    let recipe = recipe!({
+        "pkg": "simple/1.2.3",
+        "api": "v0/package",
+        "build": {
+            "options": [{"var": "my_var/true"}],
+        },
+    });
+
+    solver.configure_for_build_environment(&recipe).unwrap();
+
+    let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
+    assert!(
+        solution.options().get(opt_name!("my_var")) == Some(&"true".to_string()),
+        "expected my_var/true to be in solution options, got: {:#?}",
+        solution.options()
+    );
+}
