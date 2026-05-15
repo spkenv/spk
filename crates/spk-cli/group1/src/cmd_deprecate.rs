@@ -2,15 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::collections::HashMap;
 use std::io::Write;
 use std::sync::Arc;
 
+use chrono::{DateTime, Utc};
 use clap::Args;
 use colored::Colorize;
 use miette::Result;
 use spk_cli_common::{CommandArgs, Run, flags};
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::ident::{AnyIdent, parse_ident};
+use spk_schema::name::RepositoryNameBuf;
 use spk_schema::{Deprecate, DeprecateMut, Package, Recipe, Spec, SpecRecipe};
 use spk_storage as storage;
 
@@ -298,6 +301,10 @@ pub(crate) async fn change_deprecation_state(
     // Change all the item's statuses to the correct state based on
     // the action, unless they are already in that state.
     let new_status = action == ChangeAction::Deprecate;
+
+    let mut updated_repos: HashMap<RepositoryNameBuf, Arc<&storage::RepositoryHandle>> =
+        HashMap::new();
+
     for (mut target, repo_name, repo) in to_action.into_iter() {
         let fmt = target.ident().format_ident();
 
@@ -318,10 +325,24 @@ pub(crate) async fn change_deprecation_state(
         }
         match target {
             DeprecationTarget::Recipe(r) => repo.force_publish_recipe(&r).await?,
-            DeprecationTarget::Package(p) => repo.update_package(&p).await?,
+            DeprecationTarget::Package(p) => {
+                repo.update_package(&p).await?;
+                // Record the repo that had the change
+                updated_repos.insert(repo.name().into(), repo.clone());
+            }
         }
         tracing::info!(repo=%repo_name, "{} {fmt}", action.as_past_tense());
     }
+
+    // Wait for the index(es) to be updated before finishing. This
+    // might involve waiting on several repos.
+    let utc_now: DateTime<Utc> = Utc::now();
+    let deprecation_change_time = utc_now.timestamp();
+    for (_repo_name, repo) in updated_repos.iter() {
+        repo.wait_for_index_to_update(deprecation_change_time)
+            .await?;
+    }
+
     Ok(0)
 }
 enum DeprecationTarget {

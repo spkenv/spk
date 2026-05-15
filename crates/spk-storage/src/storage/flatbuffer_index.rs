@@ -46,6 +46,7 @@ use spk_schema::{
 use tokio::io::AsyncReadExt;
 
 use super::RepositoryHandle;
+use crate::storage::messaging::{IndexEvent, announce_index_event};
 use crate::storage::{RepositoryIndex, RepositoryIndexMut};
 use crate::{Error, RepoWalkerBuilder, RepoWalkerItem, Result};
 
@@ -93,19 +94,7 @@ async fn lock_index_file(repo: &RepositoryHandle) -> Result<FileLock> {
     let pid = std::process::id();
     let lock_contents = format!("host: {hostname}\npid: {pid}");
 
-    let index_config = match spk_config::get_config() {
-        Ok(config) => {
-            if let Some(repo_config) = config.repositories.get(&repo.name().to_string()) {
-                repo_config.index.clone()
-            } else {
-                spk_config::Index::default()
-            }
-        }
-        Err(err) => {
-            tracing::warn!("Unable to read spk config file, using defaults, due to: {err}");
-            spk_config::Index::default()
-        }
-    };
+    let index_config = spk_config::get_index_config(repo.name());
 
     FileLock::new(
         filepath,
@@ -362,6 +351,41 @@ impl FileLock {
         }
         Ok(())
     }
+
+    /// Get the timestamp of the lock file's creation/locking time
+    pub fn locked_at_timestamp(&self) -> Result<i64> {
+        if self.has_been_deleted {
+            return Err(Error::String(
+                "Unable to get lock timestamp: lock file has been deleted".to_string(),
+            ));
+        }
+
+        match std::fs::File::open(&self.lock_file) {
+            Ok(f) => match std::fs::File::metadata(&f) {
+                Ok(metadata) => match metadata.modified() {
+                    Ok(time) => {
+                        // Turn it into seconds since epoch timestamp
+                        let duration = time
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .expect("Lock file time should be after the start of the epoch");
+                        Ok(duration
+                            .as_secs()
+                            .try_into()
+                            .expect("timestamp since epoch should be convertible"))
+                    }
+                    Err(mod_time_err) => Err(Error::String(format!(
+                        "Unable to get time from lock file due to: {mod_time_err})"
+                    ))),
+                },
+                Err(metadata_err) => Err(Error::String(format!(
+                    "Unable to get metadata for lock file: {metadata_err})"
+                ))),
+            },
+            Err(open_err) => Err(Error::String(format!(
+                "Unknown to open the lock file to stat it: {open_err})"
+            ))),
+        }
+    }
 }
 
 impl Drop for FileLock {
@@ -538,8 +562,16 @@ impl FlatBufferRepoIndex {
         let name = repo.name();
         let repos = vec![(repo.name().to_string(), source_repo)];
 
-        let (packages, global_vars) =
-            FlatBufferRepoIndex::gather_all_data_from_repo(&repos).await?;
+        // Gathering data from an in-memory repo should not send
+        // in-progress events with the index update start time.
+        let do_not_send_index_events_periodically = None;
+        let placeholder_start_time = 0;
+        let (packages, global_vars) = FlatBufferRepoIndex::gather_all_data_from_repo(
+            &repos,
+            do_not_send_index_events_periodically,
+            placeholder_start_time,
+        )
+        .await?;
 
         tracing::info!(
             "'{name}' repo data gathered from memory in: {} secs",
@@ -584,6 +616,8 @@ impl FlatBufferRepoIndex {
     /// Gather packages and global vars from the given repos.
     async fn gather_all_data_from_repo(
         repos: &Vec<(String, crate::RepositoryHandle)>,
+        send_index_event_period_ms: Option<u64>,
+        index_start_time: i64,
     ) -> miette::Result<(HashMap<PkgNameBuf, PackageInfo>, GlobalVarsInfo)> {
         if repos.len() != 1 {
             return Err(Error::String(
@@ -614,13 +648,37 @@ impl FlatBufferRepoIndex {
 
         let package_names = HashSet::from_iter(repo.list_packages().await?);
 
+        announce_index_event(
+            IndexEvent::InProgress,
+            repo.address(),
+            repo.name(),
+            index_start_time,
+        )
+        .await?;
+
         let mut num_versions = 0;
         let mut num_builds = 0;
         let mut num_erroring_builds = 0;
         let mut num_deprecated_builds = 0;
 
+        let mut last_event_sent = Instant::now();
+
         let mut traversal = repo_walker.walk();
         while let Some(item) = traversal.try_next().await? {
+            // Periodically send an index in-progress event
+            if let Some(send_next_event_delay_ms) = send_index_event_period_ms
+                && last_event_sent.elapsed().as_millis() > send_next_event_delay_ms.into()
+            {
+                announce_index_event(
+                    IndexEvent::InProgress,
+                    repo.address(),
+                    repo.name(),
+                    index_start_time,
+                )
+                .await?;
+                last_event_sent = Instant::now();
+            }
+
             match item {
                 RepoWalkerItem::Version(version) => {
                     num_versions += 1;
@@ -675,6 +733,14 @@ impl FlatBufferRepoIndex {
             }
         }
 
+        announce_index_event(
+            IndexEvent::InProgress,
+            repo.address(),
+            repo.name(),
+            index_start_time,
+        )
+        .await?;
+
         // Debugging and logging
         let mut vars: Vec<String> = global_vars.keys().map(|k| k.to_string()).collect();
         vars.sort();
@@ -687,6 +753,14 @@ impl FlatBufferRepoIndex {
             global_vars.keys().len()
         );
 
+        announce_index_event(
+            IndexEvent::InProgress,
+            repo.address(),
+            repo.name(),
+            index_start_time,
+        )
+        .await?;
+
         Ok((packages, global_vars))
     }
 
@@ -697,6 +771,8 @@ impl FlatBufferRepoIndex {
         &self,
         repo: &crate::RepositoryHandle,
         package_versions: &[OptVersionIdent],
+        send_index_event_period: u64,
+        index_start_time: i64,
     ) -> miette::Result<(HashMap<PkgNameBuf, PackageInfo>, GlobalVarsInfo)> {
         let start = Instant::now();
 
@@ -751,9 +827,23 @@ impl FlatBufferRepoIndex {
         let mut num_versions = 0;
         let mut num_builds = 0;
 
+        let mut last_event_sent = start;
+
         // Process the packages, checking for the ones to update and
         // pulling from the correct data source for each.
         for name in &package_names {
+            // Periodically send an index in-progress event
+            if last_event_sent.elapsed().as_secs() > send_index_event_period {
+                announce_index_event(
+                    IndexEvent::InProgress,
+                    repo.address(),
+                    repo.name(),
+                    index_start_time,
+                )
+                .await?;
+                last_event_sent = Instant::now();
+            }
+
             // Get the current versions of the packages to update from
             // the repository not the index, to account for any
             // deleted, updated, or newly published versions.
@@ -1334,15 +1424,51 @@ impl RepositoryIndexMut for FlatBufferRepoIndex {
             .into());
         }
         let repo = &repos[0].1;
+        // Ensure any direct repo access gets the latest data from the
+        // repo itself, not any caches it might have.
+        repo.clear_caches();
 
         // Lock the index file until the data has been updated
         let lock_guard = lock_index_file(repo).await?;
+        let index_start_time = lock_guard.locked_at_timestamp()?;
 
-        let (packages, global_vars) = FlatBufferRepoIndex::gather_all_data_from_repo(repos).await?;
+        // Send start index event
+        announce_index_event(
+            IndexEvent::Started,
+            repo.address(),
+            repo.name(),
+            index_start_time,
+        )
+        .await?;
+
+        // Get all the package data from the repository
+        let index_config = spk_config::get_index_config(repo.name());
+        let (packages, global_vars) = FlatBufferRepoIndex::gather_all_data_from_repo(
+            repos,
+            Some(index_config.update_event_send_freq_ms),
+            index_start_time,
+        )
+        .await?;
+
+        announce_index_event(
+            IndexEvent::InProgress,
+            repo.address(),
+            repo.name(),
+            index_start_time,
+        )
+        .await?;
 
         // Assemble the data into a flatbuffer index and save it
         let builder =
             FlatBufferRepoIndex::generate_index_builder(repo, packages, global_vars).await?;
+
+        announce_index_event(
+            IndexEvent::InProgress,
+            repo.address(),
+            repo.name(),
+            index_start_time,
+        )
+        .await?;
 
         let start = Instant::now();
         let _filepath = FlatBufferRepoIndex::save_index(&lock_guard, repo, &builder).await?;
@@ -1351,6 +1477,15 @@ impl RepositoryIndexMut for FlatBufferRepoIndex {
             repo.name(),
             start.elapsed().as_secs_f64()
         );
+
+        // Send end index event
+        announce_index_event(
+            IndexEvent::Completed,
+            repo.address(),
+            repo.name(),
+            index_start_time,
+        )
+        .await?;
 
         Ok(())
     }
@@ -1363,18 +1498,63 @@ impl RepositoryIndexMut for FlatBufferRepoIndex {
         repo: &crate::RepositoryHandle,
         package_versions: &[OptVersionIdent],
     ) -> miette::Result<()> {
+        // Ensure any direct repo access gets the latest data from the
+        // repo itself, not any caches it might have.
+        repo.clear_caches();
+
         // Lock the index file until the data has been updated
+        tracing::debug!("Locking index file for update packages...");
         let lock_guard = lock_index_file(repo).await?;
+        let index_start_time = lock_guard.locked_at_timestamp()?;
+        tracing::debug!("Index file locked at: {index_start_time}");
+
+        // Send start index event
+        announce_index_event(
+            IndexEvent::Started,
+            repo.address(),
+            repo.name(),
+            index_start_time,
+        )
+        .await?;
 
         // Get the updated package data from the index and the repo
+        let index_config = spk_config::get_index_config(repo.name());
+        tracing::debug!("Gathering updates from repo ...");
         let (packages, global_vars) = self
-            .gather_updates_from_repo(repo, package_versions)
+            .gather_updates_from_repo(
+                repo,
+                package_versions,
+                index_config.update_event_send_freq_ms,
+                index_start_time,
+            )
             .await?;
+        tracing::debug!("Gathered updates from repo.");
+
+        // Send in-progress index event
+        announce_index_event(
+            IndexEvent::InProgress,
+            repo.address(),
+            repo.name(),
+            index_start_time,
+        )
+        .await?;
 
         // Assemble the data into a flatbuffer index and save it
+        tracing::debug!("Generating index builder...");
         let builder =
             FlatBufferRepoIndex::generate_index_builder(repo, packages, global_vars).await?;
+        tracing::debug!("Gathered index builder.");
 
+        // Send in-progress index event
+        announce_index_event(
+            IndexEvent::InProgress,
+            repo.address(),
+            repo.name(),
+            index_start_time,
+        )
+        .await?;
+
+        tracing::debug!("Saving update index ...");
         let start = Instant::now();
         let _filepath = FlatBufferRepoIndex::save_index(&lock_guard, repo, &builder).await?;
         tracing::info!(
@@ -1382,6 +1562,15 @@ impl RepositoryIndexMut for FlatBufferRepoIndex {
             repo.name(),
             start.elapsed().as_secs_f64()
         );
+
+        // Send competed index event
+        announce_index_event(
+            IndexEvent::Completed,
+            repo.address(),
+            repo.name(),
+            index_start_time,
+        )
+        .await?;
 
         Ok(())
     }

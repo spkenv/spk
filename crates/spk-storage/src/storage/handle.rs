@@ -8,6 +8,7 @@ use spk_schema::{Spec, SpecRecipe};
 use variantly::Variantly;
 
 use super::Repository;
+use super::messaging::listen_to_index_status_until_updated;
 use crate::{Error, Result};
 
 type Handle = dyn Repository<Recipe = SpecRecipe, Package = Spec>;
@@ -74,6 +75,24 @@ impl RepositoryHandle {
                 Box::pin(indexed_repo.wrapped_repo_index_location_path()).await
             }
         }
+    }
+
+    /// Clear any internal caches the repository has
+    pub fn clear_caches(&self) {
+        match self {
+            Self::SPFS(spfs_repo) => spfs_repo.invalidate_caches(),
+            _ => {
+                // The other kinds of repository do not have and caches
+            }
+        }
+    }
+
+    /// Wait for the index associated with this repo, if there is one,
+    /// to be updated. This is used by package changing operations
+    /// (publish, remove, un/deprecate) to wait until the index has
+    /// been updated with their changes before finishing.
+    pub async fn wait_for_index_to_update(&self, update_time: i64) -> Result<()> {
+        listen_to_index_status_until_updated(self, update_time).await
     }
 }
 

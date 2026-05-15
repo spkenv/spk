@@ -15,8 +15,7 @@ use spk_schema::option_map::get_host_options_filters;
 use spk_schema::{BuildIdent, Components, Deprecate, Package, PackageMut, VersionIdent};
 
 use self::internal::RepositoryExt;
-use super::announce_package_event;
-use crate::storage::messaging::PackageEvent;
+use super::{PackageEvent, announce_package_event};
 use crate::{Error, Result};
 
 #[cfg(test)]
@@ -163,7 +162,8 @@ pub(in crate::storage) mod internal {
         Recipe,
     };
 
-    use crate::Result;
+    use crate::storage::announce_package_event;
+    use crate::{PackageEvent, Result};
 
     /// Reusable methods for [`super::Repository`] that are not intended to be
     /// part of its public interface.
@@ -199,7 +199,17 @@ pub(in crate::storage) mod internal {
             ))));
             spec_for_embedded_pkg.set_deprecated(spec_for_parent.is_deprecated())?;
             self.publish_embed_stub_to_storage(&spec_for_embedded_pkg)
-                .await
+                .await?;
+
+            announce_package_event(
+                PackageEvent::Modified,
+                self.address(),
+                self.name(),
+                spec_for_embedded_pkg.ident(),
+            )
+            .await?;
+
+            Ok(())
         }
 
         /// Get all the embedded packages described by a [`Package`] and
@@ -232,7 +242,7 @@ pub(in crate::storage) mod internal {
             spec_for_embedded_pkg: &Self::Package,
             components_that_embed_this_pkg: BTreeSet<Component>,
         ) -> Result<()> {
-            let spec_for_embedded_pkg =
+            let embedded_pkg_ident =
                 spec_for_embedded_pkg
                     .ident()
                     .with_build(Build::Embedded(EmbeddedSource::Package(Box::new(
@@ -242,8 +252,17 @@ pub(in crate::storage) mod internal {
                             unparsed: None,
                         },
                     ))));
-            self.remove_embed_stub_from_storage(&spec_for_embedded_pkg)
+            self.remove_embed_stub_from_storage(&embedded_pkg_ident)
                 .await?;
+
+            announce_package_event(
+                PackageEvent::Modified,
+                self.address(),
+                self.name(),
+                &embedded_pkg_ident,
+            )
+            .await?;
+
             Ok(())
         }
     }
@@ -431,7 +450,13 @@ pub trait Repository: Storage + Sync {
             }
         }
 
-        announce_package_event(PackageEvent::Published, self.address(), package.ident()).await?;
+        announce_package_event(
+            PackageEvent::Published,
+            self.address(),
+            self.name(),
+            package.ident(),
+        )
+        .await?;
 
         Ok(())
     }
@@ -465,6 +490,17 @@ pub trait Repository: Storage + Sync {
         let components = self.read_components(package.ident()).await?;
         self.publish_package_to_storage(package, &components)
             .await?;
+        // The package has been updated so send an event about that
+        // immediately. The package or embedded packages related to it
+        // may be updated later in this method and those updates will
+        // send additional package events.
+        announce_package_event(
+            PackageEvent::Modified,
+            self.address(),
+            self.name(),
+            package.ident(),
+        )
+        .await?;
 
         // Changes that affect embedded stubs:
         // - change in deprecation status
@@ -541,9 +577,6 @@ pub trait Repository: Storage + Sync {
         }
         // else if there was no original spec, assume there is nothing needed
         // to do.
-
-        announce_package_event(PackageEvent::Modified, self.address(), package.ident()).await?;
-
         Ok(())
     }
 
@@ -565,7 +598,7 @@ pub trait Repository: Storage + Sync {
 
         self.remove_package_from_storage(pkg).await?;
 
-        announce_package_event(PackageEvent::Removed, self.address(), pkg).await
+        announce_package_event(PackageEvent::Removed, self.address(), self.name(), pkg).await
     }
 
     /// Identify the payloads for this identified package's components.

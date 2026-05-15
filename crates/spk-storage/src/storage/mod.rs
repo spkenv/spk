@@ -19,6 +19,7 @@ pub use handle::RepositoryHandle;
 pub use indexed::IndexedRepository;
 pub use mem::MemRepository;
 pub(crate) use messaging::announce_package_event;
+pub use messaging::{PackageEvent, run_index_update_server};
 pub use repository::{CachePolicy, Repository, Storage};
 pub use repository_index::{RepoIndex, RepositoryIndex, RepositoryIndexMut};
 pub use runtime::{RuntimeRepository, find_path_providers, pretty_print_filepath};
