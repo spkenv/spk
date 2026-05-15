@@ -814,6 +814,105 @@ build:
 #[case::checks("checks")]
 #[case::resolvo("resolvo")]
 #[tokio::test]
+async fn test_build_var_name_collides_with_package_name(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
+    let _rt = spfs_runtime().await;
+
+    build_package!(
+        tmpdir,
+        "demo.spk.yaml",
+        br#"
+api: v0/package
+pkg: demo/1.0.0
+
+build:
+  options:
+    - var: samenameaspkg/true
+  script:
+    - "true"
+"#,
+        solver_to_run
+    );
+
+    build_package!(
+        tmpdir,
+        "samenameaspkg.spk.yaml",
+        br#"
+api: v0/package
+pkg: samenameaspkg/1.2.3
+
+build:
+  script:
+    - "true"
+"#,
+        solver_to_run
+    );
+
+    build_package!(
+        tmpdir,
+        "middle.spk.yaml",
+        br#"
+api: v0/package
+pkg: middle/1.0.0
+
+build:
+  options:
+    - pkg: demo
+    - var: demo.samenameaspkg/true
+  script:
+    - "true"
+
+install:
+  requirements:
+    - pkg: demo
+      fromBuildEnv: true
+    - var: demo.samenameaspkg/true
+"#,
+        solver_to_run
+    );
+
+    let result = try_build_package!(
+        tmpdir,
+        "consumer.spk.yaml",
+        br#"
+api: v0/package
+pkg: consumer/1.0.0
+
+build:
+  options:
+    - pkg: samenameaspkg
+    - pkg: middle
+  script:
+    - "true"
+"#,
+        solver_to_run
+    )
+    .1;
+
+    match solver_to_run {
+        "resolvo" => {
+            result.expect("Expected build of consumer to succeed with resolvo");
+        }
+        _ => {
+            // The step-based solvers (cli, checks) incorrectly reject
+            // this build because VarRequirementsValidator matches
+            // option keys by base_name: demo.samenameaspkg=true
+            // collides with the package option samenameaspkg=~1.2.3.
+            result.expect_err(
+                "Expected build of consumer to fail with step solver due to base_name collision",
+            );
+        }
+    }
+}
+
+#[spfstest]
+#[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
+#[tokio::test]
 async fn test_package_with_environment_ops_preserves_ops_in_recipe(
     tmpdir: tempfile::TempDir,
     #[case] solver_to_run: &str,
