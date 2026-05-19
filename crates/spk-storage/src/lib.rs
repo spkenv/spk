@@ -35,6 +35,7 @@ pub use storage::{
     SpfsRepository,
     Storage,
     export_package,
+    export_packages,
     find_path_providers,
     inject_path_repo_into_spfs_config,
     local_repository,

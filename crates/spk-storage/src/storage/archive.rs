@@ -13,12 +13,39 @@ use variantly::Variantly;
 use super::{Repository, SpfsRepository};
 use crate::{Error, NameAndRepository, Result};
 
+/// Export a single package ident into a `.spk` tar repository archive.
+///
+/// If a version ident is provided, all available builds for that version are
+/// included. If a build ident is provided, the matching build and its recipe
+/// are exported.
 pub async fn export_package(
     source_repos: &[&SpfsRepository],
     pkg: impl AsRef<AnyIdent>,
     filename: impl AsRef<Path>,
 ) -> Result<()> {
-    let pkg = pkg.as_ref();
+    export_packages(source_repos, [pkg.as_ref().clone()], filename).await
+}
+
+/// Export multiple packages into a single `.spk` tar repository archive.
+///
+/// Each requested ident is copied from the first source repository that can
+/// satisfy it. Version idents include all available builds for that version,
+/// while build idents include the matching build and its recipe.
+pub async fn export_packages<I>(
+    source_repos: &[&SpfsRepository],
+    pkgs: I,
+    filename: impl AsRef<Path>,
+) -> Result<()>
+where
+    I: IntoIterator<Item = AnyIdent>,
+{
+    let requested_packages = pkgs.into_iter().collect_vec();
+    if requested_packages.is_empty() {
+        return Err(Error::String(
+            "No packages were requested for export".to_string(),
+        ));
+    }
+
     // Make filename absolute as spfs::runtime::makedirs_with_perms does not handle
     // relative paths properly.
     let filename = std::env::current_dir()
@@ -55,86 +82,95 @@ pub async fn export_package(
         spfs::storage::RepositoryHandle::from(tar_repo),
     ))?;
 
-    // these are sorted to ensure that the recipe is published
-    // before any build - it's only an error in testing, but still best practice
-    let mut to_transfer = std::collections::BTreeSet::new();
-    to_transfer.insert(pkg.clone());
-    if pkg.build().is_none() {
-        for repo in source_repos {
-            to_transfer.extend(
-                repo.list_package_builds(pkg.as_version_ident())
-                    .await?
-                    .into_iter()
-                    .map(|pkg| pkg.into_any_ident()),
-            );
-        }
-    } else {
-        to_transfer.insert(pkg.with_build(None));
-    }
+    // Keep track of what we have already copied so multiple requests that
+    // overlap don't repeatedly transfer the same package/spec data.
+    let mut copied = std::collections::BTreeSet::<AnyIdent>::new();
 
-    'pkg: for transfer_pkg in to_transfer.into_iter() {
-        if transfer_pkg.is_embedded() {
-            // Don't attempt to export an embedded package; the stub
-            // will be recreated if exporting its provider.
-            continue;
+    for pkg in requested_packages {
+        // These are sorted to ensure that the recipe is published before any
+        // build. It's only an error in testing, but still best practice.
+        let mut to_transfer = std::collections::BTreeSet::new();
+        to_transfer.insert(pkg.clone());
+        if pkg.build().is_none() {
+            for repo in source_repos {
+                to_transfer.extend(
+                    repo.list_package_builds(pkg.as_version_ident())
+                        .await?
+                        .into_iter()
+                        .map(|pkg| pkg.into_any_ident()),
+                );
+            }
+        } else {
+            to_transfer.insert(pkg.with_build(None));
         }
 
-        #[derive(Variantly)]
-        enum CopyResult {
-            VersionNotFound,
-            BuildNotFound,
-            Err(Error),
-        }
-
-        let mut first_error = None;
-        let mut all_errors_are_build_not_found = true;
-
-        for (position, repo) in source_repos.iter().with_position() {
-            let err = match copy_any(transfer_pkg.clone(), repo, &target_repo).await {
-                Ok(_) => continue 'pkg,
-                Err(Error::PackageNotFound(ident)) => {
-                    if ident.build().is_some() {
-                        CopyResult::BuildNotFound
-                    } else {
-                        CopyResult::VersionNotFound
-                    }
-                }
-                Err(err) => CopyResult::Err(err),
-            };
-
-            // `list_package_builds` can return builds that only exist as spfs tags
-            // under `spk/spec`, meaning the build doesn't really exist. Ignore
-            // `PackageNotFound` about these ... unless the build was
-            // explicitly named to be archived.
-            //
-            // Consider changing `list_package_builds` so it doesn't do that
-            // anymore, although it has a comment that it is doing so
-            // intentionally. Maybe it should return a richer type that describes
-            // if only the "spec build" exists and that info could be used here.
-            all_errors_are_build_not_found = all_errors_are_build_not_found
-                && matches!(err, CopyResult::BuildNotFound)
-                && pkg.build().is_none();
-
-            // We'll report the error from the first repo that failed, under the
-            // assumption that the repo(s) listed first are more likely to be
-            // where the problem is fixable (e.g., the local repo).
-            if first_error.is_none() {
-                first_error = Some(err);
+        'transfer: for transfer_pkg in to_transfer.into_iter() {
+            if transfer_pkg.is_embedded() || copied.contains(&transfer_pkg) {
+                // Don't attempt to export an embedded package; the stub
+                // will be recreated if exporting its provider.
+                continue;
             }
 
-            match position {
-                Position::Last | Position::Only if all_errors_are_build_not_found => {
-                    continue 'pkg;
+            #[derive(Variantly)]
+            enum CopyResult {
+                VersionNotFound,
+                BuildNotFound,
+                Err(Error),
+            }
+
+            let mut first_error = None;
+            let mut all_errors_are_build_not_found = true;
+
+            for (position, repo) in source_repos.iter().with_position() {
+                let err = match copy_any(transfer_pkg.clone(), repo, &target_repo).await {
+                    Ok(_) => {
+                        copied.insert(transfer_pkg.clone());
+                        continue 'transfer;
+                    }
+                    Err(Error::PackageNotFound(ident)) => {
+                        if ident.build().is_some() {
+                            CopyResult::BuildNotFound
+                        } else {
+                            CopyResult::VersionNotFound
+                        }
+                    }
+                    Err(err) => CopyResult::Err(err),
+                };
+
+                // `list_package_builds` can return builds that only exist as spfs tags
+                // under `spk/spec`, meaning the build doesn't really exist. Ignore
+                // `PackageNotFound` about these ... unless the build was
+                // explicitly named to be archived.
+                //
+                // Consider changing `list_package_builds` so it doesn't do that
+                // anymore, although it has a comment that it is doing so
+                // intentionally. Maybe it should return a richer type that describes
+                // if only the "spec build" exists and that info could be used here.
+                all_errors_are_build_not_found = all_errors_are_build_not_found
+                    && matches!(err, CopyResult::BuildNotFound)
+                    && pkg.build().is_none();
+
+                // We'll report the error from the first repo that failed, under the
+                // assumption that the repo(s) listed first are more likely to be
+                // where the problem is fixable (e.g., the local repo).
+                if first_error.is_none() {
+                    first_error = Some(err);
                 }
-                Position::Last | Position::Only => {
-                    return Err(first_error
-                        .unwrap()
-                        .err()
-                        .unwrap_or_else(|| Error::PackageNotFound(Box::new(transfer_pkg))));
-                }
-                _ => {
-                    // Try the next repo
-                    continue;
+
+                match position {
+                    Position::Last | Position::Only if all_errors_are_build_not_found => {
+                        continue 'transfer;
+                    }
+                    Position::Last | Position::Only => {
+                        return Err(first_error
+                            .unwrap()
+                            .err()
+                            .unwrap_or_else(|| Error::PackageNotFound(Box::new(transfer_pkg))));
+                    }
+                    _ => {
+                        // Try the next repo
+                        continue;
+                    }
                 }
             }
         }
