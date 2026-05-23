@@ -4,10 +4,12 @@
 
 use std::sync::Arc;
 
+use futures::{StreamExt, TryStreamExt};
 use rstest::{fixture, rstest};
 use spfs::encoding::EMPTY_DIGEST;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::ident_component::Component;
+use spk_schema::foundation::name::PkgName;
 use spk_schema::foundation::{build_ident, opt_name, version_ident};
 use spk_schema::ident::{
     InitialRawRequest,
@@ -29,6 +31,7 @@ use spk_solve_macros::{
     make_repo,
     pinned_request,
 };
+use spk_solve_graph::DEAD_STATE;
 use spk_solve_solution::PackageSource;
 use spk_storage::RepositoryHandle;
 use spk_storage::fixtures::*;
@@ -3655,5 +3658,92 @@ async fn install_requirement_vars_found_in_solution(
         solution.options().get(var_name) == Some(&"value".to_string()),
         "expected {var_name}/value to be in solution options, got: {:#?}",
         solution.options()
+    );
+}
+
+#[tokio::test]
+async fn test_compact_runtime_does_not_record_graph_walk_history() {
+    let repo = make_repo!([{"pkg": "my-pkg/1.0.0"}]);
+
+    let mut solver = StepSolver::default();
+    solver.add_repository(Arc::new(repo));
+    solver.add_request(pinned_request!("my-pkg"));
+
+    let mut runtime = solver.run_compact();
+    {
+        let iter = runtime.iter();
+        tokio::pin!(iter);
+        while let Some(_step) = iter.try_next().await.unwrap() {}
+    }
+
+    let solution = runtime.current_solution().await.unwrap();
+    assert_eq!(solution.len(), 1, "expected compact runtime to solve normally");
+
+    let graph = runtime.graph();
+    let graph = graph.read().await;
+    assert!(graph.nodes.len() > 1, "expected compact runtime to retain states");
+
+    let mut walk = graph.walk();
+    let iter = walk.iter();
+    tokio::pin!(iter);
+    assert!(
+        iter.next().await.is_none(),
+        "compact runtime should not retain per-edge decision history"
+    );
+}
+
+#[tokio::test]
+async fn test_compact_runtime_clears_iterators_for_exhausted_nodes() {
+    let repo = make_repo!([
+        {"pkg": "maya/2019"},
+        {"pkg": "maya/2020"},
+        {
+            "pkg": "my-plugin/1.1.0",
+            "install": {"requirements": [{"pkg": "maya/2020"}]},
+        },
+    ]);
+
+    let mut solver = StepSolver::default();
+    solver.add_repository(Arc::new(repo));
+    solver.add_request(pinned_request!("my-plugin/1"));
+    solver.add_request(pinned_request!("maya/2019"));
+
+    let mut runtime = solver.run_compact();
+    {
+        let iter = runtime.iter();
+        tokio::pin!(iter);
+        while let Some(_step) = iter.try_next().await.unwrap() {}
+    }
+
+    let err = runtime.current_solution().await.expect_err("expected solve to fail");
+    assert!(
+        matches!(err, Error::GraphError(ref graph_err) if matches!(&**graph_err, spk_solve_graph::Error::FailedToResolve(_))),
+        "expected compact runtime to end in FailedToResolve, got {err:?}"
+    );
+
+    let graph = runtime.graph();
+    let graph = graph.read().await;
+    let package_name = PkgName::new("my-plugin").unwrap();
+
+    let mut found_exhausted_request_node = false;
+    for node in graph.nodes.values() {
+        let node = node.read().await;
+        if Arc::ptr_eq(&node.state, &DEAD_STATE)
+            || !node.state.get_resolved_packages().is_empty()
+            || node.state.get_pkg_requests().len() != 2
+        {
+            continue;
+        }
+
+        found_exhausted_request_node = true;
+        assert!(
+            node.get_iterator(&package_name).is_none(),
+            "exhausted node should not retain its package iterator"
+        );
+    }
+
+    assert!(
+        found_exhausted_request_node,
+        "expected to find the exhausted request node in the compact graph"
     );
 }

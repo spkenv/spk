@@ -665,10 +665,17 @@ impl<'state> DecisionBuilder<'state, '_> {
 pub struct Graph {
     pub root: Arc<tokio::sync::RwLock<Arc<Node>>>,
     pub nodes: HashMap<u64, Arc<tokio::sync::RwLock<Arc<Node>>>>,
+    record_decisions: bool,
 }
 
 impl Graph {
     pub fn new() -> Self {
+        Self::new_with_decision_tracking(true)
+    }
+
+    /// Create a graph that optionally records per-edge decisions for later
+    /// traversal and formatting.
+    pub fn new_with_decision_tracking(record_decisions: bool) -> Self {
         let dead_state = Arc::clone(&*DEAD_STATE);
         let dead_state_id = dead_state.id();
         let dead_state = Arc::new(tokio::sync::RwLock::new(Arc::new(Node::new(dead_state))));
@@ -679,6 +686,7 @@ impl Graph {
         Graph {
             root: dead_state,
             nodes,
+            record_decisions,
         }
     }
 
@@ -747,13 +755,25 @@ impl Graph {
                 // Avoid deadlock if old_node is the same node as new_node
                 if !Arc::ptr_eq(&old_node, &new_node) {
                     let mut new_node_lock = new_node.write().await;
-                    Arc::make_mut(&mut old_node_lock)
-                        .add_output(decision.clone(), &new_node_lock.state)?;
-                    Arc::make_mut(&mut new_node_lock).add_input(&old_node_lock.state, decision);
+                    let old_node = Arc::make_mut(&mut old_node_lock);
+                    let new_node = Arc::make_mut(&mut new_node_lock);
+                    if self.record_decisions {
+                        old_node.add_output(decision.clone(), &new_node.state)?;
+                        new_node.add_input(&old_node.state, decision);
+                    } else {
+                        old_node.add_output_edge(&new_node.state)?;
+                        new_node.add_input_edge(&old_node.state);
+                    }
                 } else {
                     let old_state = old_node_lock.state.clone();
-                    Arc::make_mut(&mut old_node_lock).add_output(decision.clone(), &old_state)?;
-                    Arc::make_mut(&mut old_node_lock).add_input(&old_state, decision);
+                    let old_node = Arc::make_mut(&mut old_node_lock);
+                    if self.record_decisions {
+                        old_node.add_output(decision.clone(), &old_state)?;
+                        old_node.add_input(&old_state, decision);
+                    } else {
+                        old_node.add_output_edge(&old_state)?;
+                        old_node.add_input_edge(&old_state);
+                    }
                 }
             }
         }
@@ -879,16 +899,25 @@ pub struct Node {
 }
 
 impl Node {
-    pub fn add_input(&mut self, state: &State, decision: Arc<Decision>) {
+    fn add_input_edge(&mut self, state: &State) {
         self.inputs.insert(state.id());
+    }
+
+    pub fn add_input(&mut self, state: &State, decision: Arc<Decision>) {
+        self.add_input_edge(state);
         self.inputs_decisions.push(decision);
     }
 
-    pub fn add_output(&mut self, decision: Arc<Decision>, state: &State) -> Result<()> {
+    fn add_output_edge(&mut self, state: &State) -> Result<()> {
         if self.outputs.contains(&state.id()) {
             return Err(GraphError::RecursionError(BRANCH_ALREADY_ATTEMPTED));
         }
         self.outputs.insert(state.id());
+        Ok(())
+    }
+
+    pub fn add_output(&mut self, decision: Arc<Decision>, state: &State) -> Result<()> {
+        self.add_output_edge(state)?;
         self.outputs_decisions.push(decision);
         Ok(())
     }
@@ -931,6 +960,12 @@ impl Node {
                 iterator.lock().await.async_clone().await,
             )),
         );
+    }
+
+    /// Remove all package iterators from this node once it can no longer be
+    /// revisited during backtracking.
+    pub fn clear_iterators(&mut self) {
+        self.iterators.clear();
     }
 
     pub fn output_decisions(&self) -> impl Iterator<Item = &Arc<Decision>> {

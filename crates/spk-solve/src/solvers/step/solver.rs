@@ -1081,6 +1081,11 @@ impl Solver {
         SolverRuntime::new(self.clone())
     }
 
+    /// Run this solver with reduced graph retention for lower memory overhead.
+    pub(crate) fn run_compact(&self) -> SolverRuntime {
+        SolverRuntime::new_compact(self.clone())
+    }
+
     /// Add the given set of package/versions to the solver's new
     /// builds started records
     fn add_new_builds_started(&mut self, new_builds: HashSet<VersionIdent>) {
@@ -1251,7 +1256,7 @@ impl SolverMut for Solver {
     }
 
     async fn solve(&mut self) -> Result<Solution> {
-        let mut runtime = self.run();
+        let mut runtime = self.run_compact();
         {
             let iter = runtime.iter();
             tokio::pin!(iter);
@@ -1303,20 +1308,52 @@ pub struct SolverRuntime {
     pub solver: Solver,
     graph: Arc<tokio::sync::RwLock<Graph>>,
     history: SolverHistory,
+    active_history_entries: HashMap<u64, usize>,
     current_node: Option<Arc<tokio::sync::RwLock<Arc<Node>>>>,
     decision: Option<Arc<Decision>>,
 }
 
 impl SolverRuntime {
     pub fn new(solver: Solver) -> Self {
+        Self::with_graph_tracking(solver, true)
+    }
+
+    fn new_compact(solver: Solver) -> Self {
+        Self::with_graph_tracking(solver, false)
+    }
+
+    fn with_graph_tracking(solver: Solver, record_decisions: bool) -> Self {
         let initial_decision = Decision::new(solver.initial_state_builders.clone());
         Self {
             solver,
-            graph: Arc::new(tokio::sync::RwLock::new(Graph::new())),
+            graph: Arc::new(tokio::sync::RwLock::new(Graph::new_with_decision_tracking(
+                record_decisions,
+            ))),
             history: SolverHistory::default(),
+            active_history_entries: HashMap::default(),
             current_node: None,
             decision: Some(Arc::new(initial_decision)),
         }
+    }
+
+    fn release_history_entry(active_history_entries: &mut HashMap<u64, usize>, node_id: u64) {
+        let Some(entry) = active_history_entries.get_mut(&node_id) else {
+            return;
+        };
+
+        if *entry == 1 {
+            active_history_entries.remove(&node_id);
+        } else {
+            *entry -= 1;
+        }
+    }
+
+    fn remember_history_entry(&mut self, node_id: u64) {
+        *self.active_history_entries.entry(node_id).or_default() += 1;
+    }
+
+    fn node_is_on_backtracking_frontier(&self, node_id: u64) -> bool {
+        self.active_history_entries.contains_key(&node_id)
     }
 
     /// A reference to the solve graph being built by this runtime
@@ -1369,6 +1406,7 @@ impl SolverRuntime {
     /// Generate step-back decision from a node history
     async fn take_a_step_back(
         history: &mut SolverHistory,
+        active_history_entries: &mut HashMap<u64, usize>,
         decision: &mut Option<Arc<Decision>>,
         solver: &Solver,
         message: &String,
@@ -1380,6 +1418,7 @@ impl SolverRuntime {
         match history.pop() {
             Some((n, _)) => {
                 let n_lock = n.node.read().await;
+                Self::release_history_entry(active_history_entries, n_lock.id());
                 *decision = Some(Arc::new(
                     Change::StepBack(StepBack::new(
                         message,
@@ -1470,6 +1509,7 @@ impl SolverRuntime {
                         Err(err) => {
                             SolverRuntime::take_a_step_back(
                                 &mut self.history,
+                                &mut self.active_history_entries,
                                 &mut self.decision,
                                 &self.solver,
                                 &err.to_string(),
@@ -1482,7 +1522,8 @@ impl SolverRuntime {
                 let current_node = self
                     .current_node
                     .as_ref()
-                    .expect("current_node always `is_some` here");
+                    .expect("current_node always `is_some` here")
+                    .clone();
                 let mut current_node_lock = current_node.write().await;
                 let current_level = current_node_lock.state.state_depth;
 
@@ -1523,8 +1564,13 @@ impl SolverRuntime {
                             requirers.join(", ")
                         );
 
+                        if !self.node_is_on_backtracking_frontier(current_node_lock.id()) {
+                            Arc::make_mut(&mut current_node_lock).clear_iterators();
+                        }
+
                         SolverRuntime::take_a_step_back(
                             &mut self.history,
+                            &mut self.active_history_entries,
                             &mut self.decision,
                             &self.solver,
                             &cause,
@@ -1587,8 +1633,13 @@ impl SolverRuntime {
                         let requirers: Vec<String> = requested_by.iter().map(ToString::to_string).collect();
                         let cause = format!("Package '{}' not found during the solve as required by: {}. Please check the spelling of the package's name", err_req.pkg, requirers.join(", "));
 
+                        if !self.node_is_on_backtracking_frontier(current_node_lock.id()) {
+                            Arc::make_mut(&mut current_node_lock).clear_iterators();
+                        }
+
                         SolverRuntime::take_a_step_back(
                             &mut self.history,
+                            &mut self.active_history_entries,
                             &mut self.decision,
                             &self.solver,
                             &cause,
@@ -1619,8 +1670,13 @@ impl SolverRuntime {
                                 }
                             }
 
+                            if !self.node_is_on_backtracking_frontier(current_node_lock.id()) {
+                                Arc::make_mut(&mut current_node_lock).clear_iterators();
+                            }
+
                             SolverRuntime::take_a_step_back(
                                 &mut self.history,
+                                &mut self.active_history_entries,
                                 &mut self.decision,
                                 &self.solver,
                                 &cause,
@@ -1655,6 +1711,9 @@ impl SolverRuntime {
                     },
                     std::cmp::Reverse(current_level),
                 );
+                let current_node_id = current_node_lock.id();
+                drop(current_node_lock);
+                self.remember_history_entry(current_node_id);
                 yield Ok(to_yield)
             }
         }
