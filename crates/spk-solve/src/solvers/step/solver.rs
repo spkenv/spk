@@ -46,6 +46,7 @@ use spk_solve_graph::{
     DEAD_STATE,
     Decision,
     Graph,
+    NextRequest,
     Node,
     Note,
     RequestPackage,
@@ -475,8 +476,16 @@ impl Solver {
         node: &mut Arc<Node>,
     ) -> Result<Option<Decision>> {
         let mut notes = Vec::<Note>::new();
-        let request = if let Some(request) = node.state.get_next_request()? {
-            request
+        let request = if let Some(request) = node.state.get_next_request() {
+            match request {
+                NextRequest::Request(request) => request,
+                NextRequest::Conflict { request, cause } => {
+                    return Err(Error::OutOfOptions(Box::new(OutOfOptions {
+                        request,
+                        notes: vec![Note::Other(cause)],
+                    })));
+                }
+            }
         } else {
             // May have a valid solution, but verify that all embedded packages
             // that are part of the solve also have their source packages
@@ -1517,6 +1526,26 @@ impl SolverRuntime {
         }
     }
 
+    fn request_conflict(err: &Error) -> Option<(PkgRequest, String)> {
+        match err {
+            Error::GraphGraphError(spk_solve_graph::GraphError::RequestError(
+                spk_solve_graph::GetMergedRequestError::Conflict { request, cause },
+            )) => Some((request.as_ref().clone(), cause.clone())),
+            Error::GraphError(graph_error) => match &**graph_error {
+                spk_solve_graph::Error::Graph(spk_solve_graph::GraphError::RequestError(
+                    spk_solve_graph::GetMergedRequestError::Conflict { request, cause },
+                )) => Some((request.as_ref().clone(), cause.clone())),
+                _ => None,
+            },
+            Error::ValidationError(
+                spk_solve_validation::Error::SpkSolverGraphGetMergedRequestError(
+                    spk_solve_graph::GetMergedRequestError::Conflict { request, cause },
+                ),
+            ) => Some((request.as_ref().clone(), cause.clone())),
+            _ => None,
+        }
+    }
+
     /// Iterate through each step of this runtime, trying to converge on a solution
     pub fn iter(&mut self) -> impl Stream<Item = Result<(Arc<Node>, Arc<Decision>)>> + Send {
         stream! {
@@ -1704,6 +1733,37 @@ impl SolverRuntime {
                         continue 'outer;
                     }
                     Err(err) => {
+                        if let Some((request, cause)) = SolverRuntime::request_conflict(&err) {
+                            let requested_by = request.get_requesters();
+                            for req in &requested_by {
+                                if let RequestedBy::PackageBuild(problem_package) = req {
+                                    self.solver.increment_problem_package_count(
+                                        problem_package.name().to_string(),
+                                    );
+                                }
+                            }
+
+                            SolverRuntime::take_a_step_back(
+                                &mut self.history,
+                                &mut self.decision,
+                                &self.solver,
+                                &cause,
+                            )
+                            .await;
+
+                            self.solver.increment_error_count(ErrorDetails::CouldNotSatisfy(
+                                request.pkg.to_string(),
+                                requested_by,
+                            ));
+
+                            if let Some(d) = self.decision.as_mut() {
+                                Arc::make_mut(d).add_notes(vec![Note::Other(cause)]);
+                            }
+
+                            yield Ok(to_yield);
+                            continue 'outer;
+                        }
+
                         let cause = format!("{}", err);
                         self.solver.increment_error_count(ErrorDetails::Message(cause));
                         yield Err(err);

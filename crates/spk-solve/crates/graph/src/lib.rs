@@ -21,6 +21,7 @@ pub use graph::{
     Decision,
     Graph,
     GraphError,
+    NextRequest,
     Node,
     Note,
     REQUESTS_FOR_SAME_PACKAGE_COUNT,
