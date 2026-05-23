@@ -1568,6 +1568,86 @@ async fn test_solver_embedded_package_solvable(
     );
 }
 
+#[rstest]
+#[case::step(step_solver(), false)]
+#[case::resolvo(resolvo_solver(), true)]
+#[tokio::test]
+async fn test_solver_embedded_parent_requests_need_backtracking(
+    #[case] mut solver: SolverImpl,
+    #[case] expected_solve_result: bool,
+    #[values(true, false)] use_index: bool,
+) {
+    // The higher qt stub comes from a different maya build than the only tool
+    // stub. The step solver currently stops when those unresolved exact-build
+    // parent requests are merged, instead of backtracking to the lower qt stub
+    // from the compatible maya build.
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "maya/1.0.0",
+                "build": {
+                    "options": [
+                        {"var": "color/red"}
+                    ]
+                },
+                "install": {"embedded": [{"pkg": "qt/2.0.0"}]},
+            },
+            {
+                "pkg": "maya/1.0.0",
+                "build": {
+                    "options": [
+                        {"var": "color/blue"}
+                    ]
+                },
+                "install": {
+                    "embedded": [
+                        {"pkg": "qt/1.0.0"},
+                        {"pkg": "tool/1.0.0"},
+                    ]
+                },
+            },
+            {
+                "pkg": "plugin/1.0.0",
+                "install": {
+                    "requirements": [
+                        {"pkg": "qt"},
+                        {"pkg": "tool"},
+                    ]
+                },
+            },
+        ]
+    );
+    let repo = wrap_repo_for_test(repo, use_index).await;
+    solver.add_repository(Arc::new(repo));
+    solver.add_request(pinned_request!("plugin"));
+
+    match run_and_print_resolve_for_tests(&mut solver).await {
+        Ok(solution) => {
+            assert!(expected_solve_result, "expected solve to fail");
+            assert_resolved!(solution, "maya", "1.0.0");
+            assert_resolved!(solution, "qt", "1.0.0");
+            assert_resolved!(solution, "tool", "1.0.0");
+            assert_resolved!(
+                solution,
+                "qt",
+                build =~ Build::Embedded(_)
+            );
+            assert_resolved!(
+                solution,
+                "tool",
+                build =~ Build::Embedded(_)
+            );
+        }
+        Err(err) => {
+            assert!(!expected_solve_result, "expected solve to succeed");
+            assert!(
+                err.to_string().contains("Incompatible requests for 'maya'"),
+                "expected incompatible maya requests from the step solver bug, got: {err}",
+            );
+        }
+    }
+}
+
 /// If the only option for a package request is an embedded package, the
 /// solution must also contain the parent package.
 #[rstest]
