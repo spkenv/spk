@@ -1569,12 +1569,11 @@ async fn test_solver_embedded_package_solvable(
 }
 
 #[rstest]
-#[case::step(step_solver(), false)]
-#[case::resolvo(resolvo_solver(), true)]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
 #[tokio::test]
 async fn test_solver_embedded_parent_requests_need_backtracking(
     #[case] mut solver: SolverImpl,
-    #[case] expected_solve_result: bool,
     #[values(true, false)] use_index: bool,
 ) {
     // The higher qt stub comes from a different maya build than the only tool
@@ -1620,32 +1619,81 @@ async fn test_solver_embedded_parent_requests_need_backtracking(
     let repo = wrap_repo_for_test(repo, use_index).await;
     solver.add_repository(Arc::new(repo));
     solver.add_request(pinned_request!("plugin"));
+    let solution = run_and_print_resolve_for_tests(&mut solver)
+        .await
+        .expect("solver should backtrack to the compatible embedded maya build");
 
-    match run_and_print_resolve_for_tests(&mut solver).await {
-        Ok(solution) => {
-            assert!(expected_solve_result, "expected solve to fail");
-            assert_resolved!(solution, "maya", "1.0.0");
-            assert_resolved!(solution, "qt", "1.0.0");
-            assert_resolved!(solution, "tool", "1.0.0");
-            assert_resolved!(
-                solution,
-                "qt",
-                build =~ Build::Embedded(_)
-            );
-            assert_resolved!(
-                solution,
-                "tool",
-                build =~ Build::Embedded(_)
-            );
-        }
-        Err(err) => {
-            assert!(!expected_solve_result, "expected solve to succeed");
-            assert!(
-                err.to_string().contains("Incompatible requests for 'maya'"),
-                "expected incompatible maya requests from the step solver bug, got: {err}",
-            );
-        }
-    }
+    assert_resolved!(solution, "maya", "1.0.0");
+    assert_resolved!(solution, "qt", "1.0.0");
+    assert_resolved!(solution, "tool", "1.0.0");
+    assert_resolved!(
+        solution,
+        "qt",
+        build =~ Build::Embedded(_)
+    );
+    assert_resolved!(
+        solution,
+        "tool",
+        build =~ Build::Embedded(_)
+    );
+}
+
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
+#[tokio::test]
+async fn test_solver_backtracks_real_build_request_against_embedded_build(
+    #[case] mut solver: SolverImpl,
+    #[values(true, false)] use_index: bool,
+) {
+    let real_pyside = make_build!({"pkg": "pyside/6.5.3+r.1"});
+    let real_pyside_request = real_pyside.ident().to_string();
+    let repo = make_repo!(
+        [
+            real_pyside,
+            {
+                "pkg": "consumer/2.0.0",
+                "install": {
+                    "requirements": [
+                        {"pkg": real_pyside_request},
+                    ]
+                },
+            },
+            {
+                "pkg": "consumer/1.0.0",
+            },
+            {
+                "pkg": "qt-host/1.0.0",
+                "install": {"embedded": [{"pkg": "pyside/6.5.3+r.1"}]},
+            },
+            {
+                "pkg": "app/1.0.0",
+                "install": {
+                    "requirements": [
+                        {"pkg": "consumer"},
+                        {"pkg": "qt-host"},
+                    ]
+                },
+            },
+        ]
+    );
+    let repo = wrap_repo_for_test(repo, use_index).await;
+    solver.add_repository(Arc::new(repo));
+    solver.add_request(pinned_request!("app"));
+
+    let solution = run_and_print_resolve_for_tests(&mut solver)
+        .await
+        .expect("solver should backtrack away from the exact real build request");
+
+    assert_resolved!(solution, "app", "1.0.0");
+    assert_resolved!(solution, "consumer", "1.0.0");
+    assert_resolved!(solution, "qt-host", "1.0.0");
+    assert_resolved!(solution, "pyside", "6.5.3+r.1");
+    assert_resolved!(
+        solution,
+        "pyside",
+        build =~ Build::Embedded(_)
+    );
 }
 
 /// If the only option for a package request is an embedded package, the

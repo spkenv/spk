@@ -76,6 +76,11 @@ pub type GetMergedRequestResult<T> = std::result::Result<T, GetMergedRequestErro
 pub enum GetMergedRequestError {
     #[error("No request for: {0}")]
     NoRequestFor(String),
+    #[error("{cause}")]
+    Conflict {
+        request: Box<PkgRequest>,
+        cause: String,
+    },
     #[error(transparent)]
     #[diagnostic(forward(0))]
     Other(#[from] Box<crate::Error>),
@@ -85,6 +90,7 @@ impl From<GetMergedRequestError> for crate::Error {
     fn from(err: GetMergedRequestError) -> Self {
         match err {
             GetMergedRequestError::NoRequestFor(s) => crate::Error::String(s),
+            GetMergedRequestError::Conflict { cause, .. } => crate::Error::String(cause),
             GetMergedRequestError::Other(err) => *err,
         }
     }

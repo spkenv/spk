@@ -85,6 +85,16 @@ pub enum GraphError {
 
 pub type Result<T> = std::result::Result<T, GraphError>;
 
+/// The next unresolved package request to explore from a state.
+#[derive(Clone, Debug)]
+pub enum NextRequest {
+    /// A merged package request that can be explored normally.
+    Request(PkgRequestWithOptions),
+    /// A set of unresolved requests that already conflict and should force
+    /// the solver to backtrack before trying any builds.
+    Conflict { request: PkgRequest, cause: String },
+}
+
 #[derive(Clone, Debug)]
 pub enum Change {
     RequestPackage(RequestPackage),
@@ -1491,10 +1501,18 @@ impl State {
                     }
                     if let incompatible @ Compatibility::Incompatible(_) = merged.restrict(request)
                     {
-                        return Err(crate::Error::String(format!(
-                            "Incompatible requests for '{name}': {incompatible}",
-                        ))
-                        .into());
+                        let mut conflict = merged.pkg_request.clone();
+                        for (key, requesters) in request.requested_by.iter() {
+                            conflict
+                                .requested_by
+                                .entry(key.clone())
+                                .or_default()
+                                .extend(requesters.iter().cloned());
+                        }
+                        return Err(super::error::GetMergedRequestError::Conflict {
+                            request: Box::new(conflict),
+                            cause: format!("Incompatible requests for '{name}': {incompatible}"),
+                        });
                     }
                 }
             }
@@ -1507,7 +1525,28 @@ impl State {
         }
     }
 
-    pub fn get_next_request(&self) -> Result<Option<PkgRequestWithOptions>> {
+    fn conflicting_request_for_package(&self, name: &PkgName) -> Option<PkgRequest> {
+        let mut requests = self
+            .pkg_requests
+            .iter()
+            .filter(|request| request.pkg.name == *name);
+        let first = requests.next()?;
+        let mut combined = first.pkg_request.clone();
+        for request in requests {
+            for (key, requesters) in request.requested_by.iter() {
+                combined
+                    .requested_by
+                    .entry(key.clone())
+                    .or_default()
+                    .extend(requesters.iter().cloned());
+            }
+        }
+        Some(combined)
+    }
+
+    /// Return the next unresolved package request, or the conflicting request
+    /// that makes the current state unsatisfiable before build iteration begins.
+    pub fn get_next_request(&self) -> Option<NextRequest> {
         // Note: The next request this returns may not be as expected
         // due to the interaction of multiple requests and
         // 'IfAlreadyPresent' requests.
@@ -1530,10 +1569,24 @@ impl State {
                 // expansion of dependencies.
                 continue;
             }
-            return Ok(Some(self.get_merged_request(&request.pkg.name)?));
+            return Some(match self.get_merged_request(&request.pkg.name) {
+                Ok(request) => NextRequest::Request(request),
+                Err(super::error::GetMergedRequestError::Conflict { request, cause }) => {
+                    NextRequest::Conflict {
+                        request: *request,
+                        cause,
+                    }
+                }
+                Err(err) => NextRequest::Conflict {
+                    request: self
+                        .conflicting_request_for_package(&request.pkg.name)
+                        .expect("next unresolved request must exist"),
+                    cause: err.to_string(),
+                },
+            });
         }
 
-        Ok(None)
+        None
     }
 
     pub fn get_pkg_requests(&self) -> &Vec<Arc<CachedHash<PkgRequestWithOptions>>> {
