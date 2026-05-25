@@ -16,6 +16,7 @@ use spk_schema_foundation::ident::{
     PinnedValue,
     PkgRequestWithOptions,
     RequestWithOptions,
+    RequestedBy,
 };
 use spk_schema_foundation::ident_build::Build;
 use spk_schema_foundation::ident_component::Component;
@@ -496,10 +497,35 @@ impl Package for IndexedPackage {
     }
 
     fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList<PinnedRequest>>> {
-        Err(Error::SpkIndexedPackageDoesNotImplement(
-            "Package".to_string(),
-            "get_build_requirements".to_string(),
-        ))
+        let mut requests = RequirementsList::default();
+        // A duplicated of get_build_requirements() from
+        // v0/package_spec with this line changed to call a method.
+        for opt in self.get_build_options().iter() {
+            match opt {
+                Opt::Pkg(opt) => {
+                    let mut req =
+                        opt.to_request(None, RequestedBy::BinaryBuild(self.ident().clone()))?;
+                    if req.pkg.components.is_empty() {
+                        // inject the default component for this context if needed
+                        req.pkg.components.insert(Component::default_for_build());
+                    }
+                    requests.insert_or_merge_pinned(PinnedRequest::Pkg(req))?;
+                }
+                Opt::Var(opt) => {
+                    // If no value was specified in the spec, there's
+                    // no need to turn that into a requirement to
+                    // find a var with an empty value.
+                    if let Some(value) = opt.get_value(None)
+                        && !value.is_empty()
+                    {
+                        requests.insert_or_merge_pinned(PinnedRequest::Var(
+                            opt.to_request(Some(value.as_str())),
+                        ))?;
+                    }
+                }
+            }
+        }
+        Ok(Cow::Owned(requests))
     }
 
     fn runtime_requirements(&self) -> Cow<'_, RequirementsList<RequestWithOptions>> {
