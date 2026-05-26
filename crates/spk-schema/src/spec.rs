@@ -481,6 +481,11 @@ impl FromYaml for SpecRecipe {
                     .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
                 Ok(Self::V0Platform(inner))
             }
+            ApiVersion::V1Platform => {
+                let inner = serde_yaml::from_str(&yaml)
+                    .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
+                Ok(Self::V1Platform(inner))
+            }
             ApiVersion::V0Requirements => {
                 // Reading a list of requests/requirements file is not
                 // supported here. But it might be in future.
@@ -566,6 +571,11 @@ impl SpecFileData {
                 let inner = serde_yaml::from_value(value)
                     .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
                 SpecFileData::Recipe(Arc::new(SpecRecipe::V0Platform(inner)))
+            }
+            ApiVersion::V1Platform => {
+                let inner = serde_yaml::from_value(value)
+                    .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
+                SpecFileData::Recipe(Arc::new(SpecRecipe::V1Platform(inner)))
             }
             ApiVersion::V0Requirements => {
                 let requests: v0::Requirements = serde_yaml::from_value(value)
@@ -885,6 +895,11 @@ impl FromYaml for Spec {
                     .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
                 Ok(Self::V0Package(inner))
             }
+            ApiVersion::V1Platform => {
+                let inner = serde_yaml::from_str(&yaml)
+                    .map_err(|err| SerdeError::new(yaml, SerdeYamlError(err)))?;
+                Ok(Self::V0Package(inner))
+            }
             ApiVersion::V0Requirements => {
                 // Reading a list of requests/requirement file is not
                 // supported here. But it might be in future.
@@ -925,6 +940,8 @@ pub enum ApiVersion {
     V0Package,
     #[serde(rename = "v0/platform")]
     V0Platform,
+    #[serde(rename = "v1/platform")]
+    V1Platform,
     #[serde(rename = "v0/requirements")]
     V0Requirements,
 }

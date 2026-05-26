@@ -83,3 +83,52 @@ build:
         .await
         .expect("With override, build script should succeed.");
 }
+
+#[spfstest]
+#[rstest]
+#[case::v0("v0/platform", true)]
+#[case::v1("v1/platform", true)]
+#[tokio::test]
+async fn build_a_platform(
+    tmpdir: tempfile::TempDir,
+    #[case] api: &str,
+    #[case] should_succeed: bool,
+) {
+    let _rt = spfs_runtime().await;
+
+    let filename = tmpdir.path().join("simple.spk.yaml");
+    {
+        let mut file = File::create(&filename).unwrap();
+        file.write_all(
+            format!(
+                r#"
+platform: demo-platform/1.0.0
+api: {api}
+requirements: []
+"#
+            )
+            .as_bytes(),
+        )
+        .unwrap();
+    }
+
+    let filename_str = filename.as_os_str().to_str().unwrap();
+
+    let mut opt = Opt::try_parse_from([
+        "make-binary",
+        // Don't exec a new process to move into a new runtime, this confuses
+        // coverage testing.
+        "--no-runtime",
+        "--disable-repo=origin",
+        "--here",
+        filename_str,
+    ])
+    .unwrap();
+    let res = opt.mkb.run().await;
+
+    if should_succeed {
+        res.expect("Build should succeed.");
+    } else {
+        assert!(res.is_err(), "Build should fail, got {res:?}.");
+    }
+}

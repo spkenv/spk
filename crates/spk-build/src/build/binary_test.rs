@@ -11,6 +11,7 @@ use spfstest::spfstest;
 use spk_schema::foundation::env::data_path;
 use spk_schema::foundation::fixtures::*;
 use spk_schema::foundation::ident_component::Component;
+use spk_schema::foundation::spec_ops::HasVersion;
 use spk_schema::foundation::{opt_name, option_map, version_ident};
 use spk_schema::ident::{PkgRequest, PkgRequestWithOptions, RangeIdent, RequestWithOptions};
 use spk_schema::{
@@ -24,8 +25,8 @@ use spk_schema::{
     SpecRecipe,
     recipe,
 };
-use spk_solve::{Solution, SolverImpl};
-use spk_solve_macros::make_repo;
+use spk_solve::{Solution, SolverExt, SolverImpl, SolverMut};
+use spk_solve_macros::{make_repo, pinned_request};
 use spk_storage::fixtures::*;
 use spk_storage::{self as storage, Repository};
 
@@ -272,6 +273,122 @@ async fn test_build_package_pinning(
         }
         _ => panic!("expected a package request"),
     }
+}
+
+#[spfstest]
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
+#[tokio::test]
+async fn test_build_package_with_v1_platform_pins_frombuildenv_and_solves_binary_compatible_runtime(
+    #[case] solver: SolverImpl,
+) {
+    let rt = spfs_runtime().await;
+    let dep_1_0_0 = recipe!(
+        {
+            "pkg": "dep/1.0.0",
+            "build": {"script": "touch /spfs/dep-file"},
+        }
+    );
+    let dep_1_0_1 = recipe!(
+        {
+            "pkg": "dep/1.0.1",
+            "build": {"script": "touch /spfs/dep-file"},
+        }
+    );
+    let platform = SpecRecipe::from_yaml(
+        r#"{
+            api: "v1/platform",
+            platform: "dep-platform/1.0.0",
+            requirements: [
+                {
+                    pkg: "dep",
+                    atBuild: "=1.0.0",
+                    atRuntime: "Binary:1.0.0",
+                }
+            ],
+        }"#,
+    )
+    .unwrap();
+    let downstream = recipe!(
+        {
+            "pkg": "consumer/1.0.0",
+            "build": {
+                "script": ["touch /spfs/consumer-file"],
+                "options": [
+                    {"pkg": "dep"},
+                    {"pkg": "dep-platform/1.0.0"},
+                ],
+            },
+            "install": {
+                "requirements": [
+                    {"pkg": "dep", "fromBuildEnv": true},
+                ]
+            },
+        }
+    );
+
+    for recipe in [&dep_1_0_0, &dep_1_0_1] {
+        rt.tmprepo.publish_recipe(recipe).await.unwrap();
+
+        BinaryPackageBuilder::from_recipe_with_solver(recipe.clone(), solver.clone())
+            .with_source(BuildSource::LocalPath(".".into()))
+            .with_repository(rt.tmprepo.clone())
+            .build_and_publish(option_map! {}, &*rt.tmprepo)
+            .await
+            .unwrap();
+    }
+
+    rt.tmprepo.publish_recipe(&platform).await.unwrap();
+    let (_platform, _) = BinaryPackageBuilder::from_recipe_with_solver(platform, solver.clone())
+        .with_source(BuildSource::LocalPath(".".into()))
+        .with_repository(rt.tmprepo.clone())
+        .build_and_publish(option_map! {}, &*rt.tmprepo)
+        .await
+        .unwrap();
+
+    rt.tmprepo.publish_recipe(&downstream).await.unwrap();
+    let (downstream, _) =
+        BinaryPackageBuilder::from_recipe_with_solver(downstream.clone(), solver.clone())
+            .with_source(BuildSource::LocalPath(".".into()))
+            .with_repository(rt.tmprepo.clone())
+            .build_and_publish(option_map! {}, &*rt.tmprepo)
+            .await
+            .unwrap();
+
+    let downstream = rt.tmprepo.read_package(downstream.ident()).await.unwrap();
+    let req = downstream.runtime_requirements().first().unwrap().clone();
+    match req {
+        RequestWithOptions::Pkg(req) => {
+            assert_eq!(req.pkg.to_string(), "dep/Binary:1.0.0");
+        }
+        _ => panic!("expected a package request"),
+    }
+
+    let mut solver = solver;
+    solver.add_repository(rt.tmprepo.clone());
+    solver.add_request(pinned_request!("dep/=1.0.1"));
+    solver.add_request(pinned_request!("dep-platform"));
+    solver.add_request(pinned_request!("consumer"));
+
+    let solution = solver.solve().await.unwrap();
+    assert_eq!(
+        solution.get("dep").unwrap().spec.version().to_string(),
+        "1.0.1"
+    );
+    assert_eq!(
+        solution
+            .get("dep-platform")
+            .unwrap()
+            .spec
+            .version()
+            .to_string(),
+        "1.0.0"
+    );
+    assert_eq!(
+        solution.get("consumer").unwrap().spec.version().to_string(),
+        "1.0.0"
+    );
 }
 
 #[spfstest]
