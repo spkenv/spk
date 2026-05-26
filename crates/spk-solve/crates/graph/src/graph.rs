@@ -471,9 +471,24 @@ impl<'state> DecisionBuilder<'state, '_> {
                 // is buggy now
                 continue;
             }
-            changes.extend(
-                self.requirements_to_changes(component.requirements_with_options(), &requested_by),
-            );
+            changes.extend(component.requirements_with_options().iter().flat_map(
+                |req| match req {
+                    RequestWithOptions::Pkg(req) => {
+                        let mut req = req.clone();
+                        req.add_requester(requested_by.clone());
+                        if component.name == Component::Build
+                            && req.pkg.components.is_empty()
+                            && !req.pkg.is_source()
+                        {
+                            req.pkg.components.insert(Component::default_for_build());
+                        }
+                        self.pkg_request_to_changes(&req)
+                    }
+                    RequestWithOptions::Var(req) => {
+                        vec![Change::RequestVar(RequestVar::new(req.clone()))]
+                    }
+                },
+            ));
         }
         changes
     }

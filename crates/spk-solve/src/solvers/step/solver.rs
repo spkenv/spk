@@ -63,7 +63,13 @@ use spk_solve_package_iterator::{
     SortedBuildIterator,
 };
 use spk_solve_solution::{PackageSource, Solution};
-use spk_solve_validation::validators::BinaryOnlyValidator;
+use spk_solve_validation::validators::{
+    BinaryOnlyValidator,
+    OptionsValidator,
+    PkgRequestValidator,
+    PkgRequirementsValidator,
+    VarRequirementsValidator,
+};
 use spk_solve_validation::{
     IMPOSSIBLE_CHECKS_TARGET,
     ImpossibleRequestsChecker,
@@ -475,6 +481,7 @@ impl Solver {
         node: &mut Arc<Node>,
     ) -> Result<Option<Decision>> {
         let mut notes = Vec::<Note>::new();
+        self.ensure_resolved_packages_are_valid(&node.state)?;
         let request = if let Some(request) = node.state.get_next_request()? {
             request
         } else {
@@ -944,6 +951,98 @@ impl Solver {
             request: request.pkg_request,
             notes,
         })))
+    }
+
+    fn ensure_resolved_packages_are_valid(&self, state: &State) -> Result<()> {
+        for package in state.get_ordered_resolved_packages().iter() {
+            let Some((spec, source, _)) = state.get_resolved_packages().get(package.name()) else {
+                continue;
+            };
+            if spec.ident().build().is_embedded() {
+                continue;
+            }
+
+            let request = match state.get_merged_request(spec.name()) {
+                Ok(request) => request,
+                Err(err) => {
+                    return Err(Error::OutOfOptions(Box::new(OutOfOptions {
+                        request: Self::request_for_resolved_package(state, spec.name())?,
+                        notes: vec![Note::Other(format!(
+                            "resolved package {} has an invalid request stack: {err}",
+                            spec.ident()
+                        ))],
+                    })));
+                }
+            };
+
+            for compat in [
+                (PkgRequestValidator {}).validate_package(state, spec.as_ref(), source),
+                OptionsValidator::default().validate_package(state, spec.as_ref(), source),
+                VarRequirementsValidator::default().validate_package(state, spec.as_ref(), source),
+            ] {
+                let compat = compat.map_err(Error::ValidationError)?;
+                if !compat.is_ok() {
+                    return Err(Error::OutOfOptions(Box::new(OutOfOptions {
+                        request: request.pkg_request.clone(),
+                        notes: vec![Note::Other(format!(
+                            "resolved package {} no longer satisfies the current state: {compat}",
+                            spec.ident()
+                        ))],
+                    })));
+                }
+            }
+
+            let compat = match (PkgRequirementsValidator {}).validate_package(
+                state,
+                spec.as_ref(),
+                source,
+            ) {
+                Ok(compat) => compat,
+                Err(spk_solve_validation::Error::SpkSolverGraphGetMergedRequestError(err)) => {
+                    return Err(Error::OutOfOptions(Box::new(OutOfOptions {
+                        request: Self::request_for_resolved_package(state, spec.name())?,
+                        notes: vec![Note::Other(format!(
+                            "resolved package {} relies on an invalid request stack: {err}",
+                            spec.ident()
+                        ))],
+                    })));
+                }
+                Err(err) => return Err(Error::ValidationError(err)),
+            };
+            if !compat.is_ok() {
+                return Err(Error::OutOfOptions(Box::new(OutOfOptions {
+                    request: request.pkg_request,
+                    notes: vec![Note::Other(format!(
+                        "resolved package {} no longer satisfies the current state: {compat}",
+                        spec.ident()
+                    ))],
+                })));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn request_for_resolved_package(state: &State, name: &PkgName) -> Result<PkgRequest> {
+        let mut requests = state
+            .get_pkg_requests()
+            .iter()
+            .filter(|request| request.pkg.name == *name)
+            .map(|request| &request.pkg_request);
+
+        let Some(mut request) = requests.next().cloned() else {
+            return Err(Error::String(format!(
+                "resolved package '{name}' has no package requests [INTERNAL ERROR]"
+            )));
+        };
+
+        for extra_request in requests {
+            for requester in extra_request.get_requesters() {
+                request.add_requester(requester);
+            }
+        }
+
+        Ok(request)
     }
 
     fn validate_recipe<R: Recipe>(&self, state: &State, recipe: &R) -> Result<Compatibility> {

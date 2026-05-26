@@ -2833,7 +2833,6 @@ async fn test_solver_build_component_ifalreadypresent_uses_build_context(
     solver.add_request(pinned_request!("dep:build"));
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
-
     assert_resolved!(solution, "dep", "1.0.0");
 
     solver.reset();
@@ -2844,6 +2843,90 @@ async fn test_solver_build_component_ifalreadypresent_uses_build_context(
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
     assert_resolved!(solution, "dep", "1.0.1");
+}
+
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
+#[tokio::test]
+async fn test_solver_build_component_ifalreadypresent_reconsiders_existing_build_request(
+    #[case] mut solver: SolverImpl,
+    #[values(true, false)] use_index: bool,
+) {
+    let repo = make_repo!(
+        [
+            {"pkg": "dep/1.0.0"},
+            {"pkg": "dep/1.0.1"},
+            {
+                "pkg": "dep-carrier/1.0.0",
+                "install": {
+                    "components": [
+                        {
+                            "name": "build",
+                            "requirements": [
+                                {"pkg": "dep/=1.0.0", "include": "IfAlreadyPresent"}
+                            ]
+                        }
+                    ]
+                }
+            }
+        ]
+    );
+    let repo = Arc::new(wrap_repo_for_test(repo, use_index).await);
+
+    solver.add_repository(repo);
+    solver.add_request(pinned_request!("dep:build"));
+    solver.add_request(pinned_request!("dep-carrier:build"));
+
+    let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
+    assert_resolved!(solution, "dep", "1.0.0");
+}
+
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
+#[tokio::test]
+async fn test_solver_build_component_ifalreadypresent_reconsiders_dependent_package(
+    #[case] mut solver: SolverImpl,
+    #[values(true, false)] use_index: bool,
+) {
+    let repo = make_repo!(
+        [
+            {"pkg": "dep/1.0.0"},
+            {"pkg": "dep/1.0.1"},
+            {
+                "pkg": "consumer/1.0.0",
+                "install": {"requirements": [{"pkg": "dep/=1.0.0"}]},
+            },
+            {
+                "pkg": "consumer/1.0.1",
+                "install": {"requirements": [{"pkg": "dep/=1.0.1"}]},
+            },
+            {
+                "pkg": "dep-carrier/1.0.0",
+                "install": {
+                    "components": [
+                        {
+                            "name": "build",
+                            "requirements": [
+                                {"pkg": "dep/=1.0.0", "include": "IfAlreadyPresent"}
+                            ]
+                        }
+                    ]
+                }
+            }
+        ]
+    );
+    let repo = Arc::new(wrap_repo_for_test(repo, use_index).await);
+
+    solver.add_repository(repo);
+    solver.add_request(pinned_request!("consumer"));
+    solver.add_request(pinned_request!("dep:build"));
+    solver.add_request(pinned_request!("dep-carrier:build"));
+
+    let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
+    assert_resolved!(solution, "consumer", "1.0.0");
+    assert_resolved!(solution, "dep", "1.0.0");
 }
 
 #[rstest]
