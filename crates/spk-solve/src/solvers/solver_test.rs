@@ -292,9 +292,9 @@ async fn test_solver_package_with_no_recipe_from_cmd_line(
     .into_iter()
     .collect();
     repo.publish_package(&spec, &components).await.unwrap();
-    let repo = wrap_repo_for_test(repo, use_index).await;
+    let repo = Arc::new(wrap_repo_for_test(repo, use_index).await);
 
-    solver.add_repository(Arc::new(repo));
+    solver.add_repository(repo.clone());
     // Create this one as requested by the command line, rather than the tests
     let req = PinnedRequest::Pkg(PkgRequest::new(
         parse_ident_range("my-pkg").unwrap(),
@@ -463,9 +463,9 @@ async fn test_solver_dependency_incompatible(
             },
         ]
     );
-    let repo = wrap_repo_for_test(repo, use_index).await;
+    let repo = Arc::new(wrap_repo_for_test(repo, use_index).await);
 
-    solver.add_repository(Arc::new(repo));
+    solver.add_repository(repo.clone());
     solver.add_request(pinned_request!("my-plugin/1"));
     // this one is incompatible with requirements of my-plugin but the solver doesn't know it yet
     solver.add_request(pinned_request!("maya/2019"));
@@ -501,9 +501,9 @@ async fn test_solver_dependency_incompatible_stepback(
             },
         ]
     );
-    let repo = wrap_repo_for_test(repo, use_index).await;
+    let repo = Arc::new(wrap_repo_for_test(repo, use_index).await);
 
-    solver.add_repository(Arc::new(repo));
+    solver.add_repository(repo.clone());
     solver.add_request(pinned_request!("my-plugin/1"));
     // this one is incompatible with requirements of my-plugin/1.1.0 but not my-plugin/1.0
     solver.add_request(pinned_request!("maya/2019"));
@@ -2791,6 +2791,59 @@ async fn test_solver_component_availability(
         "should resolve the only version with all the components we need actually published"
     );
     assert_resolved!(solution, "python", components = ["bin", "lib"]);
+}
+
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
+#[tokio::test]
+async fn test_solver_build_component_ifalreadypresent_uses_build_context(
+    #[case] mut solver: SolverImpl,
+    #[values(true, false)] use_index: bool,
+) {
+    let repo = make_repo!(
+        [
+            {"pkg": "dep/1.0.0"},
+            {"pkg": "dep/1.0.1"},
+            {
+                "pkg": "dep-carrier/1.0.0",
+                "install": {
+                    "components": [
+                        {
+                            "name": "build",
+                            "requirements": [
+                                {"pkg": "dep/=1.0.0", "include": "IfAlreadyPresent"}
+                            ]
+                        },
+                        {
+                            "name": "run",
+                            "requirements": [
+                                {"pkg": "dep/Binary:1.0.0", "include": "IfAlreadyPresent"}
+                            ]
+                        }
+                    ]
+                }
+            }
+        ]
+    );
+    let repo = Arc::new(wrap_repo_for_test(repo, use_index).await);
+
+    solver.add_repository(repo.clone());
+    solver.add_request(pinned_request!("dep-carrier:build"));
+    solver.add_request(pinned_request!("dep:build"));
+
+    let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
+
+    assert_resolved!(solution, "dep", "1.0.0");
+
+    solver.reset();
+    solver.add_repository(repo);
+    solver.add_request(pinned_request!("dep-carrier"));
+    solver.add_request(pinned_request!("dep/=1.0.1"));
+
+    let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
+
+    assert_resolved!(solution, "dep", "1.0.1");
 }
 
 #[rstest]
