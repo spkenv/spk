@@ -682,16 +682,40 @@ impl SpkProvider {
                     Some(PreReleasePolicy::IncludeAll);
             }
             pkg_request_with_component.pkg.components = BTreeSet::from_iter([component]);
-            let dep_vs = self.pool.intern_version_set(
-                dep_name,
-                RequestVS::SpkRequest(RequestWithOptions::Pkg(pkg_request_with_component)),
-            );
             match pkg_request.inclusion_policy {
                 spk_schema::ident::InclusionPolicy::Always => {
+                    let dep_vs = self.pool.intern_version_set(
+                        dep_name,
+                        RequestVS::SpkRequest(RequestWithOptions::Pkg(pkg_request_with_component)),
+                    );
                     known_deps.requirements.push(dep_vs.into());
                 }
                 spk_schema::ident::InclusionPolicy::IfAlreadyPresent => {
-                    known_deps.constrains.push(dep_vs);
+                    // "If already present" constrains the version whenever the
+                    // package is in the solution, regardless of which component
+                    // pulled it in. Constraining a specific actual component
+                    // (e.g. the build component implied by a build-context
+                    // requirement) would miss a package that is only present
+                    // under a different component, such as one provided as an
+                    // embedded build that has no separate build component.
+                    //
+                    // Every actual component shares a version with the
+                    // synthetic Base component, so constrain Base with a
+                    // component-agnostic request to bind the version to the
+                    // package's presence.
+                    let base_name =
+                        self.pool
+                            .intern_package_name(ResolvoPackageName::PkgNameBufWithComponent(
+                                PkgNameBufWithComponent {
+                                    name: pkg_request.pkg.name().to_owned(),
+                                    component: SyntheticComponent::Base,
+                                },
+                            ));
+                    pkg_request_with_component.pkg.components = BTreeSet::new();
+                    known_deps.constrains.push(self.pool.intern_version_set(
+                        base_name,
+                        RequestVS::SpkRequest(RequestWithOptions::Pkg(pkg_request_with_component)),
+                    ));
                 }
             }
         }
