@@ -358,3 +358,27 @@ fn test_template_namespace_options() {
     let recipe = rendered_data.into_recipe().unwrap();
     assert_eq!(recipe.version().to_string(), "1.0.0");
 }
+
+#[rstest]
+fn test_template_render_supports_v1_platform_recipes() {
+    static SPEC: &str = r#"
+api: v1/platform
+platform: my-platform/{{ opt.version }}
+requirements: []
+"#;
+
+    let tpl = SpecTemplate {
+        name: Some(PkgName::new("my-platform").unwrap().to_owned()),
+        file_path: "my-platform.spk.yaml".into(),
+        versions: Default::default(),
+        template: SPEC.into(),
+    };
+    let options = option_map! {"version" => "1.0.0"};
+    let rendered_data = tpl
+        .render(&options)
+        .expect("template should render a v1/platform recipe");
+    let recipe = rendered_data.into_recipe().unwrap();
+
+    assert!(matches!(recipe.as_ref(), crate::SpecRecipe::V1Platform(_)));
+    assert_eq!(recipe.ident().to_string(), "my-platform/1.0.0");
+}
