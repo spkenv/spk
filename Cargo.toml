@@ -93,7 +93,7 @@ paste = "1.0"
 pin-project-lite = "0.2.0"
 procfs = "0.16.0"
 progress_bar_derive_macro = { path = "crates/progress_bar_derive_macro" }
-proptest = "1.0.0"
+proptest = "1.11.0"
 prost = "0.13"
 rand = "0.8.5"
 rdkafka = { version = "0.39.0", features = ["cmake-build"] }
