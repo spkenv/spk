@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use clap::Args;
 use colored::Colorize;
 use miette::Result;
@@ -336,10 +336,9 @@ pub(crate) async fn change_deprecation_state(
 
     // Wait for the index(es) to be updated before finishing. This
     // might involve waiting on several repos.
-    let utc_now: DateTime<Utc> = Utc::now();
-    let deprecation_change_time = utc_now.timestamp();
+    let deprecation_change_time = Utc::now();
     for (_repo_name, repo) in updated_repos.iter() {
-        repo.wait_for_index_to_update(deprecation_change_time)
+        repo.wait_for_index_to_update(&deprecation_change_time)
             .await?;
     }
 

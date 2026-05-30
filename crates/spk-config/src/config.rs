@@ -265,9 +265,9 @@ fn default_kafka_index_update_listener_recent_past_duration_ms() -> i64 {
 
 /// Helper for a default kafka index update listener's broker fetch
 /// timeout in seconds, when not specified in config file.
-fn default_kafka_index_update_listener_broker_fetch_timeout_s() -> u64 {
+fn default_kafka_index_update_listener_broker_fetch_timeout_ms() -> u64 {
     // 20 seconds
-    20
+    20 * 1000
 }
 
 /// Configuration for using Kafka as a message channel.
@@ -322,9 +322,9 @@ pub struct KafkaChannel {
     pub index_update_listener_recent_past_duration_ms: i64,
 
     /// The data fetching timeout used by an index update listener
-    /// when querying a kafka broker, in seconds.
-    #[serde(default = "default_kafka_index_update_listener_broker_fetch_timeout_s")]
-    pub index_update_listener_broker_fetch_timeout_s: u64,
+    /// when querying a kafka broker, in milliseconds.
+    #[serde(default = "default_kafka_index_update_listener_broker_fetch_timeout_ms")]
+    pub index_update_listener_broker_fetch_timeout_ms: u64,
 }
 
 /// Types of message channels.

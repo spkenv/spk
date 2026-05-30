@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::io::Write;
 
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use clap::Args;
 use colored::Colorize;
 use itertools::Itertools;
@@ -88,6 +88,8 @@ impl Run for Remove {
                     match version.into_inner() {
                         (version, None) => {
                             remove_all(repo_name, repo, &version).await?;
+
+                            updated_repos.insert(repo.name().into(), repo.clone());
                         }
                         (version, Some(build)) => {
                             let ident = version.into_build_ident(build);
@@ -101,10 +103,9 @@ impl Run for Remove {
         }
 
         // Wait for the index to be updated before finishing
-        let utc_now: DateTime<Utc> = Utc::now();
-        let remove_time = utc_now.timestamp();
+        let remove_time = Utc::now();
         for (_repo_name, repo) in updated_repos.iter() {
-            repo.wait_for_index_to_update(remove_time).await?;
+            repo.wait_for_index_to_update(&remove_time).await?;
         }
 
         Ok(0)

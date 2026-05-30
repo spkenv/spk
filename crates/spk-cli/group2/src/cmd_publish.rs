@@ -5,7 +5,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use clap::Args;
 use miette::Result;
 use spk_cli_common::{CommandArgs, PublishLabel, Publisher, Run};
@@ -91,9 +91,8 @@ impl Run for Publish {
             );
 
             // Wait for the index to be updated before finishing
-            let utc_now: DateTime<Utc> = Utc::now();
-            let publish_ended = utc_now.timestamp();
-            destination.wait_for_index_to_update(publish_ended).await?;
+            let publish_ended = Utc::now();
+            destination.wait_for_index_to_update(&publish_ended).await?;
         }
 
         tracing::info!("done");

@@ -6,6 +6,7 @@ mod kafka;
 
 //use std::collections::HashMap;
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use spk_config::{Indexer, MessageChannel};
 use spk_schema::BuildIdent;
@@ -128,7 +129,7 @@ pub(crate) async fn announce_index_event(
     event: IndexEvent,
     to: &url::Url,
     repo_name: &RepositoryName,
-    index_start_time: i64,
+    index_start_time: &DateTime<Utc>,
 ) -> Result<()> {
     let config = spk_config::get_config()?;
 
@@ -155,7 +156,7 @@ pub(crate) async fn announce_index_event(
 /// the given update time.
 pub(crate) async fn listen_to_index_status_until_updated(
     repo: &RepositoryHandle,
-    update_time: i64,
+    update_time: &DateTime<Utc>,
 ) -> Result<()> {
     let name = repo.name().to_string();
 

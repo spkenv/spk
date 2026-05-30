@@ -36,7 +36,7 @@ use crate::{Error, FlatBufferRepoIndex, RepositoryHandle, RepositoryIndexMut, Re
 
 /// Number of milliseconds to sleep while waiting for next message,
 /// when listening for new messages.
-const LISTEN_YIELD_SLEEP_TIME: u64 = 100;
+const LISTEN_YIELD_SLEEP_TIME: Duration = Duration::from_millis(100);
 
 /// Number of milliseconds in a second, used in time conversions
 const NUM_MS_IN_ONE_SECOND: u64 = 1000;
@@ -120,7 +120,7 @@ pub(crate) async fn announce_index_event(
     event: IndexEvent,
     to: &url::Url,
     repo_name: &RepositoryName,
-    index_start_time: i64,
+    index_start_time: &DateTime<Utc>,
 ) -> Result<()> {
     // Only send a message if the index updates topic is configured
     let Some(topic_name) = kafka_channel.index_updates_topic_name.as_ref() else {
@@ -158,7 +158,7 @@ pub(crate) async fn announce_index_event(
         event,
         repo: to.to_string(),
         name: repo_name.to_string(),
-        start: index_start_time,
+        start: index_start_time.timestamp(),
     };
 
     // Send the index update message
@@ -204,7 +204,7 @@ fn setup_running_interrupt_handling() -> Arc<AtomicBool> {
                     eprintln!("Received SIGQUIT, shutting down...");
                 }
             }
-            running.store(false, std::sync::atomic::Ordering::SeqCst);
+            running.store(false, std::sync::atomic::Ordering::Relaxed);
         });
     }
     running
@@ -274,7 +274,7 @@ fn set_offsets_to_one_before_the_latest_message(
 /// messages.
 pub(crate) async fn listen_to_index_status_updates(
     kafka_channel: &KafkaChannel,
-    min_update_time: i64,
+    min_update_time: &DateTime<Utc>,
     repo: &RepositoryHandle,
 ) -> Result<()> {
     // Only subscribe to index update messages if the index updates topic is configured
@@ -336,7 +336,7 @@ pub(crate) async fn listen_to_index_status_updates(
         consumer.clone(),
         topic_name,
         "index updates".to_string(),
-        kafka_channel.index_update_listener_broker_fetch_timeout_s,
+        kafka_channel.index_update_listener_broker_fetch_timeout_ms,
     )?;
 
     // Set up signal handlers to stop if interrupted
@@ -358,7 +358,7 @@ pub(crate) async fn listen_to_index_status_updates(
 
     let mut stream = consumer.stream();
 
-    while running.load(std::sync::atomic::Ordering::SeqCst) {
+    while running.load(std::sync::atomic::Ordering::Relaxed) {
         tokio::select! {
             maybe_message = stream.next() => {
                 match maybe_message {
@@ -388,14 +388,14 @@ pub(crate) async fn listen_to_index_status_updates(
                             time_since_last_message = 0;
                             tracing::debug!("Read index update message: {index_update:?}");
 
-                            if index_update.start >= min_update_time {
-                                tracing::debug!("Message is from an index update that started after the min_update_time: {}",  index_update.start - min_update_time);
+                            if index_update.start >= min_update_time.timestamp() {
+                                tracing::debug!("Message is from an index update that started after the min_update_time: {}",  index_update.start - min_update_time.timestamp());
 
                                 if repo.address().as_str() == index_update.repo {
                                     // The message is for correct repository
                                     if index_update.event.is_completed() {
                                         // And the index has been updated. So this can stop listening now.
-                                        running.store(false, std::sync::atomic::Ordering::SeqCst);
+                                        running.store(false, std::sync::atomic::Ordering::Relaxed);
                                         tracing::debug!("Recent index update completed. Stopping waiting: '{}'", index_update.event);
                                         break;
                                     }
@@ -403,7 +403,7 @@ pub(crate) async fn listen_to_index_status_updates(
                             } else {
                                 // This message is about an older
                                 // index update than we are interested in.
-                                tracing::debug!("Index update message is not for recent enough update: {}",  index_update.start - min_update_time);
+                                tracing::debug!("Index update message is not for recent enough update: {}",  index_update.start - min_update_time.timestamp());
                             }
                         }
                     },
@@ -416,25 +416,25 @@ pub(crate) async fn listen_to_index_status_updates(
                     }
                 }
             }
-            _ = tokio::time::sleep(Duration::from_millis(LISTEN_YIELD_SLEEP_TIME)) => {
+            _ = tokio::time::sleep(LISTEN_YIELD_SLEEP_TIME) => {
                 // Yield periodically so interrupting is responsive.
                 if there_is_a_recent_message {
                     // If enough time has passed since the last recent
                     // message was read, then assume something has happened
                     // to the index updating process and stop waiting.
-                    time_since_last_message += LISTEN_YIELD_SLEEP_TIME;
-                    if time_since_last_message >= kafka_channel.index_update_listener_timeout_ms {
+                    time_since_last_message += LISTEN_YIELD_SLEEP_TIME.as_millis();
+                    if time_since_last_message >= kafka_channel.index_update_listener_timeout_ms.into() {
                         tracing::warn!("Index updates  consumer timed out after {} seconds. The index may not have been updated.",
                                        kafka_channel.index_update_listener_timeout_ms / NUM_MS_IN_ONE_SECOND
                         );
-                        running.store(false, std::sync::atomic::Ordering::SeqCst);
+                        running.store(false, std::sync::atomic::Ordering::Relaxed);
                     }
 
                 } else {
                     // Without a recent enough message, assume the indexer is down
                     // and stop waiting for the index to update.
                     tracing::warn!("Index updates consumer cannot see a recent message. The indexer might be down. Not waiting for the index update.");
-                    running.store(false, std::sync::atomic::Ordering::SeqCst);
+                    running.store(false, std::sync::atomic::Ordering::Relaxed);
                 }
             }
         }
@@ -539,7 +539,7 @@ pub async fn listen_to_package_events_and_run_index_updates(
         indexer_name,
         // This does not have an index start time so
         // this is a placeholder.
-        0,
+        &Utc::now(),
     )
     .await?;
 
@@ -551,7 +551,7 @@ pub async fn listen_to_package_events_and_run_index_updates(
 
     let mut stream = consumer.stream();
 
-    while running.load(std::sync::atomic::Ordering::SeqCst) {
+    while running.load(std::sync::atomic::Ordering::Relaxed) {
         tokio::select! {
             maybe_message = stream.next() => {
                 match maybe_message {
@@ -623,7 +623,7 @@ pub async fn listen_to_package_events_and_run_index_updates(
                     }
                 }
             }
-            _ = tokio::time::sleep(Duration::from_millis(LISTEN_YIELD_SLEEP_TIME)) => {
+            _ = tokio::time::sleep(LISTEN_YIELD_SLEEP_TIME) => {
                 // Yield periodically so interrupting is responsive,
                 // to send heartbeat message, and to set off index updates.
                 if !package_versions.is_empty() || generate_full_index {
@@ -690,15 +690,15 @@ pub async fn listen_to_package_events_and_run_index_updates(
 
                     // If enough time has passed since the last heartbeat,
                     // send another heartbeat message.
-                    time_since_last_message += LISTEN_YIELD_SLEEP_TIME;
-                    if time_since_last_message >= indexer_config.heartbeat_freq_ms {
+                    time_since_last_message += LISTEN_YIELD_SLEEP_TIME.as_millis();
+                    if time_since_last_message >= indexer_config.heartbeat_freq_ms.into() {
                         announce_index_event(kafka_channel,
                                              IndexEvent::IndexerHeartbeat,
                                              repo_to_index.address(),
                                              indexer_name,
                                              // This does not have an index start time so
                                              // this is a placeholder.
-                                             0
+                                             &Utc::now()
                         ).await?;
 
                         time_since_last_message = 0;

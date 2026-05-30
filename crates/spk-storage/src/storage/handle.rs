@@ -4,6 +4,7 @@
 
 use std::path::PathBuf;
 
+use chrono::{DateTime, Utc};
 use spk_schema::{Spec, SpecRecipe};
 use variantly::Variantly;
 
@@ -91,7 +92,7 @@ impl RepositoryHandle {
     /// to be updated. This is used by package changing operations
     /// (publish, remove, un/deprecate) to wait until the index has
     /// been updated with their changes before finishing.
-    pub async fn wait_for_index_to_update(&self, update_time: i64) -> Result<()> {
+    pub async fn wait_for_index_to_update(&self, update_time: &DateTime<Utc>) -> Result<()> {
         listen_to_index_status_until_updated(self, update_time).await
     }
 }
