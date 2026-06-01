@@ -10,6 +10,7 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use itertools::Itertools;
+use millisecond::prelude::*;
 use once_cell::sync::Lazy;
 use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
 use rdkafka::error::KafkaError;
@@ -37,9 +38,6 @@ use crate::{Error, FlatBufferRepoIndex, RepositoryHandle, RepositoryIndexMut, Re
 /// Number of milliseconds to sleep while waiting for next message,
 /// when listening for new messages.
 const LISTEN_YIELD_SLEEP_TIME: Duration = Duration::from_millis(100);
-
-/// Number of milliseconds in a second, used in time conversions
-const NUM_MS_IN_ONE_SECOND: u64 = 1000;
 
 type ProducersByBrokers = HashMap<Vec<String>, std::result::Result<FutureProducer, KafkaError>>;
 
@@ -434,9 +432,9 @@ pub(crate) async fn listen_to_index_status_updates(
                     // to the index updating process and stop waiting.
                     time_since_last_message += LISTEN_YIELD_SLEEP_TIME.as_millis();
                     if time_since_last_message >= kafka_channel.index_update_listener_timeout_ms.into() {
-                        tracing::warn!("Index updates  consumer timed out after {} seconds. The index may not have been updated.",
-                                       kafka_channel.index_update_listener_timeout_ms / NUM_MS_IN_ONE_SECOND
-                        );
+                        let ms = Millisecond::from_millis(kafka_channel.index_update_listener_timeout_ms);
+                        let time_description = ms.pretty_with(MillisecondOption::long());
+                        tracing::warn!("Index updates consumer timed out after {time_description}. The index may not have been updated.");
                         running.store(false, std::sync::atomic::Ordering::Relaxed);
                     }
 
