@@ -528,4 +528,22 @@ async fn test_flatbuffer_deprecated_version() {
     assert_repo_and_index_have_same_packages(repo, indexed_repo).await;
 }
 
+#[rstest]
+#[tokio::test]
+async fn test_flatbuffer_embedded_package_with_compat() {
+    // Make a package with an embedded package that has a non-default compat value.
+    let repo = make_repo!(
+      [
+          {
+              "pkg": "maya/2019.2",
+              "build": {"script": "echo BUILD"},
+              "install": {"embedded": [{"pkg": "qt/5.12.6", "compat": "x.x.a.b" }]},
+          },
+      ]
+    );
+    let indexed_repo = index_for_test(repo.clone()).await;
+
+    assert_repo_and_index_have_same_packages(repo, indexed_repo).await;
+}
+
 // TODO: add rest of solves sample repos to this as tests

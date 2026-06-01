@@ -379,6 +379,8 @@ pub fn fb_embedded_package_specs_to_embedded_package_specs(
         let build_ident = BuildIdent::from_str(fb_emb_spec.ident()).unwrap_or_else(|_| unreachable!("An Embedded package spec in flatbuffer data should have a valid ident: '{}' is not valid", fb_emb_spec.ident()));
 
         let build_options = fb_opts_to_opts(fb_emb_spec.build_options());
+        let compat = fb_compat_to_compat(fb_emb_spec.compat());
+
         let options: OptionMap = build_options
             .iter()
             .map(|opt| (opt.full_name().to_owned(), opt.get_value(None)))
@@ -395,6 +397,7 @@ pub fn fb_embedded_package_specs_to_embedded_package_specs(
         let embedded_spec = unsafe {
             EmbeddedPackageSpec::new_unchecked(
                 build_ident,
+                compat,
                 EmbeddedBuildSpec {
                     options: build_options,
                 },

@@ -113,6 +113,7 @@ impl EmbeddedPackageSpec {
     /// EmbeddedPackageSpec.
     pub unsafe fn new_unchecked(
         ident: BuildIdent,
+        compat: Compat,
         build: EmbeddedBuildSpec,
         requirements_with_options: RequirementsList<RequestWithOptions>,
         install: EmbeddedInstallSpec,
@@ -120,7 +121,7 @@ impl EmbeddedPackageSpec {
         EmbeddedPackageSpec {
             pkg: ident,
             meta: Meta::default(),
-            compat: Compat::default(),
+            compat,
             deprecated: bool::default(),
             sources: Vec::new(),
             build,
