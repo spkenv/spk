@@ -376,8 +376,18 @@ pub(crate) async fn listen_to_index_status_updates(
                         // Get the message details to check the index
                         // start time, repo it is for, and kind of
                         // update event.
-                        let Some(payload) = message.payload_view::<str>().map(|s| s.map(|s| s.to_owned()).expect("payload is legal UTF-8")) else {
-                            continue;
+                        let payload = match message.payload_view::<str>().map(|s| s.map(|s| s.to_owned())) {
+                            Some(result) => match result {
+                                Ok(pl) => pl,
+                                Err(err) => {
+                                    // This broken message will be discarded
+                                    let message = format!("Indexer get index update message payload as str: {err}");
+                                    tracing::warn!(message);
+                                    send_issue_to_sentry(message, &Error::String(err.to_string()));
+                                    continue;
+                                }
+                            } ,
+                            None => continue,
                         };
 
                         if let Ok(index_update) = serde_json::from_str::<IndexUpdateMessage>(&payload).inspect_err(|err| {
@@ -557,7 +567,19 @@ pub async fn listen_to_package_events_and_run_index_updates(
                 match maybe_message {
                     Some(Ok(message)) => {
                         // Get the package event details
-                        let Some(payload) = message.payload_view::<str>().map(|s| s.map(|s| s.to_owned()).expect("payload is legal UTF-8")) else { continue; };
+                        let payload = match message.payload_view::<str>().map(|s| s.map(|s| s.to_owned())) {
+                            Some(result) => match result {
+                                Ok(pl) => pl,
+                                Err(err) => {
+                                    // This broken message will be discarded
+                                    let message = format!("Indexer get index update message payload as str: {err}");
+                                    tracing::warn!(message);
+                                    send_issue_to_sentry(message, &Error::String(err.to_string()));
+                                    continue;
+                                }
+                            } ,
+                            None => continue,
+                        };
 
                         if let Ok(package_event) = serde_json::from_str::<PackageEventMessage>(&payload).inspect_err(|err| {
                             // This problem message will be discarded
