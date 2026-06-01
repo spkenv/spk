@@ -608,7 +608,7 @@ impl FlatBufferRepoIndex {
     /// Gather packages and global vars from the given repos.
     async fn gather_all_data_from_repo(
         repos: &Vec<(String, crate::RepositoryHandle)>,
-        send_index_event_period_ms: Option<u64>,
+        send_index_event_period_ms: Option<Duration>,
         index_start_time: &DateTime<Utc>,
     ) -> miette::Result<(HashMap<PkgNameBuf, PackageInfo>, GlobalVarsInfo)> {
         if repos.len() != 1 {
@@ -659,7 +659,7 @@ impl FlatBufferRepoIndex {
         while let Some(item) = traversal.try_next().await? {
             // Periodically send an index in-progress event
             if let Some(send_next_event_delay_ms) = send_index_event_period_ms
-                && last_event_sent.elapsed().as_millis() > send_next_event_delay_ms.into()
+                && last_event_sent.elapsed() > send_next_event_delay_ms
             {
                 announce_index_event(
                     IndexEvent::InProgress,
@@ -763,7 +763,7 @@ impl FlatBufferRepoIndex {
         &self,
         repo: &crate::RepositoryHandle,
         package_versions: &[OptVersionIdent],
-        send_index_event_period: u64,
+        send_index_event_period: Duration,
         index_start_time: &DateTime<Utc>,
     ) -> miette::Result<(HashMap<PkgNameBuf, PackageInfo>, GlobalVarsInfo)> {
         let start = Instant::now();
@@ -825,7 +825,7 @@ impl FlatBufferRepoIndex {
         // pulling from the correct data source for each.
         for name in &package_names {
             // Periodically send an index in-progress event
-            if last_event_sent.elapsed().as_secs() > send_index_event_period {
+            if last_event_sent.elapsed() > send_index_event_period {
                 announce_index_event(
                     IndexEvent::InProgress,
                     repo.address(),
@@ -1437,7 +1437,9 @@ impl RepositoryIndexMut for FlatBufferRepoIndex {
         let index_config = spk_config::get_index_config(repo.name());
         let (packages, global_vars) = FlatBufferRepoIndex::gather_all_data_from_repo(
             repos,
-            Some(index_config.update_event_send_freq_ms),
+            Some(Duration::from_millis(
+                index_config.update_event_send_freq_ms,
+            )),
             &index_start_time,
         )
         .await?;
@@ -1516,7 +1518,7 @@ impl RepositoryIndexMut for FlatBufferRepoIndex {
             .gather_updates_from_repo(
                 repo,
                 package_versions,
-                index_config.update_event_send_freq_ms,
+                Duration::from_millis(index_config.update_event_send_freq_ms),
                 &index_start_time,
             )
             .await?;

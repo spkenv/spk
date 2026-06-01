@@ -35,8 +35,8 @@ use crate::storage::messaging::{
 };
 use crate::{Error, FlatBufferRepoIndex, RepositoryHandle, RepositoryIndexMut, Result};
 
-/// Number of milliseconds to sleep while waiting for next message,
-/// when listening for new messages.
+/// Amount of time to sleep while waiting for next message, when
+/// listening for new messages.
 const LISTEN_YIELD_SLEEP_TIME: Duration = Duration::from_millis(100);
 
 type ProducersByBrokers = HashMap<Vec<String>, std::result::Result<FutureProducer, KafkaError>>;
@@ -348,7 +348,10 @@ pub(crate) async fn listen_to_index_status_updates(
     );
 
     let mut there_is_a_recent_message = false;
-    let mut time_since_last_message = 0;
+    let mut time_since_last_message = Duration::new(0, 0);
+
+    let index_update_timeout =
+        Duration::from_millis(kafka_channel.index_update_listener_timeout_ms);
 
     tracing::debug!(
         "Looking for a recent index update message that was sent after: {min_update_time}"
@@ -393,7 +396,7 @@ pub(crate) async fn listen_to_index_status_updates(
                         }) {
                             // This is a valid recent message, so reset the
                             // "indexer might be down" timeout timer.
-                            time_since_last_message = 0;
+                            time_since_last_message = Duration::new(0, 0);
                             tracing::debug!("Read index update message: {index_update:?}");
 
                             if index_update.start >= min_update_time.timestamp() {
@@ -430,8 +433,8 @@ pub(crate) async fn listen_to_index_status_updates(
                     // If enough time has passed since the last recent
                     // message was read, then assume something has happened
                     // to the index updating process and stop waiting.
-                    time_since_last_message += LISTEN_YIELD_SLEEP_TIME.as_millis();
-                    if time_since_last_message >= kafka_channel.index_update_listener_timeout_ms.into() {
+                    time_since_last_message += LISTEN_YIELD_SLEEP_TIME;
+                    if time_since_last_message >= index_update_timeout {
                         let ms = Millisecond::from_millis(kafka_channel.index_update_listener_timeout_ms);
                         let time_description = ms.pretty_with(MillisecondOption::long());
                         tracing::warn!("Index updates consumer timed out after {time_description}. The index may not have been updated.");
@@ -552,10 +555,12 @@ pub async fn listen_to_package_events_and_run_index_updates(
     .await?;
 
     // Start listening to index update messages
-    let mut time_since_last_message = 0;
+    let mut time_since_last_message = Duration::new(0, 0);
     let mut read_messages = 0;
     let mut generate_full_index = false;
     let mut package_versions: HashSet<OptVersionIdent> = HashSet::new();
+
+    let heartbeat_delay = Duration::from_millis(indexer_config.heartbeat_freq_ms);
 
     let mut stream = consumer.stream();
 
@@ -587,7 +592,7 @@ pub async fn listen_to_package_events_and_run_index_updates(
                         }) {
                             // Process a valid message
                             tracing::debug!("Indexer read package event message: {package_event:?}");
-                            time_since_last_message = 0;
+                            time_since_last_message = Duration::new(0, 0);
 
                             // Store the repo and the package that changed, but only if the repo
                             // matches the one this indexer cares about
@@ -710,8 +715,8 @@ pub async fn listen_to_package_events_and_run_index_updates(
 
                     // If enough time has passed since the last heartbeat,
                     // send another heartbeat message.
-                    time_since_last_message += LISTEN_YIELD_SLEEP_TIME.as_millis();
-                    if time_since_last_message >= indexer_config.heartbeat_freq_ms.into() {
+                    time_since_last_message += LISTEN_YIELD_SLEEP_TIME;
+                    if time_since_last_message >= heartbeat_delay {
                         announce_index_event(kafka_channel,
                                              IndexEvent::IndexerHeartbeat,
                                              repo_to_index.address(),
@@ -721,7 +726,7 @@ pub async fn listen_to_package_events_and_run_index_updates(
                                              &Utc::now()
                         ).await?;
 
-                        time_since_last_message = 0;
+                        time_since_last_message = Duration::new(0, 0);
                     }
                 }
             }

@@ -317,7 +317,7 @@ pub struct KafkaChannel {
 
     /// How far back in time counts as recent for an index update
     /// listener when it is trying to workout if an indexer is running
-    /// for the repository index it wants to know about, in seconds.
+    /// for the repository index it wants to know about, in milliseconds.
     #[serde(default = "default_kafka_index_update_listener_recent_past_duration_ms")]
     pub index_update_listener_recent_past_duration_ms: i64,
 
