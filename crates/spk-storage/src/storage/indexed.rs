@@ -18,6 +18,7 @@ use spk_schema::ident_build::EmbeddedSource;
 use spk_schema::name::OptNameBuf;
 use spk_schema::{BuildIdent, Spec, SpecRecipe};
 
+use super::RepositoryHandle;
 use super::repository::{PublishPolicy, Repository, Storage};
 use crate::storage::{FlatBufferRepoIndex, RepoIndex, RepositoryIndex};
 use crate::{Error, Result};
@@ -66,6 +67,11 @@ impl IndexedRepository {
     /// repository, which may create it if needed.
     pub async fn wrapped_repo_index_location_path(&self) -> Result<PathBuf> {
         self.wrapped_repo.index_location_path().await
+    }
+
+    /// Get the underlying repo handle this index wraps.
+    pub fn underlying_repo(&self) -> Arc<RepositoryHandle> {
+        self.wrapped_repo.clone()
     }
 
     /// Set whether to update the internal index after any publish or

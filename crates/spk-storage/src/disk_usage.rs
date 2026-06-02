@@ -703,6 +703,15 @@ pub async fn get_components_disk_usage(
         .with_continue_on_error(true)
         .build();
 
+    // This level knows about spk repo handles, including indexed
+    // ones, and needs to ensure a non-indexed repo handle is used for
+    // the components' disk usage walking.
+    let files_repo = if let RepositoryHandle::Indexed(ref indexed_repo) = *repo {
+        indexed_repo.underlying_repo()
+    } else {
+        repo.clone()
+    };
+
     // Add the size of each components to the grouped disk usage size
     // to get a total.
     for (component, digest) in components {
@@ -714,7 +723,7 @@ pub async fn get_components_disk_usage(
             name: component.clone(),
             digest: Arc::new(*digest),
         };
-        let mut traversal = repo_walker.file_stream(&repo, walked_component);
+        let mut traversal = repo_walker.file_stream(&files_repo, walked_component);
 
         while let Some(file) = traversal.try_next().await? {
             let entry_size = if visited_digests.insert(file.entry.object) || count_links {
