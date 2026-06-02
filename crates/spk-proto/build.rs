@@ -22,10 +22,4 @@ fn main() {
         ..Default::default()
     })
     .expect("schema compiler command");
-
-    let generated_file = PathBuf::from(out_dir).join("spk_generated.rs");
-    println!(
-        "cargo:rerun-if-changed=schema/spk.fbs generated file: {}",
-        generated_file.display()
-    );
 }
