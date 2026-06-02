@@ -995,7 +995,7 @@ impl SpfsRepository {
     }
 
     /// Invalidate (clear) all cached results.
-    fn invalidate_caches(&self) {
+    pub(crate) fn invalidate_caches(&self) {
         self.caches.ls_tags.clear();
         self.caches.package_versions.clear();
         self.caches.recipe.clear();

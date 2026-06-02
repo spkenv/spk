@@ -120,6 +120,14 @@ pub struct Index {
     /// Maximum number of times to try to get a write lock on the
     /// index data, for index generation and updates.
     pub lock_max_tries: u64,
+
+    /// Name of the configured messaging channel (see MessageChannel)
+    /// to send index status update messages too.
+    pub update_message_channel: String,
+
+    /// How often index generation and update processing should send
+    /// index update event messages.
+    pub update_event_send_freq_ms: u64,
 }
 
 impl Default for Index {
@@ -135,6 +143,9 @@ impl Default for Index {
             // for index writing.
             lock_sleep_seconds: 6,
             lock_max_tries: 5,
+            update_message_channel: String::from("kafka"),
+            // 5 seconds in milliseconds
+            update_event_send_freq_ms: 5000,
         }
     }
 }
@@ -204,28 +215,175 @@ pub struct HostOptions {
     pub distro_rules: HashMap<String, DistroRule>,
 }
 
-/// Helper for testing default kafka timeout ms when not specified in
-/// config
+/// Helper for the default kafka message channel name, when not
+/// specified in config.
+fn default_kafka_channel_name() -> String {
+    String::from("kafka")
+}
+
+/// Helper for a default kafka message timeout in ms, when not specified in
+/// config file.
 fn default_kafka_message_timeout_ms() -> u64 {
-    5000
+    // 5 seconds
+    5 * 1000
+}
+
+/// Helper for a default kafka producer queue timeout in ms, when not specified in
+/// config file.
+fn default_kafka_producer_queue_timeout_ms() -> u64 {
+    // 4 seconds
+    4 * 1000
+}
+
+/// Helper for a default kafka index update listener's timeout in ms,
+/// when not specified in config file.
+fn default_kafka_index_update_listener_timeout_ms() -> u64 {
+    // 10 seconds
+    10 * 1000
+}
+
+/// Helper for a default kafka index update listener's session timeout
+/// in ms, when not specified in config file.
+fn default_kafka_index_update_listener_session_timeout_ms() -> u64 {
+    // 10 seconds
+    10 * 1000
+}
+
+/// Helper for a default kafka index update listener's maximum polling
+/// timeout in ms, when not specified in config file.
+fn default_kafka_index_update_listener_max_polling_interval_ms() -> u64 {
+    // 10 seconds
+    10 * 1000
+}
+
+/// Helper for a default kafka index update listener's recent past
+/// duration amount in seconds, when not specified in config file.
+fn default_kafka_index_update_listener_recent_past_duration_ms() -> i64 {
+    // 2 minutes
+    2 * 60 * 1000
+}
+
+/// Helper for a default kafka index update listener's broker fetch
+/// timeout in seconds, when not specified in config file.
+fn default_kafka_index_update_listener_broker_fetch_timeout_ms() -> u64 {
+    // 20 seconds
+    20 * 1000
 }
 
 /// Configuration for using Kafka as a message channel.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct KafkaChannel {
+    /// Name of this configured messaging system. Used to distinguish
+    /// it from other configured messaging systems.
+    #[serde(default = "default_kafka_channel_name")]
+    pub name: String,
     /// List of brokers to connect to, specified as "hostname:port"
     pub brokers: Vec<String>,
+
     /// Topic name to push package updates to
     pub package_updates_topic_name: Option<String>,
-    /// Message timeout in milliseconds, defaults to 5000 ms (5 seconds)
+
+    /// Topic name to push index status updates to
+    pub index_updates_topic_name: Option<String>,
+
+    /// Names of the SPK repositories that can send package update
+    /// messages to the 'package_updates_topic_name'.
+    pub repo_names: Vec<String>,
+
+    /// Message sending timeout in milliseconds, defaults to
+    /// 5000 ms (5 seconds)
     #[serde(default = "default_kafka_message_timeout_ms")]
     pub message_timeout_ms: u64,
+
+    /// Producer sending queue timeout in milliseconds, defaults to
+    /// 4000 ms (4 seconds). This determines how to long retry for if
+    /// the producer queue is full.
+    #[serde(default = "default_kafka_producer_queue_timeout_ms")]
+    pub producer_queue_timeout_ms: u64,
+
+    /// How long an index update message listener should wait after
+    /// the last index update message before timing out and assuming
+    /// no more updates are coming. Defaults to 10000 ms (10 seconds)
+    #[serde(default = "default_kafka_index_update_listener_timeout_ms")]
+    pub index_update_listener_timeout_ms: u64,
+
+    /// The kafka session timeout for an index update listener in milliseconds
+    #[serde(default = "default_kafka_index_update_listener_session_timeout_ms")]
+    pub index_update_listener_session_timeout_ms: u64,
+
+    /// The maximum polling interval for an index update listener in milliseconds
+    #[serde(default = "default_kafka_index_update_listener_max_polling_interval_ms")]
+    pub index_update_listener_max_polling_interval_ms: u64,
+
+    /// How far back in time counts as recent for an index update
+    /// listener when it is trying to workout if an indexer is running
+    /// for the repository index it wants to know about, in milliseconds.
+    #[serde(default = "default_kafka_index_update_listener_recent_past_duration_ms")]
+    pub index_update_listener_recent_past_duration_ms: i64,
+
+    /// The data fetching timeout used by an index update listener
+    /// when querying a kafka broker, in milliseconds.
+    #[serde(default = "default_kafka_index_update_listener_broker_fetch_timeout_ms")]
+    pub index_update_listener_broker_fetch_timeout_ms: u64,
 }
 
 /// Types of message channels.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum MessageChannel {
     Kafka(KafkaChannel),
+}
+
+/// Helper for a default kafka indexer heartbeat frequency in ms when
+/// not specified in the config file.
+fn default_indexer_heartbeat_freq_ms() -> u64 {
+    // 1 minute
+    60 * 1000
+}
+
+/// Helper for a default kafka indexer session timeout in ms when
+/// not specified in the config file.
+fn default_indexer_session_timeout_ms() -> u64 {
+    // 2 minutes
+    120 * 1000
+}
+
+/// Helper for a default kafka indexer's maximum polling interval in
+/// ms, when not specified in the config file.
+fn default_indexer_max_polling_interval_ms() -> u64 {
+    // 24 hours
+    86400000
+}
+
+/// Configuration for an index update server (an indexer)
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Indexer {
+    /// Name of the configured message channel to use. The
+    /// MessageChannel must have a publish modification topic, an
+    /// index status update topic, and at least one repo name
+    /// configured.
+    pub message_channel_name: String,
+
+    /// SPK repository name to listen for package modifications about.
+    /// The name must be present in the configure MessageChannel's
+    /// list of repo names. The indexer will ignore package updates
+    /// for other repositories, and will only update the named
+    /// repository's index,
+    pub repo_name: String,
+
+    /// How frequently this indexer should send heartbeat messages to
+    /// the index status channel, when not updating an index. Defaults
+    /// to 60000 ms (1 minute). When updating an index it will send
+    /// index status messages more frequently.
+    #[serde(default = "default_indexer_heartbeat_freq_ms")]
+    pub heartbeat_freq_ms: u64,
+
+    /// Indexer's kafka session timeout in milliseconds
+    #[serde(default = "default_indexer_session_timeout_ms")]
+    pub session_timeout_ms: u64,
+
+    /// Indexer's kafka broker maximum polling interval in milliseconds
+    #[serde(default = "default_indexer_max_polling_interval_ms")]
+    pub max_polling_interval_ms: u64,
 }
 
 /// Configuration values for spk.
@@ -243,6 +401,7 @@ pub struct Config {
     pub cli: Cli,
     pub host_options: HostOptions,
     pub messaging: Vec<MessageChannel>,
+    pub indexers: HashMap<String, Indexer>,
 }
 
 impl Config {
@@ -281,6 +440,35 @@ pub fn get_config() -> Result<Arc<Config>> {
         .read()
         .map_err(|err| crate::Error::LockPoisonedRead(err.to_string()))?;
     Ok(Arc::clone(&*lock))
+}
+
+/// Get the current index config for the given repo name
+pub fn get_index_config(repo_name: &str) -> Index {
+    match get_config() {
+        Ok(config) => {
+            if let Some(repo_config) = config.repositories.get(repo_name) {
+                repo_config.index.clone()
+            } else {
+                Index::default()
+            }
+        }
+        Err(err) => {
+            tracing::warn!("Unable to read spk config file, using Index defaults, due to: {err}");
+            Index::default()
+        }
+    }
+}
+
+/// Get the index update server (indexer) config with the given name,
+/// if one exits.
+pub fn get_indexer_config(indexer_name: &str) -> Option<Indexer> {
+    match get_config() {
+        Ok(config) => config.indexers.get(indexer_name).cloned(),
+        Err(err) => {
+            tracing::warn!("Unable to read spk config file to get indexers config, due to: {err}");
+            None
+        }
+    }
 }
 
 /// Load the spk configuration from disk, even if it has already been loaded.

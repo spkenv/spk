@@ -2306,6 +2306,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "millisecond"
+version = "0.15.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b63befb9f9db85caa92fe71eb3e7a42d76b90b38914f0356983d726442825770"
+
+[[package]]
 name = "mime"
 version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3267,9 +3273,9 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "1.11.2"
+version = "1.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23d7fd106d8c02486a8d64e778353d1cffe08ce79ac2e82f540c86d0facf6912"
+checksum = "e10754a14b9137dd7b1e3e5b0493cc9171fdd105e0ab477f51b72e7f3ac0e276"
 dependencies = [
  "aho-corasick",
  "memchr",
@@ -3279,9 +3285,9 @@ dependencies = [
 
 [[package]]
 name = "regex-automata"
-version = "0.4.10"
+version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b9458fa0bfeeac22b5ca447c63aaf45f28439a709ccd244698632f9aa6394d6"
+checksum = "6e1dd4122fc1595e8162618945476892eefca7b88c52820e74af6262213cae8f"
 dependencies = [
  "aho-corasick",
  "memchr",
@@ -4377,6 +4383,7 @@ name = "spk-cli-group1"
 version = "0.44.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "clap 4.5.47",
  "clap_complete",
  "colored",
@@ -4405,6 +4412,7 @@ name = "spk-cli-group2"
 version = "0.44.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "clap 4.5.47",
  "colored",
  "futures",
@@ -4686,6 +4694,7 @@ dependencies = [
  "itertools 0.14.0",
  "miette",
  "spk-cli-common",
+ "spk-config",
  "spk-schema",
  "spk-storage",
  "tracing",
@@ -4727,6 +4736,7 @@ dependencies = [
  "spfs",
  "thiserror 1.0.69",
  "tokio",
+ "tracing",
  "whoami",
 ]
 
@@ -5040,6 +5050,7 @@ dependencies = [
  "async-stream",
  "async-trait",
  "bytes",
+ "chrono",
  "colored",
  "dashmap",
  "data-encoding",
@@ -5054,6 +5065,7 @@ dependencies = [
  "libc",
  "memmap2",
  "miette",
+ "millisecond",
  "nom",
  "nom-supreme",
  "once_cell",

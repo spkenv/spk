@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::collections::HashMap;
 use std::io::Write;
 
+use chrono::Utc;
 use clap::Args;
 use colored::Colorize;
 use itertools::Itertools;
@@ -11,6 +13,7 @@ use miette::{IntoDiagnostic, Result};
 use spk_cli_common::{CommandArgs, Run, flags};
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::ident::parse_ident;
+use spk_schema::name::RepositoryNameBuf;
 use spk_schema::spec_ops::WithVersion;
 use spk_schema::{BuildIdent, VersionIdent};
 use spk_storage as storage;
@@ -43,6 +46,9 @@ impl Run for Remove {
             );
             return Ok(1);
         }
+
+        let mut updated_repos: HashMap<RepositoryNameBuf, storage::RepositoryHandle> =
+            HashMap::new();
 
         for name in &self.packages {
             if !name.contains('/') && !self.yes {
@@ -82,14 +88,26 @@ impl Run for Remove {
                     match version.into_inner() {
                         (version, None) => {
                             remove_all(repo_name, repo, &version).await?;
+
+                            updated_repos.insert(repo.name().into(), repo.clone());
                         }
                         (version, Some(build)) => {
-                            remove_build(repo_name, repo, &version.into_build_ident(build)).await?;
+                            let ident = version.into_build_ident(build);
+                            remove_build(repo_name, repo, &ident).await?;
+
+                            updated_repos.insert(repo.name().into(), repo.clone());
                         }
                     }
                 }
             }
         }
+
+        // Wait for the index to be updated before finishing
+        let remove_time = Utc::now();
+        for (_repo_name, repo) in updated_repos.iter() {
+            repo.wait_for_index_to_update(&remove_time).await?;
+        }
+
         Ok(0)
     }
 }

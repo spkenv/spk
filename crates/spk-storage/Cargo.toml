@@ -24,6 +24,7 @@ async-trait = { workspace = true }
 async-stream = { workspace = true }
 bytes = { workspace = true }
 colored = { workspace = true }
+chrono = { workspace = true }
 dashmap = { workspace = true }
 data-encoding = "2.3.0"
 enum_dispatch = { workspace = true }
@@ -40,6 +41,7 @@ itertools = { workspace = true }
 libc = { workspace = true }
 memmap2 = { workspace = true }
 miette = { workspace = true }
+millisecond = { workspace = true }
 nom = { workspace = true }
 nom-supreme = { workspace = true }
 once_cell = { workspace = true }
@@ -63,7 +65,7 @@ sys-info = "0.9.0"
 tar = "0.4.45"
 tempfile = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true, features = ["rt"] }
+tokio = { workspace = true, features = ["rt", "signal"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 ulid = { workspace = true }

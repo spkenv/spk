@@ -28,6 +28,7 @@ pub use storage::{
     IndexedRepository,
     MemRepository,
     NameAndRepository,
+    PackageEvent,
     Repository,
     RepositoryHandle,
     RepositoryIndexMut,
@@ -40,5 +41,6 @@ pub use storage::{
     local_repository,
     pretty_print_filepath,
     remote_repository,
+    run_index_update_server,
 };
 pub use walker::{RepoWalker, RepoWalkerBuilder, RepoWalkerItem};

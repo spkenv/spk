@@ -25,6 +25,7 @@ macro_rules! make_repo {
     }};
     ( [ $( $spec:tt ),+ $(,)? ], options=$options:expr ) => {{
         tracing::debug!("creating in-memory repository");
+        spk_storage::fixtures::disable_messaging_channels_for_tests();
         let repo = spk_storage::RepositoryHandle::new_mem();
         let _opts = $options;
         $(

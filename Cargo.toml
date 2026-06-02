@@ -82,6 +82,7 @@ itertools = "0.14"
 libc = "0.2.172"
 memmap2 = "0.9.10"
 miette = "7.0"
+millisecond = "0.15.12"
 nix = { version = "0.29", features = ["mount", "sched", "user"] }
 nom = "7.1"
 nom-supreme = "0.8"

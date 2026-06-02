@@ -10,7 +10,13 @@ use itertools::Itertools;
 use miette::{Context, Result};
 use spk_cli_common::{CommandArgs, Run, flags};
 use spk_schema::ident::OptVersionIdent;
-use spk_storage::{self as storage, FlatBufferRepoIndex, RepositoryHandle, RepositoryIndexMut};
+use spk_storage::{
+    self as storage,
+    FlatBufferRepoIndex,
+    RepositoryHandle,
+    RepositoryIndexMut,
+    run_index_update_server,
+};
 use storage::Repository;
 
 /// Perform repository-level actions and maintenance
@@ -69,6 +75,19 @@ pub enum RepoCommand {
         #[clap(long, name = "PACKAGE/VERSION")]
         update: Vec<String>,
     },
+    /// Run a configured index updating server (an indexer).
+    ///
+    /// An indexer will listen for package events, for a particular
+    /// repository, from a package updates topic/queue in a messaging
+    /// channel, and kicks off index updates as packages are published
+    /// or modified. The indexer will send heartbeat messages to the
+    /// index updates topic/queue.
+    Indexer {
+        /// Name of the configured indexer to run. Indexers must be
+        /// configured in the SPK config file before they can be used.
+        #[clap(long)]
+        name: String,
+    },
 }
 
 impl RepoCommand {
@@ -86,7 +105,7 @@ impl RepoCommand {
                 Ok(1)
             }
 
-            // spk repo index ...
+            // spk repo index -r ...
             Self::Index { repo, update } => {
                 // Generate or update an index in a repo. The repo must
                 // be the underlying repo and not an indexed repo. So as
@@ -184,6 +203,19 @@ impl RepoCommand {
                     );
                 }
 
+                Ok(0)
+            }
+            // spk repo indexer --name ...
+            Self::Indexer { name } => {
+                // Run a long running process that listens for package
+                // update events and kicks off index updates to pick
+                // up those package changes.
+                if let Some(indexer_config) = spk_config::get_indexer_config(name) {
+                    tracing::info!("Running the '{}' indexer ...", name);
+                    run_index_update_server(name.to_string(), &indexer_config).await?;
+                } else {
+                    tracing::error!("Unable to find an indexer configuration called '{name}'");
+                }
                 Ok(0)
             }
         }
