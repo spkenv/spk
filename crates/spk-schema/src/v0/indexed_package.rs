@@ -25,6 +25,7 @@ use spk_schema_foundation::spec_ops::HasBuildIdent;
 use spk_schema_foundation::version::{IncompatibleReason, VarOptionProblem};
 
 use super::check_package_spec_satisfies_pkg_request;
+use super::package_spec::build_requirements_from_build_options;
 use crate::fb_converter::fb_requirements_to_requirements;
 use crate::foundation::name::PkgName;
 use crate::foundation::spec_ops::prelude::*;
@@ -496,10 +497,9 @@ impl Package for IndexedPackage {
     }
 
     fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList<PinnedRequest>>> {
-        Err(Error::SpkIndexedPackageDoesNotImplement(
-            "Package".to_string(),
-            "get_build_requirements".to_string(),
-        ))
+        let requests =
+            build_requirements_from_build_options(self.ident(), &self.get_build_options())?;
+        Ok(Cow::Owned(requests))
     }
 
     fn runtime_requirements(&self) -> Cow<'_, RequirementsList<RequestWithOptions>> {

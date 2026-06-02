@@ -367,6 +367,40 @@ impl OptionValues for PackageSpec {
     }
 }
 
+/// Helper method for gathering build requirements from the a list of
+/// build options. This used by (both) v0 package implementations.
+pub fn build_requirements_from_build_options(
+    ident: &BuildIdent,
+    build_options: &[Opt],
+) -> crate::Result<RequirementsList<PinnedRequest>> {
+    let mut requests = RequirementsList::default();
+    for opt in build_options.iter() {
+        match opt {
+            Opt::Pkg(opt) => {
+                let mut req = opt.to_request(None, RequestedBy::BinaryBuild(ident.clone()))?;
+                if req.pkg.components.is_empty() {
+                    // inject the default component for this context if needed
+                    req.pkg.components.insert(Component::default_for_build());
+                }
+                requests.insert_or_merge_pinned(PinnedRequest::Pkg(req))?;
+            }
+            Opt::Var(opt) => {
+                // If no value was specified in the spec, there's
+                // no need to turn that into a requirement to
+                // find a var with an empty value.
+                if let Some(value) = opt.get_value(None)
+                    && !value.is_empty()
+                {
+                    requests.insert_or_merge_pinned(PinnedRequest::Var(
+                        opt.to_request(Some(value.as_str())),
+                    ))?;
+                }
+            }
+        }
+    }
+    Ok(requests)
+}
+
 impl Package for PackageSpec {
     type Package = Self;
     type EmbeddedPackage = EmbeddedPackageSpec;
@@ -427,32 +461,8 @@ impl Package for PackageSpec {
     }
 
     fn get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList<PinnedRequest>>> {
-        let mut requests = RequirementsList::default();
-        for opt in self.build.options.iter() {
-            match opt {
-                Opt::Pkg(opt) => {
-                    let mut req =
-                        opt.to_request(None, RequestedBy::BinaryBuild(self.ident().clone()))?;
-                    if req.pkg.components.is_empty() {
-                        // inject the default component for this context if needed
-                        req.pkg.components.insert(Component::default_for_build());
-                    }
-                    requests.insert_or_merge_pinned(PinnedRequest::Pkg(req))?;
-                }
-                Opt::Var(opt) => {
-                    // If no value was specified in the spec, there's
-                    // no need to turn that into a requirement to
-                    // find a var with an empty value.
-                    if let Some(value) = opt.get_value(None)
-                        && !value.is_empty()
-                    {
-                        requests.insert_or_merge_pinned(PinnedRequest::Var(
-                            opt.to_request(Some(value.as_str())),
-                        ))?;
-                    }
-                }
-            }
-        }
+        let requests =
+            build_requirements_from_build_options(self.ident(), &self.get_build_options())?;
         Ok(Cow::Owned(requests))
     }
 

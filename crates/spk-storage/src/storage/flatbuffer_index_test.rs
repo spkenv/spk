@@ -253,7 +253,15 @@ fn assert_packages_are_equivalent(build_from_repo: Arc<Spec>, build_from_index: 
         "get_build_options() don't match [{pkg}]",
     );
 
-    // get_build_requirements(&self) -> crate::Result<Cow<'_, RequirementsList<PinnedRequest>>> - not implemented by SolverPackageSpec
+    assert_eq!(
+        build_from_repo
+            .get_build_requirements()
+            .expect("should have valid build requirements from repo package"),
+        build_from_index
+            .get_build_requirements()
+            .expect("should have gotten valid build requirements from index package"),
+        "get_build_requirements() don't match [{pkg}]",
+    );
 
     assert_eq!(
         build_from_repo.runtime_requirements(),
