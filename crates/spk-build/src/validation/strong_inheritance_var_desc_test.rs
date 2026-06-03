@@ -43,6 +43,7 @@ async fn test_strongly_inherited_vars_require_desc() {
         environment_filesystem: Manifest::new(
             spfs::tracking::Entry::empty_dir_with_open_perms_with_data(package.ident().clone()),
         ),
+        suppressed_requirements: Default::default(),
         package,
     };
 

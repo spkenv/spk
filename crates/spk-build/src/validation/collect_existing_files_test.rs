@@ -43,6 +43,7 @@ async fn test_validate_build_changeset_collect_existing() {
             environment: Solution::default(),
             variant: package.option_values(),
             environment_filesystem,
+            suppressed_requirements: Default::default(),
             package,
         },
     };

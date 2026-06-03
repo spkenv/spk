@@ -386,6 +386,26 @@ A build option can be one of [VariableRequest](#variablerequest), or [PackageReq
 | var                 | _str_  | The requested value of a package build variable in the form`name=value`, this can reference a specific package or the global variable (eg `debug=on`, or `python.abi=cp37`)                  |
 | fromBuildEnv        | _bool_ | If true, replace the requested value of this variable with the value used in the build environment                                                                                           |
 | ifPresentInBuildEnv | _bool_ | Either true or false; if true, then `fromBuildEnv` only applies if the variable was present in the build environment. This allows different variants to have different runtime requirements. |
+| suppress            | _str_  | If set, prevents this variable from being inherited from upstream packages with Strong inheritance. The value serves as documentation for why the suppression is needed. The `var` field must give only the variable name (no `=value`), and this field is not compatible with the other request fields (`fromBuildEnv`, `ifPresentInBuildEnv`), which are ignored when `suppress` is set. |
+
+When a package in the build environment has a var with `inheritance: Strong` (see
+[RequiredVar](#requiredvar)), that var is normally added as an install requirement
+of the package being built and is enforced by the
+[InheritRequirements](#available-validation-rules) validation rule. A downstream
+package can opt out of inheriting a specific var by adding a `suppress` request to
+its install requirements. This prevents the var from being added to the built
+package's runtime requirements and tells the `InheritRequirements` validator to
+skip checking for it.
+
+For example, to suppress inheritance of the strongly-inherited `base.inherit-me`
+var:
+
+```yaml
+install:
+  requirements:
+    - var: base.inherit-me
+      suppress: "this package does not depend on base's inherit-me behaviour"
+```
 
 #### PackageRequest
 

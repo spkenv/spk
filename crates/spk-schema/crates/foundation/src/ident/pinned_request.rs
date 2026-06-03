@@ -87,6 +87,9 @@ impl TryFrom<PinnableRequest> for PinnedRequest {
         match req {
             PinnableRequest::Pkg(r) => Ok(PinnedRequest::Pkg(r)),
             PinnableRequest::Var(r) => Ok(PinnedRequest::Var(r.try_into()?)),
+            PinnableRequest::Suppress(..) => {
+                Err("a var suppression rule cannot be converted into a pinned request".into())
+            }
         }
     }
 }
