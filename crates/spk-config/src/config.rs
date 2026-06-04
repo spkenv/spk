@@ -151,7 +151,7 @@ impl Default for Index {
 }
 
 /// The settings for a single repository
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Default, Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Repository {
     /// Whether to use an index with this repository, if one is
@@ -160,15 +160,6 @@ pub struct Repository {
 
     /// Setting for the repositories index, if an index is enabled.
     pub index: Index,
-}
-
-impl Default for Repository {
-    fn default() -> Self {
-        Self {
-            use_index: true,
-            index: Default::default(),
-        }
-    }
 }
 
 #[derive(Clone, Default, Debug, Deserialize, Serialize)]
