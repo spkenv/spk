@@ -996,10 +996,27 @@ impl Solver {
             // The count is used as a fake version number to
             // distinguish which initial request is being checked in
             // each dummy package.
+
+            // Translate any options on the request into build options
+            // for the dummy recipe so that the var values are carried
+            // through to the install requirements and the impossible
+            // request checker can see them.
+            let build_options: Vec<serde_json::Value> = req
+                .options
+                .iter()
+                .map(|(name, value)| {
+                    serde_json::json!({
+                        "var": format!("{}/{}", name, value.value()),
+                    })
+                })
+                .collect();
+
             let recipe = try_recipe!({"pkg": format!("initialrequest/{}", count + 1),
+                                      "build": {
+                                          "options": build_options,
+                                      },
                                       "install": {
                                           "requirements": [
-                                              // TODO: include options here
                                               req.pkg_request,
                                           ]
                                       }
