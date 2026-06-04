@@ -28,7 +28,7 @@ tokio = { workspace = true }
 
 [dev-dependencies]
 spfstest = { workspace = true }
-tar = "0.4.45"
+tar = "0.4.46"
 spk-build = { workspace = true }
 spk-solve = { workspace = true }
 rstest = { workspace = true }
