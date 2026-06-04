@@ -998,8 +998,10 @@ fn have_required_join_capabilities() -> Result<bool> {
 const OVERLAY_ARGS_RO_PREFIX: &str = "ro";
 const OVERLAY_ARGS_INDEX: &str = "index";
 const OVERLAY_ARGS_INDEX_ON: &str = "index=on";
+const OVERLAY_ARGS_INDEX_OFF: &str = "index=off";
 const OVERLAY_ARGS_METACOPY: &str = "metacopy";
 const OVERLAY_ARGS_METACOPY_ON: &str = "metacopy=on";
+const OVERLAY_ARGS_METACOPY_OFF: &str = "metacopy=off";
 pub(crate) const OVERLAY_ARGS_LOWERDIR_APPEND: &str = "lowerdir+";
 const OVERLAY_ARGS_LOWERDIR_APPEND_ASSIGN: &str = "lowerdir+=";
 const OVERLAY_ARGS_LOWERDIR_ASSIGN: &str = "lowerdir=";
@@ -1043,17 +1045,32 @@ impl OverlayMountOptions {
         if self.read_only {
             opts.push(OVERLAY_ARGS_RO_PREFIX);
         }
-        if !self.global_options.break_hardlinks
-            && params.contains(OVERLAY_ARGS_INDEX)
-            && self.global_options.redirect_dir.allow_break_hardlinks()
-        {
-            opts.push(OVERLAY_ARGS_INDEX_ON);
+        // Emit `index` explicitly rather than relying on the kernel's default
+        // for the overlay module. Some kernels build/configure overlayfs with
+        // `index=on` by default (e.g. CONFIG_OVERLAY_FS_INDEX=y), and an
+        // unexpected `index=on` causes overlayfs to record and then verify a
+        // `trusted.overlay.origin` file handle for the upper root against the
+        // lower root. spfs re-renders the lower layers across a remount, so the
+        // lower root changes and that verification fails with a "stale file
+        // handle" error, breaking the remount of /spfs.
+        if params.contains(OVERLAY_ARGS_INDEX) {
+            if !self.global_options.break_hardlinks
+                && self.global_options.redirect_dir.allow_break_hardlinks()
+            {
+                opts.push(OVERLAY_ARGS_INDEX_ON);
+            } else {
+                opts.push(OVERLAY_ARGS_INDEX_OFF);
+            }
         }
-        if self.global_options.metadata_copy_up
-            && params.contains(OVERLAY_ARGS_METACOPY)
-            && self.global_options.redirect_dir.allow_metadata_copy_up()
-        {
-            opts.push(OVERLAY_ARGS_METACOPY_ON);
+        // Likewise pin metacopy rather than inheriting the kernel default.
+        if params.contains(OVERLAY_ARGS_METACOPY) {
+            if self.global_options.metadata_copy_up
+                && self.global_options.redirect_dir.allow_metadata_copy_up()
+            {
+                opts.push(OVERLAY_ARGS_METACOPY_ON);
+            } else {
+                opts.push(OVERLAY_ARGS_METACOPY_OFF);
+            }
         }
         opts.push(self.global_options.redirect_dir.into());
         opts
