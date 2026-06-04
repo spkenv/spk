@@ -719,19 +719,6 @@ impl SpkProvider {
             .collect()
     }
 
-    /// Return a list of requirements for all the package requests found in the
-    /// given requests.
-    fn dep_pkg_requirements(&self, requests: &[RequestWithOptions]) -> Vec<Requirement> {
-        requests
-            .iter()
-            .filter_map(|req| match req {
-                RequestWithOptions::Pkg(pkg) => Some(pkg),
-                _ => None,
-            })
-            .flat_map(|req| self.pkg_request_to_known_dependencies(req).requirements)
-            .collect()
-    }
-
     pub fn is_canceled(&self) -> bool {
         self.cancel_solving.borrow().is_some()
     }
@@ -819,6 +806,27 @@ impl SpkProvider {
             }
         }
         known_deps
+    }
+
+    /// Return known dependencies for a requirement as interpreted from the
+    /// given component context.
+    fn request_to_known_dependencies_in_component_context(
+        &self,
+        requirement: &RequestWithOptions,
+        component: &Component,
+    ) -> KnownDependencies {
+        let mut requirement = requirement.clone();
+        if *component == Component::Build
+            && let RequestWithOptions::Pkg(pkg_request) = &mut requirement
+            && pkg_request.pkg.components.is_empty()
+            && !pkg_request.pkg.is_source()
+        {
+            pkg_request
+                .pkg
+                .components
+                .insert(Component::default_for_build());
+        }
+        self.request_to_known_dependencies(&requirement)
     }
 
     /// Return a new provider to restart the solve, preserving what was learned
@@ -1437,9 +1445,14 @@ impl DependencyProvider for SpkProvider {
                                     .into(),
                             );
                         });
-                        known_deps.requirements.extend(
-                            self.dep_pkg_requirements(component_spec.requirements_with_options()),
-                        );
+                        for requirement in component_spec.requirements_with_options().iter() {
+                            let kd = self.request_to_known_dependencies_in_component_context(
+                                requirement,
+                                actual_component,
+                            );
+                            known_deps.requirements.extend(kd.requirements);
+                            known_deps.constrains.extend(kd.constrains);
+                        }
                     }
                 }
                 // Also add dependencies on any packages embedded in this
@@ -1557,8 +1570,10 @@ impl DependencyProvider for SpkProvider {
                                 embedded_component.requirements_with_options().iter()
                             })
                         {
-                            let kd =
-                                self.request_to_known_dependencies(embedded_component_requirement);
+                            let kd = self.request_to_known_dependencies_in_component_context(
+                                embedded_component_requirement,
+                                actual_component,
+                            );
                             known_deps.requirements.extend(kd.requirements);
                             known_deps.constrains.extend(kd.constrains);
                         }
