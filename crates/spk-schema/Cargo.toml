@@ -53,5 +53,5 @@ tracing = { workspace = true }
 variantly = { workspace = true }
 
 [dev-dependencies]
-proptest = "1.0.0"
+proptest = "1.11.0"
 rstest = { workspace = true }

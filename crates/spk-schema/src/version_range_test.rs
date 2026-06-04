@@ -344,10 +344,10 @@ fn arb_semver_range_from_version(version: Version) -> impl Strategy<Value = Vers
                             .take(parts_to_generate)
                             .zip(values_to_use.iter())
                             .map(|(actual_number, proposed_number)| {
-                                if !found_non_zero && *actual_number == 0 {
-                                    found_non_zero = true;
-                                    *actual_number
-                                } else if !found_non_zero {
+                                if !found_non_zero {
+                                    if *actual_number != 0 {
+                                        found_non_zero = true;
+                                    }
                                     *actual_number
                                 } else {
                                     *proposed_number
@@ -390,6 +390,40 @@ fn arb_wildcard_range_from_version(version: Version) -> impl Strategy<Value = Ve
     })
 }
 
+fn arb_different_version_from(version: Version) -> impl Strategy<Value = Version> {
+    Just({
+        let mut version = version;
+        let last = version.parts.len() - 1;
+        version.parts[last] = match version.parts[last] {
+            0 => 1,
+            num => num - 1,
+        };
+        version
+    })
+}
+
+fn version_strictly_smaller(mut version: Version) -> Version {
+    if let Some(index) = version.parts.iter().rposition(|part| *part > 0) {
+        version.parts[index] -= 1;
+        for part in version.parts.iter_mut().skip(index + 1) {
+            *part = 0;
+        }
+        version
+    } else {
+        version.minus_epsilon()
+    }
+}
+
+fn version_strictly_larger(mut version: Version) -> Version {
+    let last = version.parts.len() - 1;
+    if version.parts[last] == u32::MAX {
+        version.parts.push(1);
+    } else {
+        version.parts[last] += 1;
+    }
+    version
+}
+
 fn arb_range_that_includes_version(version: Version) -> impl Strategy<Value = VersionRange> {
     prop_oneof![
         // Compat: the same version
@@ -400,71 +434,43 @@ fn arb_range_that_includes_version(version: Version) -> impl Strategy<Value = Ve
         Just(VersionRange::DoubleEquals(DoubleEqualsVersion::new(
             version.clone()
         ))),
-        // DoubleNotEquals: an arbitrary version that isn't equal
-        (arb_version(), Just(version.clone()))
-            .prop_filter(
-                "not the same version",
-                |(other_version, version)| other_version != version
-            )
-            .prop_map(|(other_version, _)| {
-                VersionRange::DoubleNotEquals(DoubleNotEqualsVersion::new(
-                    other_version.parts.len(),
-                    other_version,
-                ))
-            }),
+        // DoubleNotEquals: a version deterministically different from the
+        // witness version, to avoid reject-heavy filtering.
+        arb_different_version_from(version.clone()).prop_map(|other_version| {
+            VersionRange::DoubleNotEquals(DoubleNotEqualsVersion::new(
+                other_version.parts.len(),
+                other_version,
+            ))
+        }),
         // Equals: the same version
         Just(VersionRange::Equals(EqualsVersion::new(version.clone()))),
         // Filter: skipping for now
-        // GreaterThan: an arbitrary version that is <=
-        (arb_version(), Just(version.clone()))
-            .prop_filter(
-                "a less than or equal version",
-                |(other_version, version)| other_version <= version
-            )
-            .prop_map(|(other_version, _)| {
-                VersionRange::GreaterThan(GreaterThanRange::new(other_version))
-            }),
-        // GreaterThanOrEqualTo: an arbitrary version that is <
-        (arb_version(), Just(version.clone()))
-            .prop_filter(
-                "a less than version",
-                |(other_version, version)| other_version < version
-            )
-            .prop_map(|(other_version, _)| {
-                VersionRange::GreaterThanOrEqualTo(GreaterThanOrEqualToRange::new(other_version))
-            }),
-        // LesserThan: an arbitrary version that is >=
-        (arb_version(), Just(version.clone()))
-            .prop_filter(
-                "a greater than or equal version",
-                |(other_version, version)| other_version >= version
-            )
-            .prop_map(|(other_version, _)| {
-                VersionRange::LessThan(LessThanRange::new(other_version))
-            }),
-        // LessThanOrEqualTo: an arbitrary version that is >
-        (arb_version(), Just(version.clone()))
-            .prop_filter(
-                "a greater than version",
-                |(other_version, version)| other_version > version
-            )
-            .prop_map(|(other_version, _)| {
-                VersionRange::LessThanOrEqualTo(LessThanOrEqualToRange::new(other_version))
-            }),
+        // GreaterThan: a boundary just below the witness version.
+        Just(VersionRange::GreaterThan(GreaterThanRange::new(
+            version_strictly_smaller(version.clone()),
+        ))),
+        // GreaterThanOrEqualTo: the witness version itself.
+        Just(VersionRange::GreaterThanOrEqualTo(
+            GreaterThanOrEqualToRange::new(version.clone()),
+        )),
+        // LessThan: a boundary just above the witness version.
+        Just(VersionRange::LessThan(LessThanRange::new(
+            version_strictly_larger(version.clone()),
+        ))),
+        // LessThanOrEqualTo: the witness version itself.
+        Just(VersionRange::LessThanOrEqualTo(
+            LessThanOrEqualToRange::new(version.clone()),
+        )),
         // LowestSpecified: transform version digits
         arb_lowest_specified_range_from_version(version.clone()),
-        // NotEquals: an arbitrary version that isn't equal
-        (arb_version(), Just(version.clone()))
-            .prop_filter(
-                "not the same version",
-                |(other_version, version)| other_version != version
-            )
-            .prop_map(|(other_version, _)| {
-                VersionRange::NotEquals(NotEqualsVersion::new(
-                    other_version.parts.len(),
-                    other_version,
-                ))
-            }),
+        // NotEquals: a version deterministically different from the witness
+        // version, to avoid reject-heavy filtering.
+        arb_different_version_from(version.clone()).prop_map(|other_version| {
+            VersionRange::NotEquals(NotEqualsVersion::new(
+                other_version.parts.len(),
+                other_version,
+            ))
+        }),
         // Semver: transform version digits
         arb_semver_range_from_version(version.clone()),
         // Wildcard: turn one of the version digits into a wildcard
