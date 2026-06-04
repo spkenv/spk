@@ -41,5 +41,5 @@ rstest = { workspace = true }
 serial_test = { workspace = true }
 spfstest = { workspace = true }
 spk-solve-macros = { workspace = true }
-tar = "0.4.46"
+tar = { workspace = true }
 tempfile = { workspace = true }
