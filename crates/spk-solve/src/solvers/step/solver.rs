@@ -934,6 +934,13 @@ impl Solver {
                         }
                     };
 
+                    if let Some(reconsider) = self
+                        .reconsider_invalidated_resolve(graph, &node.state, &decision)
+                        .await?
+                    {
+                        decision = reconsider;
+                    }
+
                     decision.add_notes(notes.iter().cloned());
                     return Ok(Some(decision));
                 }
@@ -944,6 +951,106 @@ impl Solver {
             request: request.pkg_request,
             notes,
         })))
+    }
+
+    /// Detect when applying `decision` would tighten the request for an
+    /// already-resolved package such that the resolved build no longer
+    /// satisfies it.
+    ///
+    /// This happens when, for example, a build-component
+    /// `IfAlreadyPresent` requirement is introduced by a package that is
+    /// resolved after the package it constrains. Rather than committing an
+    /// invalid state and re-proving resolved packages on every step, repair
+    /// the branch at the point the offending decision is made:
+    ///
+    /// - If the package is a plain repository build whose request merely
+    ///   needs tightening, step back to before it was resolved and
+    ///   re-request it carrying the tightened constraint so it is
+    ///   reconsidered with the new information (mirroring the handling of
+    ///   `ConflictingEmbeddedPackage`).
+    /// - Otherwise the branch cannot be repaired by reconsidering this one
+    ///   package: either the requests themselves conflict (e.g. a dependent
+    ///   pinned a different version), or the stale package is embedded and so
+    ///   governed by its provider rather than its own request. In those cases
+    ///   abandon the branch and let the solver backtrack through the earlier
+    ///   decisions, which can reconsider the dependent or the provider.
+    async fn reconsider_invalidated_resolve(
+        &self,
+        graph: &Arc<tokio::sync::RwLock<Graph>>,
+        state: &State,
+        decision: &Decision,
+    ) -> Result<Option<Decision>> {
+        for change in decision.changes.iter() {
+            let Change::RequestPackage(request_package) = change else {
+                continue;
+            };
+            let request = &request_package.request;
+
+            // Only an already-resolved package can be invalidated by a newly
+            // added request.
+            let (resolved, _source, state_id) = match state.get_current_resolve(&request.pkg.name) {
+                Ok(resolve) => resolve,
+                Err(_) => continue,
+            };
+
+            // Tighten the existing merged request with the new request and
+            // check whether the resolved build still satisfies the result.
+            let mut merged = match state.get_merged_request(&request.pkg.name) {
+                Ok(merged) => merged,
+                Err(_) => continue,
+            };
+            let (requests_conflict, stale_reason) = match merged.restrict(request) {
+                Compatibility::Incompatible(reason) => (true, Some(reason)),
+                // Only the version is checked here: a request that merely
+                // tightens the version is what an `IfAlreadyPresent`
+                // build-component requirement does, and checking the full
+                // request would spuriously reject the embedded build id of an
+                // embedded stub. Request-level conflicts are caught above.
+                Compatibility::Compatible => {
+                    match merged.is_version_applicable(resolved.ident().version()) {
+                        Compatibility::Compatible => (false, None),
+                        Compatibility::Incompatible(reason) => (false, Some(reason)),
+                    }
+                }
+            };
+            let Some(reason) = stale_reason else {
+                continue;
+            };
+
+            // The resolved build no longer fits the tightened request. If the
+            // requests themselves conflict, or the stale package is embedded,
+            // this branch cannot be repaired by reconsidering this one package
+            // alone, so abandon it and let the solver backtrack.
+            if requests_conflict || resolved.ident().build().is_embedded() {
+                return Err(Error::OutOfOptions(Box::new(OutOfOptions {
+                    request: request.pkg_request.clone(),
+                    notes: vec![Note::Other(format!(
+                        "request for {} conflicts with the existing resolve: {reason}",
+                        request.pkg.name
+                    ))],
+                })));
+            }
+
+            // Step back to the state from before this package was resolved and
+            // re-request it with the tightened constraint prioritized.
+            let graph_lock = graph.read().await;
+            let target_state_node = graph_lock
+                .nodes
+                .get(&state_id.id())
+                .ok_or_else(|| Error::String("state not found".into()))?
+                .read()
+                .await;
+
+            return Ok(Some(
+                Decision::builder(&target_state_node.state).reconsider_package(
+                    request.clone(),
+                    request.pkg.name.as_ref(),
+                    Arc::clone(&self.number_of_steps_back),
+                ),
+            ));
+        }
+
+        Ok(None)
     }
 
     fn validate_recipe<R: Recipe>(&self, state: &State, recipe: &R) -> Result<Compatibility> {
