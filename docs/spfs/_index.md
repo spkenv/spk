@@ -164,3 +164,4 @@ spfs push my-layer
 ### Further Reading
 
 - The [Advanced Usage]({{< ref "./usage" >}}) documentation covers most of the next-level concepts that should be explored once the basics are understood.
+- The [Running in a Container]({{< ref "./container" >}}) guide covers the privileges and kernel module requirements for running spfs inside Docker or Podman.
