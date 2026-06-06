@@ -19,6 +19,10 @@ BuildRequires: fuse3-devel
 BuildRequires: m4
 Requires: fuse3
 Requires: rsync
+# kmod provides /sbin/modinfo, which spfs uses to detect supported
+# overlayfs mount options. Without it spfs falls back to a conservative
+# set and logs a warning on every run.
+Requires: kmod
 
 %define debug_package %{nil}
 
