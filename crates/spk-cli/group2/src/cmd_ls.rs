@@ -9,6 +9,7 @@ use std::sync::Arc;
 use clap::{Args, ValueEnum};
 use colored::Colorize;
 use futures::TryStreamExt;
+use itertools::Itertools;
 use miette::Result;
 use spfs::Digest;
 use spk_cli_common::{CommandArgs, Run, flags};
@@ -152,6 +153,11 @@ impl<T: Output> Run for Ls<T> {
         tracing::debug!("Filter is: {:?}", filter_by);
 
         let repos = self.repos.get_repos_for_non_destructive_operation().await?;
+        let max_repo_name_len = repos
+            .iter()
+            .map(|(name, _r)| name.len())
+            .max()
+            .unwrap_or_default();
 
         let package = self.package.clone();
         let mut repo_walker_builder = RepoWalkerBuilder::new(&repos);
@@ -170,7 +176,9 @@ impl<T: Output> Run for Ls<T> {
                 .with_end_of_markers(capture_builds)
                 .build();
 
-            return self.list_recursively(&repos, &repo_walker).await;
+            return self
+                .list_recursively(&repos, &repo_walker, max_repo_name_len)
+                .await;
         }
 
         let results: Vec<String> = match &self.package {
@@ -194,7 +202,8 @@ impl<T: Output> Run for Ls<T> {
                     .with_end_of_markers(true)
                     .with_calculate_deprecated_versions(true)
                     .build();
-                self.get_versions_listing(&repo_walker).await?
+                self.get_versions_listing(&repo_walker, max_repo_name_len)
+                    .await?
             }
             Some(_package) => {
                 // Given a package version (or build), list all its builds
@@ -204,7 +213,9 @@ impl<T: Output> Run for Ls<T> {
                     .with_end_of_markers(capture_builds)
                     .build();
 
-                return self.list_recursively(&repos, &repo_walker).await;
+                return self
+                    .list_recursively(&repos, &repo_walker, max_repo_name_len)
+                    .await;
             }
         };
 
@@ -279,7 +290,11 @@ impl<T: Output> Ls<T> {
         Ok(set.into_iter().collect())
     }
 
-    async fn get_versions_listing(&mut self, repo_walker: &RepoWalker<'_>) -> Result<Vec<String>> {
+    async fn get_versions_listing(
+        &mut self,
+        repo_walker: &RepoWalker<'_>,
+        max_repo_name_len: usize,
+    ) -> Result<Vec<String>> {
         // Returns a list of output lines that list all the versions
         // of a package founds by the walker.
         let mut active_builds = HashSet::new();
@@ -307,49 +322,87 @@ impl<T: Output> Ls<T> {
                         version_number
                     };
 
-                    if self.deprecated {
+                    let prefix = if self.verbose > 0 {
+                        format!(
+                            "{:>width$} ",
+                            format!("[{}]", version.repo_name),
+                            width = max_repo_name_len + 2
+                        )
+                    } else {
+                        "".to_string()
+                    };
+
+                    let deprecation_label = if self.deprecated {
                         // Show deprecated versions with an indication
                         // of how many builds were also deprecated.
                         match version.deprecation_state {
                             DeprecationState::Deprecated => {
-                                lines.push(format!(
-                                    "{presentation_version_number} {}",
-                                    "DEPRECATED".red()
-                                ));
+                                format!(" {}", "DEPRECATED".red())
                             }
                             DeprecationState::PartiallyDeprecated => {
-                                lines.push(format!(
-                                    "{presentation_version_number} {}",
-                                    "(partially) DEPRECATED".red()
-                                ));
+                                format!(" {}", "(partially) DEPRECATED".red())
                             }
-                            _ => lines.push(presentation_version_number.to_string()),
+                            _ => "".to_string(),
                         }
-                    } else if any_available {
-                        lines.push(presentation_version_number.to_string());
-                    }
+                    } else {
+                        // Not asking to show deprecated builds
+                        "".to_string()
+                    };
+
+                    if deprecation_label.is_empty() && !any_available {
+                        // If not asking to show deprecated versions
+                        // (or this is not deprecated) and this
+                        // version doesn't have any active builds,
+                        // then it can be ignored.
+                        continue;
+                    };
+
+                    let line_data = (
+                        prefix,
+                        presentation_version_number.clone(),
+                        deprecation_label,
+                    );
+
+                    lines.push(line_data);
                 }
                 _ => {}
             }
         }
 
-        Ok(lines)
+        if self.verbose > 0 {
+            // Include the repo name and do no deduplicate or re-sort
+            // the versions.
+            Ok(lines
+                .into_iter()
+                .map(|(prefix, version, label)| format!("{prefix}{version}{label}"))
+                .collect())
+        } else {
+            // If -v is not used, sort deduplicate and the versions
+            // from multiple repos together, and discard their
+            // prefixes (repo names).
+            Ok(lines
+                .into_iter()
+                .map(|(_prefix, version, label)| (version, label))
+                .unique()
+                .sorted_by_cached_key(|(v, _l)| std::cmp::Reverse(v.clone()))
+                .map(|(version, label)| format!("{version}{label}"))
+                .collect())
+        }
     }
 
     async fn list_recursively(
         &mut self,
         repos: &[(String, storage::RepositoryHandle)],
         repo_walker: &RepoWalker<'_>,
+        max_repo_name_len: usize,
     ) -> Result<i32> {
         // Outputs builds that match the walker's filters. The builds
         // are output as match because checking the builds can be slow.
 
         // Work out the longest repo name, and map the name to their
         // repos for direct lookup for later if need to get build components.
-        let mut max_repo_name_len = 0;
         let mut repo_map: HashMap<String, &storage::RepositoryHandle> = HashMap::new();
         for (repo_name, repo) in repos.iter() {
-            max_repo_name_len = max_repo_name_len.max(repo_name.len());
             if self.verbose > 1 || self.components {
                 repo_map.insert(repo_name.to_string(), repo);
             }
