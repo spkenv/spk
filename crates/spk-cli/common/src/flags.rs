@@ -1048,6 +1048,9 @@ pub enum IndexUse {
     /// Disable all index use globally regardless of any setting in
     /// the spk config file (or environment variables).
     Disabled,
+    /// Enable all index use globally regardless of any setting in
+    /// the spk config file (or environment variables).
+    Enabled,
 }
 
 #[derive(Args, Clone)]
@@ -1236,6 +1239,10 @@ impl Repositories {
                         // This override disables all index use.
                         Some(false)
                     }
+                    IndexUse::Enabled => {
+                        // This override enables all index use.
+                        Some(true)
+                    }
                 }
             }
             _ => {
@@ -1295,7 +1302,7 @@ impl Repositories {
             } else if let Some(use_index) = use_index_cli_override {
                 // Otherwise the command line flag takes precedence
                 // over what was in the config file.
-                tracing::debug!("A cli-based use index override was given: {use_index}");
+                tracing::debug!("A cli-based use index override was used with value: {use_index}");
                 use_index
             } else {
                 // Otherwise use this repository's spk config setting
