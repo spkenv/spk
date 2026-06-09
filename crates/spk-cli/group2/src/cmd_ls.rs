@@ -377,7 +377,7 @@ impl<T: Output> Ls<T> {
                 .map(|(prefix, version, label)| format!("{prefix}{version}{label}"))
                 .collect())
         } else {
-            // If -v is not used, sort deduplicate and the versions
+            // If -v is not used, sort and deduplicate the versions
             // from multiple repos together, and discard their
             // prefixes (repo names).
             Ok(lines
