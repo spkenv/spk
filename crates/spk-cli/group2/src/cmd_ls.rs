@@ -370,7 +370,7 @@ impl<T: Output> Ls<T> {
         }
 
         if self.verbose > 0 {
-            // Include the repo name and do no deduplicate or re-sort
+            // Include the repo name and do not deduplicate or re-sort
             // the versions.
             Ok(lines
                 .into_iter()
