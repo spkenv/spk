@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+#![allow(unused_assignments)]
+
 pub type MigrationResult<T> = std::result::Result<T, MigrationError>;
 
 #[derive(Debug, miette::Diagnostic, thiserror::Error)]
