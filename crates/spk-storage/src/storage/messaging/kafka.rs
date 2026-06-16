@@ -721,7 +721,7 @@ pub async fn listen_to_package_events_and_run_index_updates(
                         // The method to updating the index will also output index update
                         // status messages. Those messages will act as heartbeat messages
                         // for this indexer.
-                        tracing::warn!("Reading index for '{}'", repo_to_index.name());
+                        tracing::debug!("Reading index for '{}'", repo_to_index.name());
                         match FlatBufferRepoIndex::from_repo_file(repo_to_index).await {
                             Ok(current_index) => {
                                 tracing::debug!("Got the current index for '{}'", repo_to_index.name());
