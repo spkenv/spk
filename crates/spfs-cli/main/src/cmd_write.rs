@@ -8,8 +8,8 @@ use std::path::PathBuf;
 
 use clap::Args;
 use miette::Result;
-use spfs::Error;
 use spfs::prelude::*;
+use spfs::runtime::Error as RuntimeError;
 use spfs::tracking::BlobReadExt;
 use spfs_cli_common as cli;
 
@@ -40,12 +40,12 @@ impl CmdWrite {
             Some(file) => {
                 let handle = tokio::fs::File::open(&file)
                     .await
-                    .map_err(|err| Error::RuntimeWriteError(file.clone(), err))?;
+                    .map_err(|err| RuntimeError::RuntimeWriteError(file.clone(), err))?;
                 #[cfg(unix)]
                 let mode = handle
                     .metadata()
                     .await
-                    .map_err(|err| Error::RuntimeWriteError(file.clone(), err))?
+                    .map_err(|err| RuntimeError::RuntimeWriteError(file.clone(), err))?
                     .permissions()
                     .mode();
                 #[cfg(windows)]
