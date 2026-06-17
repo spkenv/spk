@@ -5,7 +5,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
@@ -705,6 +705,7 @@ pub async fn listen_to_package_events_and_run_index_updates(
             _ = tokio::time::sleep(LISTEN_YIELD_SLEEP_TIME) => {
                 // Yield periodically so interrupting is responsive,
                 // to send heartbeat message, and to set off index updates.
+                let start = Instant::now();
                 if !package_versions.is_empty() || generate_full_index {
                     tracing::info!("About to update the index. Package versions collected so far: {:?}", package_versions);
 
@@ -730,7 +731,7 @@ pub async fn listen_to_package_events_and_run_index_updates(
                                 tracing::info!("Staring index update as if running: 'spk repo index -r {} {}'", repo_to_index.name(), idents.iter().map(|pv| format!("--update {pv}")).join(" "));
 
                                 current_index.update_packages(repo_to_index, &idents).await.map_err(|err| Error::String(format!("Indexer has a problem updating index: {err}")))?;
-                                tracing::info!("Index update finished");
+                                tracing::info!("Index update finished. It took {} secs", start.elapsed().as_secs_f64());
                             }
                             Err(err) => {
                                 // There isn't an existing index, so generate one from
@@ -738,7 +739,8 @@ pub async fn listen_to_package_events_and_run_index_updates(
                                 tracing::warn!("Failed to load flatbuffer index: {err}");
                                 tracing::warn!("No current index to update. Generating a new full index for '{}' repo", repo_to_index.name());
                                 FlatBufferRepoIndex::index_repo(&repos).await.map_err(|err| Error::String(format!("Full index generation failed: {err}")))?;
-                                tracing::warn!("Full index generation finished for previously missing index of '{}' repo", repo_to_index.name());
+                                tracing::warn!("Full index generation finished for previously missing index of '{}' repo. It took {} secs", repo_to_index.name(), start.elapsed().as_secs_f64()
+                                );
                             }
                         }
                     };
