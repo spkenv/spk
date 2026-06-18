@@ -21,6 +21,12 @@ use rdkafka::util::Timeout;
 use rdkafka::{ClientConfig, Message, Offset, TopicPartitionList};
 use serde_json::json;
 use spk_config::{Indexer, KafkaChannel};
+#[cfg(feature = "statsd")]
+use spk_config::{
+    SPK_INDEXER_HEARTBEAT_METRIC,
+    SPK_INDEXER_INDEX_UPDATE_METRIC,
+    get_metrics_client,
+};
 use spk_schema::BuildIdent;
 use spk_schema::ident::{OptVersionIdent, parse_build_ident};
 use spk_schema::name::RepositoryName;
@@ -177,6 +183,16 @@ pub(crate) async fn announce_index_event(
                 "failed to send kafka index update message: {err:?}"
             ))
         })?;
+
+    #[cfg(feature = "statsd")]
+    {
+        // Record a heartbeat being sent in the metrics system
+        if IndexEvent::IndexerHeartbeat == event
+            && let Some(statsd_client) = get_metrics_client()
+        {
+            statsd_client.incr(&SPK_INDEXER_HEARTBEAT_METRIC);
+        }
+    }
 
     tracing::debug!(
         "Sent index update message: {event} - {repo_name} - {to} - {index_start_time} as:\n{message:?}"
@@ -698,6 +714,7 @@ pub async fn listen_to_package_events_and_run_index_updates(
                     }
                     None => {
                         // Stream ended?
+                        tracing::warn!("Kafka message stream ended by returning None?");
                         break;
                     }
                 }
@@ -707,6 +724,15 @@ pub async fn listen_to_package_events_and_run_index_updates(
                 // to send heartbeat message, and to set off index updates.
                 if !package_versions.is_empty() || generate_full_index {
                     tracing::info!("About to update the index. Package versions collected so far: {:?}", package_versions);
+
+                    #[cfg(feature = "statsd")]
+                    {
+                        // Record each index generation, update or
+                        // full index, in the metrics system.
+                        if let Some(statsd_client) = get_metrics_client() {
+                            statsd_client.incr(&SPK_INDEXER_INDEX_UPDATE_METRIC);
+                        }
+                    }
 
                     if generate_full_index {
                         // Ignore the accumulated package updates and
