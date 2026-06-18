@@ -20,6 +20,15 @@ use futures::stream::FuturesUnordered;
 use futures::{Stream, StreamExt};
 use itertools::Itertools;
 use once_cell::sync::Lazy;
+#[cfg(feature = "statsd")]
+use spk_config::{
+    SPK_SOLUTION_PACKAGE_COUNT_METRIC,
+    SPK_SOLVER_INITIAL_REQUESTS_COUNT_METRIC,
+    SPK_SOLVER_RUN_COUNT_METRIC,
+    SPK_SOLVER_RUN_TIME_METRIC,
+    SPK_SOLVER_SOLUTION_SIZE_METRIC,
+    get_metrics_client,
+};
 use spk_schema::foundation::format::{
     FormatChange,
     FormatChangeOptions,
@@ -43,15 +52,6 @@ use spk_solve_graph::{
 use crate::solvers::step::ErrorFreq;
 use crate::solvers::{StepSolver, StepSolverRuntime};
 use crate::{Error, Result, Solution, Solver, StatusLine, show_search_space_stats};
-#[cfg(feature = "statsd")]
-use crate::{
-    SPK_SOLUTION_PACKAGE_COUNT_METRIC,
-    SPK_SOLVER_INITIAL_REQUESTS_COUNT_METRIC,
-    SPK_SOLVER_RUN_COUNT_METRIC,
-    SPK_SOLVER_RUN_TIME_METRIC,
-    SPK_SOLVER_SOLUTION_SIZE_METRIC,
-    get_metrics_client,
-};
 
 const STOP_ON_BLOCK_FLAG: &str = "--stop-on-block";
 const BY_USER: &str = "by user";
