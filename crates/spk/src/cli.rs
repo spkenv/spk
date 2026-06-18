@@ -29,14 +29,14 @@ use spk_cmd_make_source::cmd_make_source;
 use spk_cmd_render::cmd_render;
 use spk_cmd_repo::cmd_repo;
 use spk_cmd_test::cmd_test;
-use spk_schema::foundation::format::FormatError;
 #[cfg(feature = "statsd")]
-use spk_solve::{
+use spk_config::{
     SPK_ERROR_COUNT_METRIC,
     SPK_RUN_COUNT_METRIC,
     SPK_RUN_TIME_METRIC,
     get_metrics_client,
 };
+use spk_schema::foundation::format::FormatError;
 
 /// A Package Manager for SPFS
 #[derive(Parser)]

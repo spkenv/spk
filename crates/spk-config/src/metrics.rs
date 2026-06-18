@@ -21,7 +21,7 @@ const STATSD_FORMAT: &str = "statsd";
 const LIBRATO_FORMAT: &str = "statsd-exporter-librato";
 
 static METRICS_CLIENT: Lazy<Option<MetricsClient>> = Lazy::new(|| {
-    let Ok(config) = spk_config::get_config() else {
+    let Ok(config) = crate::config::get_config() else {
         return None;
     };
     let statsd_config = &config.statsd;
@@ -103,6 +103,18 @@ pub static SPK_SOLVER_SOLUTION_SIZE_METRIC: Lazy<String> = Lazy::new(|| {
         .unwrap_or_else(|_| String::from("spk.solver_solution_size_count"))
 });
 
+// TODO: add the default value to a config file, once spk has one
+pub static SPK_INDEXER_HEARTBEAT_METRIC: Lazy<String> = Lazy::new(|| {
+    std::env::var("SPK_INDEXER_HEARTBEAT_METRIC")
+        .unwrap_or_else(|_| String::from("spk.indexer_heartbeat_count"))
+});
+
+// TODO: add the default value to a config file, once spk has one
+pub static SPK_INDEXER_INDEX_UPDATE_METRIC: Lazy<String> = Lazy::new(|| {
+    std::env::var("SPK_INDEXER_INDEX_UPDATE_METRIC")
+        .unwrap_or_else(|_| String::from("spk.indexer_index_update_count"))
+});
+
 /// Supported metrics naming formats
 ///
 enum StatsdFormat {
@@ -123,9 +135,7 @@ impl FromStr for StatsdFormat {
                     .map(ToString::to_string)
                     .collect::<Vec<String>>()
                     .join(", ");
-                Err(Error::String(format!(
-                    "Unsupported statsd metric format: {input}. Please specify SPK_STATSD_FORMAT as one of: {valid_values}"
-                )))
+                Err(Error::UnsupportedMetric(input.to_string(), valid_values))
             }
         }
     }

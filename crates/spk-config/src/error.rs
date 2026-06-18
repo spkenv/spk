@@ -27,6 +27,11 @@ pub enum Error {
     Json(#[from] serde_json::Error),
     #[error(transparent)]
     Config(#[from] config::ConfigError),
+
+    #[error(
+        "Unsupported statsd metric format: {0}. Please specify SPK_STATSD_FORMAT as one of: {1}"
+    )]
+    UnsupportedMetric(String, String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
