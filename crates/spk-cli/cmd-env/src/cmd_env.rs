@@ -10,9 +10,9 @@ use miette::{Context, Result};
 use spfs::tracking::SpecFile;
 use spfs_cli_common::Progress;
 use spk_cli_common::{CommandArgs, Run, build_required_packages, flags};
-use spk_exec::setup_runtime_with_reporter;
 #[cfg(feature = "statsd")]
-use spk_solve::{SPK_RUN_TIME_METRIC, get_metrics_client};
+use spk_config::{SPK_RUN_TIME_METRIC, get_metrics_client};
+use spk_exec::setup_runtime_with_reporter;
 use spk_solve::{Solver, SolverMut};
 
 /// Resolve and run an environment on-the-fly

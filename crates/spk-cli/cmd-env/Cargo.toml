@@ -25,6 +25,7 @@ clap = { workspace = true }
 spfs = { workspace = true }
 spfs-cli-common = { workspace = true }
 spk-cli-common = { workspace = true }
+spk-config = { workspace = true }
 spk-exec = { workspace = true }
 spk-solve = { workspace = true }
 statsd = { version = "0.15.0", optional = true }

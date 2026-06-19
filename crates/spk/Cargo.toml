@@ -76,6 +76,7 @@ spk-cmd-make-recipe = { workspace = true, optional = true }
 spk-cmd-render = { workspace = true, optional = true }
 spk-cmd-repo = { workspace = true, optional = true }
 spk-cmd-test = { workspace = true, optional = true }
+spk-config = { workspace = true }
 spk-exec = { workspace = true }
 spk-schema = { workspace = true }
 spk-solve = { workspace = true }
