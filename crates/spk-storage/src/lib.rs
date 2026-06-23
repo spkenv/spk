@@ -5,6 +5,7 @@
 mod disk_usage;
 mod error;
 pub mod fixtures;
+mod repo_package_dependencies;
 mod storage;
 pub mod walker;
 
@@ -22,6 +23,12 @@ pub use disk_usage::{
     human_readable,
 };
 pub use error::{Error, InvalidPackageSpec, Result};
+pub use repo_package_dependencies::{
+    PackageDependencies,
+    PackagesDependenciesMap,
+    RepoPackageDependencies,
+    UsedByMap,
+};
 pub use storage::{
     CachePolicy,
     FlatBufferRepoIndex,

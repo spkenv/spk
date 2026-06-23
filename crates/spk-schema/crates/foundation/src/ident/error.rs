@@ -33,6 +33,8 @@ pub enum Error {
     #[error(transparent)]
     #[diagnostic(forward(0))]
     SpkVersionRangeError(#[from] crate::version_range::Error),
+    #[error("{0} values do not contain an ident")]
+    SpkRequestedByContainsNoIdent(String),
     #[error("Error: {0}")]
     String(String),
 }

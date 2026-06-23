@@ -377,6 +377,13 @@ pub struct Indexer {
     pub max_polling_interval_ms: u64,
 }
 
+#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct Graph {
+    /// List of package names to ignore when making package connection graphs.
+    pub ignore: Vec<String>,
+}
+
 /// Configuration values for spk.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
@@ -393,6 +400,7 @@ pub struct Config {
     pub host_options: HostOptions,
     pub messaging: Vec<MessageChannel>,
     pub indexers: HashMap<String, Indexer>,
+    pub graph: Graph,
 }
 
 impl Config {

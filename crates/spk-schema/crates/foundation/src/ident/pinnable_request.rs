@@ -839,6 +839,49 @@ impl std::fmt::Display for RequestedBy {
     }
 }
 
+impl RequestedBy {
+    /// Returns the RequestedBy's underlying package ident, errors if
+    /// it doesn't have one.
+    pub fn ident(&self) -> Result<AnyIdent> {
+        match self {
+            RequestedBy::OldUnusedCommandLine => Err(Error::SpkRequestedByContainsNoIdent(
+                "RequestedBy::CommandLine".to_string(),
+            )),
+            RequestedBy::CommandLineRequest(original_request) => {
+                Err(Error::SpkRequestedByContainsNoIdent(format!(
+                    "RequestedBy::CommandLine {original_request}"
+                )))
+            }
+            RequestedBy::Embedded(ident) => Ok(ident.to_any_ident()),
+            RequestedBy::SourceBuild(ident) => Ok(ident.clone()),
+            RequestedBy::BinaryBuild(ident) => Ok(ident.to_any_ident()),
+            RequestedBy::SourceTest(ident) => Ok(ident.clone()),
+            RequestedBy::BuildTest(ident) => Ok(ident.clone()),
+            RequestedBy::InstallTest(ident) => Ok(ident.to_any_ident(None)),
+            RequestedBy::CurrentEnvironment => Err(Error::SpkRequestedByContainsNoIdent(
+                "RequestedBy::CurrentEnvironment".to_string(),
+            )),
+            RequestedBy::Unknown => Err(Error::SpkRequestedByContainsNoIdent(
+                "RequestedBy::Unknown".to_string(),
+            )),
+            RequestedBy::DoesNotMatter => Err(Error::SpkRequestedByContainsNoIdent(
+                "RequestedBy::DoesNotMatter".to_string(),
+            )),
+            RequestedBy::NoState => Err(Error::SpkRequestedByContainsNoIdent(
+                "RequestedBy::NoState".to_string(),
+            )),
+            RequestedBy::SpkInternalTest => Err(Error::SpkRequestedByContainsNoIdent(
+                "RequestedBy::SPkInternalTest".to_string(),
+            )),
+            RequestedBy::PackageBuild(ident) => Ok(ident.to_any_ident()),
+            RequestedBy::PackageVersion(ident) => Ok(ident.to_any_ident(None)),
+            RequestedBy::Variant => Err(Error::SpkRequestedByContainsNoIdent(
+                "RequestedBy::Variant".to_string(),
+            )),
+        }
+    }
+}
+
 /// A desired package and set of restrictions on how it's selected.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct PkgRequest {

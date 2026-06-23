@@ -1,7 +1,7 @@
 [package]
 authors = { workspace = true }
 edition = { workspace = true }
-name = "spk-cli-group2"
+name = "spk-graph"
 version = { workspace = true }
 license-file = { workspace = true }
 homepage = { workspace = true }
@@ -15,33 +15,22 @@ workspace = true
 [features]
 
 [dependencies]
-miette = { workspace = true, features = ["fancy"] }
-async-trait = { workspace = true }
-chrono = { workspace = true }
-clap = { workspace = true }
-colored = { workspace = true }
+dot-writer = "0.1.2"
+enum_dispatch = { workspace = true }
 futures = { workspace = true }
 itertools = { workspace = true }
-nom = { workspace = true }
-nom-supreme = { workspace = true }
+miette = { workspace = true }
+once_cell = { workspace = true }
+petgraph = "0.8.2"
 serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
 serde_yaml = { workspace = true }
+
 spfs = { workspace = true }
-spk-cli-common = { workspace = true }
 spk-config = { workspace = true }
-spk-graph = { workspace = true }
-spk-solve = { workspace = true }
 spk-schema = { workspace = true }
 spk-storage = { workspace = true }
-strum = { workspace = true }
-tokio = { workspace = true, features = ["rt"] }
+strum = { workspace = true, features = ["derive"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
-futures = { workspace = true }
-relative-path = { workspace = true }
 rstest = { workspace = true }
-serial_test = { workspace = true }
-spfstest = { workspace = true }
-tempfile = { workspace = true }

@@ -145,6 +145,7 @@ spk-cmd-repo = { path = "crates/spk-cli/cmd-repo" }
 spk-cmd-test = { path = "crates/spk-cli/cmd-test" }
 spk-config = { path = "crates/spk-config" }
 spk-exec = { path = "crates/spk-exec" }
+spk-graph = { path = "crates/spk-graph" } 
 spk-proto = { path = "crates/spk-proto" }
 spk-schema = { path = "crates/spk-schema" }
 spk-schema-foundation = { path = "crates/spk-schema/crates/foundation" }
