@@ -280,6 +280,16 @@ fn get_spk_context() -> (
     (command, data)
 }
 
+#[cfg(feature = "sentry")]
+pub fn send_error_to_sentry(err: Error) {
+    sentry::with_scope(
+        |_scope| {
+            // Nothing to configure
+        },
+        || sentry::capture_message(&err.to_string(), sentry::Level::Error),
+    );
+}
+
 /// Utility for removing ansi-colour/terminal escape codes from a String
 pub fn remove_ansi_escapes(message: String) -> String {
     let b = strip_ansi_escapes::strip(message.clone());

@@ -14,9 +14,9 @@ pub mod with_version_and_build_set;
 
 pub use build_result::{BuildArtifact, BuildResult};
 pub use cli::{CommandArgs, Run};
-#[cfg(feature = "sentry")]
-pub use env::configure_sentry;
 pub use env::{configure_logging, current_env, remove_ansi_escapes, spk_exe};
+#[cfg(feature = "sentry")]
+pub use env::{configure_sentry, send_error_to_sentry};
 pub use error::{Error, Result, TestError};
 pub use exec::build_required_packages;
 use once_cell::sync::Lazy;

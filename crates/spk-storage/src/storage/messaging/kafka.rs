@@ -228,7 +228,7 @@ fn set_offsets_to_one_before_the_latest_message(
         .fetch_metadata(Some(topic_name), timeout)
         .map_err(|err| {
             Error::String(format!(
-                "failed to fetch metadata for '{topic_name}' topic for a kafka index update consumer: {err}"
+                "failed to fetch metadata for '{topic_name}' topic for a kafka {consumer_label} consumer: {err}"
             ))
         })?;
 
@@ -297,7 +297,7 @@ pub(crate) async fn listen_to_index_status_updates(
 
     let consumer: StreamConsumer = ClientConfig::new()
         .set("bootstrap.servers", kafka_channel.brokers.join(","))
-        .set("group.id", group_id)
+        .set("group.id", group_id.clone())
         .set("enable.partition.eof", "false")
         .set("enable.auto.commit", "false")
         .set("enable.auto.offset.store", "false")
@@ -335,7 +335,7 @@ pub(crate) async fn listen_to_index_status_updates(
     set_offsets_to_one_before_the_latest_message(
         consumer.clone(),
         topic_name,
-        "index updates".to_string(),
+        format!("'{group_id}' index updates"),
         kafka_channel.index_update_listener_broker_fetch_timeout_ms,
     )?;
 

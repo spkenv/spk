@@ -338,8 +338,14 @@ pub(crate) async fn change_deprecation_state(
     // might involve waiting on several repos.
     let deprecation_change_time = Utc::now();
     for (_repo_name, repo) in updated_repos.iter() {
-        repo.wait_for_index_to_update(&deprecation_change_time)
-            .await?;
+        if let Err(err) = repo
+            .wait_for_index_to_update(&deprecation_change_time)
+            .await
+        {
+            tracing::info!("Ignored error while waiting for index to update: {err}");
+            #[cfg(feature = "sentry")]
+            spk_cli_common::send_error_to_sentry(err.into());
+        }
     }
 
     Ok(0)

@@ -243,8 +243,8 @@ fn default_kafka_index_update_listener_session_timeout_ms() -> u64 {
 /// Helper for a default kafka index update listener's maximum polling
 /// timeout in ms, when not specified in config file.
 fn default_kafka_index_update_listener_max_polling_interval_ms() -> u64 {
-    // 10 seconds
-    10 * 1000
+    // 1 minute
+    60 * 1000
 }
 
 /// Helper for a default kafka index update listener's recent past

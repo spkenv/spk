@@ -105,7 +105,11 @@ impl Run for Remove {
         // Wait for the index to be updated before finishing
         let remove_time = Utc::now();
         for (_repo_name, repo) in updated_repos.iter() {
-            repo.wait_for_index_to_update(&remove_time).await?;
+            if let Err(err) = repo.wait_for_index_to_update(&remove_time).await {
+                tracing::info!("Ignored error while waiting for index to update: {err}");
+                #[cfg(feature = "sentry")]
+                spk_cli_common::send_error_to_sentry(err.into());
+            }
         }
 
         Ok(0)
