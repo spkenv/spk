@@ -77,4 +77,3 @@ whoami = { workspace = true }
 spfstest = { workspace = true }
 rstest = { workspace = true }
 spk-solve-macros = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
