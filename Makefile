@@ -90,12 +90,6 @@ nextest: FEATURES?=server,spfs/server
 nextest:
 	cargo nextest run $(cargo_features_arg) $(cargo_packages_arg) $(TEST_ARGS)
 
-# Run the spk-storage kafka integration tests against a broker started
-# in a container. See crates/spk-storage/test-support/kafka/README.md.
-.PHONY: test-kafka
-test-kafka:
-	crates/spk-storage/test-support/kafka/run-kafka-tests.sh $(TEST_ARGS)
-
 .PHONY: converters
 converters:
 	spk build spk-convert-pip
