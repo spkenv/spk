@@ -92,7 +92,11 @@ impl Run for Publish {
 
             // Wait for the index to be updated before finishing
             let publish_ended = Utc::now();
-            destination.wait_for_index_to_update(&publish_ended).await?;
+            if let Err(err) = destination.wait_for_index_to_update(&publish_ended).await {
+                tracing::info!("Ignored error while waiting for index to update: {err}");
+                #[cfg(feature = "sentry")]
+                spk_cli_common::send_error_to_sentry(err.into());
+            }
         }
 
         tracing::info!("done");
