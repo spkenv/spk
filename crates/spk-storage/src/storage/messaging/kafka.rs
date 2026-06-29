@@ -214,12 +214,27 @@ fn setup_running_interrupt_handling() -> Arc<AtomicBool> {
 /// the latest message because they want to use it to check whether
 /// the usual message producer is running by seeing if it has sent a
 /// message recently.
+///
+/// This uses manual partition assignment (rather than subscribing to
+/// the topic via consumer group management) so the starting offsets
+/// can be set up front without depending on a group join/rebalance.
+/// The consumers that use this have unique, ephemeral group ids and
+/// never reuse committed offsets, so there is no need for consumer
+/// group coordination here. Committing offsets before the group join
+/// completed was the source of intermittent `IllegalGeneration`
+/// ("Specified group generation id is not valid") errors.
+///
+/// Returns the offset each partition is now set to start reading from,
+/// keyed by partition id. Callers can compare this against the offsets
+/// of the messages they actually receive: if the broker delivers a
+/// message from *before* the assigned offset, the assigned offset was
+/// silently discarded (see [`warn_if_reading_before_assigned_offset`]).
 fn set_offsets_to_one_before_the_latest_message(
     consumer: Arc<StreamConsumer>,
     topic_name: &str,
-    consumer_label: String,
+    consumer_label: &str,
     broker_fetch_timeout: u64,
-) -> Result<()> {
+) -> Result<HashMap<i32, i64>> {
     let timeout = Timeout::After(Duration::new(broker_fetch_timeout, 0));
 
     // Set up the message reading offset to the just before the last
@@ -233,20 +248,33 @@ fn set_offsets_to_one_before_the_latest_message(
         })?;
 
     let mut offsets = TopicPartitionList::new();
+    let mut assigned_start_offsets = HashMap::new();
     for topic in metadata.topics() {
         for partition in topic.partitions() {
-            let (_low, high) = consumer
-                .fetch_watermarks(topic.name(), partition.id(), timeout)
-                .unwrap_or((-1, -1));
+            let (low, high) = match consumer.fetch_watermarks(topic.name(), partition.id(), timeout)
+            {
+                Ok(watermarks) => watermarks,
+                Err(err) => {
+                    // Do NOT silently fall back to offset 0 here: that
+                    // would make the consumer replay the entire
+                    // partition from the start, which looks like the
+                    // assignment "had no effect". Skip the partition
+                    // instead and log a warning about it.
+                    tracing::warn!(
+                        "kafka {consumer_label} consumer could not fetch watermarks for '{}' partition {} (skipping it; messages on this partition will NOT be read): {err}",
+                        topic.name(),
+                        partition.id(),
+                    );
+                    continue;
+                }
+            };
 
             // Go back one message from the latest
             let new_offset = std::cmp::max(0, high - 1);
             tracing::debug!(
-                "New offset for {} part: {}, was {}, will be {}",
+                "Start offset for {} partition {}: low={low}, high={high}, start={new_offset}",
                 topic.name(),
                 partition.id(),
-                high,
-                new_offset
             );
             offsets
                 .add_partition_offset(topic.name(), partition.id(), Offset::Offset(new_offset))
@@ -255,16 +283,91 @@ fn set_offsets_to_one_before_the_latest_message(
                         "failed to add partition offset to TopicPartitionList for the kafka {consumer_label} consumer: {err}"
                     ))
                 })?;
+            assigned_start_offsets.insert(partition.id(), new_offset);
         }
     }
 
-    // Update the offsets so the previous message(s) will be the first
-    // read from the stream.
-    consumer.commit(&offsets, CommitMode::Sync).map_err(|err| {
+    tracing::debug!("kafka {consumer_label} consumer assigning start offsets: {offsets:?}");
+
+    // Assign the partitions their new starting offsets such that the
+    // previous message(s) will be the first read from the stream.
+    //
+    // Manual assignment is used instead of committing offsets for a
+    // subscribed (group-managed) consumer. The commit approach raced
+    // against the group join/rebalance and intermittently failed with
+    // `IllegalGeneration` because the consumer had no valid group
+    // generation yet.
+    consumer.assign(&offsets).map_err(|err| {
         Error::String(format!(
-            "failed to commit new starting offsets for the kafka {consumer_label} consumer: {err}"
+            "failed to assign new starting offsets for the kafka {consumer_label} consumer: {err}"
         ))
-    })
+    })?;
+
+    Ok(assigned_start_offsets)
+}
+
+/// Emit a one-time-per-partition explanation when the broker delivers a
+/// message from before the offset the partition was assigned to start at.
+///
+/// Reading from before the assigned offset means the assigned offset
+/// was discarded and the consumer is replaying the partition from
+/// (near) the start. The common causes are: an assigned offset the
+/// broker rejected as out of range, which falls back to
+/// `auto.offset.reset`, or a watermark fetch that failed. In
+/// production this manifests as `spk publish` churning through stale
+/// messages, or behaving as though the indexer is not running. This
+/// makes it explicit rather than letting it look like normal operation.
+fn warn_if_reading_before_assigned_offset(
+    consumer_label: &str,
+    assigned_start_offsets: &HashMap<i32, i64>,
+    already_warned: &mut HashSet<i32>,
+    partition: i32,
+    offset: i64,
+) {
+    let Some(&start) = first_read_before_assigned_offset(
+        assigned_start_offsets,
+        already_warned,
+        partition,
+        offset,
+    ) else {
+        // The offset is at, or after, the assigned start (so it is
+        // fine), or the partition was not assigned (so it is fine),
+        // or this partition has already been reported on (so there's
+        // nothing further to report).
+        return;
+    };
+    tracing::warn!(
+        "kafka {consumer_label} consumer read offset {offset} from partition {partition}, \
+         but was assigned to start at offset {start}. The broker is delivering messages \
+         from before the assigned offset, so the assignment had no effect. It is likely the \
+         assigned offset was out of range (falling back to auto.offset.reset=earliest), or \
+         a watermark fetch failed. Recent index status updates may be missed and more \
+         messages than normal are being processed. This may take longer to detect the index \
+         has been updated."
+    );
+}
+
+/// A check that returns `Some(assigned_start)` the first time a
+/// message on `partition` is seen at an `offset` before the offset
+/// that partition was assigned to start at. Otherwise, it returns
+/// `None` (offset is at or after the assigned start, the partition
+/// wasn't assigned, or this partition has already been reported).
+/// This also records the reported partitions in `already_warned` so
+/// each is reported at most once.
+fn first_read_before_assigned_offset<'a>(
+    assigned_start_offsets: &'a HashMap<i32, i64>,
+    already_warned: &mut HashSet<i32>,
+    partition: i32,
+    offset: i64,
+) -> Option<&'a i64> {
+    let start = assigned_start_offsets.get(&partition)?;
+    if offset >= *start {
+        return None;
+    }
+    // `insert` is false when the partition has already been stored in
+    // `already_warned`. This avoids repeated warning while it replays
+    // the rest of the old messages.
+    already_warned.insert(partition).then_some(start)
 }
 
 /// Listen to the index updates topic until there's an "index completed"
@@ -313,8 +416,12 @@ pub(crate) async fn listen_to_index_status_updates(
                 .index_update_listener_max_polling_interval_ms
                 .to_string(),
         )
-        // This will be changed below before the first message it read.
-        // The offset will be set to the one before the latest message.
+        // The starting offset is set explicitly below using manual
+        // partition assignment. The `auto.offset.reset` policy here is
+        // the fallback librdkafka uses if an assigned offset is rejected
+        // as out of range. If that happens, this ensures it replays
+        // from the start, and `warn_if_reading_before_assigned_offset`
+        // will detect this and warn about it.
         .set("auto.offset.reset", "earliest")
         .create()
         .map_err(|err| {
@@ -324,20 +431,22 @@ pub(crate) async fn listen_to_index_status_updates(
         })?;
 
     let consumer = Arc::new(consumer);
-    consumer.subscribe(&[topic_name]).map_err(|err| {
-        Error::String(format!(
-            "failed to subscribe to kafka index updates topic: {err}"
-        ))
-    })?;
 
-    // Change the starting message offset for reading to the just
-    // before the last message in the topic.
-    set_offsets_to_one_before_the_latest_message(
+    // Manually assign the topic's partitions with the starting message
+    // offsets set to just before the last message in the topic. This
+    // intentionally does not use `subscribe` (consumer group management),
+    // see the note on `set_offsets_to_one_before_the_latest_message`.
+    let consumer_label = format!("'{group_id}' index updates");
+    let assigned_start_offsets = set_offsets_to_one_before_the_latest_message(
         consumer.clone(),
         topic_name,
-        format!("'{group_id}' index updates"),
+        &consumer_label,
         kafka_channel.index_update_listener_broker_fetch_timeout_ms,
     )?;
+
+    // Tracks the partitions we've already warned about replaying, so
+    // there will only be at most one warning per partition.
+    let mut replay_warned: HashSet<i32> = HashSet::new();
 
     // Set up signal handlers to stop if interrupted
     let running = setup_running_interrupt_handling();
@@ -366,6 +475,18 @@ pub(crate) async fn listen_to_index_status_updates(
             maybe_message = stream.next() => {
                 match maybe_message {
                     Some(Ok(message)) => {
+                        // Make a common production failure mode visible with
+                        // a warning, namely: the broker delivering messages
+                        // from before the offset we assigned (i.e. our assignment
+                        // had no effect).
+                        warn_if_reading_before_assigned_offset(
+                            &consumer_label,
+                            &assigned_start_offsets,
+                            &mut replay_warned,
+                            message.partition(),
+                            message.offset(),
+                        );
+
                         // Get message header to see if this is a recent enough message.
                         if !there_is_a_recent_message && message.timestamp() < recent_past_messages_time {
                             // This message was sent so long ago that the indexer might not be running
