@@ -680,6 +680,7 @@
     "sddl",
     "seccomp",
     "seekable",
+    "seeked",
     "serde",
     "setattr",
     "setbuf",
