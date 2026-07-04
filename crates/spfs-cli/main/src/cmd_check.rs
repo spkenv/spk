@@ -23,6 +23,12 @@ pub struct CmdCheck {
     #[clap(long, default_value_t = spfs::Checker::DEFAULT_MAX_OBJECT_CONCURRENCY)]
     max_object_concurrency: usize,
 
+    /// Read every payload and verify that its contents match its digest.
+    ///
+    /// This is slower than checking for payload file existence alone.
+    #[clap(long)]
+    verify_payload_contents: bool,
+
     /// Attempt to fix problems by pulling from another repository. Defaults to "origin".
     #[clap(long)]
     pull: Option<Option<String>>,
@@ -61,8 +67,11 @@ impl CmdCheck {
             None => None,
         };
 
-        let mut checker =
-            spfs::Checker::new(&repo).with_reporter(spfs::check::ConsoleCheckReporter::default());
+        let mut checker = spfs::Checker::new(&repo)
+            .with_reporter(spfs::check::ConsoleCheckReporter::default())
+            .with_max_tag_stream_concurrency(self.max_tag_stream_concurrency)
+            .with_max_object_concurrency(self.max_object_concurrency)
+            .with_payload_contents_verification(self.verify_payload_contents);
         if let Some(pull_from) = &pull_from {
             checker = checker.with_repair_source(pull_from);
         }
@@ -96,21 +105,24 @@ impl CmdCheck {
             checked_objects,
             missing_payloads,
             repaired_payloads,
+            invalid_payloads,
             checked_payloads,
             checked_payload_bytes,
         } = summary;
         let missing_objects = missing_objects.len();
         let missing_payloads = missing_payloads.len();
+        let invalid_payloads = invalid_payloads.len();
 
         println!("{} after {duration:.0?}:", "Finished".bold());
         let missing = "missing".red().italic();
+        let invalid = "invalid".red().italic();
         let repaired = "repaired".cyan().italic();
         println!("{checked_tags:>12} tags visited     ({missing_tags} {missing})");
         println!(
             "{checked_objects:>12} objects visited  ({missing_objects} {missing}, {repaired_objects} {repaired})",
         );
         println!(
-            "{checked_payloads:>12} payloads visited ({missing_payloads} {missing}, {repaired_payloads} {repaired})",
+            "{checked_payloads:>12} payloads visited ({missing_payloads} {missing}, {invalid_payloads} {invalid}, {repaired_payloads} {repaired})",
         );
         let human_bytes = match NumberPrefix::binary(checked_payload_bytes as f64) {
             NumberPrefix::Standalone(amt) => format!("{amt} bytes"),
@@ -118,7 +130,7 @@ impl CmdCheck {
         };
         println!("{human_bytes:>12} total payload footprint");
 
-        if missing_objects + missing_payloads != 0 {
+        if missing_objects + missing_payloads + invalid_payloads != 0 {
             if pull_from.is_none() {
                 tracing::info!("running with `--pull` may be able to resolve these issues")
             }
