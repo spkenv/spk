@@ -16,6 +16,7 @@ use tokio_stream::wrappers::{IntervalStream, UnboundedReceiverStream};
 
 use super::runtime;
 use crate::repeating_timeout::RepeatingTimeout;
+use crate::runtime::Error as RuntimeError;
 use crate::{Error, OsError, Result};
 
 pub const PROC_DIR: &str = "/proc";
@@ -85,7 +86,7 @@ pub fn spawn_monitor_for_runtime(rt: &runtime::Runtime) -> Result<tokio::process
 /// issue if the calling process is not root or CAP_NET_ADMIN
 pub async fn wait_for_empty_runtime(rt: &runtime::Runtime, config: &crate::Config) -> Result<()> {
     let pid = match rt.status.owner {
-        None => return Err(Error::RuntimeNotInitialized(rt.name().into())),
+        None => return Err(RuntimeError::RuntimeNotInitialized(rt.name().into()).into()),
         Some(pid) => pid,
     };
 
@@ -107,7 +108,7 @@ pub async fn wait_for_empty_runtime(rt: &runtime::Runtime, config: &crate::Confi
 
             // Only retry if the namespace couldn't be read because of EACCES.
             match error {
-                Error::RuntimeReadError(_, err)
+                Error::Runtime(RuntimeError::RuntimeReadError(_, err))
                     if matches!(err.kind(), std::io::ErrorKind::PermissionDenied) =>
                 {
                     self.had_to_retry.store(true, Ordering::Relaxed);
@@ -384,7 +385,7 @@ pub async fn identify_mount_namespace_of_process(pid: u32) -> Result<Option<std:
                 );
                 Ok(None)
             }
-            _ => Err(Error::RuntimeReadError(ns_path, err)),
+            _ => Err(RuntimeError::RuntimeReadError(ns_path, err).into()),
         },
     }
 }
@@ -395,11 +396,11 @@ pub async fn find_processes_and_mount_namespaces() -> Result<HashMap<u32, Option
 
     let mut read_dir = tokio::fs::read_dir(PROC_DIR)
         .await
-        .map_err(|err| Error::RuntimeReadError(PROC_DIR.into(), err))?;
+        .map_err(|err| RuntimeError::RuntimeReadError(PROC_DIR.into(), err))?;
     while let Some(entry) = read_dir
         .next_entry()
         .await
-        .map_err(|err| Error::RuntimeReadError(PROC_DIR.into(), err))?
+        .map_err(|err| RuntimeError::RuntimeReadError(PROC_DIR.into(), err))?
     {
         let pid = match entry.file_name().to_str().map(|s| s.parse::<u32>()) {
             Some(Ok(pid)) => pid,
@@ -425,11 +426,11 @@ async fn find_other_processes_in_mount_namespace(ns: &std::path::Path) -> Result
 
     let mut read_dir = tokio::fs::read_dir(PROC_DIR)
         .await
-        .map_err(|err| Error::RuntimeReadError(PROC_DIR.into(), err))?;
+        .map_err(|err| RuntimeError::RuntimeReadError(PROC_DIR.into(), err))?;
     while let Some(entry) = read_dir
         .next_entry()
         .await
-        .map_err(|err| Error::RuntimeReadError(PROC_DIR.into(), err))?
+        .map_err(|err| RuntimeError::RuntimeReadError(PROC_DIR.into(), err))?
     {
         let pid = match entry.file_name().to_str().map(|s| s.parse::<u32>()) {
             Some(Ok(pid)) => pid,
@@ -446,7 +447,7 @@ async fn find_other_processes_in_mount_namespace(ns: &std::path::Path) -> Result
                 Some(libc::EACCES) => continue,
                 Some(libc::EPERM) => continue,
                 _ => {
-                    return Err(Error::RuntimeReadError(link_path, err));
+                    return Err(RuntimeError::RuntimeReadError(link_path, err).into());
                 }
             },
         };

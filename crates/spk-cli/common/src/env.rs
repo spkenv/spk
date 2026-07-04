@@ -29,7 +29,7 @@ use crate::Error;
 /// Load the current environment from the spfs file system.
 pub async fn current_env() -> crate::Result<Solution> {
     let runtime = match spfs::active_runtime().await {
-        Err(spfs::Error::NoActiveRuntime) => {
+        Err(spfs::Error::Runtime(spfs::runtime::Error::NoActiveRuntime)) => {
             return Err(Error::NoEnvironment);
         }
         Err(err) => return Err(err.into()),
