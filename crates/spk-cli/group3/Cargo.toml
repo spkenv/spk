@@ -20,6 +20,7 @@ colored = { workspace = true }
 futures = { workspace = true }
 spfs = { workspace = true }
 spk-cli-common = { workspace = true }
+spk-solve = { workspace = true }
 spk-storage = { workspace = true }
 spk-schema = { workspace = true }
 spfs-cli-common = { workspace = true }
