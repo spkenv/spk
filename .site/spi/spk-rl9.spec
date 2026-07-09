@@ -49,7 +49,7 @@ source ~/.bashrc
 # Install ast-grep
 cargo install --locked ast-grep
 # Include `--all` to also build spk-launcher
-dev env -- cargo build --release --features "server,spfs/legacy-mount-options,sentry,spfs/protobuf-src,spfs-vfs/protobuf-src,statsd,fuse-backend-rhel-7-9" --all
+dev env -- cargo build --release --features "server,sentry,spfs/protobuf-src,spfs-vfs/protobuf-src,statsd,fuse-backend-rhel-7-9" --all
 
 %install
 mkdir -p %{buildroot}/usr/local/bin
