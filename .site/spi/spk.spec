@@ -1,6 +1,6 @@
 Name: spk
 Version: 0.44.0
-Release: 1
+Release: 1%{?dist}
 Summary: Package manager and a software runtime for studio environments
 License: NONE
 URL: https://gitlab.spimageworks.com/spi/dev/dev-ops/spk
@@ -16,8 +16,9 @@ BuildRequires: m4
 BuildRequires: cmake3
 BuildRequires: make
 BuildRequires: devtoolset-9
+BuildRequires: libcurl-devel
 
-BuildRequires: spdev >= 0.28.2
+BuildRequires: spdev >= 0.29.18
 
 Requires: bash
 Requires: fuse
@@ -38,6 +39,8 @@ Package manager and a software runtime for studio environments
 
 %build
 export SPDEV_CONFIG_FILE=.site/spi/.spdev.yaml
+export CARGO_NET_GIT_FETCH_WITH_CLI=true
+export CMAKE=$(command -v cmake3 || command -v cmake)
 dev toolchain install
 source ~/.bashrc
 # Install ast-grep
@@ -45,7 +48,7 @@ echo -e '#! /bin/bash\n\nexec cc -D_BSD_SOURCE "$@"' > cc_wrapper
 chmod +x cc_wrapper
 scl enable devtoolset-9 -- env CC=`pwd`/cc_wrapper cargo install --locked ast-grep
 # Include `--all` to also build spk-launcher
-dev env -- cargo build --release --features "sentry,spfs/protobuf-src,statsd,fuse-backend-rhel-7-6" --all
+dev env -- cargo build --release --features "server,sentry,spfs/protobuf-src,spfs-vfs/protobuf-src,statsd,fuse-backend-rhel-7-6" --all
 
 %install
 mkdir -p %{buildroot}/usr/local/bin
@@ -57,6 +60,7 @@ for cmd in "$RELEASE_DIR"/spk-launcher "$RELEASE_DIR"/spfs "$RELEASE_DIR"/spfs-*
 done
 mkdir -p %{buildroot}/opt/spk.dist
 cp "$RELEASE_DIR"/spk %{buildroot}/opt/spk.dist/
+cp %{_builddir}/%{name}-v%{version}/.site/spi/spk-pkg-metadata.sh %{buildroot}/usr/local/bin
 
 %files
 /usr/local/bin/spfs
@@ -66,7 +70,9 @@ cp "$RELEASE_DIR"/spk %{buildroot}/opt/spk.dist/
 %caps(cap_sys_chroot,cap_sys_admin+ep) /usr/local/bin/spfs-join
 %caps(cap_dac_override,cap_setuid,cap_chown,cap_mknod,cap_sys_admin,cap_fowner+ep) /usr/local/bin/spfs-enter
 %caps(cap_sys_admin+ep) /usr/local/bin/spfs-fuse
+/usr/local/bin/spfs-winfsp
 /usr/local/bin/spk-launcher
+/usr/local/bin/spk-pkg-metadata.sh
 /opt/spk.dist/
 
 %post
