@@ -47,7 +47,7 @@ use spk_schema::{
 use tokio::io::AsyncReadExt;
 
 use super::RepositoryHandle;
-use crate::storage::messaging::{IndexEvent, announce_index_event};
+use crate::storage::messaging::{IndexEvent, IndexUpdateContext, announce_index_event};
 use crate::storage::{RepositoryIndex, RepositoryIndexMut};
 use crate::{Error, RepoWalkerBuilder, RepoWalkerItem, Result};
 
@@ -558,10 +558,15 @@ impl FlatBufferRepoIndex {
         // in-progress events with the index update start time.
         let do_not_send_index_events_periodically = None;
         let placeholder_start_time = Utc::now();
+        let placeholder_index_update_context = IndexUpdateContext {
+            index_start_time: placeholder_start_time,
+            index_event_metric_name: None,
+        };
+
         let (packages, global_vars) = FlatBufferRepoIndex::gather_all_data_from_repo(
             &repos,
             do_not_send_index_events_periodically,
-            &placeholder_start_time,
+            &placeholder_index_update_context,
         )
         .await?;
 
@@ -609,7 +614,7 @@ impl FlatBufferRepoIndex {
     async fn gather_all_data_from_repo(
         repos: &Vec<(String, crate::RepositoryHandle)>,
         send_index_event_period_ms: Option<Duration>,
-        index_start_time: &DateTime<Utc>,
+        index_update_context: &IndexUpdateContext,
     ) -> miette::Result<(HashMap<PkgNameBuf, PackageInfo>, GlobalVarsInfo)> {
         if repos.len() != 1 {
             return Err(Error::String(
@@ -644,7 +649,7 @@ impl FlatBufferRepoIndex {
             IndexEvent::InProgress,
             repo.address(),
             repo.name(),
-            index_start_time,
+            index_update_context,
         )
         .await?;
 
@@ -665,7 +670,7 @@ impl FlatBufferRepoIndex {
                     IndexEvent::InProgress,
                     repo.address(),
                     repo.name(),
-                    index_start_time,
+                    index_update_context,
                 )
                 .await?;
                 last_event_sent = Instant::now();
@@ -729,7 +734,7 @@ impl FlatBufferRepoIndex {
             IndexEvent::InProgress,
             repo.address(),
             repo.name(),
-            index_start_time,
+            index_update_context,
         )
         .await?;
 
@@ -749,7 +754,7 @@ impl FlatBufferRepoIndex {
             IndexEvent::InProgress,
             repo.address(),
             repo.name(),
-            index_start_time,
+            index_update_context,
         )
         .await?;
 
@@ -764,7 +769,7 @@ impl FlatBufferRepoIndex {
         repo: &crate::RepositoryHandle,
         package_versions: &[OptVersionIdent],
         send_index_event_period: Duration,
-        index_start_time: &DateTime<Utc>,
+        index_update_context: &IndexUpdateContext,
     ) -> miette::Result<(HashMap<PkgNameBuf, PackageInfo>, GlobalVarsInfo)> {
         let start = Instant::now();
 
@@ -830,7 +835,7 @@ impl FlatBufferRepoIndex {
                     IndexEvent::InProgress,
                     repo.address(),
                     repo.name(),
-                    index_start_time,
+                    index_update_context,
                 )
                 .await?;
                 last_event_sent = Instant::now();
@@ -1407,7 +1412,10 @@ impl GlobalVarsInfo {
 
 #[async_trait::async_trait]
 impl RepositoryIndexMut for FlatBufferRepoIndex {
-    async fn index_repo(repos: &Vec<(String, crate::RepositoryHandle)>) -> miette::Result<()> {
+    async fn index_repo(
+        repos: &Vec<(String, crate::RepositoryHandle)>,
+        index_event_metric_name: &Option<String>,
+    ) -> miette::Result<()> {
         if repos.len() != 1 {
             return Err(Error::String(
                 "FlatBufferRepoIndex's index_repo() method only works on one repo at a time"
@@ -1424,12 +1432,17 @@ impl RepositoryIndexMut for FlatBufferRepoIndex {
         let lock_guard = lock_index_file(repo).await?;
         let index_start_time = lock_guard.locked_at_datetime()?;
 
+        let index_update_context = IndexUpdateContext {
+            index_start_time,
+            index_event_metric_name: index_event_metric_name.clone(),
+        };
+
         // Send start index event
         announce_index_event(
             IndexEvent::Started,
             repo.address(),
             repo.name(),
-            &index_start_time,
+            &index_update_context,
         )
         .await?;
 
@@ -1440,7 +1453,7 @@ impl RepositoryIndexMut for FlatBufferRepoIndex {
             Some(Duration::from_millis(
                 index_config.update_event_send_freq_ms,
             )),
-            &index_start_time,
+            &index_update_context,
         )
         .await?;
 
@@ -1448,7 +1461,7 @@ impl RepositoryIndexMut for FlatBufferRepoIndex {
             IndexEvent::InProgress,
             repo.address(),
             repo.name(),
-            &index_start_time,
+            &index_update_context,
         )
         .await?;
 
@@ -1460,7 +1473,7 @@ impl RepositoryIndexMut for FlatBufferRepoIndex {
             IndexEvent::InProgress,
             repo.address(),
             repo.name(),
-            &index_start_time,
+            &index_update_context,
         )
         .await?;
 
@@ -1477,7 +1490,7 @@ impl RepositoryIndexMut for FlatBufferRepoIndex {
             IndexEvent::Completed,
             repo.address(),
             repo.name(),
-            &index_start_time,
+            &index_update_context,
         )
         .await?;
 
@@ -1491,6 +1504,7 @@ impl RepositoryIndexMut for FlatBufferRepoIndex {
         &self,
         repo: &crate::RepositoryHandle,
         package_versions: &[OptVersionIdent],
+        index_event_metric_name: &Option<String>,
     ) -> miette::Result<()> {
         // Ensure any direct repo access gets the latest data from the
         // repo itself, not any caches it might have.
@@ -1502,12 +1516,17 @@ impl RepositoryIndexMut for FlatBufferRepoIndex {
         let index_start_time = lock_guard.locked_at_datetime()?;
         tracing::debug!("Index file locked at: {index_start_time}");
 
+        let index_update_context = IndexUpdateContext {
+            index_start_time,
+            index_event_metric_name: index_event_metric_name.clone(),
+        };
+
         // Send start index event
         announce_index_event(
             IndexEvent::Started,
             repo.address(),
             repo.name(),
-            &index_start_time,
+            &index_update_context,
         )
         .await?;
 
@@ -1519,7 +1538,7 @@ impl RepositoryIndexMut for FlatBufferRepoIndex {
                 repo,
                 package_versions,
                 Duration::from_millis(index_config.update_event_send_freq_ms),
-                &index_start_time,
+                &index_update_context,
             )
             .await?;
         tracing::debug!("Gathered updates from repo.");
@@ -1529,7 +1548,7 @@ impl RepositoryIndexMut for FlatBufferRepoIndex {
             IndexEvent::InProgress,
             repo.address(),
             repo.name(),
-            &index_start_time,
+            &index_update_context,
         )
         .await?;
 
@@ -1544,7 +1563,7 @@ impl RepositoryIndexMut for FlatBufferRepoIndex {
             IndexEvent::InProgress,
             repo.address(),
             repo.name(),
-            &index_start_time,
+            &index_update_context,
         )
         .await?;
 
@@ -1562,7 +1581,7 @@ impl RepositoryIndexMut for FlatBufferRepoIndex {
             IndexEvent::Completed,
             repo.address(),
             repo.name(),
-            &index_start_time,
+            &index_update_context,
         )
         .await?;
 

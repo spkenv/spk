@@ -41,7 +41,10 @@ pub trait RepositoryIndex: Sync {
 pub trait RepositoryIndexMut {
     /// Generate the index for the given repo and store it for later use
     #[allow(clippy::ptr_arg)]
-    async fn index_repo(repos: &Vec<(String, crate::RepositoryHandle)>) -> miette::Result<()>;
+    async fn index_repo(
+        repos: &Vec<(String, crate::RepositoryHandle)>,
+        index_event_metric_name: &Option<String>,
+    ) -> miette::Result<()>;
 
     /// Update the existing index for the given package versions. The
     /// package versions to update will have their data gathered from
@@ -52,6 +55,7 @@ pub trait RepositoryIndexMut {
         &self,
         repo: &crate::RepositoryHandle,
         package_versions: &[OptVersionIdent],
+        index_event_metric_name: &Option<String>,
     ) -> miette::Result<()>;
 }
 
