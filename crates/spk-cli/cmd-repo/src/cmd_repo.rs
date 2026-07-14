@@ -121,6 +121,10 @@ impl RepoCommand {
                 };
                 let repos = vec![(repo_to_index.name().to_string(), repo_to_index.clone())];
 
+                // This is not running an indexer, so there isn't a
+                // metric name..
+                let no_metric_name: Option<String> = None;
+
                 if !update.is_empty() {
                     // Update the existing index for the given package/version
                     let start = Instant::now();
@@ -156,7 +160,9 @@ impl RepoCommand {
                     let mut was_full_index = String::from("");
                     let result = match FlatBufferRepoIndex::from_repo_file(&repo_to_index).await {
                         Ok(current_index) => {
-                            current_index.update_packages(&repo_to_index, &idents).await
+                            current_index
+                                .update_packages(&repo_to_index, &idents, &no_metric_name)
+                                .await
                         }
                         Err(storage::Error::IndexOpenError(err)) => {
                             // There isn't an existing index, so generate one from scratch that
@@ -165,7 +171,7 @@ impl RepoCommand {
                             tracing::warn!("No current index to update. Creating a full index ...");
                             was_full_index =
                                 " [no previous index, so a full index was created]".to_string();
-                            FlatBufferRepoIndex::index_repo(&repos).await
+                            FlatBufferRepoIndex::index_repo(&repos, &no_metric_name).await
                         }
                         Err(err) => {
                             return Err(err.into());
@@ -194,7 +200,7 @@ impl RepoCommand {
                 } else {
                     // Generate a full index from scratch
                     let start = Instant::now();
-                    FlatBufferRepoIndex::index_repo(&repos).await?;
+                    FlatBufferRepoIndex::index_repo(&repos, &no_metric_name).await?;
 
                     tracing::info!(
                         "Index generation for '{}' repo completed in: {} secs",

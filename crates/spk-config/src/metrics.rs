@@ -103,18 +103,6 @@ pub static SPK_SOLVER_SOLUTION_SIZE_METRIC: Lazy<String> = Lazy::new(|| {
         .unwrap_or_else(|_| String::from("spk.solver_solution_size_count"))
 });
 
-// TODO: add the default value to a config file, once spk has one
-pub static SPK_INDEXER_HEARTBEAT_METRIC: Lazy<String> = Lazy::new(|| {
-    std::env::var("SPK_INDEXER_HEARTBEAT_METRIC")
-        .unwrap_or_else(|_| String::from("spk.indexer_heartbeat_count"))
-});
-
-// TODO: add the default value to a config file, once spk has one
-pub static SPK_INDEXER_INDEX_UPDATE_METRIC: Lazy<String> = Lazy::new(|| {
-    std::env::var("SPK_INDEXER_INDEX_UPDATE_METRIC")
-        .unwrap_or_else(|_| String::from("spk.indexer_index_update_count"))
-});
-
 /// Supported metrics naming formats
 ///
 enum StatsdFormat {
