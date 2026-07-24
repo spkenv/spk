@@ -15,14 +15,13 @@ use crate::error::{self, BuildError};
 #[path = "workspace_test.rs"]
 mod workspace_test;
 
-/// A collection of recipes and build targets.
+/// A collection of recipe spec templates discovered on disk.
 ///
-/// Workspaces are used to define and build many recipes
-/// together, helping to produce complete environments
-/// with shared compatibility requirements. Workspaces
-/// can be used to determine the number and order of
-/// packages to be built in order to efficiently satisfy
-/// and entire set of requirements for an environment.
+/// A workspace gathers the recipe spec files referenced by a
+/// [`crate::WorkspaceFile`] (or a set of glob patterns) so that
+/// they can be resolved by package name, version, or file path.
+/// A single package may be represented by more than one template,
+/// and each template may declare the set of versions it can produce.
 #[derive(Debug, Default)]
 pub struct Workspace {
     /// Spec templates available in this workspace.

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
-//! Find and/or build workspaces.
+//! Discover and assemble a [`super::Workspace`] from spec files on disk.
 
 use std::collections::HashMap;
 
