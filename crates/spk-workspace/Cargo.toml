@@ -12,20 +12,15 @@ description = { workspace = true }
 [lints]
 workspace = true
 
-[features]
-sentry = ["spk-solve/sentry"]
-
 [dependencies]
 bracoxide = { workspace = true }
 dunce = { workspace = true }
 format_serde_error = { workspace = true }
 glob = { workspace = true }
-itertools = { workspace = true }
 miette = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_yaml = { workspace = true }
 spk-schema = { workspace = true }
-spk-solve = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 
