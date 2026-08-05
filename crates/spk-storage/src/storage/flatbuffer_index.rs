@@ -938,7 +938,7 @@ impl FlatBufferRepoIndex {
         }
 
         tracing::info!(
-            "Updated index data gathered in in: {} secs",
+            "Updated index data gathered in: {} secs",
             start.elapsed().as_secs_f64()
         );
 
@@ -999,7 +999,7 @@ impl FlatBufferRepoIndex {
         builder.finish(index, None);
 
         tracing::info!(
-            "flatbuffer index for '{}' assembled in     : {} secs",
+            "flatbuffer index for '{}' assembled in: {} secs",
             repo.name(),
             start.elapsed().as_secs_f64()
         );
