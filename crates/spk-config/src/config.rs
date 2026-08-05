@@ -379,8 +379,8 @@ pub struct Indexer {
     /// Name of the metric to update whenever the indexer sends an
     /// index event message (including heartbeats). With suitable
     /// external systems, this can be used to monitor an indexer's
-    /// workload and whether it is healthy. If it is not set the, or
-    /// statsd is not configured, metric will not be updated.
+    /// workload and whether it is healthy. If it is not set, or
+    /// statsd is not configured, the metric will not be updated.
     #[serde(default)]
     pub index_event_metric_name: Option<String>,
 

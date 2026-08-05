@@ -124,7 +124,6 @@ pub(crate) async fn announce_index_event(
     to: &url::Url,
     repo_name: &RepositoryName,
     index_context: &IndexUpdateContext,
-    //index_start_time: &DateTime<Utc>,
 ) -> Result<()> {
     // Only send a message if the index updates topic is configured
     let Some(topic_name) = kafka_channel.index_updates_topic_name.as_ref() else {
