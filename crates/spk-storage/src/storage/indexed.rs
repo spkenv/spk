@@ -288,15 +288,7 @@ impl Storage for IndexedRepository {
         &self,
         pkg: &BuildIdent,
     ) -> Result<Arc<<Self::Recipe as spk_schema::Recipe>::Output>> {
-        // TODO: remove or put back, this commented out code block
-        // once deprecation and indexing is decided on.
-        // if self.is_build_deprecated(pkg).await? {
-        //     // Deprecated builds are stored as partial entries in the
-        //     // index so they have to be read from the underlying repo.
-        //     self.wrapped_repo.read_package_from_storage(pkg).await
-        // } else {
         self.index.load().get_package_build_spec(pkg)
-        //}
     }
 
     async fn remove_embed_stub_from_storage(&self, pkg: &BuildIdent) -> Result<()> {
@@ -368,13 +360,7 @@ impl Repository for IndexedRepository {
             }
         };
 
-        if self.is_build_deprecated(pkg).await? {
-            // Deprecated builds are stored as partial entries in the
-            // index so they have to be read from the underlying repo.
-            self.wrapped_repo.read_package_from_storage(pkg).await
-        } else {
-            self.index.load().get_package_build_spec(pkg)
-        }
+        self.index.load().get_package_build_spec(pkg)
     }
 
     async fn read_recipe(&self, pkg: &VersionIdent) -> Result<Arc<Self::Recipe>> {
