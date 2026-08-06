@@ -92,7 +92,7 @@ impl Run for Debug {
 
         for (layer, repo) in source_layers {
             if !local_repo.has_object(layer).await
-                && let storage::RepositoryHandle::SPFS(repo) = repo
+                && let Some(repo) = repo.try_as_spfs()
             {
                 let syncer = spfs::Syncer::new(repo, &local_repo)
                     .with_reporter(spfs::sync::reporter::SyncReporters::console());

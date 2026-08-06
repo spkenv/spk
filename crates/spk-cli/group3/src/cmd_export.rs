@@ -50,13 +50,9 @@ impl Run for Export {
             .collect::<Vec<_>>();
         let repos = repo_handles
             .iter()
-            .map(|repo| match &**repo {
-                storage::RepositoryHandle::SPFS(repo) => Ok(repo),
-                storage::RepositoryHandle::Mem(_)
-                | storage::RepositoryHandle::Runtime(_)
-                | storage::RepositoryHandle::Indexed(_) => {
-                    bail!("Only spfs repositories are supported")
-                }
+            .map(|repo| match repo.try_as_spfs() {
+                Some(repo) => Ok(repo),
+                None => bail!("Only spfs repositories are supported"),
             })
             .collect::<Result<Vec<_>>>()?;
 

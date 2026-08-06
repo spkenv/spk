@@ -55,8 +55,8 @@ impl ResolvedLayers {
         use spfs::graph::object::Enum;
         try_stream! {
             for resolved_layer in self.0.iter() {
-                let manifest = match &*resolved_layer.repo {
-                    RepositoryHandle::SPFS(repo) => {
+                let manifest = match resolved_layer.repo.try_as_spfs() {
+                    Some(repo) => {
                         let object = repo.read_object(resolved_layer.digest).await?;
                         match object.into_enum() {
                             Enum::Layer(obj) => {
@@ -73,7 +73,7 @@ impl ResolvedLayers {
                             _ => continue,
                         }
                     }
-                    _ => Err(Error::NonSpfsLayerInResolvedLayers)?,
+                    None => Err(Error::NonSpfsLayerInResolvedLayers)?,
                 };
                 let unlock = manifest.to_tracking_manifest();
                 let walker = unlock.walk();
@@ -310,7 +310,7 @@ where
 
     let to_sync_count = to_sync.len();
     for (i, (spec, repo, digest)) in to_sync.into_iter().enumerate() {
-        if let storage::RepositoryHandle::SPFS(repo) = &*repo {
+        if let Some(repo) = repo.try_as_spfs() {
             tracing::info!(
                 "collecting {} of {} {}",
                 i + 1,
@@ -319,6 +319,12 @@ where
             );
             let syncer = spfs::Syncer::new(repo, &local_repo).with_reporter(reporter());
             syncer.sync_digest(digest).await?;
+        } else {
+            tracing::warn!(
+                "cannot localize {} from the {} repository because it has no spfs storage",
+                spec.ident().format_ident(),
+                repo.name(),
+            );
         }
     }
 

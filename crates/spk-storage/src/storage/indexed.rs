@@ -74,6 +74,14 @@ impl IndexedRepository {
         self.wrapped_repo.clone()
     }
 
+    /// Borrow the underlying repo handle this index wraps.
+    ///
+    /// This is a non-cloning counterpart to [`Self::underlying_repo`] for
+    /// callers that only need to inspect the wrapped repository.
+    pub fn underlying_repo_ref(&self) -> &RepositoryHandle {
+        &self.wrapped_repo
+    }
+
     /// Set whether to update the internal index after any publish or
     /// write operation on this repository. This is meant for use by
     /// automated testing. Updating the index continuously may be costly.

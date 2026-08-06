@@ -46,6 +46,28 @@ impl RepositoryHandle {
         }
     }
 
+    /// Return the spfs repository that backs this handle, if there is one.
+    ///
+    /// Wrapper repositories, such as [`super::IndexedRepository`], are
+    /// unwrapped so that callers needing spfs-level access (syncing objects,
+    /// rendering, exporting, ...) still find the underlying spfs storage.
+    /// Callers should always prefer this over matching on
+    /// [`RepositoryHandle::SPFS`] directly, otherwise their behavior silently
+    /// changes depending on whether repository indexes happen to be enabled.
+    ///
+    /// Returns `None` for handles with no spfs storage behind them, such as
+    /// in-memory and runtime repositories.
+    pub fn try_as_spfs(&self) -> Option<&super::SpfsRepository> {
+        let mut handle = self;
+        loop {
+            match handle {
+                Self::SPFS(repo) => return Some(repo),
+                Self::Indexed(repo) => handle = repo.underlying_repo_ref(),
+                Self::Mem(_) | Self::Runtime(_) => return None,
+            }
+        }
+    }
+
     pub async fn index_location_path(&self) -> Result<PathBuf> {
         match self {
             Self::SPFS(spfs_repo) => spfs_repo.get_or_create_index_path().await,
