@@ -231,7 +231,13 @@ impl Solver {
         .await
         .map_err(|err| Error::String(format!("Tokio panicked? {err}")))??;
 
-        let mut solution_options = OptionMap::default();
+        // Start from the options the caller configured on this solver (host
+        // options, `--opt` values, the variant being built or tested, ...).
+        // These are not recoverable from the solved packages alone, and the
+        // step solver carries them into its solution, so dropping them here
+        // would make `Solution::to_environment` emit a different set of
+        // `SPK_OPT_*` variables depending on which solver ran.
+        let mut solution_options = self.options.clone();
         for request in &self.requests {
             if let RequestWithOptions::Var(var_req) = request {
                 solution_options.insert(var_req.var.clone(), var_req.value.to_string());

@@ -380,6 +380,65 @@ async fn test_solver_single_package_no_deps(
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]
 #[tokio::test]
+async fn test_solver_solution_preserves_solver_options(
+    #[case] mut solver: SolverImpl,
+    #[values(true, false)] use_index: bool,
+) {
+    // Options given to the solver must survive into the solution, because
+    // that is what `Solution::to_environment` turns into the `SPK_OPT_*`
+    // variables that build and test scripts read. A package that declares the
+    // same option as a strong-inheritance var also contributes a namespaced
+    // copy of it, which must not displace the un-namespaced one.
+    let options = option_map! {"abi" => "cp39"};
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "my-pkg/1.0.0",
+                "build": {
+                    "options": [
+                        {
+                            "var": "abi",
+                            "default": "cp39",
+                            "inheritance": "Strong",
+                            "description": "The ABI flavor to use.",
+                        },
+                    ],
+                },
+            },
+        ],
+        options = options.clone()
+    );
+    let repo = wrap_repo_for_test(repo, use_index).await;
+
+    solver.update_options(options);
+    solver.add_repository(Arc::new(repo));
+    solver.add_request(pinned_request!("my-pkg"));
+
+    let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
+
+    assert_eq!(
+        solution.options().get(opt_name!("abi")).map(String::as_str),
+        Some("cp39"),
+        "solver options must be preserved in the solution"
+    );
+
+    let env = solution.to_environment::<std::collections::HashMap<String, String>>(None);
+    assert_eq!(
+        env.get("SPK_OPT_abi").map(String::as_str),
+        Some("cp39"),
+        "solver options must reach the environment as SPK_OPT_*"
+    );
+    assert_eq!(
+        env.get("SPK_PKG_my_pkg_OPT_abi").map(String::as_str),
+        Some("cp39"),
+        "strong inheritance vars must also reach the environment namespaced"
+    );
+}
+
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
+#[tokio::test]
 async fn test_solver_single_package_simple_deps(
     #[case] mut solver: SolverImpl,
     #[values(true, false)] use_index: bool,
