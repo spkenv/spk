@@ -20,6 +20,8 @@ use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::util::Timeout;
 use rdkafka::{ClientConfig, Message, Offset, TopicPartitionList};
 use serde_json::json;
+#[cfg(feature = "statsd")]
+use spk_config::get_metrics_client;
 use spk_config::{Indexer, KafkaChannel};
 use spk_schema::BuildIdent;
 use spk_schema::ident::{OptVersionIdent, parse_build_ident};
@@ -31,6 +33,7 @@ use ulid::Ulid;
 
 use crate::storage::messaging::{
     IndexEvent,
+    IndexUpdateContext,
     IndexUpdateMessage,
     PackageEvent,
     PackageEventMessage,
@@ -120,7 +123,7 @@ pub(crate) async fn announce_index_event(
     event: IndexEvent,
     to: &url::Url,
     repo_name: &RepositoryName,
-    index_start_time: &DateTime<Utc>,
+    index_context: &IndexUpdateContext,
 ) -> Result<()> {
     // Only send a message if the index updates topic is configured
     let Some(topic_name) = kafka_channel.index_updates_topic_name.as_ref() else {
@@ -158,7 +161,7 @@ pub(crate) async fn announce_index_event(
         event,
         repo: to.to_string(),
         name: repo_name.to_string(),
-        start: index_start_time.timestamp(),
+        start: index_context.index_start_time.timestamp(),
     };
 
     // Send the index update message
@@ -178,8 +181,20 @@ pub(crate) async fn announce_index_event(
             ))
         })?;
 
+    #[cfg(feature = "statsd")]
+    {
+        // Record a that an index update message (heartbeat or update)
+        // has been sent.
+        if let Some(metric_name) = &index_context.index_event_metric_name
+            && let Some(statsd_client) = get_metrics_client()
+        {
+            statsd_client.incr(metric_name);
+        }
+    }
+
     tracing::debug!(
-        "Sent index update message: {event} - {repo_name} - {to} - {index_start_time} as:\n{message:?}"
+        "Sent index update message: {event} - {repo_name} - {to} - {} as:\n{message:?}",
+        index_context.index_start_time
     );
 
     Ok(())
@@ -631,6 +646,24 @@ pub(crate) fn send_ignored_message_to_sentry(issue: String, message: &BorrowedMe
     );
 }
 
+// Helper to wrap sending an indexer heartbeat
+#[inline]
+async fn send_indexer_heartbeat_event(
+    kafka_channel: &KafkaChannel,
+    repo_to_index: &RepositoryHandle,
+    indexer_name: &RepositoryName,
+    indexer_heartbeat_context: &IndexUpdateContext,
+) -> Result<()> {
+    announce_index_event(
+        kafka_channel,
+        IndexEvent::IndexerHeartbeat,
+        repo_to_index.address(),
+        indexer_name,
+        indexer_heartbeat_context,
+    )
+    .await
+}
+
 // Runs an indexer to continuously listen to package update messages,
 // de-duplicate them by package/version, and kick off an index update
 // (or full index generation) when there's a pause in messages.
@@ -709,20 +742,22 @@ pub async fn listen_to_package_events_and_run_index_updates(
     // message is read.
     let repos = vec![(repo_to_index.name().to_string(), repo_to_index.clone())];
 
+    let mut indexer_heartbeat_context = IndexUpdateContext {
+        index_start_time: Utc::now(),
+        index_event_metric_name: indexer_config.index_event_metric_name.clone(),
+    };
+
     // Send an initial heartbeat message to indicate this is now running.
     //
     // Without this step, a timing issue can occur with something
     // using the listen_to_index_status_updates() function to detect
     // an indexer or index status updates. It can miss that the
     // indexer is running, but hasn't started an index update yet.
-    announce_index_event(
+    send_indexer_heartbeat_event(
         kafka_channel,
-        IndexEvent::IndexerHeartbeat,
-        repo_to_index.address(),
+        repo_to_index,
         indexer_name,
-        // This does not have an index start time so
-        // this is a placeholder.
-        &Utc::now(),
+        &indexer_heartbeat_context,
     )
     .await?;
 
@@ -819,6 +854,7 @@ pub async fn listen_to_package_events_and_run_index_updates(
                     }
                     None => {
                         // Stream ended?
+                        tracing::warn!("Kafka message stream ended by returning None?");
                         break;
                     }
                 }
@@ -830,11 +866,21 @@ pub async fn listen_to_package_events_and_run_index_updates(
                 if !package_versions.is_empty() || generate_full_index {
                     tracing::info!("About to update the index. Package versions collected so far: {:?}", package_versions);
 
+                    #[cfg(feature = "statsd")]
+                    {
+                        // Record each index generation, update or
+                        // full index, in the metrics system.
+                        if let Some(metric_name) = &indexer_config.index_update_start_metric_name
+                            && let Some(statsd_client) = get_metrics_client() {
+                            statsd_client.incr(metric_name);
+                        }
+                    }
+
                     if generate_full_index {
                         // Ignore the accumulated package updates and
                         // rebuild the whole index instead.
                         tracing::info!("Generating a full index for '{}'", repo_to_index.name());
-                        FlatBufferRepoIndex::index_repo(&repos).await.map_err(|err| Error::String(format!("Full index generation failed: {err}")))?;
+                        FlatBufferRepoIndex::index_repo(&repos, &indexer_config.index_event_metric_name).await.map_err(|err| Error::String(format!("Full index generation failed: {err}")))?;
                         tracing::info!("Full index generation finished");
                         generate_full_index = false;
                     } else {
@@ -851,7 +897,7 @@ pub async fn listen_to_package_events_and_run_index_updates(
 
                                 tracing::info!("Staring index update as if running: 'spk repo index -r {} {}'", repo_to_index.name(), idents.iter().map(|pv| format!("--update {pv}")).join(" "));
 
-                                current_index.update_packages(repo_to_index, &idents).await.map_err(|err| Error::String(format!("Indexer has a problem updating index: {err}")))?;
+                                current_index.update_packages(repo_to_index, &idents, &indexer_config.index_event_metric_name).await.map_err(|err| Error::String(format!("Indexer has a problem updating index: {err}")))?;
                                 tracing::info!("Index update finished. It took {} secs", start.elapsed().as_secs_f64());
                             }
                             Err(err) => {
@@ -859,9 +905,8 @@ pub async fn listen_to_package_events_and_run_index_updates(
                                 // scratch. This will include all package updates so far.
                                 tracing::warn!("Failed to load flatbuffer index: {err}");
                                 tracing::warn!("No current index to update. Generating a new full index for '{}' repo", repo_to_index.name());
-                                FlatBufferRepoIndex::index_repo(&repos).await.map_err(|err| Error::String(format!("Full index generation failed: {err}")))?;
-                                tracing::warn!("Full index generation finished for previously missing index of '{}' repo. It took {} secs", repo_to_index.name(), start.elapsed().as_secs_f64()
-                                );
+                                FlatBufferRepoIndex::index_repo(&repos, &indexer_config.index_event_metric_name).await.map_err(|err| Error::String(format!("Full index generation failed: {err}")))?;
+                                tracing::warn!("Full index generation finished for previously missing index of '{}' repo. It took {} secs", repo_to_index.name(), start.elapsed().as_secs_f64());
                             }
                         }
                     };
@@ -894,13 +939,12 @@ pub async fn listen_to_package_events_and_run_index_updates(
                     // send another heartbeat message.
                     time_since_last_message += LISTEN_YIELD_SLEEP_TIME;
                     if time_since_last_message >= heartbeat_delay {
-                        announce_index_event(kafka_channel,
-                                             IndexEvent::IndexerHeartbeat,
-                                             repo_to_index.address(),
-                                             indexer_name,
-                                             // This does not have an index start time so
-                                             // this is a placeholder.
-                                             &Utc::now()
+                        indexer_heartbeat_context.index_start_time = Utc::now();
+                        send_indexer_heartbeat_event(
+                            kafka_channel,
+                            repo_to_index,
+                            indexer_name,
+                            &indexer_heartbeat_context
                         ).await?;
 
                         time_since_last_message = Duration::new(0, 0);

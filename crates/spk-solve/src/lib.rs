@@ -4,8 +4,6 @@
 
 mod error;
 mod io;
-#[cfg(feature = "statsd")]
-mod metrics;
 mod search_space;
 mod solver;
 mod solvers;
@@ -17,19 +15,6 @@ pub use io::{
     DecisionFormatter,
     DecisionFormatterBuilder,
     MultiSolverKind,
-};
-#[cfg(feature = "statsd")]
-pub use metrics::{
-    MetricsClient,
-    SPK_ERROR_COUNT_METRIC,
-    SPK_RUN_COUNT_METRIC,
-    SPK_RUN_TIME_METRIC,
-    SPK_SOLUTION_PACKAGE_COUNT_METRIC,
-    SPK_SOLVER_INITIAL_REQUESTS_COUNT_METRIC,
-    SPK_SOLVER_RUN_COUNT_METRIC,
-    SPK_SOLVER_RUN_TIME_METRIC,
-    SPK_SOLVER_SOLUTION_SIZE_METRIC,
-    get_metrics_client,
 };
 pub(crate) use search_space::show_search_space_stats;
 pub use serde;
