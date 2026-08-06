@@ -79,12 +79,18 @@ impl Run for Render {
 
         // Find possible fallback repositories among the solver's repositories.
         let mut fallback_repository_handles = Vec::with_capacity(solver.repositories().len());
-        for repo in solver.repositories().iter().filter(|repo| {
-            repo.is_spfs() && {
-                // XXX: is there a better way to identify the local repo?
-                repo.name() != "local"
+        for repo in solver.repositories().iter() {
+            // Unwrap any wrapper repositories (e.g. indexed ones) so that a
+            // repository is not skipped just because indexes are enabled.
+            // Indexed repositories report the address of the repository they
+            // wrap, so the handle's address is still the spfs one.
+            if repo.try_as_spfs().is_none() {
+                continue;
             }
-        }) {
+            // XXX: is there a better way to identify the local repo?
+            if repo.name() == "local" {
+                continue;
+            }
             // XXX: Can't find a better way to get an owned RepositoryHandle
             // from the &Arc<RepositoryHandle> inside the Solver.
             if let Ok(handle) = spfs::open_repository(repo.address()).await {

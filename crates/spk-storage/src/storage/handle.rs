@@ -12,6 +12,10 @@ use super::Repository;
 use super::messaging::listen_to_index_status_until_updated;
 use crate::{Error, Result};
 
+#[cfg(test)]
+#[path = "./handle_test.rs"]
+mod handle_test;
+
 type Handle = dyn Repository<Recipe = SpecRecipe, Package = Spec>;
 
 #[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Clone, Variantly)]
@@ -43,6 +47,28 @@ impl RepositoryHandle {
             Self::Mem(repo) => Box::new(repo),
             Self::Runtime(repo) => Box::new(repo),
             Self::Indexed(repo) => Box::new(repo),
+        }
+    }
+
+    /// Return the spfs repository that backs this handle, if there is one.
+    ///
+    /// Wrapper repositories, such as [`super::IndexedRepository`], are
+    /// unwrapped so that callers needing spfs-level access (syncing objects,
+    /// rendering, exporting, ...) still find the underlying spfs storage.
+    /// Callers should always prefer this over matching on
+    /// [`RepositoryHandle::SPFS`] directly, otherwise their behavior silently
+    /// changes depending on whether repository indexes happen to be enabled.
+    ///
+    /// Returns `None` for handles with no spfs storage behind them, such as
+    /// in-memory and runtime repositories.
+    pub fn try_as_spfs(&self) -> Option<&super::SpfsRepository> {
+        let mut handle = self;
+        loop {
+            match handle {
+                Self::SPFS(repo) => return Some(repo),
+                Self::Indexed(repo) => handle = repo.underlying_repo_ref(),
+                Self::Mem(_) | Self::Runtime(_) => return None,
+            }
         }
     }
 

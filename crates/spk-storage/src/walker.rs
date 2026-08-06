@@ -621,7 +621,7 @@ impl RepoWalker<'_> {
             }
 
             // This only stream only operates on spfs repos
-            let storage::RepositoryHandle::SPFS(spfs_repo) = repo else {
+            let Some(spfs_repo) = repo.try_as_spfs() else {
                 return;
             };
 
