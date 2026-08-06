@@ -12,6 +12,10 @@ use super::Repository;
 use super::messaging::listen_to_index_status_until_updated;
 use crate::{Error, Result};
 
+#[cfg(test)]
+#[path = "./handle_test.rs"]
+mod handle_test;
+
 type Handle = dyn Repository<Recipe = SpecRecipe, Package = Spec>;
 
 #[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Clone, Variantly)]

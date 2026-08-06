@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use clap::Parser;
 use rstest::rstest;
 use spfs::prelude::*;
 use spfstest::spfstest;
@@ -10,6 +11,15 @@ use spk_schema::foundation::option_map;
 use spk_schema::{Package, recipe};
 use spk_solve::SolverImpl;
 use spk_storage::fixtures::*;
+use spk_storage::{FlatBufferRepoIndex, RepositoryIndexMut};
+
+use super::{Export, Run};
+
+#[derive(Parser)]
+struct Opt {
+    #[clap(flatten)]
+    export: Export,
+}
 
 fn step_solver() -> SolverImpl {
     SolverImpl::Step(spk_solve::StepSolver::default())
@@ -133,5 +143,89 @@ async fn test_export_works_with_missing_builds(#[case] solver: SolverImpl) {
                 red_spec.ident().build()
             ),
         ]
+    );
+}
+
+#[spfstest]
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
+#[tokio::test]
+async fn test_export_works_with_an_indexed_repo(#[case] solver: SolverImpl) {
+    // When index use is enabled, the repositories handed to the command are
+    // indexed repositories that wrap the underlying spfs storage. Export must
+    // still find that storage rather than rejecting the repository outright.
+    let rt = spfs_runtime().await;
+
+    let spec = recipe!(
+        {
+            "pkg": "spk-export-index-test/0.0.1",
+            "build": {
+                "auto_host_vars": "None",
+                "script": "touch /spfs/file.txt",
+            },
+        }
+    );
+    rt.tmprepo.publish_recipe(&spec).await.unwrap();
+    let (built_spec, _) = BinaryPackageBuilder::from_recipe_with_solver(spec, solver)
+        .with_source(BuildSource::LocalPath(".".into()))
+        .with_repository(rt.tmprepo.clone())
+        .build_and_publish(&option_map! {}, &*rt.tmprepo)
+        .await
+        .unwrap();
+
+    // Write out an index so that `--index-use enabled` produces an indexed
+    // repository instead of falling back to the plain spfs one.
+    let local_repo = spk_storage::local_repository().await.unwrap();
+    FlatBufferRepoIndex::index_repo(&vec![("local".to_string(), local_repo.into())])
+        .await
+        .unwrap();
+
+    let filename = rt.tmpdir.path().join("indexed-archive.spk");
+    // `--enable-repo local` is needed as well; the local repository is
+    // otherwise added ahead of the code that applies index use.
+    let mut opt = Opt::try_parse_from([
+        "export",
+        "--enable-repo",
+        "local",
+        "--index-use",
+        "enabled",
+        &format!("{}", built_spec.ident().clone().to_version_ident()),
+        filename.to_str().unwrap(),
+    ])
+    .unwrap();
+
+    // Loading an index can quietly fall back to the plain spfs repository, so
+    // check that this test is really exercising the wrapped case.
+    let repos = opt
+        .export
+        .repos
+        .get_repos_for_non_destructive_operation()
+        .await
+        .unwrap();
+    assert!(
+        repos
+            .iter()
+            .any(|(_, repo)| matches!(repo, spk_storage::RepositoryHandle::Indexed(_))),
+        "the export command should have been given an indexed repository"
+    );
+
+    opt.export
+        .run()
+        .await
+        .expect("export should succeed against an indexed repository");
+
+    let mut tags = Vec::new();
+    let mut tarfile = tar::Archive::new(std::fs::File::open(&filename).unwrap());
+    for entry in tarfile.entries().unwrap() {
+        let name = entry.unwrap().path().unwrap().to_string_lossy().to_string();
+        if name.ends_with(".tag") {
+            tags.push(name);
+        }
+    }
+    assert!(
+        tags.iter()
+            .any(|tag| tag.contains("spk/pkg/spk-export-index-test/0.0.1")),
+        "the exported archive should contain the package's build tags, got: {tags:?}"
     );
 }
