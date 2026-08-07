@@ -5,7 +5,7 @@
 use spk_schema::version::IncompatibleReason;
 
 use super::prelude::*;
-use crate::ValidatorT;
+use crate::validation::ValidatorT;
 
 /// Validates that the var install requirements do not conflict with the existing options.
 #[derive(Clone, Copy, Default)]
@@ -17,7 +17,7 @@ impl ValidatorT for VarRequirementsValidator {
         state: &State,
         spec: &P,
         _source: &PackageSource,
-    ) -> crate::Result<Compatibility> {
+    ) -> crate::validation::Result<Compatibility> {
         let options = state.get_option_map();
         for request in spec.runtime_requirements().iter() {
             if let RequestWithOptions::Var(request) = request {
@@ -64,7 +64,7 @@ impl ValidatorT for VarRequirementsValidator {
         &self,
         _state: &State,
         _recipe: &R,
-    ) -> crate::Result<Compatibility> {
+    ) -> crate::validation::Result<Compatibility> {
         // the recipe cannot tell us what the
         // runtime requirements will be
         Ok(Compatibility::Compatible)

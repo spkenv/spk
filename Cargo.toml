@@ -154,7 +154,6 @@ spk-solve-graph = { path = "crates/spk-solve/crates/graph" }
 spk-solve-macros = { path = "crates/spk-solve/crates/macros" }
 spk-solve-package-iterator = { path = "crates/spk-solve/crates/package-iterator" }
 spk-solve-solution = { path = "crates/spk-solve/crates/solution" }
-spk-solve-validation = { path = "crates/spk-solve/crates/validation" }
 spk-storage = { path = "crates/spk-storage" }
 spk-workspace = { path = "crates/spk-workspace" }
 static_assertions = "1.1"

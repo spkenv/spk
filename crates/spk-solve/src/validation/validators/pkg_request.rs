@@ -5,7 +5,7 @@
 use spk_schema::version::{IncompatibleReason, PackageRepoProblem};
 
 use super::prelude::*;
-use crate::ValidatorT;
+use crate::validation::ValidatorT;
 
 /// Ensures that a package meets all requested version criteria.
 #[derive(Clone, Copy)]
@@ -18,7 +18,7 @@ impl ValidatorT for PkgRequestValidator {
         state: &State,
         spec: &P,
         source: &PackageSource,
-    ) -> crate::Result<Compatibility>
+    ) -> crate::validation::Result<Compatibility>
     where
         P: Satisfy<PkgRequestWithOptions> + Package,
     {
@@ -29,7 +29,7 @@ impl ValidatorT for PkgRequestValidator {
         &self,
         state: &State,
         recipe: &R,
-    ) -> crate::Result<Compatibility> {
+    ) -> crate::validation::Result<Compatibility> {
         let request = match state.get_merged_request(recipe.name()) {
             Ok(request) => request,
             Err(GetMergedRequestError::NoRequestFor(name)) => {
@@ -57,7 +57,7 @@ impl ValidatorT for PkgRequestValidator {
         pkgrequest_data: &PR,
         package: &P,
         source: &PackageSource,
-    ) -> crate::Result<Compatibility>
+    ) -> crate::validation::Result<Compatibility>
     where
         P: Satisfy<PkgRequestWithOptions> + Package,
         PR: GetMergedRequest,
