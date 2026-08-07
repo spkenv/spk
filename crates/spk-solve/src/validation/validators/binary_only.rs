@@ -5,7 +5,7 @@
 use spk_schema::version::IncompatibleReason;
 
 use super::prelude::*;
-use crate::ValidatorT;
+use crate::validation::ValidatorT;
 
 /// Enforces the resolution of binary packages only, denying new builds from source.
 #[derive(Clone, Copy)]
@@ -17,7 +17,7 @@ impl ValidatorT for BinaryOnlyValidator {
         _state: &State,
         _spec: &P,
         _source: &PackageSource,
-    ) -> crate::Result<Compatibility> {
+    ) -> crate::validation::Result<Compatibility> {
         Ok(Compatibility::Compatible)
     }
 
@@ -25,7 +25,7 @@ impl ValidatorT for BinaryOnlyValidator {
         &self,
         _state: &State,
         _recipe: &R,
-    ) -> crate::Result<Compatibility> {
+    ) -> crate::validation::Result<Compatibility> {
         Ok(Compatibility::Incompatible(
             IncompatibleReason::BuildFromSourceDisabled,
         ))
@@ -36,7 +36,7 @@ impl ValidatorT for BinaryOnlyValidator {
         pkgrequest_data: &PR,
         package: &P,
         _source: &PackageSource,
-    ) -> crate::Result<Compatibility>
+    ) -> crate::validation::Result<Compatibility>
     where
         PR: GetMergedRequest,
         P: Satisfy<PkgRequestWithOptions> + Package,

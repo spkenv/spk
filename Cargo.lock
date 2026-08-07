@@ -4914,6 +4914,7 @@ dependencies = [
  "console",
  "crossterm",
  "ctrlc",
+ "dashmap",
  "dyn-clone",
  "enum_dispatch",
  "futures",
@@ -4928,6 +4929,7 @@ dependencies = [
  "sentry",
  "serde",
  "serde_json",
+ "serde_yaml 0.9.34+deprecated",
  "signal-hook",
  "spfs",
  "spk-config",
@@ -4936,7 +4938,6 @@ dependencies = [
  "spk-solve-macros",
  "spk-solve-package-iterator",
  "spk-solve-solution",
- "spk-solve-validation",
  "spk-storage",
  "statsd 0.15.0",
  "strip-ansi-escapes 0.2.1",
@@ -5024,32 +5025,6 @@ dependencies = [
  "spk-schema",
  "spk-storage",
  "thiserror 1.0.69",
- "tracing",
-]
-
-[[package]]
-name = "spk-solve-validation"
-version = "0.44.0"
-dependencies = [
- "async-trait",
- "colored",
- "dashmap",
- "enum_dispatch",
- "futures",
- "itertools 0.14.0",
- "miette",
- "once_cell",
- "rstest",
- "serde",
- "serde_yaml 0.9.34+deprecated",
- "spfs",
- "spk-schema",
- "spk-solve-graph",
- "spk-solve-macros",
- "spk-solve-solution",
- "spk-storage",
- "thiserror 1.0.69",
- "tokio",
  "tracing",
 ]
 

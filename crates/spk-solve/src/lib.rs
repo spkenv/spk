@@ -10,6 +10,7 @@ mod search_space;
 mod solver;
 mod solvers;
 mod status_line;
+pub mod validation;
 
 pub use error::{Error, Result};
 pub use io::{
@@ -56,6 +57,5 @@ pub use spk_solve_graph as graph;
 pub use spk_solve_package_iterator as package_iterator;
 pub use spk_solve_solution as solution;
 pub use spk_solve_solution::{PackageSource, Solution};
-pub use spk_solve_validation as validation;
 pub use spk_storage::RepositoryHandle;
 pub(crate) use status_line::StatusLine;

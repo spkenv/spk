@@ -64,8 +64,8 @@ use spk_solve_package_iterator::{
     SortedBuildIterator,
 };
 use spk_solve_solution::{PackageSource, Solution};
-use spk_solve_validation::validators::BinaryOnlyValidator;
-use spk_solve_validation::{
+use crate::validation::validators::BinaryOnlyValidator;
+use crate::validation::{
     IMPOSSIBLE_CHECKS_TARGET,
     ImpossibleRequestsChecker,
     ValidatorT,
@@ -1538,7 +1538,7 @@ impl SolverRuntime {
                 _ => None,
             },
             Error::ValidationError(
-                spk_solve_validation::Error::SpkSolverGraphGetMergedRequestError(
+                crate::validation::Error::SpkSolverGraphGetMergedRequestError(
                     spk_solve_graph::GetMergedRequestError::Conflict { request, cause },
                 ),
             ) => Some((request.as_ref().clone(), cause.clone())),

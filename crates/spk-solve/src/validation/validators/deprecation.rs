@@ -6,7 +6,7 @@ use spk_schema::ident::{AsVersionIdent, PinnedValue};
 use spk_schema::version::IncompatibleReason;
 
 use super::prelude::*;
-use crate::ValidatorT;
+use crate::validation::ValidatorT;
 
 /// Ensures that deprecated packages are not included unless specifically requested.
 #[derive(Clone, Copy)]
@@ -18,7 +18,7 @@ impl ValidatorT for DeprecationValidator {
         state: &State,
         spec: &P,
         _source: &PackageSource,
-    ) -> crate::Result<Compatibility>
+    ) -> crate::validation::Result<Compatibility>
     where
         P: Satisfy<PkgRequestWithOptions> + Satisfy<VarRequest<PinnedValue>> + Package,
         <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequestWithOptions>,
@@ -30,7 +30,7 @@ impl ValidatorT for DeprecationValidator {
         &self,
         _state: &State,
         recipe: &R,
-    ) -> crate::Result<Compatibility> {
+    ) -> crate::validation::Result<Compatibility> {
         if recipe.is_deprecated() {
             Ok(Compatibility::Incompatible(
                 IncompatibleReason::RecipeDeprecated,
@@ -45,7 +45,7 @@ impl ValidatorT for DeprecationValidator {
         pkgrequest_data: &PR,
         package: &P,
         _source: &PackageSource,
-    ) -> crate::Result<Compatibility>
+    ) -> crate::validation::Result<Compatibility>
     where
         PR: GetMergedRequest,
         P: Satisfy<PkgRequestWithOptions> + Package,

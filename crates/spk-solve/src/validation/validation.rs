@@ -11,8 +11,8 @@ use spk_schema::{Package, Recipe};
 use spk_solve_graph::{GetMergedRequestResult, State};
 use spk_solve_solution::PackageSource;
 
-use crate::Error;
-use crate::validators::*;
+use crate::validation::Error;
+use crate::validation::validators::*;
 
 #[cfg(test)]
 #[path = "./validation_test.rs"]
@@ -54,7 +54,7 @@ pub trait ValidatorT {
         state: &State,
         spec: &P,
         source: &PackageSource,
-    ) -> crate::Result<Compatibility>
+    ) -> crate::validation::Result<Compatibility>
     where
         P: Satisfy<PkgRequestWithOptions> + Satisfy<VarRequest<PinnedValue>> + Package,
         <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequestWithOptions>;
@@ -68,7 +68,7 @@ pub trait ValidatorT {
         _pkgrequest_data: &PR,
         _package: &P,
         _source: &PackageSource,
-    ) -> crate::Result<Compatibility>
+    ) -> crate::validation::Result<Compatibility>
     where
         PR: GetMergedRequest,
         P: Satisfy<PkgRequestWithOptions> + Package,
@@ -87,7 +87,7 @@ pub trait ValidatorT {
         &self,
         _state: &State,
         _recipe: &R,
-    ) -> crate::Result<Compatibility>;
+    ) -> crate::validation::Result<Compatibility>;
 }
 
 /// The default set of validators that is used for resolving packages

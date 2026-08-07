@@ -47,7 +47,7 @@ pub enum Error {
     SolutionError(#[from] spk_solve_solution::Error),
     #[error(transparent)]
     #[diagnostic(forward(0))]
-    ValidationError(#[from] spk_solve_validation::Error),
+    ValidationError(#[from] crate::validation::Error),
     #[error(transparent)]
     #[diagnostic(forward(0))]
     SpkSpecError(Box<spk_schema::Error>),

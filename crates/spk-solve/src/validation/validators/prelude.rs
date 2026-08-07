@@ -11,4 +11,4 @@ pub use spk_schema::{Package, Recipe, Spec};
 pub use spk_solve_graph::{CachedHash, GetMergedRequestError, State};
 pub use spk_solve_solution::PackageSource;
 
-pub use crate::GetMergedRequest;
+pub use crate::validation::GetMergedRequest;
