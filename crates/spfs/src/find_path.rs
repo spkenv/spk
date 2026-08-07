@@ -49,7 +49,14 @@ pub async fn find_path_providers_in_spfs_runtime(
 
     if let Ok(runtime) = status::active_runtime().await {
         for digest in runtime.status.stack.iter_bottom_up() {
-            let item = repo.read_object(digest).await?;
+            let item = match repo.read_object(digest).await {
+                Ok(item) => item,
+                // The selected repo may not have every object in the active
+                // runtime stack (for example local-only or origin-only
+                // objects); skip missing ones and keep searching.
+                Err(Error::UnknownObject(_)) => continue,
+                Err(err) => return Err(err),
+            };
             let file_data = find_path_in_spfs_item(filepath, &item, repo).await?;
             if !file_data.is_empty() {
                 found.extend(file_data);
@@ -77,7 +84,12 @@ async fn find_path_in_spfs_item(
     match obj.to_enum() {
         graph::object::Enum::Platform(obj) => {
             for reference in obj.iter_bottom_up() {
-                let item = repo.read_object(*reference).await?;
+                let item = match repo.read_object(*reference).await {
+                    Ok(item) => item,
+                    // Some child objects may exist only in a different repo.
+                    Err(Error::UnknownObject(_)) => continue,
+                    Err(err) => return Err(err),
+                };
                 let paths_to_file = find_path_in_spfs_item(filepath, &item, repo).await?;
                 for path in paths_to_file {
                     let mut new_path: ObjectPath = Vec::new();
@@ -90,7 +102,12 @@ async fn find_path_in_spfs_item(
 
         graph::object::Enum::Layer(obj) => {
             if let Some(manifest_digest) = obj.manifest() {
-                let item = repo.read_object(*manifest_digest).await?;
+                let item = match repo.read_object(*manifest_digest).await {
+                    Ok(item) => item,
+                    // The manifest might not exist in this repo.
+                    Err(Error::UnknownObject(_)) => return Ok(paths),
+                    Err(err) => return Err(err),
+                };
                 let paths_to_file = find_path_in_spfs_item(filepath, &item, repo).await?;
                 for path in paths_to_file {
                     let mut new_path: ObjectPath = Vec::new();
