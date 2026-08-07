@@ -11,8 +11,8 @@ use spk_schema::version::{
 };
 
 use super::prelude::*;
-use crate::ValidatorT;
-use crate::validators::EmbeddedPackageValidator;
+use crate::validation::ValidatorT;
+use crate::validation::validators::EmbeddedPackageValidator;
 
 /// Validates that the pkg install requirements do not conflict with the existing resolve.
 #[derive(Clone, Copy)]
@@ -24,7 +24,7 @@ impl ValidatorT for PkgRequirementsValidator {
         state: &State,
         spec: &P,
         _source: &PackageSource,
-    ) -> crate::Result<Compatibility> {
+    ) -> crate::validation::Result<Compatibility> {
         for request in spec.runtime_requirements().iter() {
             let compat = self.validate_request_against_existing_state(state, request)?;
             if !&compat {
@@ -39,7 +39,7 @@ impl ValidatorT for PkgRequirementsValidator {
         &self,
         _state: &State,
         _recipe: &R,
-    ) -> crate::Result<Compatibility> {
+    ) -> crate::validation::Result<Compatibility> {
         // the recipe cannot tell us what the
         // runtime requirements will be
         Ok(Compatibility::Compatible)
@@ -51,7 +51,7 @@ impl PkgRequirementsValidator {
         &self,
         state: &State,
         request: &RequestWithOptions,
-    ) -> crate::Result<Compatibility> {
+    ) -> crate::validation::Result<Compatibility> {
         use Compatibility::Compatible;
         let request = match request {
             RequestWithOptions::Pkg(request) => request,
@@ -172,7 +172,7 @@ impl PkgRequirementsValidator {
         request: &PkgRequestWithOptions,
         resolved: &CachedHash<std::sync::Arc<Spec>>,
         provided_components: std::collections::HashSet<&Component>,
-    ) -> crate::Result<Compatibility> {
+    ) -> crate::validation::Result<Compatibility> {
         use Compatibility::Compatible;
         let compat = request.is_satisfied_by(&**resolved);
         if let Compatibility::Incompatible(compat) = compat {

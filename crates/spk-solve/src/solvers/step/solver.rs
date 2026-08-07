@@ -64,19 +64,19 @@ use spk_solve_package_iterator::{
     SortedBuildIterator,
 };
 use spk_solve_solution::{PackageSource, Solution};
-use spk_solve_validation::validators::BinaryOnlyValidator;
-use spk_solve_validation::{
+use spk_storage::RepositoryHandle;
+
+use crate::error::{self, OutOfOptions};
+use crate::option_map::OptionMap;
+use crate::solver::Solver as SolverTrait;
+use crate::validation::validators::BinaryOnlyValidator;
+use crate::validation::{
     IMPOSSIBLE_CHECKS_TARGET,
     ImpossibleRequestsChecker,
     ValidatorT,
     Validators,
     default_validators,
 };
-use spk_storage::RepositoryHandle;
-
-use crate::error::{self, OutOfOptions};
-use crate::option_map::OptionMap;
-use crate::solver::Solver as SolverTrait;
 use crate::{DecisionFormatter, Error, Result, SolverExt, SolverMut};
 
 /// Structure to hold whether the three kinds of impossible checks are
@@ -1538,7 +1538,7 @@ impl SolverRuntime {
                 _ => None,
             },
             Error::ValidationError(
-                spk_solve_validation::Error::SpkSolverGraphGetMergedRequestError(
+                crate::validation::Error::SpkSolverGraphGetMergedRequestError(
                     spk_solve_graph::GetMergedRequestError::Conflict { request, cause },
                 ),
             ) => Some((request.as_ref().clone(), cause.clone())),

@@ -6,7 +6,7 @@ use spk_schema::ident::AsVersionIdent;
 use spk_schema::version::IncompatibleReason;
 
 use super::prelude::*;
-use crate::ValidatorT;
+use crate::validation::ValidatorT;
 
 #[derive(Clone, Copy)]
 pub struct EmbeddedPackageValidator {}
@@ -17,7 +17,7 @@ impl ValidatorT for EmbeddedPackageValidator {
         state: &State,
         spec: &P,
         _source: &PackageSource,
-    ) -> crate::Result<Compatibility>
+    ) -> crate::validation::Result<Compatibility>
     where
         P: Package,
         <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequestWithOptions>,
@@ -41,7 +41,7 @@ impl ValidatorT for EmbeddedPackageValidator {
         &self,
         _state: &State,
         _recipe: &R,
-    ) -> crate::Result<Compatibility> {
+    ) -> crate::validation::Result<Compatibility> {
         Ok(Compatibility::Compatible)
     }
 }
@@ -51,7 +51,7 @@ impl EmbeddedPackageValidator {
         spec: &P,
         embedded: &E,
         state: &State,
-    ) -> crate::Result<Compatibility>
+    ) -> crate::validation::Result<Compatibility>
     where
         P: Package,
         E: Named + Satisfy<PkgRequestWithOptions>,
@@ -96,7 +96,7 @@ impl EmbeddedPackageValidator {
         spec: &P,
         request: &PkgRequestWithOptions,
         state: &State,
-    ) -> crate::Result<Compatibility>
+    ) -> crate::validation::Result<Compatibility>
     where
         P: Package,
         <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequestWithOptions>,

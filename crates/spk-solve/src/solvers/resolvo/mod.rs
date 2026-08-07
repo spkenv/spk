@@ -41,11 +41,11 @@ use spk_schema::prelude::{HasVersion, Named, Versioned};
 use spk_schema::version_range::VersionFilter;
 use spk_schema::{OptionMap, Package, Spec};
 use spk_solve_solution::{PackageSource, Solution};
-use spk_solve_validation::{Validators, default_validators};
 use spk_storage::RepositoryHandle;
 
 use crate::solver::Solver as SolverTrait;
 use crate::solvers::resolvo::pkg_request_version_set::LocatedBuildIdentWithComponent;
+use crate::validation::{Validators, default_validators};
 use crate::{DecisionFormatter, Error, Result, SolverExt, SolverMut, show_search_space_stats};
 
 #[cfg(test)]
