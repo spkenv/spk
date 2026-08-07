@@ -7,7 +7,8 @@ use std::collections::VecDeque;
 use clap::Args;
 use colored::*;
 use futures::TryFutureExt;
-use miette::Result;
+use miette::{Result, miette};
+use spfs::config::ToAddress;
 use spfs::env::SPFS_DIR;
 use spfs::find_path::ObjectPathEntry;
 use spfs::graph::Annotation;
@@ -31,6 +32,13 @@ pub struct CmdInfo {
 
     #[clap(flatten)]
     pub(crate) repos: cli::Repositories,
+
+    /// When set, use local/origin as fallback pair for object reads.
+    ///
+    /// With no --remote, local is primary and origin is fallback.
+    /// With --remote origin, origin is primary and local is fallback.
+    #[clap(long)]
+    origin_local_fallback: bool,
 
     /// Tag, id, or /spfs/file/path to show information about
     #[clap(value_name = "REF")]
@@ -56,8 +64,30 @@ pub struct CmdInfo {
 
 impl CmdInfo {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
-        let repo =
+        let primary_repo =
             spfs::config::open_repository_from_string(config, self.repos.remote.as_ref()).await?;
+        let repo = if self.origin_local_fallback {
+            let secondary_repo = match self.repos.remote.as_deref() {
+                None => spfs::config::open_repository_from_string(config, Some("origin")).await?,
+                Some("origin") => {
+                    spfs::config::open_repository_from_string(config, Option::<&str>::None).await?
+                }
+                Some(other) => {
+                    return Err(miette!(
+                        "--origin-local-fallback only supports local or --remote origin, got --remote {other}"
+                    ));
+                }
+            };
+
+            let proxy_config = spfs::storage::proxy::Config {
+                primary: primary_repo.address().to_string(),
+                secondary: vec![secondary_repo.address().to_string()],
+                include_secondary_tags: false,
+            };
+            spfs::open_repository(proxy_config.to_address()?).await?
+        } else {
+            primary_repo
+        };
 
         self.to_process.extend(self.refs.iter().cloned());
 
