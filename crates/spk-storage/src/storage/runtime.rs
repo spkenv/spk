@@ -23,6 +23,10 @@ use super::Repository;
 use super::repository::{PublishPolicy, Storage};
 use crate::{Error, InvalidPackageSpec, Result};
 
+#[cfg(test)]
+#[path = "./runtime_test.rs"]
+mod runtime_test;
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct RuntimeRepository {
     address: url::Url,
@@ -176,31 +180,7 @@ impl RuntimeRepository {
             })
             .collect_vec();
 
-        let digests = find_layers_by_filenames(&filenames_to_resolve_flattened)
-            .await
-            .map_err(|err| {
-                if let Error::SPFS(spfs::Error::UnknownReference(path)) = &err {
-                    // In order to return a `PackageNotFound` we need to look
-                    // for what package owned the path in this `UnknownReference`
-                    // error.
-                    filenames_to_resolve
-                        .iter()
-                        .find(|component_filenames| {
-                            component_filenames
-                                .filenames
-                                .iter()
-                                .any(|(_, p)| *p == *path)
-                        })
-                        .map(|component_filenames| {
-                            Error::PackageNotFound(Box::new(
-                                (pkgs[component_filenames.index]).to_any_ident(),
-                            ))
-                        })
-                        .unwrap_or(err)
-                } else {
-                    err
-                }
-            })?;
+        let digests = find_layers_by_filenames(&filenames_to_resolve_flattened).await?;
 
         // Now all the results can be collected via that same order.
 
@@ -220,6 +200,16 @@ impl RuntimeRepository {
             })
             .zip(digests.into_iter())
         {
+            // A component marker that isn't present in any committed layer of
+            // the runtime stack belongs to a package whose files live in the
+            // runtime's active changes rather than a committed layer. This
+            // happens for the package currently being built: its spec and
+            // component markers are written into /spfs before the build script
+            // runs, but its contents have not been committed to a layer yet.
+            // Treat that as the empty digest (no committed content) rather than
+            // reporting the package as not found, so that, for example, running
+            // `spk info` from inside a build script does not fail.
+            let digest = digest.unwrap_or_else(|| spfs::encoding::EMPTY_DIGEST.into());
             match component_mode {
                 ComponentMode::RealComponent(comp) => {
                     results[component_filenames_index].insert(comp, digest);
@@ -521,10 +511,15 @@ async fn find_layer_by_filename<S: AsRef<str>>(path: S) -> Result<spfs::encoding
 /// It is more efficient to perform this lookup on multiple paths
 /// simultaneously than to do one path at a time.
 ///
-/// The digests are returned in the same order as the elements in `paths`.
+/// The results are returned in the same order as the elements in `paths`. A
+/// path that does not belong to any committed layer of the runtime stack
+/// resolves to `None` rather than an error: a marker file can be absent from
+/// every committed layer when its package is currently being built, in which
+/// case its files live in the runtime's active changes (the overlayfs upper
+/// dir) and not in a committed layer.
 async fn find_layers_by_filenames<S: AsRef<str>>(
     paths: &[S],
-) -> Result<Vec<spfs::encoding::Digest>> {
+) -> Result<Vec<Option<spfs::encoding::Digest>>> {
     if paths.is_empty() {
         return Ok(Vec::new());
     }
@@ -534,8 +529,7 @@ async fn find_layers_by_filenames<S: AsRef<str>>(
 
     let mut paths = paths.iter().map(Some).enumerate().collect::<Vec<_>>();
 
-    let mut results = Vec::new();
-    results.resize_with(paths.len(), Default::default);
+    let mut results: Vec<Option<spfs::encoding::Digest>> = vec![None; paths.len()];
 
     let layers = spfs::resolve_stack_to_layers(&runtime.status.stack, Some(&repo)).await?;
     for layer in layers.iter().rev() {
@@ -553,7 +547,7 @@ async fn find_layers_by_filenames<S: AsRef<str>>(
         for (index, path_opt) in paths.iter_mut() {
             if let Some(path) = path_opt {
                 if manifest.get_path(path).is_some() {
-                    results[*index] = layer.digest()?;
+                    results[*index] = Some(layer.digest()?);
                     *path_opt = None;
                 } else {
                     paths_remaining = true;
@@ -566,16 +560,8 @@ async fn find_layers_by_filenames<S: AsRef<str>>(
         }
     }
 
-    // Some path(s) were not resolved.
-    for (_, path_opt) in paths {
-        if let Some(path) = path_opt {
-            return Err(spfs::Error::UnknownReference(path.as_ref().into()).into());
-        }
-    }
-
-    Err(Error::String(
-        "Internal bug; not all paths resolved but unknown which".to_owned(),
-    ))
+    // Any paths still unresolved are left as `None`; see the doc comment.
+    Ok(results)
 }
 
 /// Return a list of spfs object lists that lead to the given
