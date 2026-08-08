@@ -37,6 +37,7 @@ impl ObjectPathEntry {
 pub type ObjectPath = Vec<ObjectPathEntry>;
 
 /// Result data from searching for providers of a path in the active runtime.
+#[derive(Debug)]
 pub struct FindPathProvidersResult {
     /// Paths to providers found in the active runtime.
     pub providers: Vec<ObjectPath>,
@@ -194,4 +195,48 @@ async fn find_path_in_spfs_item(
         paths,
         skipped_unknown_objects,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use rstest::rstest;
+    use serial_test::serial;
+
+    use super::*;
+    use crate::fixtures::{TempRepo, tmprepo};
+
+    #[rstest]
+    #[tokio::test]
+    #[serial(env)]
+    async fn reports_no_active_runtime(#[future] tmprepo: TempRepo) {
+        let repo = tmprepo.await;
+        let runtime_env = "SPFS_RUNTIME";
+        let saved_runtime = std::env::var_os(runtime_env);
+
+        // Safety: process environment is shared mutable state. This test uses
+        // serial(env) so it does not race with other env-mutating tests.
+        unsafe {
+            std::env::remove_var(runtime_env);
+        }
+
+        let diagnostics_err =
+            find_path_providers_in_spfs_runtime_with_diagnostics("/spfs/does-not-exist", &repo)
+                .await
+                .expect_err("expected no active runtime error");
+        assert!(matches!(diagnostics_err, Error::NoActiveRuntime));
+
+        let legacy_err = find_path_providers_in_spfs_runtime("/spfs/does-not-exist", &repo)
+            .await
+            .expect_err("expected no active runtime error");
+        assert!(matches!(legacy_err, Error::NoActiveRuntime));
+
+        // Safety: process environment is shared mutable state. This test uses
+        // serial(env) so it does not race with other env-mutating tests.
+        unsafe {
+            match saved_runtime {
+                Some(val) => std::env::set_var(runtime_env, val),
+                None => std::env::remove_var(runtime_env),
+            }
+        }
+    }
 }

@@ -327,12 +327,11 @@ impl CmdInfo {
                     "No active runtime".red()
                 }
             );
-            if in_a_runtime && search_result.skipped_unknown_objects {
-                println!(
-                    " - {}",
-                    "some runtime objects were unavailable in this repo; enable extra repos (try --origin-local-fallback)"
-                        .yellow()
-                );
+            if let Some(hint) = missing_file_provider_hint(MissingProviderContext {
+                in_a_runtime,
+                skipped_unknown_objects: search_result.skipped_unknown_objects,
+            }) {
+                println!(" - {}", hint.yellow());
             }
         } else {
             if let Some(first_path) = found.first()
@@ -364,5 +363,58 @@ impl CmdInfo {
         }
 
         Ok(())
+    }
+}
+
+struct MissingProviderContext {
+    in_a_runtime: bool,
+    skipped_unknown_objects: bool,
+}
+
+fn missing_file_provider_hint(ctx: MissingProviderContext) -> Option<&'static str> {
+    if ctx.in_a_runtime && ctx.skipped_unknown_objects {
+        Some(
+            "some runtime objects were unavailable in this repo; enable extra repos (try --origin-local-fallback)",
+        )
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{MissingProviderContext, missing_file_provider_hint};
+
+    #[test]
+    fn hint_when_runtime_has_unknown_objects() {
+        assert!(
+            missing_file_provider_hint(MissingProviderContext {
+                in_a_runtime: true,
+                skipped_unknown_objects: true
+            })
+            .is_some()
+        );
+    }
+
+    #[test]
+    fn no_hint_without_runtime() {
+        assert!(
+            missing_file_provider_hint(MissingProviderContext {
+                in_a_runtime: false,
+                skipped_unknown_objects: true
+            })
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn no_hint_without_unknown_objects() {
+        assert!(
+            missing_file_provider_hint(MissingProviderContext {
+                in_a_runtime: true,
+                skipped_unknown_objects: false
+            })
+            .is_none()
+        );
     }
 }
