@@ -17,6 +17,10 @@ use spfs::prelude::*;
 use spfs::{self};
 use spfs_cli_common as cli;
 
+#[cfg(test)]
+#[path = "./cmd_info_test.rs"]
+mod cmd_info_test;
+
 /// Display information about the current environment, or specific items
 #[derive(Debug, Args)]
 pub struct CmdInfo {
@@ -378,43 +382,5 @@ fn missing_file_provider_hint(ctx: MissingProviderContext) -> Option<&'static st
         )
     } else {
         None
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{MissingProviderContext, missing_file_provider_hint};
-
-    #[test]
-    fn hint_when_runtime_has_unknown_objects() {
-        assert!(
-            missing_file_provider_hint(MissingProviderContext {
-                in_a_runtime: true,
-                skipped_unknown_objects: true
-            })
-            .is_some()
-        );
-    }
-
-    #[test]
-    fn no_hint_without_runtime() {
-        assert!(
-            missing_file_provider_hint(MissingProviderContext {
-                in_a_runtime: false,
-                skipped_unknown_objects: true
-            })
-            .is_none()
-        );
-    }
-
-    #[test]
-    fn no_hint_without_unknown_objects() {
-        assert!(
-            missing_file_provider_hint(MissingProviderContext {
-                in_a_runtime: true,
-                skipped_unknown_objects: false
-            })
-            .is_none()
-        );
     }
 }
