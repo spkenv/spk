@@ -299,15 +299,23 @@ impl CmdInfo {
         verbosity: usize,
     ) -> Result<()> {
         let mut in_a_runtime = true;
-        let found = match spfs::find_path::find_path_providers_in_spfs_runtime(filepath, repo).await
-        {
-            Ok(f) => f,
-            Err(spfs::Error::NoActiveRuntime) => {
-                in_a_runtime = false;
-                Vec::new()
-            }
-            Err(err) => return Err(err.into()),
-        };
+        let search_result =
+            match spfs::find_path::find_path_providers_in_spfs_runtime_with_diagnostics(
+                filepath, repo,
+            )
+            .await
+            {
+                Ok(result) => result,
+                Err(spfs::Error::NoActiveRuntime) => {
+                    in_a_runtime = false;
+                    spfs::find_path::FindPathProvidersResult {
+                        providers: Vec::new(),
+                        skipped_unknown_objects: false,
+                    }
+                }
+                Err(err) => return Err(err.into()),
+            };
+        let found = search_result.providers;
 
         if found.is_empty() {
             println!("{filepath}: {}", "not found".yellow());
@@ -319,6 +327,13 @@ impl CmdInfo {
                     "No active runtime".red()
                 }
             );
+            if in_a_runtime && search_result.skipped_unknown_objects {
+                println!(
+                    " - {}",
+                    "some runtime objects were unavailable in this repo; enable extra repos (try --origin-local-fallback)"
+                        .yellow()
+                );
+            }
         } else {
             if let Some(first_path) = found.first()
                 && let Some(ObjectPathEntry::FilePath(file_entry)) = first_path.last()
