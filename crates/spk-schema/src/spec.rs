@@ -3,7 +3,7 @@
 // https://github.com/spkenv/spk
 
 use std::borrow::Cow;
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::io::Read;
 use std::path::Path;
 use std::str::FromStr;
@@ -22,6 +22,7 @@ use spk_schema_foundation::ident::{
 };
 use spk_schema_foundation::ident_build::{Build, BuildId};
 use spk_schema_foundation::ident_component::Component;
+use spk_schema_foundation::name::OptNameBuf;
 use spk_schema_foundation::option_map::OptFilter;
 use spk_schema_foundation::spec_ops::HasBuildIdent;
 
@@ -604,6 +605,12 @@ impl super::Variant for SpecVariant {
     fn additional_requirements(&self) -> Cow<'_, RequirementsList<RequestWithOptions>> {
         match self {
             Self::V0(v) => v.additional_requirements(),
+        }
+    }
+
+    fn removed_requirements(&self) -> Cow<'_, BTreeSet<OptNameBuf>> {
+        match self {
+            Self::V0(v) => v.removed_requirements(),
         }
     }
 }

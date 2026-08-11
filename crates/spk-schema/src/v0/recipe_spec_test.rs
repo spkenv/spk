@@ -550,3 +550,39 @@ fn test_variants_can_introduce_unconstrained_pkg_requirement() {
         "variant {{ new-dep: \"\" }} should introduce an unconstrained package requirement"
     )
 }
+
+#[rstest]
+fn test_variants_can_remove_pkg_requirement() {
+    // A variant entry with a '-' prefix like { "-foo": "" } should remove
+    // the named package option from the build environment, preventing it from
+    // being resolved even though it appears in build.options.
+    let spec: RecipeSpec = serde_yaml::from_str(
+        r#"
+        pkg: test-pkg
+        build:
+          options:
+            - pkg: foo
+          variants:
+            - { "-foo": "" }
+    "#,
+    )
+    .unwrap();
+
+    let variant = spec.build.variants.first().unwrap().clone();
+
+    // The removal should be recorded.
+    assert!(
+        variant
+            .removed_requirements()
+            .iter()
+            .any(|r| r.as_str() == "foo"),
+        "'-foo' should appear in removed_requirements"
+    );
+
+    // opts_for_variant should not include the removed pkg.
+    let opts = spec.build.opts_for_variant(&variant).unwrap();
+    assert!(
+        !opts.iter().any(|o| o.full_name().as_str() == "foo"),
+        "opts_for_variant should not include 'foo' when the variant removes it"
+    );
+}
