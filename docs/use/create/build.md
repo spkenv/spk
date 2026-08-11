@@ -138,6 +138,19 @@ By default, the command line will build all variants defined in your spec file. 
 Variants can introduce new package options, making a build dependency only
 required when building that variant.
 
+Variants can also remove an existing package option from `build.options` for a
+specific variant by prefixing the package name with `-`:
+
+```yaml
+build:
+  options:
+    - pkg: foo/1.0
+    - pkg: bar/2.0
+  variants:
+    # This variant drops the foo build dependency.
+    - { "-foo": "" }
+```
+
 When specifying a package option in a variant, it can name one or more
 components to only add a dependency on those components. The resulting set of
 components is the union of the ones specified in the variant and any existing
