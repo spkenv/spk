@@ -15,7 +15,7 @@ use spk_schema_foundation::ident::{
     RequestWithOptions,
     VarRequest,
 };
-use spk_schema_foundation::name::{OptNameBuf, PkgName};
+use spk_schema_foundation::name::{OptName, OptNameBuf, PkgName};
 use spk_schema_foundation::option_map::OptionMap;
 use spk_schema_foundation::version_range::{VersionFilter, VersionRange};
 
@@ -34,7 +34,7 @@ pub struct Variant {
     options: OptionMap,
     #[serde(skip)]
     requirements: RequirementsList<PinnedRequest>,
-    /// Package option names from `build.options` to exclude from the build
+    /// Option names from `build.options` to exclude from the build
     /// environment when this variant is active.
     #[serde(skip)]
     removals: BTreeSet<OptNameBuf>,
@@ -86,17 +86,17 @@ impl Variant {
             let value = value.as_str();
 
             // A key starting with '-' is a removal request: exclude the named
-            // package option (from build.options) from this variant's build
+            // option (from build.options) from this variant's build
             // environment. The '-' is stripped and the remainder is validated
-            // as a package name.
+            // as an option name.
             if let Some(stripped) = name.as_str().strip_prefix('-') {
-                if let Ok(pkg_name) = PkgName::new(stripped) {
-                    let opt_name: OptNameBuf = pkg_name.as_opt_name().to_owned();
+                if let Ok(opt_name) = OptName::new(stripped) {
+                    let opt_name: OptNameBuf = opt_name.to_owned();
                     removals.insert(opt_name);
                     continue;
                 }
                 return Err(Error::String(format!(
-                    "invalid removal in variant: '-{stripped}' is not a valid package name"
+                    "invalid removal in variant: '-{stripped}' is not a valid option name"
                 )));
             }
 

@@ -26,11 +26,11 @@ pub trait Variant {
     /// Additional requirements with options for this variant
     fn additional_requirements(&self) -> Cow<'_, RequirementsList<RequestWithOptions>>;
 
-    /// Names of package options from `build.options` that this variant
+    /// Names of options from `build.options` that this variant
     /// requests be removed from the build environment.
     ///
-    /// When a variant specifies `-pkg: ""`, the named pkg option is excluded
-    /// from the resolved build environment even if it appears in the recipe's
+    /// When a variant specifies `-name: ""`, the named option is excluded from
+    /// the resolved build environment even if it appears in the recipe's
     /// `build.options` list.
     fn removed_requirements(&self) -> Cow<'_, BTreeSet<OptNameBuf>> {
         Cow::Owned(BTreeSet::new())
