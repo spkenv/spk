@@ -21,7 +21,7 @@ const STATSD_FORMAT: &str = "statsd";
 const LIBRATO_FORMAT: &str = "statsd-exporter-librato";
 
 static METRICS_CLIENT: Lazy<Option<MetricsClient>> = Lazy::new(|| {
-    let Ok(config) = spk_config::get_config() else {
+    let Ok(config) = crate::config::get_config() else {
         return None;
     };
     let statsd_config = &config.statsd;
@@ -123,9 +123,7 @@ impl FromStr for StatsdFormat {
                     .map(ToString::to_string)
                     .collect::<Vec<String>>()
                     .join(", ");
-                Err(Error::String(format!(
-                    "Unsupported statsd metric format: {input}. Please specify SPK_STATSD_FORMAT as one of: {valid_values}"
-                )))
+                Err(Error::UnsupportedMetric(input.to_string(), valid_values))
             }
         }
     }

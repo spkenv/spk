@@ -13,6 +13,7 @@ description = { workspace = true }
 workspace = true
 
 [features]
+statsd = ["dep:statsd"]
 
 [dependencies]
 config = { workspace = true }
@@ -22,6 +23,7 @@ once_cell = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 spfs = { workspace = true }
+statsd = { version = "0.15.0", optional = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

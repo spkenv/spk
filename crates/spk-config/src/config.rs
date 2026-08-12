@@ -375,6 +375,21 @@ pub struct Indexer {
     /// Indexer's kafka broker maximum polling interval in milliseconds
     #[serde(default = "default_indexer_max_polling_interval_ms")]
     pub max_polling_interval_ms: u64,
+
+    /// Name of the metric to update whenever the indexer sends an
+    /// index event message (including heartbeats). With suitable
+    /// external systems, this can be used to monitor an indexer's
+    /// workload and whether it is healthy. If it is not set, or
+    /// statsd is not configured, the metric will not be updated.
+    #[serde(default)]
+    pub index_event_metric_name: Option<String>,
+
+    /// Name of the metric to update whenever an indexer starts
+    /// updating an index. With suitable external systems, this can be
+    /// used to see how often an index is updated. If it is not set,
+    /// or statsd is not configured, the metric will not be updated.
+    #[serde(default)]
+    pub index_update_start_metric_name: Option<String>,
 }
 
 /// Configuration values for spk.

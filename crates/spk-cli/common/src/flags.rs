@@ -20,6 +20,9 @@ use solve::{
     SolverImpl,
     SolverMut,
 };
+#[cfg(unix)]
+#[cfg(feature = "statsd")]
+use spk_config::{SPK_RUN_TIME_METRIC, get_metrics_client};
 use spk_schema::foundation::format::FormatIdent;
 use spk_schema::foundation::ident_build::Build;
 use spk_schema::foundation::ident_component::Component;
@@ -52,9 +55,6 @@ use spk_schema::{
     VariantExt,
 };
 use spk_solve::{self as solve};
-#[cfg(unix)]
-#[cfg(feature = "statsd")]
-use spk_solve::{SPK_RUN_TIME_METRIC, get_metrics_client};
 use spk_storage as storage;
 use spk_storage::IndexedRepository;
 use spk_workspace::{FindOrLoadPackageTemplateError, FindPackageTemplateError};

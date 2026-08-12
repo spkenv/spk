@@ -174,12 +174,19 @@ async fn test_export_works_with_an_indexed_repo(#[case] solver: SolverImpl) {
         .await
         .unwrap();
 
+    // This is not running an indexer, so there isn't a
+    // metric name..
+    let no_metric_name: Option<String> = None;
+
     // Write out an index so that `--index-use enabled` produces an indexed
     // repository instead of falling back to the plain spfs one.
     let local_repo = spk_storage::local_repository().await.unwrap();
-    FlatBufferRepoIndex::index_repo(&vec![("local".to_string(), local_repo.into())])
-        .await
-        .unwrap();
+    FlatBufferRepoIndex::index_repo(
+        &vec![("local".to_string(), local_repo.into())],
+        &no_metric_name,
+    )
+    .await
+    .unwrap();
 
     let filename = rt.tmpdir.path().join("indexed-archive.spk");
     // `--enable-repo local` is needed as well; the local repository is

@@ -124,12 +124,24 @@ pub(crate) struct IndexUpdateMessage {
     pub start: i64,
 }
 
+/// An index update context helper structure
+#[derive(Clone, Debug)]
+pub(crate) struct IndexUpdateContext {
+    /// The start time for this index update, i.e. when the index was
+    /// locked for the update.
+    pub index_start_time: DateTime<Utc>,
+    /// The metric name to use to record that index update event have
+    /// been sent.
+    #[allow(dead_code)]
+    pub index_event_metric_name: Option<String>,
+}
+
 /// Send an index event to each configured messaging system
 pub(crate) async fn announce_index_event(
     event: IndexEvent,
     to: &url::Url,
     repo_name: &RepositoryName,
-    index_start_time: &DateTime<Utc>,
+    index_context: &IndexUpdateContext,
 ) -> Result<()> {
     let config = spk_config::get_config()?;
 
@@ -142,7 +154,7 @@ pub(crate) async fn announce_index_event(
                     "Found kafka messaging channel called: '{}' for index event",
                     kafka_channel.name
                 );
-                kafka::announce_index_event(kafka_channel, event, to, repo_name, index_start_time)
+                kafka::announce_index_event(kafka_channel, event, to, repo_name, index_context)
                     .await?
             }
         }
