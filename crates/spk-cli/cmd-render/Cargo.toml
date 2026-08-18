@@ -24,3 +24,9 @@ spk-solve = { workspace = true }
 spk-storage = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 tracing = { workspace = true }
+
+[dev-dependencies]
+rstest = { workspace = true }
+spfstest = { workspace = true }
+spk-build = { workspace = true }
+spk-schema = { workspace = true }

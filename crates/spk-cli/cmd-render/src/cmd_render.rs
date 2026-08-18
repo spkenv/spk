@@ -11,6 +11,10 @@ use spk_cli_common::{CommandArgs, Run, build_required_packages, flags};
 use spk_exec::resolve_runtime_layers;
 use spk_solve::{Solver, SolverMut};
 
+#[cfg(test)]
+#[path = "./cmd_render_test.rs"]
+mod cmd_render_test;
+
 /// Output the contents of an spk environment (/spfs) to a folder
 #[derive(Args)]
 pub struct Render {
