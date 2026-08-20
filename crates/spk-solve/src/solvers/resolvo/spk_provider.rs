@@ -3,7 +3,7 @@
 // https://github.com/spkenv/spk
 
 use std::borrow::Cow;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ops::Not;
 use std::sync::Arc;
@@ -507,6 +507,33 @@ pub(crate) struct SpkProvider {
     /// When recursively exploring building packages from source, track chain
     /// of packages to detect cycles.
     build_from_source_trail: RefCell<HashSet<LocatedBuildIdent>>,
+    /// Whether an embedded stub may satisfy a request that does not name an
+    /// embedded build. The solve is first attempted with `Deny` and retried
+    /// with `Allow` if that has no solution, so a stub is still used when it
+    /// is the only way to solve.
+    ambient_embedded_stubs: AmbientEmbeddedStubs,
+    /// Records whether `ambient_embedded_stubs` actually rejected a candidate
+    /// during this solve. If it never did, the solve was equivalent to one
+    /// without the restriction and there is nothing to gain by retrying.
+    rejected_an_ambient_stub: Cell<bool>,
+    /// Memoizes, per request, whether an embedded stub is the only candidate
+    /// that can satisfy it. Keyed by `VersionSetId`, so it must not outlive the
+    /// pool that interned those ids.
+    ambient_stub_is_only_option: RefCell<HashMap<VersionSetId, bool>>,
+}
+
+/// Whether an embedded stub is allowed to satisfy an "ambient" request, that
+/// is, a request that does not name a specific embedded build.
+///
+/// Requests generated from a parent package's `install.embedded` name the
+/// stub's build explicitly and are unaffected by this either way.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum AmbientEmbeddedStubs {
+    /// Only a request naming an embedded build may resolve to a stub, so a
+    /// stub can never pull its parent into the solution on its own.
+    Deny,
+    /// A stub is an ordinary candidate for any request.
+    Allow,
 }
 
 impl SpkProvider {
@@ -612,6 +639,7 @@ impl SpkProvider {
         known_global_vars: HashMap<OptNameBuf, HashSet<VarValue>>,
         binary_only: bool,
         build_from_source_trail: HashSet<LocatedBuildIdent>,
+        ambient_embedded_stubs: AmbientEmbeddedStubs,
     ) -> Self {
         let known_global_var_values = RefCell::new(known_global_vars);
 
@@ -626,6 +654,25 @@ impl SpkProvider {
             cancel_solving: Default::default(),
             binary_only,
             build_from_source_trail: RefCell::new(build_from_source_trail),
+            ambient_embedded_stubs,
+            rejected_an_ambient_stub: Default::default(),
+            ambient_stub_is_only_option: Default::default(),
+        }
+    }
+
+    /// Whether this solve rejected an embedded stub for an ambient request.
+    /// When false, retrying with the restriction lifted cannot change the
+    /// outcome.
+    pub fn rejected_an_ambient_stub(&self) -> bool {
+        self.rejected_an_ambient_stub.get()
+    }
+
+    /// Return a new provider that will allow embedded stubs to satisfy
+    /// ambient requests, preserving what was learned about global variables.
+    pub fn allowing_ambient_embedded_stubs(&self) -> Self {
+        Self {
+            ambient_embedded_stubs: AmbientEmbeddedStubs::Allow,
+            ..self.reset()
         }
     }
 
@@ -867,6 +914,10 @@ impl SpkProvider {
             cancel_solving: Default::default(),
             binary_only: self.binary_only,
             build_from_source_trail: self.build_from_source_trail.clone(),
+            ambient_embedded_stubs: self.ambient_embedded_stubs,
+            rejected_an_ambient_stub: Default::default(),
+            // Version set ids belong to the pool being replaced.
+            ambient_stub_is_only_option: Default::default(),
         }
     }
 
@@ -948,12 +999,19 @@ impl SpkProvider {
     }
 }
 
-impl DependencyProvider for SpkProvider {
-    async fn filter_candidates(
+impl SpkProvider {
+    /// Return the candidates matching `version_set`, or those not matching it
+    /// when `inverse` is set.
+    ///
+    /// When `deny_ambient_stubs` is `Some`, an embedded stub does not satisfy a
+    /// request that fails to name an embedded build, and the cell is set
+    /// whenever that actually rejects a candidate.
+    async fn filter_candidates_inner(
         &self,
         candidates: &[SolvableId],
         version_set: VersionSetId,
         inverse: bool,
+        deny_ambient_stubs: Option<&Cell<bool>>,
     ) -> Vec<SolvableId> {
         let mut selected = Vec::with_capacity(candidates.len());
         let request_vs = self.pool.resolve_version_set(version_set);
@@ -1016,6 +1074,31 @@ impl DependencyProvider for SpkProvider {
                                 .unwrap_or(false)
                                 ^ inverse
                             {
+                                selected.push(*candidate);
+                            }
+                            continue;
+                        }
+
+                        // Only select embedded stubs for requests that
+                        // explicitly name an embedded build. Such a request
+                        // is generated from a parent package's
+                        // `install.embedded`, so the parent is already in the
+                        // solution. An ambient request resolving to a stub
+                        // would instead drag the stub's parent in, which is
+                        // only acceptable as a last resort.
+                        if let Some(rejected) = deny_ambient_stubs
+                            && located_build_ident_with_component
+                                .ident
+                                .build()
+                                .is_embedded()
+                            && !pkg_request
+                                .pkg
+                                .build
+                                .as_ref()
+                                .is_some_and(|build| build.is_embedded())
+                        {
+                            rejected.set(true);
+                            if inverse {
                                 selected.push(*candidate);
                             }
                             continue;
@@ -1189,6 +1272,77 @@ impl DependencyProvider for SpkProvider {
             }
         }
         selected
+    }
+}
+
+impl DependencyProvider for SpkProvider {
+    async fn filter_candidates(
+        &self,
+        candidates: &[SolvableId],
+        version_set: VersionSetId,
+        inverse: bool,
+    ) -> Vec<SolvableId> {
+        if self.ambient_embedded_stubs == AmbientEmbeddedStubs::Allow {
+            return self
+                .filter_candidates_inner(candidates, version_set, inverse, None)
+                .await;
+        }
+
+        // Decide, once per request, whether denying embedded stubs would leave
+        // this request with no candidates at all. If it would, the stub is the
+        // only thing that can satisfy this request and denying it can only make
+        // the problem unsolvable, so allow it here rather than failing the
+        // whole solve and relaxing the restriction for every other request.
+        //
+        // Both of resolvo's call sites (`solver/cache.rs`) pass the complete
+        // candidate list for the package name and memoize the result per
+        // version set, so this decision is stable and the `inverse` and
+        // non-`inverse` calls cannot disagree about it.
+        // Skip the probe below for the common case of a package that has no
+        // embedded stubs at all, where denying them cannot change anything.
+        let any_candidate_is_a_stub = candidates.iter().any(|candidate| {
+            matches!(
+                &self.pool.resolve_solvable(*candidate).record,
+                SpkSolvable::LocatedBuildIdentWithComponent(build)
+                    if build.ident.build().is_embedded()
+            )
+        });
+        if !any_candidate_is_a_stub {
+            return self
+                .filter_candidates_inner(candidates, version_set, inverse, None)
+                .await;
+        }
+
+        let cached = self
+            .ambient_stub_is_only_option
+            .borrow()
+            .get(&version_set)
+            .copied();
+        let stub_is_only_option = match cached {
+            Some(known) => known,
+            None => {
+                let probe_rejections = Cell::new(false);
+                let only_option = self
+                    .filter_candidates_inner(
+                        candidates,
+                        version_set,
+                        false,
+                        Some(&probe_rejections),
+                    )
+                    .await
+                    .is_empty();
+                self.ambient_stub_is_only_option
+                    .borrow_mut()
+                    .insert(version_set, only_option);
+                only_option
+            }
+        };
+
+        // Only a denial that stands is worth recording: a stub allowed above
+        // is not a reason to retry the solve.
+        let deny = (!stub_is_only_option).then_some(&self.rejected_an_ambient_stub);
+        self.filter_candidates_inner(candidates, version_set, inverse, deny)
+            .await
     }
 
     async fn get_candidates(&self, name: NameId) -> Option<Candidates> {

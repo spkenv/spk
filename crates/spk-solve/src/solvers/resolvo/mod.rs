@@ -22,7 +22,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use pkg_request_version_set::{SpkSolvable, SyntheticComponent, VarValue};
-use spk_provider::SpkProvider;
+use spk_provider::{AmbientEmbeddedStubs, SpkProvider};
 use spk_schema::ident::{
     InclusionPolicy,
     LocatedBuildIdent,
@@ -179,6 +179,9 @@ impl Solver {
                 known_global_vars.clone(),
                 binary_only,
                 build_from_source_trail,
+                // First attempt: don't let an embedded stub satisfy an
+                // ambient request. Relaxed below if that has no solution.
+                AmbientEmbeddedStubs::Deny,
             ));
             let mut loop_counter = 0;
             let (solver, solved) = loop {
@@ -209,6 +212,18 @@ impl Solver {
                         if solver.provider().is_canceled() {
                             provider = Some(solver.provider().reset());
                             tracing::info!("Solver retry {loop_counter}");
+                            continue;
+                        }
+                        // If the only thing standing in the way was the
+                        // refusal to let an embedded stub satisfy an ambient
+                        // request, lift that and try once more. Report the
+                        // relaxed conflict rather than this one, since this
+                        // one would blame a stub the user never asked for.
+                        if solver.provider().rejected_an_ambient_stub() {
+                            provider = Some(solver.provider().allowing_ambient_embedded_stubs());
+                            tracing::info!(
+                                "Solver retry {loop_counter}: no solution avoids embedded stubs"
+                            );
                             continue;
                         }
                         return Err(Error::FailedToResolve(format!(
