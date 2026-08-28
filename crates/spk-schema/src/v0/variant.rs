@@ -15,7 +15,7 @@ use spk_schema_foundation::ident::{
     RequestWithOptions,
     VarRequest,
 };
-use spk_schema_foundation::name::PkgName;
+use spk_schema_foundation::name::{OptName, OptNameBuf, PkgName};
 use spk_schema_foundation::option_map::OptionMap;
 use spk_schema_foundation::version_range::{VersionFilter, VersionRange};
 
@@ -34,6 +34,10 @@ pub struct Variant {
     options: OptionMap,
     #[serde(skip)]
     requirements: RequirementsList<PinnedRequest>,
+    /// Option names from `build.options` to exclude from the build
+    /// environment when this variant is active.
+    #[serde(skip)]
+    removals: BTreeSet<OptNameBuf>,
 }
 
 impl Variant {
@@ -61,6 +65,7 @@ impl Variant {
         Self {
             options,
             requirements: RequirementsList::default(),
+            removals: BTreeSet::default(),
         }
     }
 
@@ -71,6 +76,7 @@ impl Variant {
     pub fn from_spec(spec: VariantSpec, build_options: &[Opt]) -> Result<Self> {
         let mut options = OptionMap::default();
         let mut requirements = RequirementsList::default();
+        let mut removals = BTreeSet::default();
 
         for (key, value) in spec.entries.into_iter() {
             let name = match &key {
@@ -78,6 +84,22 @@ impl Variant {
                 VariantSpecEntryKey::Opt(opt) => opt.to_owned(),
             };
             let value = value.as_str();
+
+            // A key starting with '-' is a removal request: exclude the named
+            // option (from build.options) from this variant's build
+            // environment. The '-' is stripped and the remainder is validated
+            // as an option name.
+            if let Some(stripped) = name.as_str().strip_prefix('-') {
+                if let Ok(opt_name) = OptName::new(stripped) {
+                    let opt_name: OptNameBuf = opt_name.to_owned();
+                    removals.insert(opt_name);
+                    continue;
+                }
+                return Err(Error::String(format!(
+                    "invalid removal in variant: '-{stripped}' is not a valid option name"
+                )));
+            }
+
             options.insert(name.clone(), value.to_owned());
 
             // if it was parsed as something with components, then it is a pkg
@@ -147,6 +169,7 @@ impl Variant {
         Ok(Self {
             options,
             requirements,
+            removals,
         })
     }
 }
@@ -158,6 +181,10 @@ impl crate::Variant for Variant {
 
     fn additional_requirements(&self) -> Cow<'_, RequirementsList<RequestWithOptions>> {
         Cow::Owned((self.options.iter(), &self.requirements).into())
+    }
+
+    fn removed_requirements(&self) -> Cow<'_, BTreeSet<OptNameBuf>> {
+        Cow::Borrowed(&self.removals)
     }
 }
 
