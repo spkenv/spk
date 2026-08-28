@@ -79,6 +79,16 @@ build:
 
 This is a generic error code that has no more specific information or help documentation attached. If you encounter one of these, please reach out for help by submitting an issue on [github](https://github.com/spkenv/spk).
 
+### `spfs::runtime`
+
+This is a category of errors related to SPFS runtime operations including environment initialization, commit operations, and runtime filesystem management. These errors typically occur when:
+
+- Attempting operations outside an active SPFS runtime
+- Runtime initialization or configuration fails
+- Filesystem operations within the runtime encounter issues
+
+If you encounter a runtime error, ensure you are running within an SPFS environment (e.g., via `spfs shell` or `spfs run`). For more details on runtime semantics, see the [runtime documentation]({{< ref "../spfs/develop/runtime" >}}).
+
 ### `spfs::could_not_create_spfs_dir`
 
 Spfs relies on a specific directory in which to work. All files in the runtime environment are visible at that location and this root directory must exist before spfs can use it.
