@@ -15,10 +15,13 @@ BuildRequires: fuse-devel
 BuildRequires: m4
 BuildRequires: cmake3
 BuildRequires: make
-BuildRequires: devtoolset-9
+BuildRequires: flatbuffers-compiler
 BuildRequires: libcurl-devel
 
-BuildRequires: spdev >= 0.29.18
+# XXX Putting "spdev >= 0.29.16" here is getting parsed as three separate
+# args to yum install, e.g., "yum install '>='", and failing. Some different
+# behavior out of 'rpmspec -q --buildrequires' on rocky?
+BuildRequires: spdev
 
 Requires: bash
 Requires: fuse
@@ -27,7 +30,7 @@ Requires: fuse
 # set and logs a warning on every run.
 Requires: kmod
 Obsoletes: spfs
-Provides: spfs = 0.44.0
+Provides: spfs = 0.43.10
 
 %define debug_package %{nil}
 
@@ -44,11 +47,9 @@ export CMAKE=$(command -v cmake3 || command -v cmake)
 dev toolchain install
 source ~/.bashrc
 # Install ast-grep
-echo -e '#! /bin/bash\n\nexec cc -D_BSD_SOURCE "$@"' > cc_wrapper
-chmod +x cc_wrapper
-scl enable devtoolset-9 -- env CC=`pwd`/cc_wrapper cargo install --locked ast-grep
+cargo install --locked ast-grep
 # Include `--all` to also build spk-launcher
-dev env -- cargo build --release --features "server,sentry,spfs/protobuf-src,spfs-vfs/protobuf-src,statsd,fuse-backend-rhel-7-6" --all
+dev env -- cargo build --release --features "server,sentry,spfs/protobuf-src,spfs-vfs/protobuf-src,statsd,fuse-backend-rhel-7-9" --all
 
 %install
 mkdir -p %{buildroot}/usr/local/bin
@@ -68,7 +69,7 @@ cp %{_builddir}/%{name}-v%{version}/.site/spi/spk-pkg-metadata.sh %{buildroot}/u
 %caps(cap_net_admin+ep) /usr/local/bin/spfs-monitor
 %caps(cap_chown,cap_fowner+ep) /usr/local/bin/spfs-render
 %caps(cap_sys_chroot,cap_sys_admin+ep) /usr/local/bin/spfs-join
-%caps(cap_dac_override,cap_setuid,cap_chown,cap_mknod,cap_sys_admin,cap_fowner+ep) /usr/local/bin/spfs-enter
+%caps(cap_setuid,cap_chown,cap_mknod,cap_sys_admin,cap_fowner+ep) /usr/local/bin/spfs-enter
 %caps(cap_sys_admin+ep) /usr/local/bin/spfs-fuse
 /usr/local/bin/spfs-winfsp
 /usr/local/bin/spk-launcher

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+#![allow(unused_assignments)]
+
 use std::path::PathBuf;
 
 use colored::Colorize;

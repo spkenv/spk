@@ -1321,8 +1321,10 @@ impl Repositories {
                     }
                     // The fallback default if there's no configuration for this repo.
                     None => {
-                        // Enable index use on all repositories, except the 'local' repo.
-                        let default_index_use = name != "local";
+                        // Respect the global solver setting for unconfigured repos.
+                        // Local repos remain non-indexed by default because they are
+                        // usually small and often do not have an index at all.
+                        let default_index_use = config.solver.use_indexes && name != "local";
                         tracing::debug!(
                             "Using default use index setting for '{name}' repo, which is: {} ({} index use)",
                             default_index_use,

@@ -49,7 +49,7 @@ async-stream = "0.3"
 async-trait = "0.1"
 bracoxide = "0.1.4"
 bytes = "1.11"
-cached = "0.48.1"
+cached = "0.54.0"
 chrono = { version = "0.4.34", features = ["serde"] }
 clap = { version = "4.5", features = ["derive", "env"] }
 clap_complete = "4.5"

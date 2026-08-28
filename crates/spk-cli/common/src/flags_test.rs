@@ -2,15 +2,32 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use clap::Parser;
 use rstest::rstest;
+use spfs::RemoteAddress;
+use spfs::config::Remote;
+use spfstest::spfstest;
 use spk_schema::RequestWithOptions;
 use spk_schema::foundation::name::OptName;
 use spk_schema::foundation::option_map::OptionMap;
 use spk_schema::ident::{PkgRequestOptionValue, VarRequest};
 use spk_schema::option_map::HOST_OPTIONS;
 use spk_solve::Solver;
+use spk_storage::RepositoryHandle;
+use spk_storage::fixtures::{spfs_runtime, spfsrepo};
 
 use crate::flags::{DecisionFormatterSettings, SolverToRun, SolverToShow};
+
+struct SpkConfigRestore(spk_config::Config);
+
+impl Drop for SpkConfigRestore {
+    fn drop(&mut self) {
+        self.0
+            .clone()
+            .make_current()
+            .expect("Failed to restore spk config after test");
+    }
+}
 
 #[rstest]
 #[case(&["hello:world"], &[("hello", "world")])]
@@ -153,4 +170,44 @@ async fn test_parse_request_includes_matching_cli_options() {
 
     let unrelated_opt = OptName::new("other.namespace_style").unwrap().to_owned();
     assert!(!pkg_request.options.contains_key(&unrelated_opt));
+}
+
+#[derive(Parser)]
+struct ReposOpt {
+    #[clap(flatten)]
+    repos: crate::flags::Repositories,
+}
+
+#[spfstest]
+#[tokio::test]
+#[serial_test::serial(spk_config)]
+async fn test_non_destructive_repos_do_not_use_indexes_by_default() {
+    let mut rt = spfs_runtime().await;
+    let remote_repo = spfsrepo().await;
+
+    rt.add_remote_repo(
+        "origin",
+        Remote::Address(RemoteAddress {
+            address: remote_repo.address().clone(),
+        }),
+    )
+    .unwrap();
+
+    let original_config = spk_config::get_config().unwrap();
+    let _restore = SpkConfigRestore((*original_config).clone());
+    let mut test_config = (*original_config).clone();
+    test_config.solver.use_indexes = false;
+    test_config.repositories.clear();
+    test_config.make_current().unwrap();
+
+    let repos = ReposOpt::try_parse_from(["repos", "--no-local-repo"])
+        .unwrap()
+        .repos
+        .get_repos_for_non_destructive_operation()
+        .await
+        .unwrap();
+
+    assert_eq!(repos.len(), 1);
+    assert_eq!(repos[0].0, "origin");
+    assert!(!matches!(repos[0].1, RepositoryHandle::Indexed(_)));
 }

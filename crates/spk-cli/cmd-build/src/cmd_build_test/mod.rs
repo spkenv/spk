@@ -950,6 +950,7 @@ build:
     .expect("Expected build of consumer to succeed");
 }
 
+#[spfstest]
 #[rstest]
 #[case::cli("cli")]
 #[case::checks("checks")]

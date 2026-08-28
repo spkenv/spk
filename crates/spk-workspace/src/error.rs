@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+#![allow(unused_assignments)]
+
 //! Errors reported by this crate.
 
 use std::path::PathBuf;
