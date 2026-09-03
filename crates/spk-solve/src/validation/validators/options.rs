@@ -8,7 +8,7 @@ use spk_schema::ident::{AsVersionIdent, PinnedValue};
 use spk_schema::version::IncompatibleReason;
 
 use super::prelude::*;
-use crate::ValidatorT;
+use crate::validation::ValidatorT;
 
 /// Ensures that a package is compatible with all requested options.
 #[derive(Clone, Copy, Default)]
@@ -20,7 +20,7 @@ impl ValidatorT for OptionsValidator {
         state: &State,
         spec: &P,
         _source: &PackageSource,
-    ) -> crate::Result<Compatibility>
+    ) -> crate::validation::Result<Compatibility>
     where
         P: Satisfy<PkgRequestWithOptions> + Satisfy<VarRequest<PinnedValue>> + Package,
         <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequestWithOptions>,
@@ -57,7 +57,7 @@ impl ValidatorT for OptionsValidator {
         &self,
         state: &State,
         recipe: &R,
-    ) -> crate::Result<Compatibility> {
+    ) -> crate::validation::Result<Compatibility> {
         if recipe.resolve_options(state.get_option_map()).is_err() {
             Ok(Compatibility::Incompatible(
                 IncompatibleReason::OptionResolveError,

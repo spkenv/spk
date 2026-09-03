@@ -8,8 +8,8 @@ use spk_schema::ident::AsVersionIdent;
 use spk_schema::version::{CommaSeparated, ComponentsMissingProblem, IncompatibleReason};
 
 use super::prelude::*;
-use crate::ValidatorT;
-use crate::validators::EmbeddedPackageValidator;
+use crate::validation::ValidatorT;
+use crate::validation::validators::EmbeddedPackageValidator;
 
 /// Ensures that all of the requested components are available.
 #[derive(Clone, Copy)]
@@ -22,7 +22,7 @@ impl ValidatorT for ComponentsValidator {
         state: &State,
         spec: &P,
         source: &PackageSource,
-    ) -> crate::Result<Compatibility>
+    ) -> crate::validation::Result<Compatibility>
     where
         P: Package,
         <P as Package>::EmbeddedPackage: AsVersionIdent + Named + Satisfy<PkgRequestWithOptions>,
@@ -49,7 +49,7 @@ impl ValidatorT for ComponentsValidator {
         &self,
         _state: &State,
         _recipe: &R,
-    ) -> crate::Result<Compatibility> {
+    ) -> crate::validation::Result<Compatibility> {
         Ok(Compatibility::Compatible)
     }
 
@@ -58,7 +58,7 @@ impl ValidatorT for ComponentsValidator {
         pkgrequest_data: &PR,
         package: &P,
         source: &PackageSource,
-    ) -> crate::Result<Compatibility>
+    ) -> crate::validation::Result<Compatibility>
     where
         PR: GetMergedRequest,
         P: Package,
@@ -80,7 +80,7 @@ impl ValidatorT for ComponentsValidator {
 }
 
 impl ComponentsValidator {
-    fn check_for_embedded_stub<P>(&self, package: &P) -> crate::Result<Compatibility>
+    fn check_for_embedded_stub<P>(&self, package: &P) -> crate::validation::Result<Compatibility>
     where
         P: Package,
     {
@@ -99,7 +99,7 @@ impl ComponentsValidator {
         request: &PkgRequest,
         package: &P,
         source: &PackageSource,
-    ) -> crate::Result<Compatibility>
+    ) -> crate::validation::Result<Compatibility>
     where
         P: Package,
     {
