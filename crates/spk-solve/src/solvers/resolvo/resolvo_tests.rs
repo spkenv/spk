@@ -169,6 +169,7 @@ async fn global_vars(#[case] global_spec: &str, #[case] expected_color: &str) {
                      {"var": "color/blue"}
                  ]
              }
+
             },
             {"pkg": "dep/1.0.0",
              "build": {
@@ -196,6 +197,57 @@ async fn global_vars(#[case] global_spec: &str, #[case] expected_color: &str) {
     assert_eq!(
         dep.spec.option_values().get(opt_name!("color")).unwrap(),
         expected_color
+    );
+}
+
+#[rstest]
+#[tokio::test]
+async fn reports_global_option_mismatch_for_excluded_candidate() {
+    let spemail_recipe = spk_schema::recipe!({
+        "pkg": "spemail/0.0.15",
+        "build": {
+            "options": [
+                {"var": "rocky"},
+            ],
+        },
+        "install": {
+            "requirements": [
+                {"pkg": "python-pytest"},
+            ],
+        },
+    });
+    let pytest_recipe = spk_schema::recipe!({
+        "pkg": "python-pytest/9.1.1",
+        "build": {
+            "options": [
+                {"var": "rocky"},
+            ],
+        },
+    });
+    let spemail = spk_solve_macros::make_build!(
+        spemail_recipe,
+        [],
+        {"rocky" => "9.5"}
+    );
+    let pytest = spk_solve_macros::make_build!(pytest_recipe, [], {"rocky" => "9.8"});
+    let repo = make_repo!([spemail, pytest]);
+
+    let mut solver = Solver::new(vec![repo.into()], Cow::Borrowed(&[]));
+    solver.add_request(pinned_request!("spemail"));
+    solver.add_request(pinned_request!({"var": "rocky/9.5"}));
+
+    let error = solver
+        .solve()
+        .await
+        .expect_err("a Rocky 9.8 build must not resolve for Rocky 9.5");
+
+    assert!(
+        error.to_string().contains("rocky=9.5"),
+        "expected error to report the requested Rocky version: {error}"
+    );
+    assert!(
+        error.to_string().contains("rocky=9.8"),
+        "expected error to report the candidate Rocky version: {error}"
     );
 }
 

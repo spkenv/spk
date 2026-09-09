@@ -393,7 +393,8 @@ impl ResolvoPackageName {
                             // package's build options, so is it better to do this loop
                             // over `option_values` here, or loop over all the
                             // global_var_requests instead?
-                            for (opt_name, _value) in package.option_values() {
+                            let mut matches_global_options = true;
+                            for (opt_name, value) in package.option_values() {
                                 if let Some(request) = provider.global_var_requests.get(&opt_name)
                                     && let spk_schema::version::Compatibility::Incompatible(
                                         incompatible_reason,
@@ -405,11 +406,22 @@ impl ResolvoPackageName {
                                             "build option {opt_name} does not satisfy global var request: {incompatible_reason}"
                                         )),
                                     ));
-                                    continue;
+                                    provider
+                                        .global_option_exclusions
+                                        .borrow_mut()
+                                        .insert(format!(
+                                            "{ident} was excluded: build option {opt_name}={value} \
+                                             conflicts with configured option {opt_name}={}",
+                                            request.value,
+                                        ));
+                                    matches_global_options = false;
+                                    break;
                                 }
                             }
 
-                            candidates.candidates.push(solvable_id);
+                            if matches_global_options {
+                                candidates.candidates.push(solvable_id);
+                            }
                         }
                         Err(err) => {
                             candidates
@@ -502,6 +514,9 @@ pub(crate) struct SpkProvider {
     /// queried, it is no longer possible to add more possible values without
     /// restarting the solve.
     queried_global_var_values: RefCell<HashSet<OptNameBuf>>,
+    /// Candidate builds rejected because they conflict with configured solver
+    /// options. Retained to make the final unsatisfiable error actionable.
+    global_option_exclusions: RefCell<BTreeSet<String>>,
     cancel_solving: RefCell<Option<String>>,
     binary_only: bool,
     /// When recursively exploring building packages from source, track chain
@@ -623,6 +638,7 @@ impl SpkProvider {
             interned_solvables: Default::default(),
             known_global_var_values,
             queried_global_var_values: Default::default(),
+            global_option_exclusions: Default::default(),
             cancel_solving: Default::default(),
             binary_only,
             build_from_source_trail: RefCell::new(build_from_source_trail),
@@ -747,6 +763,15 @@ impl SpkProvider {
         self.cancel_solving.borrow().is_some()
     }
 
+    /// Format candidate rejections caused by configured global options.
+    pub fn format_global_option_exclusions(&self) -> String {
+        self.global_option_exclusions
+            .borrow()
+            .iter()
+            .map(|exclusion| format!(" * {exclusion}"))
+            .join("\n")
+    }
+
     /// Return an iterator that yields slices of builds that are from the same
     /// package version.
     ///
@@ -864,6 +889,7 @@ impl SpkProvider {
             interned_solvables: Default::default(),
             known_global_var_values: RefCell::new(self.known_global_var_values.take()),
             queried_global_var_values: Default::default(),
+            global_option_exclusions: Default::default(),
             cancel_solving: Default::default(),
             binary_only: self.binary_only,
             build_from_source_trail: self.build_from_source_trail.clone(),
