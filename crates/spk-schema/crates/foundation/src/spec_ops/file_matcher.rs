@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // https://github.com/spkenv/spk
 
+use std::sync::{Arc, Mutex};
+
 use serde::{Deserialize, Serialize};
 
 use super::{Error, Result};
@@ -15,7 +17,7 @@ mod file_matcher_test;
 #[derive(Clone)]
 pub struct FileMatcher {
     rules: Vec<String>,
-    gitignore: ignore::gitignore::Gitignore,
+    gitignore: Arc<Mutex<Option<Result<ignore::gitignore::Gitignore>>>>,
 }
 
 impl std::fmt::Debug for FileMatcher {
@@ -32,7 +34,7 @@ impl Default for FileMatcher {
     fn default() -> Self {
         Self {
             rules: Vec::new(),
-            gitignore: ignore::gitignore::Gitignore::empty(),
+            gitignore: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -76,15 +78,7 @@ impl FileMatcher {
         I: Into<String>,
     {
         let rules: Vec<_> = rules.into_iter().map(Into::into).collect();
-        let mut builder = ignore::gitignore::GitignoreBuilder::new("/");
-        for rule in rules.iter() {
-            builder
-                .add_line(None, rule)
-                .map_err(|err| Error::String(format!("Invalid file pattern '{rule}': {err:?}")))?;
-        }
-        let gitignore = builder
-            .build()
-            .map_err(|err| Error::String(format!("Failed to compile file patterns: {err:?}")))?;
+        let gitignore = Arc::new(Mutex::new(None));
         Ok(Self { rules, gitignore })
     }
 
@@ -99,11 +93,50 @@ impl FileMatcher {
         &self.rules
     }
 
-    /// Reports true if the given path matches a rule in this set
-    pub fn matches<P: AsRef<std::path::Path>>(&self, path: P, is_dir: bool) -> bool {
-        self.gitignore
-            .matched_path_or_any_parents(path, is_dir)
-            .is_ignore()
+    /// Reports true if the given path matches a rule in this set.
+    ///
+    /// The first call to this will construct an internal gitignore
+    /// matching object and cache it for subsequent calls.
+    pub fn matches<P: AsRef<std::path::Path>>(&self, path: P, is_dir: bool) -> Result<bool> {
+        if self.rules.is_empty() {
+            // Short-circuit if there are no rules to match against.
+            // See `all()` method for making a FileMatcher that will
+            // match all paths.
+            return Ok(false);
+        }
+
+        let mut matcher = self
+            .gitignore
+            .lock()
+            .map_err(|err| Error::String(err.to_string()))?;
+
+        if matcher.is_none() {
+            let mut builder = ignore::gitignore::GitignoreBuilder::new("/");
+            for rule in self.rules.iter() {
+                builder.add_line(None, rule).map_err(|err| {
+                    let error = format!("Invalid file pattern '{rule}': {err:?}");
+                    *matcher = Some(Err(Error::String(error.clone())));
+                    Error::String(error)
+                })?;
+            }
+            let gitignore = builder.build().map_err(|err| {
+                let error = format!("Failed to compile file patterns: {err:?}");
+                *matcher = Some(Err(Error::String(error.clone())));
+                Error::String(error)
+            })?;
+            *matcher = Some(Ok(gitignore));
+        }
+
+        if let Some(ref gitignore_matcher) = *matcher {
+            match gitignore_matcher {
+                Ok(m) => Ok(m.matched_path_or_any_parents(path, is_dir).is_ignore()),
+                Err(err) => Err(Error::String(err.to_string())),
+            }
+        } else {
+            Err(Error::String(
+                "Unable to construct a gitignore matching object for file matcher".to_string(),
+            ))
+        }
     }
 }
 
