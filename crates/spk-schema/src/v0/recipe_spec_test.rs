@@ -516,3 +516,109 @@ fn test_variants_can_append_components_and_modify_version() {
         "dep-pkg adds package dependency with comp1 and comp2 enabled and expected version"
     )
 }
+
+#[rstest]
+fn test_variants_can_introduce_unconstrained_pkg_requirement() {
+    // A variant entry whose key is a valid package name and whose value is an
+    // empty string (no version constraint) should introduce a new package
+    // requirement with no version restriction, not a var request, when the
+    // key does not appear in build.options.
+    let spec: RecipeSpec = serde_yaml::from_str(
+        r#"
+        pkg: test-pkg
+        build:
+          variants:
+            - { new-dep: "" }
+    "#,
+    )
+    .unwrap();
+
+    let mut found = false;
+    for variant in spec.build.variants {
+        for requirement in variant.additional_requirements().iter() {
+            if let RequestWithOptions::Pkg(pkg) = requirement
+                && pkg.pkg.name == "new-dep"
+            {
+                found = true;
+                break;
+            }
+        }
+    }
+
+    assert!(
+        found,
+        "variant {{ new-dep: \"\" }} should introduce an unconstrained package requirement"
+    )
+}
+
+#[rstest]
+fn test_variants_can_remove_pkg_requirement() {
+    // A variant entry with a '-' prefix like { "-foo": "" } should remove
+    // the named package option from the build environment, preventing it from
+    // being resolved even though it appears in build.options.
+    let spec: RecipeSpec = serde_yaml::from_str(
+        r#"
+        pkg: test-pkg
+        build:
+          options:
+            - pkg: foo
+          variants:
+            - { "-foo": "" }
+    "#,
+    )
+    .unwrap();
+
+    let variant = spec.build.variants.first().unwrap().clone();
+
+    // The removal should be recorded.
+    assert!(
+        variant
+            .removed_requirements()
+            .iter()
+            .any(|r| r.as_str() == "foo"),
+        "'-foo' should appear in removed_requirements"
+    );
+
+    // opts_for_variant should not include the removed pkg.
+    let opts = spec.build.opts_for_variant(&variant).unwrap();
+    assert!(
+        !opts.iter().any(|o| o.full_name().as_str() == "foo"),
+        "opts_for_variant should not include 'foo' when the variant removes it"
+    );
+}
+
+#[rstest]
+fn test_variants_can_remove_var_requirement() {
+    // A variant entry with a '-' prefix like { "-debug": "" } should remove
+    // the named var option from the build environment, preventing it from
+    // being resolved even though it appears in build.options.
+    let spec: RecipeSpec = serde_yaml::from_str(
+        r#"
+        pkg: test-pkg
+        build:
+          options:
+            - var: debug/on
+          variants:
+            - { "-debug": "" }
+    "#,
+    )
+    .unwrap();
+
+    let variant = spec.build.variants.first().unwrap().clone();
+
+    // The removal should be recorded.
+    assert!(
+        variant
+            .removed_requirements()
+            .iter()
+            .any(|r| r.as_str() == "debug"),
+        "'-debug' should appear in removed_requirements"
+    );
+
+    // opts_for_variant should not include the removed var.
+    let opts = spec.build.opts_for_variant(&variant).unwrap();
+    assert!(
+        !opts.iter().any(|o| o.full_name().as_str() == "debug"),
+        "opts_for_variant should not include 'debug' when the variant removes it"
+    );
+}
