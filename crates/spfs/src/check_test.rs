@@ -13,6 +13,33 @@ use crate::fixtures::*;
 use crate::graph::{Database, DatabaseExt};
 use crate::storage::{PayloadStorage, RepositoryExt};
 
+fn check_summary(results: &[super::CheckObjectResult]) -> CheckSummary {
+    results.iter().map(|r| r.summary()).sum()
+}
+
+async fn corrupt_payload(repo: &crate::storage::RepositoryHandle, digest: crate::encoding::Digest) {
+    let (payload, path) = repo.open_payload(digest).await.unwrap();
+    drop(payload);
+
+    #[cfg(unix)]
+    let permissions = {
+        use std::os::unix::fs::PermissionsExt;
+
+        let metadata = std::fs::metadata(&path).unwrap();
+        let mut permissions = metadata.permissions();
+        permissions.set_mode(permissions.mode() | 0o200);
+        permissions
+    };
+    #[cfg(not(unix))]
+    let permissions = {
+        let mut permissions = std::fs::metadata(&path).unwrap().permissions();
+        permissions.set_readonly(false);
+        permissions
+    };
+    std::fs::set_permissions(&path, permissions).unwrap();
+    std::fs::write(path, b"corrupted payload bytes").unwrap();
+}
+
 #[rstest]
 #[tokio::test]
 async fn test_check_missing_payload(#[future] tmprepo: TempRepo) {
@@ -42,7 +69,7 @@ async fn test_check_missing_payload(#[future] tmprepo: TempRepo) {
         .await
         .unwrap();
 
-    let summary: CheckSummary = results.iter().map(|r| r.summary()).sum();
+    let summary = check_summary(&results);
     tracing::info!("{summary:#?}");
     assert_eq!(
         summary.checked_objects, total_objects,
@@ -93,7 +120,7 @@ async fn test_check_missing_object(#[future] tmprepo: TempRepo) {
         .await
         .unwrap();
 
-    let summary: CheckSummary = results.iter().map(|r| r.summary()).sum();
+    let summary = check_summary(&results);
     tracing::info!("{summary:#?}");
     assert_eq!(
         summary.checked_objects,
@@ -152,7 +179,7 @@ async fn test_check_missing_payload_recover(#[future] tmprepo: TempRepo) {
         .await
         .unwrap();
 
-    let summary: CheckSummary = results.iter().map(|r| r.summary()).sum();
+    let summary = check_summary(&results);
     tracing::info!("{summary:#?}");
     assert_eq!(
         summary.checked_objects, total_objects,
@@ -213,7 +240,7 @@ async fn test_check_missing_object_recover(#[future] tmprepo: TempRepo) {
         .await
         .unwrap();
 
-    let summary: CheckSummary = results.iter().map(|r| r.summary()).sum();
+    let summary = check_summary(&results);
     tracing::info!("{summary:#?}");
     assert_eq!(
         summary.checked_objects, total_objects,
@@ -278,7 +305,7 @@ async fn check_missing_annotation_blob(#[future] tmprepo: TempRepo) {
             .await
             .unwrap();
 
-        let summary: CheckSummary = results.iter().map(|r| r.summary()).sum();
+        let summary = check_summary(&results);
         tracing::info!("{summary:#?}");
         assert_eq!(summary.checked_objects, 2);
         assert_eq!(summary.checked_payloads, 1);
@@ -295,7 +322,7 @@ async fn check_missing_annotation_blob(#[future] tmprepo: TempRepo) {
         .await
         .expect("checker should succeed when an annotation blob is missing");
 
-    let summary: CheckSummary = results.iter().map(|r| r.summary()).sum();
+    let summary = check_summary(&results);
     tracing::info!("{summary:#?}");
     assert_eq!(summary.checked_objects, 2);
     assert_eq!(summary.checked_payloads, 0);
@@ -312,4 +339,102 @@ async fn check_missing_annotation_blob(#[future] tmprepo: TempRepo) {
             .iter()
             .any(|r| matches!(r, super::CheckObjectResult::Missing(digest) if *digest == blob))
     );
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_check_invalid_payload_contents(#[future] tmprepo: TempRepo) {
+    init_logging();
+    let tmprepo = tmprepo.await;
+
+    let manifest = generate_tree(&tmprepo).await.to_graph_manifest();
+    let file = manifest
+        .iter_entries()
+        .find(|entry| entry.is_regular_file())
+        .expect("at least one regular file");
+
+    corrupt_payload(&tmprepo.repo(), *file.object()).await;
+
+    let total_blobs = manifest
+        .iter_entries()
+        .filter(|e| e.is_regular_file())
+        .count();
+    let total_objects = total_blobs + 1; // the manifest
+
+    let results = Checker::new(&tmprepo.repo())
+        .with_payload_contents_verification(true)
+        .check_all_objects()
+        .await
+        .unwrap();
+
+    let summary = check_summary(&results);
+    tracing::info!("{summary:#?}");
+    assert_eq!(
+        summary.checked_objects, total_objects,
+        "expected all items to be visited"
+    );
+    assert_eq!(
+        summary.checked_payloads,
+        total_blobs - 1,
+        "expected the corrupted payload to fail verification"
+    );
+    assert!(
+        summary.invalid_payloads.contains(file.object()),
+        "should find one invalid payload"
+    );
+    assert!(
+        summary.missing_payloads.is_empty(),
+        "should not report the corrupted payload as missing"
+    );
+}
+
+#[rstest]
+#[tokio::test]
+async fn test_check_invalid_payload_recover(#[future] tmprepo: TempRepo) {
+    init_logging();
+    let tmprepo = tmprepo.await;
+    let repo2 = crate::fixtures::tmprepo("fs").await;
+
+    let manifest = generate_tree(&tmprepo).await.to_graph_manifest();
+    let digest = manifest.digest().unwrap();
+    crate::Syncer::new(&tmprepo.repo(), &repo2.repo())
+        .sync_digest(digest)
+        .await
+        .expect("Failed to sync repos");
+
+    let file = manifest
+        .iter_entries()
+        .find(|entry| entry.is_regular_file())
+        .expect("at least one regular file");
+
+    corrupt_payload(&tmprepo.repo(), *file.object()).await;
+
+    let total_blobs = manifest
+        .iter_entries()
+        .filter(|e| e.is_regular_file())
+        .count();
+    let total_objects = total_blobs + 1; // the manifest
+
+    let results = Checker::new(&tmprepo.repo())
+        .with_repair_source(&repo2.repo())
+        .with_payload_contents_verification(true)
+        .check_all_objects()
+        .await
+        .unwrap();
+
+    let summary = check_summary(&results);
+    tracing::info!("{summary:#?}");
+    assert_eq!(
+        summary.checked_objects, total_objects,
+        "expected all items to be visited"
+    );
+    assert_eq!(
+        summary.checked_payloads, total_blobs,
+        "expected all payloads to be valid after repair"
+    );
+    assert!(
+        summary.invalid_payloads.is_empty(),
+        "should repair the invalid payload"
+    );
+    assert_eq!(summary.repaired_payloads, 1, "should repair one payload");
 }

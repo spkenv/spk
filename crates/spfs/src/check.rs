@@ -27,11 +27,12 @@ mod check_test;
 /// The checker can be cloned efficiently
 pub struct Checker<'repo, 'sync, Reporter: CheckReporter = SilentCheckReporter> {
     repo: &'repo storage::RepositoryHandle,
-    repair_with: Option<super::Syncer<'sync, 'repo>>,
+    repair_with: Option<&'sync storage::RepositoryHandle>,
     reporter: Arc<Reporter>,
     processed_digests: Arc<dashmap::DashMap<encoding::Digest, CheckProgress>>,
     tag_stream_semaphore: Semaphore,
     object_semaphore: Semaphore,
+    verify_payload_contents: bool,
 }
 
 impl<'repo> Checker<'repo, 'static> {
@@ -48,6 +49,7 @@ impl<'repo> Checker<'repo, 'static> {
             processed_digests: Arc::new(Default::default()),
             tag_stream_semaphore: Semaphore::new(Self::DEFAULT_MAX_TAG_STREAM_CONCURRENCY),
             object_semaphore: Semaphore::new(Self::DEFAULT_MAX_OBJECT_CONCURRENCY),
+            verify_payload_contents: false,
         }
     }
 }
@@ -69,6 +71,7 @@ where
             processed_digests: self.processed_digests,
             tag_stream_semaphore: self.tag_stream_semaphore,
             object_semaphore: self.object_semaphore,
+            verify_payload_contents: self.verify_payload_contents,
         }
     }
 
@@ -84,13 +87,11 @@ where
         Checker {
             repo: self.repo,
             reporter: self.reporter,
-            repair_with: Some(
-                crate::Syncer::new(source, self.repo)
-                    .with_policy(SyncPolicy::LatestTagsAndResyncObjects),
-            ),
+            repair_with: Some(source),
             processed_digests: self.processed_digests,
             tag_stream_semaphore: self.tag_stream_semaphore,
             object_semaphore: self.object_semaphore,
+            verify_payload_contents: self.verify_payload_contents,
         }
     }
 
@@ -103,6 +104,15 @@ where
     /// The maximum number of objects that can be validated at once
     pub fn with_max_object_concurrency(mut self, max_object_concurrency: usize) -> Self {
         self.object_semaphore = Semaphore::new(max_object_concurrency);
+        self
+    }
+
+    /// Read every payload and verify that its contents hash to the expected digest.
+    ///
+    /// This is slower than checking payload existence alone because every payload
+    /// must be streamed and hashed.
+    pub fn with_payload_contents_verification(mut self, verify_payload_contents: bool) -> Self {
+        self.verify_payload_contents = verify_payload_contents;
         self
     }
 
@@ -498,19 +508,63 @@ where
         perms: Option<u32>,
     ) -> Result<CheckPayloadResult> {
         self.reporter.visit_payload(digest);
-        let mut result = CheckPayloadResult::Missing(digest);
-        if self.repo.has_payload(digest).await {
-            result = CheckPayloadResult::Ok;
-        } else if let Some(syncer) = &self.repair_with {
-            // Safety: this sync is unsafe unless the blob is also created
-            // or exists. We pass this rule up to the caller.
-            if let Ok(r) = unsafe { syncer.sync_payload_with_perms_opt(digest, perms).await } {
-                self.reporter.repaired_payload(&r);
-                result = CheckPayloadResult::Repaired;
+        let mut result = self.check_existing_payload(digest).await?;
+        match result {
+            CheckPayloadResult::Missing(_) => {
+                if let Some(syncer) = self.repair_syncer(SyncPolicy::LatestTagsAndResyncObjects) {
+                    // Safety: this sync is unsafe unless the blob is also created
+                    // or exists. We pass this rule up to the caller.
+                    if let Ok(r) =
+                        unsafe { syncer.sync_payload_with_perms_opt(digest, perms).await }
+                    {
+                        self.reporter.repaired_payload(&r);
+                        result = CheckPayloadResult::Repaired;
+                    }
+                }
             }
+            CheckPayloadResult::Invalid { .. } => {
+                if let Some(syncer) = self.repair_syncer(SyncPolicy::ResyncEverything) {
+                    // Safety: this sync is unsafe unless the blob is also created
+                    // or exists. We pass this rule up to the caller.
+                    if let Ok(r) =
+                        unsafe { syncer.sync_payload_with_perms_opt(digest, perms).await }
+                    {
+                        self.reporter.repaired_payload(&r);
+                        result = CheckPayloadResult::Repaired;
+                    }
+                }
+            }
+            CheckPayloadResult::Repaired | CheckPayloadResult::Ok => {}
         }
         self.reporter.checked_payload(&result);
         Ok(result)
+    }
+
+    async fn check_existing_payload(&self, digest: encoding::Digest) -> Result<CheckPayloadResult> {
+        if !self.verify_payload_contents {
+            return Ok(if self.repo.has_payload(digest).await {
+                CheckPayloadResult::Ok
+            } else {
+                CheckPayloadResult::Missing(digest)
+            });
+        }
+
+        let (payload, _) = match self.repo.open_payload(digest).await {
+            Ok(payload) => payload,
+            Err(Error::UnknownObject(_) | Error::ObjectMissingPayload(_, _)) => {
+                return Ok(CheckPayloadResult::Missing(digest));
+            }
+            Err(err) => return Err(err),
+        };
+        let actual = encoding::Hasher::hash_async_reader(payload).await?;
+        Ok(if actual == digest {
+            CheckPayloadResult::Ok
+        } else {
+            CheckPayloadResult::Invalid {
+                expected: digest,
+                actual,
+            }
+        })
     }
 
     /// Returns the object, and whether or not it was repaired
@@ -524,7 +578,8 @@ where
                 let Error::UnknownObject(digest) = err else {
                     return Err(err);
                 };
-                let Some(syncer) = &self.repair_with else {
+                let Some(syncer) = self.repair_syncer(SyncPolicy::LatestTagsAndResyncObjects)
+                else {
                     return Err(err);
                 };
                 if let Ok(result) = syncer.sync_digest(digest).await {
@@ -539,6 +594,11 @@ where
             }
             res => res.map(|o| (o, Fallback::None)),
         }
+    }
+
+    fn repair_syncer(&self, policy: SyncPolicy) -> Option<crate::Syncer<'sync, 'repo>> {
+        self.repair_with
+            .map(|source| crate::Syncer::new(source, self.repo).with_policy(policy))
     }
 }
 
@@ -656,10 +716,18 @@ impl CheckReporter for ConsoleCheckReporter {
 
     fn checked_payload(&self, result: &CheckPayloadResult) {
         let bars = self.get_bars();
-        if let CheckPayloadResult::Missing(digest) = result {
-            bars.missing
-                .println(format!("{}: {digest}", "Missing".red()));
-            bars.missing.inc_length(1);
+        match result {
+            CheckPayloadResult::Missing(digest) => {
+                bars.missing
+                    .println(format!("{}: {digest}", "Missing".red()));
+                bars.missing.inc_length(1);
+            }
+            CheckPayloadResult::Invalid { expected, actual } => {
+                bars.missing
+                    .println(format!("{}: {expected} (got {actual})", "Invalid".red()));
+                bars.missing.inc_length(1);
+            }
+            CheckPayloadResult::Repaired | CheckPayloadResult::Ok => {}
         }
     }
 
@@ -706,6 +774,8 @@ pub struct CheckSummary {
     pub missing_payloads: HashSet<encoding::Digest>,
     /// The number of missing payloads that were repaired
     pub repaired_payloads: usize,
+    /// The payloads whose contents did not match their digest
+    pub invalid_payloads: HashSet<encoding::Digest>,
     /// The number of payloads checked and found to be okay
     pub checked_payloads: usize,
     /// The total number of payload bytes checked
@@ -735,6 +805,7 @@ impl std::ops::AddAssign for CheckSummary {
             checked_payload_bytes,
             repaired_objects,
             repaired_payloads,
+            invalid_payloads,
         } = rhs;
         self.missing_tags += missing_tags;
         self.checked_tags += checked_tags;
@@ -745,6 +816,7 @@ impl std::ops::AddAssign for CheckSummary {
         self.checked_payload_bytes += checked_payload_bytes;
         self.repaired_objects += repaired_objects;
         self.repaired_payloads += repaired_payloads;
+        self.invalid_payloads.extend(invalid_payloads);
     }
 }
 
@@ -1073,6 +1145,11 @@ impl TryFrom<CheckObjectResult> for CheckBlobResult {
 pub enum CheckPayloadResult {
     /// The payload is missing from this repository
     Missing(encoding::Digest),
+    /// The payload exists but its contents do not hash to the expected digest
+    Invalid {
+        expected: encoding::Digest,
+        actual: encoding::Digest,
+    },
     /// The payload was missing from this repository but was repaired
     Repaired,
     /// The payload was checked and is present
@@ -1084,6 +1161,10 @@ impl CheckPayloadResult {
         match self {
             Self::Missing(digest) => CheckSummary {
                 missing_payloads: Some(*digest).into_iter().collect(),
+                ..Default::default()
+            },
+            Self::Invalid { expected, .. } => CheckSummary {
+                invalid_payloads: Some(*expected).into_iter().collect(),
                 ..Default::default()
             },
             Self::Repaired => CheckSummary {
