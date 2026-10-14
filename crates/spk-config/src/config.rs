@@ -35,7 +35,7 @@ pub struct MetadataCommand {
     pub command: Vec<String>,
 }
 
-#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Solver {
     /// If true, the solver will run impossible request checks on the initial requests
@@ -89,6 +89,25 @@ pub struct Solver {
 
     /// Name of the solver whose output to show  when multiple solvers are being run.
     pub solver_to_show: String,
+}
+
+impl Default for Solver {
+    fn default() -> Self {
+        Self {
+            check_impossible_initial: false,
+            check_impossible_validation: false,
+            check_impossible_builds: false,
+            too_long_seconds: 30,
+            verbosity_increase_limit: 2,
+            solve_timeout: 0,
+            long_solve_threshold: 15,
+            max_frequent_errors: 15,
+            build_key_name_order: String::new(),
+            request_priority_order: String::new(),
+            solver_to_run: String::new(),
+            solver_to_show: String::new(),
+        }
+    }
 }
 
 /// The settings for a spk repository index
