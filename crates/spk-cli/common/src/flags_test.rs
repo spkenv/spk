@@ -12,6 +12,162 @@ use spk_solve::Solver;
 
 use crate::flags::{DecisionFormatterSettings, SolverToRun, SolverToShow};
 
+#[derive(clap::Parser)]
+struct FormatterOpt {
+    #[clap(flatten)]
+    settings: DecisionFormatterSettings,
+}
+
+/// Parse flags without inheriting solver overrides from the test environment.
+fn formatter_settings(args: &[&str]) -> DecisionFormatterSettings {
+    use clap::{CommandFactory, FromArgMatches};
+
+    let matches = FormatterOpt::command()
+        .mut_arg("solver_to_run", |arg| arg.env(None::<&str>))
+        .mut_arg("solver_to_show", |arg| arg.env(None::<&str>))
+        .try_get_matches_from(args)
+        .unwrap();
+    FormatterOpt::from_arg_matches(&matches).unwrap().settings
+}
+
+/// Configured solver choices replace the CLI default, including Resolvo.
+#[rstest]
+#[case("", SolverToRun::All)]
+#[case("cli", SolverToRun::Cli)]
+#[case("checks", SolverToRun::Checks)]
+#[case("all", SolverToRun::All)]
+#[case("resolvo", SolverToRun::Resolvo)]
+#[case("Resolvo", SolverToRun::Resolvo)]
+fn test_solver_choice_from_config(#[case] value: &str, #[case] expected: SolverToRun) {
+    let config = spk_config::Solver {
+        solver_to_run: value.to_string(),
+        ..Default::default()
+    };
+    let settings = formatter_settings(&["spk"]);
+    assert!(settings.solver_to_run.is_none());
+    assert!(settings.get_solver_to_run(&config).unwrap() == expected);
+}
+
+/// Output selection honors config independently of the solver selection.
+#[rstest]
+#[case("", SolverToShow::Cli)]
+#[case("cli", SolverToShow::Cli)]
+#[case("checks", SolverToShow::Checks)]
+#[case("resolvo", SolverToShow::Resolvo)]
+fn test_solver_output_from_config(#[case] value: &str, #[case] expected: SolverToShow) {
+    let config = spk_config::Solver {
+        solver_to_show: value.to_string(),
+        ..Default::default()
+    };
+    let settings = formatter_settings(&["spk"]);
+    assert!(settings.solver_to_show.is_none());
+    assert!(settings.get_solver_to_show(&config).unwrap() == expected);
+}
+
+/// Explicit CLI choices override both configured solver choices.
+#[test]
+fn test_solver_cli_overrides_config() {
+    let config = spk_config::Solver {
+        solver_to_run: "resolvo".to_string(),
+        solver_to_show: "resolvo".to_string(),
+        ..Default::default()
+    };
+    let settings = formatter_settings(&[
+        "spk",
+        "--solver-to-run",
+        "all",
+        "--solver-to-show",
+        "checks",
+    ]);
+    assert_eq!(
+        settings.get_solver_to_run(&config).unwrap(),
+        SolverToRun::All
+    );
+    assert_eq!(
+        settings.get_solver_to_show(&config).unwrap(),
+        SolverToShow::Checks
+    );
+}
+
+/// Environment overrides config, while explicit flags still override environment.
+#[test]
+fn test_solver_environment_overrides_config() {
+    use clap::Parser;
+
+    // Isolate environment overrides from other tests in this process.
+    if std::env::var_os("SPK_TEST_SOLVER_OVERRIDES").is_none() {
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                &spfstest::current_test_name(
+                    module_path!(),
+                    "test_solver_environment_overrides_config",
+                ),
+                "--nocapture",
+            ])
+            .env("SPK_TEST_SOLVER_OVERRIDES", "1")
+            .env("SPK_SOLVER__SOLVER_TO_RUN", "checks")
+            .env("SPK_SOLVER__SOLVER_TO_SHOW", "checks")
+            .status()
+            .unwrap();
+        assert!(status.success());
+        return;
+    }
+
+    let config = spk_config::Solver {
+        solver_to_run: "resolvo".to_string(),
+        solver_to_show: "resolvo".to_string(),
+        ..Default::default()
+    };
+    let settings = FormatterOpt::try_parse_from(["spk"]).unwrap().settings;
+    assert_eq!(
+        settings.get_solver_to_run(&config).unwrap(),
+        SolverToRun::Checks
+    );
+    assert_eq!(
+        settings.get_solver_to_show(&config).unwrap(),
+        SolverToShow::Checks
+    );
+
+    let settings =
+        FormatterOpt::try_parse_from(["spk", "--solver-to-run", "all", "--solver-to-show", "cli"])
+            .unwrap()
+            .settings;
+    assert_eq!(
+        settings.get_solver_to_run(&config).unwrap(),
+        SolverToRun::All
+    );
+    assert_eq!(
+        settings.get_solver_to_show(&config).unwrap(),
+        SolverToShow::Cli
+    );
+}
+
+/// Invalid configured choices fail explicitly instead of selecting another solver.
+#[test]
+fn test_invalid_solver_config_is_reported() {
+    let config = spk_config::Solver {
+        solver_to_run: "invalid".to_string(),
+        solver_to_show: "invalid".to_string(),
+        ..Default::default()
+    };
+    let settings = formatter_settings(&["spk"]);
+    assert!(
+        settings
+            .get_solver_to_run(&config)
+            .unwrap_err()
+            .to_string()
+            .contains("solver.solver_to_run")
+    );
+    assert!(
+        settings
+            .get_solver_to_show(&config)
+            .unwrap_err()
+            .to_string()
+            .contains("solver.solver_to_show")
+    );
+}
+
 #[rstest]
 #[case(&["hello:world"], &[("hello", "world")])]
 #[case(&["hello=world"], &[("hello", "world")])]
@@ -79,8 +235,8 @@ async fn test_get_solver_with_host_options(
             long_solves: Default::default(),
             max_frequent_errors: Default::default(),
             status_bar: Default::default(),
-            solver_to_run,
-            solver_to_show,
+            solver_to_run: Some(solver_to_run),
+            solver_to_show: Some(solver_to_show),
             show_search_size: Default::default(),
             compare_solvers: Default::default(),
             stop_on_block: Default::default(),

@@ -262,6 +262,16 @@ build_key_name_order = ""
 # Comma-separated list of option names to promote to the front of the
 # resolve order.
 request_priority_order = ""
+# Solver to run: "cli", "checks", "all", or "resolvo".
+# "all" runs only "cli" and "checks" in parallel; it does not run Resolvo.
+# Select "resolvo" explicitly to use the Resolvo solver.
+# Defaults to "all" when unset. CLI flags override environment variables,
+# which override the config file.
+solver_to_run = "all"
+# Solver output to show when running multiple solvers: "cli" or "checks".
+# "resolvo" is also accepted when running the Resolvo solver.
+# Defaults to "cli" when unset.
+solver_to_show = "cli"
 
 # SPK supports the reporting of operational metrics to a
 # statsd-compatible server for aggregation.
