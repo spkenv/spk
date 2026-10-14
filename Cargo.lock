@@ -4405,6 +4405,7 @@ dependencies = [
  "spfs",
  "spfstest",
  "spk-cli-common",
+ "spk-config",
  "spk-schema",
  "spk-solve",
  "spk-solve-macros",

@@ -290,13 +290,15 @@ pub struct Solver {
 }
 
 impl Solver {
-    pub async fn get_solver(
-        &self,
-        options: &Options,
-    ) -> Result<impl SolverExt + SolverMut + Clone + 'static> {
+    /// Create a solver using CLI overrides or the configured solver selection.
+    pub async fn get_solver(&self, options: &Options) -> Result<SolverImpl> {
         let option_map = options.get_options()?;
+        let config = spk_config::get_config().wrap_err("Failed to load config")?;
 
-        let mut solver = match self.decision_formatter_settings.solver_to_run {
+        let mut solver = match self
+            .decision_formatter_settings
+            .get_solver_to_run(&config.solver)?
+        {
             SolverToRun::Resolvo => SolverImpl::Resolvo(solve::ResolvoSolver::default()),
             _ => {
                 let mut solver = solve::StepSolver::default();
@@ -1368,7 +1370,7 @@ impl Repositories {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum SolverToRun {
     /// Run and show output from the basic solver
     Cli,
@@ -1381,7 +1383,7 @@ pub enum SolverToRun {
     Resolvo,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum SolverToShow {
     /// Show output from the basic solver.
     Cli,
@@ -1464,26 +1466,18 @@ pub struct DecisionFormatterSettings {
     #[clap(long)]
     pub status_bar: bool,
 
-    /// Control which solver(s) are run. The default is to run all the
-    /// solvers in parallel and show the 'cli' solver's output. See
-    /// also --solver-to-show.
-    ///
-    /// There are currently two modes for the solver, one that is faster when
-    /// there are few problems encountered looking for packages (cli) and one
-    /// that is faster when it is difficult to find a set of packages that
-    /// satisfy a request (checks).
-    ///
-    /// By default, both solvers are run in parallel and the result is
-    /// taken from the first one that finishes, and the output from
-    /// the (cli) solver is displayed. even if the result ultimately
-    /// comes from the (checks) solver. To run only one solver, use
-    /// `--solver-to-run <cli|checks>`.
-    #[clap(long, env = "SPK_SOLVER__SOLVER_TO_RUN", value_enum, default_value_t = SolverToRun::All)]
-    pub solver_to_run: SolverToRun,
+    /// Control which solver(s) are run, overriding solver.solver_to_run
+    /// in the config file. Without a configured choice, run both 'cli'
+    /// and 'checks' in parallel and take the first result.
+    /// 'all' runs only 'cli' and 'checks', not Resolvo.
+    /// Use 'resolvo' to select the Resolvo SAT solver.
+    #[clap(long, env = "SPK_SOLVER__SOLVER_TO_RUN", value_enum)]
+    pub solver_to_run: Option<SolverToRun>,
     /// Control which solver's output is shown when multiple solvers
     /// (all) are run. See also --solver-to-run.
-    #[clap(long, env = "SPK_SOLVER__SOLVER_TO_SHOW", value_enum, default_value_t = SolverToShow::Cli)]
-    pub solver_to_show: SolverToShow,
+    /// Overrides solver.solver_to_show in the config file; defaults to 'cli'.
+    #[clap(long, env = "SPK_SOLVER__SOLVER_TO_SHOW", value_enum)]
+    pub solver_to_show: Option<SolverToShow>,
 
     /// Display a report on of the search space size for the resolved solution.
     #[clap(long)]
@@ -1529,6 +1523,30 @@ pub struct DecisionFormatterSettings {
 }
 
 impl DecisionFormatterSettings {
+    /// Resolve the solver choice, preserving CLI/environment precedence over config.
+    fn get_solver_to_run(&self, config: &spk_config::Solver) -> Result<SolverToRun> {
+        if let Some(choice) = self.solver_to_run {
+            return Ok(choice);
+        }
+        if config.solver_to_run.is_empty() {
+            return Ok(SolverToRun::All);
+        }
+        SolverToRun::from_str(&config.solver_to_run, true)
+            .map_err(|err| miette!("Invalid solver.solver_to_run: {err}"))
+    }
+
+    /// Resolve the output choice independently of which solver is run.
+    fn get_solver_to_show(&self, config: &spk_config::Solver) -> Result<SolverToShow> {
+        if let Some(choice) = self.solver_to_show {
+            return Ok(choice);
+        }
+        if config.solver_to_show.is_empty() {
+            return Ok(SolverToShow::Cli);
+        }
+        SolverToShow::from_str(&config.solver_to_show, true)
+            .map_err(|err| miette!("Invalid solver.solver_to_show: {err}"))
+    }
+
     /// Get a decision formatter configured from the command line
     /// options and their defaults.
     pub fn get_formatter(&self, verbosity: u8) -> Result<DecisionFormatter> {
@@ -1540,8 +1558,8 @@ impl DecisionFormatterSettings {
     /// case some extra configuration might be needed before calling
     /// build.
     pub fn get_formatter_builder(&self, verbosity: u8) -> Result<DecisionFormatterBuilder> {
-        let mut builder =
-            DecisionFormatterBuilder::try_from_config().wrap_err("Failed to load config")?;
+        let config = spk_config::get_config().wrap_err("Failed to load config")?;
+        let mut builder = DecisionFormatterBuilder::from_config(&config.solver);
         builder
             .with_verbosity(verbosity)
             .with_time_and_stats(self.time)
@@ -1561,8 +1579,8 @@ impl DecisionFormatterSettings {
             .with_long_solves_threshold(self.long_solves)
             .with_max_frequent_errors(self.max_frequent_errors)
             .with_status_bar(self.status_bar)
-            .with_solver_to_run(self.solver_to_run.into())
-            .with_solver_to_show(self.solver_to_show.into())
+            .with_solver_to_run(self.get_solver_to_run(&config.solver)?.into())
+            .with_solver_to_show(self.get_solver_to_show(&config.solver)?.into())
             .with_search_space_size(self.show_search_size)
             .with_stop_on_block(self.stop_on_block)
             .with_step_on_block(self.step_on_block)

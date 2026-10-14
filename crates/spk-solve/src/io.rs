@@ -53,6 +53,10 @@ use crate::solvers::step::ErrorFreq;
 use crate::solvers::{StepSolver, StepSolverRuntime};
 use crate::{Error, Result, Solution, Solver, StatusLine, show_search_space_stats};
 
+#[cfg(test)]
+#[path = "./io_test.rs"]
+mod io_test;
+
 const STOP_ON_BLOCK_FLAG: &str = "--stop-on-block";
 const BY_USER: &str = "by user";
 
@@ -1075,6 +1079,7 @@ impl MultiSolverKind {
             CLI_SOLVER => MultiSolverKind::Unchanged,
             IMPOSSIBLE_CHECKS_SOLVER => MultiSolverKind::AllImpossibleChecks,
             ALL_SOLVERS => MultiSolverKind::All,
+            RESOLVO_SOLVER => MultiSolverKind::Resolvo,
             _ => MultiSolverKind::Unchanged,
         }
     }
@@ -1086,6 +1091,7 @@ impl MultiSolverKind {
         match value.to_lowercase().as_ref() {
             CLI_SOLVER => MultiSolverKind::Unchanged,
             IMPOSSIBLE_CHECKS_SOLVER => MultiSolverKind::AllImpossibleChecks,
+            RESOLVO_SOLVER => MultiSolverKind::Resolvo,
             _ => MultiSolverKind::Unchanged,
         }
     }
