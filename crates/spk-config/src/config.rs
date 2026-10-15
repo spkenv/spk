@@ -89,14 +89,6 @@ pub struct Solver {
 
     /// Name of the solver whose output to show  when multiple solvers are being run.
     pub solver_to_show: String,
-
-    /// Whether to get the solver to use repository indexes, if
-    /// available, instead of the repository directly.
-    pub use_indexes: bool,
-
-    /// Default setting for indexes, if using indexes is enabled for
-    /// the solver.
-    pub indexes: Index,
 }
 
 /// The settings for a spk repository index
@@ -421,6 +413,11 @@ impl Config {
         load_config()
     }
 
+    /// Build and deserialize configured sources without selecting disk or environment inputs.
+    fn from_builder(builder: config::ConfigBuilder<config::builder::DefaultState>) -> Result<Self> {
+        Ok(Self::deserialize(builder.build()?)?)
+    }
+
     /// Make this config the current global one
     pub fn make_current(self) -> Result<Arc<Self>> {
         // Note we don't know if we won the race to set the value here,
@@ -492,20 +489,19 @@ pub fn load_config() -> Result<Config> {
             ))
         })?;
 
-    let config = RawConfig::builder()
-        // the system config can also be in any support format: toml, yaml, json, ini, etc
-        .add_source(File::with_name("/etc/spk").required(false))
-        // the user config can also be in any support format: toml, yaml, json, ini, etc
-        .add_source(File::with_name(&format!("{}", user_config.display())).required(false))
-        // Note: if a var using single underscores is set, it will have precedence
-        .add_source(
-            Environment::with_prefix("SPK")
-                .prefix_separator("_")
-                .separator("__"),
-        )
-        // for backwards compatibility with vars not using double underscores
-        .add_source(Environment::with_prefix("SPK").separator("_"))
-        .build()?;
-
-    Ok(Config::deserialize(config)?)
+    Config::from_builder(
+        RawConfig::builder()
+            // the system config can also be in any support format: toml, yaml, json, ini, etc
+            .add_source(File::with_name("/etc/spk").required(false))
+            // the user config can also be in any support format: toml, yaml, json, ini, etc
+            .add_source(File::with_name(&format!("{}", user_config.display())).required(false))
+            // Note: if a var using single underscores is set, it will have precedence
+            .add_source(
+                Environment::with_prefix("SPK")
+                    .prefix_separator("_")
+                    .separator("__"),
+            )
+            // for backwards compatibility with vars not using double underscores
+            .add_source(Environment::with_prefix("SPK").separator("_")),
+    )
 }
