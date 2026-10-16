@@ -23,6 +23,10 @@ use super::runtime;
 use crate::config::{OverlayFsOptions, OverlayFsRedirectDir};
 use crate::{Error, Result, which};
 
+#[cfg(test)]
+#[path = "./env_test.rs"]
+mod env_test;
+
 pub const SPFS_DIR: &str = "/spfs";
 pub const SPFS_DIR_PREFIX: &str = "/spfs/";
 const SPFS_DIR_CSTR: &CStr = c"/spfs";

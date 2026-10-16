@@ -47,6 +47,41 @@ fail with `Input/output error`.
 
 The kernel-module requirements below apply in all cases.
 
+#### Testing installed binaries
+
+From a source checkout, build the debug binaries and run the rootless integration
+matrix:
+
+```bash
+make debug-spfs
+bash crates/spfs/tests/integration/run_rootless_tests.sh
+```
+
+The runner builds a Rocky Linux 9.8 image and installs the binaries with the same
+file capabilities as `make install-spfs`. It tests both container root and a
+non-root user through the mount-command and mount-syscall paths, with default
+options and with conflicting redirect/index/metacopy settings. It checks the
+actual mount options, read-only protection, remounting with `spfs edit`, and
+directory removal followed by committing and reopening the resulting platform.
+An optional first argument selects a different directory of built binaries.
+
+Both CI systems run this matrix as well. GitHub runs it in the privileged Linux
+build container using a dedicated rootless Podman user and a Debian Bookworm test
+image matching the built binaries' glibc. The spdev
+`spfs-rootless-integration-tests` component consumes the RPM artifacts and runs the
+matrix in Rocky Linux 9.8. Both use the same CI bootstrap and test runner; a
+rootful Podman invocation fails rather than silently changing what is tested.
+For binaries built on another distribution, `SPFS_ROOTLESS_TEST_BASE_IMAGE`
+selects a compatible Rocky or Debian base image.
+
+These cases pass on a Rocky Linux 9.8 host running kernel
+`5.14.0-687.34.1.el9_8.x86_64` with rootless Podman 5.8.2. The test configures a
+local `origin` to avoid the independent
+[missing-origin issue](https://github.com/spkenv/spk/issues/1412).
+Removing and recreating a lower-layer directory is also checked in the live
+runtime, but preserving its opaque-directory semantics after committing remains
+a [known limitation](https://github.com/spkenv/spk/issues/1413).
+
 ### 2. `kmod` and the kernel module tree (avoiding the overlayfs warning)
 
 On startup, spfs detects which `overlayfs` mount options the running kernel supports

@@ -1,0 +1,16 @@
+# Copyright (c) Contributors to the SPK project.
+# SPDX-License-Identifier: Apache-2.0
+# https://github.com/spkenv/spk
+
+ARG BASE_IMAGE=docker.io/rockylinux/rockylinux:9.8
+FROM ${BASE_IMAGE}
+
+RUN if command -v dnf > /dev/null; then \
+        dnf install -y bzip2-libs findutils fuse fuse3 kmod libcap make rsync \
+            shadow-utils sudo util-linux && dnf clean all; \
+    else \
+        apt-get update && apt-get install -y --no-install-recommends \
+            bzip2 findutils fuse3 kmod libcap2-bin make passwd rsync sudo util-linux \
+            && apt-get clean; \
+    fi \
+    && useradd --create-home tester
