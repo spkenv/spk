@@ -9,7 +9,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, ErrorKind, Write as IOWrite};
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -19,7 +19,6 @@ use crossterm::tty::IsTty;
 use futures::stream::FuturesUnordered;
 use futures::{Stream, StreamExt};
 use itertools::Itertools;
-use once_cell::sync::Lazy;
 #[cfg(feature = "statsd")]
 use spk_config::{
     SPK_SOLUTION_PACKAGE_COUNT_METRIC,
@@ -49,6 +48,7 @@ use spk_solve_graph::{
     State,
 };
 
+use crate::interrupt::SolveInterruptGuard;
 use crate::solvers::step::ErrorFreq;
 use crate::solvers::{StepSolver, StepSolverRuntime};
 use crate::{Error, Result, Solution, Solver, StatusLine, show_search_space_stats};
@@ -70,25 +70,6 @@ const UNABLE_TO_WRITE_OUTPUT_MESSAGE: &str = "Unable to write solver output mess
 
 pub const DEFAULT_SOLVER_RUN_FILE_PREFIX: &str = "spk_solver_run";
 const DEFAULT_SOLVER_TEST_FILE_PREFIX: &str = "spk_solver_test";
-
-static USER_CANCELLED: Lazy<Arc<AtomicBool>> = Lazy::new(|| {
-    // Initialise the USER_CANCELLED value
-    let b = Arc::new(AtomicBool::new(false));
-
-    // Set up a ctrl-c handler to allow a solve to be interrupted
-    // gracefully by the user from the FormatterDecisionIter below
-    match signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&b)) {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!(
-                "Unable to setup ctrl-c handler for USER_CANCELLED because: {}",
-                err.to_string().red()
-            )
-        }
-    };
-
-    b
-});
 
 pub fn format_note(note: &Note) -> String {
     match note {
@@ -154,9 +135,9 @@ where
         }
     }
 
-    fn check_for_interruptions(&mut self) -> Result<()> {
+    fn check_for_interruptions(&mut self, interrupts: &SolveInterruptGuard) -> Result<()> {
         self.check_if_taking_too_long()?;
-        self.check_if_user_hit_ctrlc()
+        self.check_if_user_hit_ctrlc(interrupts)
     }
 
     fn check_if_taking_too_long(&mut self) -> Result<()> {
@@ -194,9 +175,9 @@ where
         Ok(())
     }
 
-    fn check_if_user_hit_ctrlc(&self) -> Result<()> {
+    fn check_if_user_hit_ctrlc(&self, interrupts: &SolveInterruptGuard) -> Result<()> {
         // Check if the solve has been interrupted by the user (via ctrl-c)
-        if USER_CANCELLED.load(Ordering::Relaxed) {
+        if interrupts.cancelled() {
             return Err(Error::SolverInterrupted(format!(
                 "Solver interrupted {BY_USER} ..."
             )));
@@ -383,6 +364,7 @@ where
 
     pub fn iter(&mut self) -> impl Stream<Item = Result<String>> {
         stream! {
+            let interrupts = SolveInterruptGuard::new()?;
             let mut stop_because_blocked = false;
             let mut step_because_blocked = false;
             let mut current_state: Option<Arc<State>> = None;
@@ -423,7 +405,7 @@ where
                 while self.output_queue.is_empty() {
                     // First, check if the solver has taken too long or the
                     // user has interrupted the solver
-                    if let Err(err) = self.check_for_interruptions() {
+                    if let Err(err) = self.check_for_interruptions(&interrupts) {
                         yield Err(err);
                         continue 'outer;
                     }
@@ -1344,13 +1326,15 @@ impl DecisionFormatter {
         Ok(tasks)
     }
 
-    fn stop_solver_tasks_without_waiting(
+    /// Stop losing solvers and release their interrupt guards before returning.
+    async fn stop_solver_tasks(
         &self,
-        tasks: &FuturesUnordered<tokio::task::JoinHandle<SolverTaskDone>>,
+        tasks: &mut FuturesUnordered<tokio::task::JoinHandle<SolverTaskDone>>,
     ) {
         for task in tasks.iter() {
             task.abort();
         }
+        while tasks.next().await.is_some() {}
     }
 
     fn output_solver_comparison(&self, solver_results: &[SolverResult]) {
@@ -1430,7 +1414,7 @@ impl DecisionFormatter {
                     self.send_solver_end_metrics(solve_time);
 
                     if !self.settings.compare_solvers {
-                        self.stop_solver_tasks_without_waiting(&tasks);
+                        self.stop_solver_tasks(&mut tasks).await;
                     }
 
                     if self.settings.solver_to_run.is_multi() {

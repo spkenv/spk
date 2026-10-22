@@ -3,6 +3,7 @@
 // https://github.com/spkenv/spk
 
 mod error;
+mod interrupt;
 mod io;
 mod search_space;
 mod solver;
