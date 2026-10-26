@@ -226,6 +226,12 @@ command = ["command", "args"]
 command = ["command2", "args"]
 
 [solver]
+# CLI flags override environment variables, which override file settings.
+# Impossible-check, ordering, timeout, and reporting controls below apply to
+# the step solver ("cli" and "checks"), not the Resolvo solver.
+# Individual --check-impossible-* flags enable checks; use =false to disable
+# a configured check. --check-impossible-all forces all three checks on.
+# The "checks" solver always enables all three checks.
 # If true, the solver will run impossible request checks on the initial requests
 check_impossible_initial = false
 # If true, the solver will run impossible request checks before
@@ -241,10 +247,10 @@ check_impossible_builds = false
 # above zero will increase the verbosity every that many seconds
 # the solve runs. If this is zero, the solver's verbosity will
 # not increase during a solve.
-too_long_seconds = 0
+too_long_seconds = 30
 # The maximum verbosity that automatic verbosity increases will
 # stop at and not go above.
-verbosity_increase_limit = 0
+verbosity_increase_limit = 2
 # Maximum number of seconds to let the solver run before halting the solve
 #
 # Maximum number of seconds to allow a solver to run before
@@ -252,16 +258,26 @@ verbosity_increase_limit = 0
 # timeout is disabled and the solver will run to completion.
 solve_timeout = 0
 # Set the threshold of a longer than acceptable solves, in seconds.
-long_solve_threshold = 0
+long_solve_threshold = 15
 # Set the limit for how many of the most frequent errors are
 # displayed in solve stats reports
-max_frequent_errors = 0
+max_frequent_errors = 15
 # Comma-separated list of option names to promote to the front of the
 # build key order.
 build_key_name_order = ""
 # Comma-separated list of option names to promote to the front of the
 # resolve order.
 request_priority_order = ""
+# Solver to run: "cli", "checks", "all", or "resolvo".
+# "all" runs only "cli" and "checks" in parallel; it does not run Resolvo.
+# Select "resolvo" explicitly to use the Resolvo solver.
+# Defaults to "all" when unset. CLI flags override environment variables,
+# which override the config file.
+solver_to_run = "all"
+# Solver output to show when running multiple solvers: "cli" or "checks".
+# "resolvo" is also accepted when running the Resolvo solver.
+# Defaults to "cli" when unset.
+solver_to_show = "cli"
 
 # SPK supports the reporting of operational metrics to a
 # statsd-compatible server for aggregation.

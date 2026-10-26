@@ -270,18 +270,21 @@ pub struct Solver {
     pub allow_builds: bool,
 
     /// If true, the solver will run impossible request checks on the initial requests
-    #[clap(long, env = "SPK_SOLVER_CHECK_IMPOSSIBLE_INITIAL")]
-    pub check_impossible_initial: bool,
+    /// Overrides config; use =false to disable a configured check.
+    #[clap(long, env = "SPK_SOLVER_CHECK_IMPOSSIBLE_INITIAL", num_args = 0..=1, default_missing_value = "true", require_equals = true)]
+    pub check_impossible_initial: Option<bool>,
 
     /// If true, the solver will run impossible request checks before
     /// using a package build to resolve a request
-    #[clap(long, env = "SPK_SOLVER_CHECK_IMPOSSIBLE_VALIDATION")]
-    pub check_impossible_validation: bool,
+    /// Overrides config; use =false to disable a configured check.
+    #[clap(long, env = "SPK_SOLVER_CHECK_IMPOSSIBLE_VALIDATION", num_args = 0..=1, default_missing_value = "true", require_equals = true)]
+    pub check_impossible_validation: Option<bool>,
 
     /// If true, the solver will run impossible request checks to
     /// use in the build keys for ordering builds during the solve
-    #[clap(long, env = "SPK_SOLVER_CHECK_IMPOSSIBLE_BUILDS")]
-    pub check_impossible_builds: bool,
+    /// Overrides config; use =false to disable a configured check.
+    #[clap(long, env = "SPK_SOLVER_CHECK_IMPOSSIBLE_BUILDS", num_args = 0..=1, default_missing_value = "true", require_equals = true)]
+    pub check_impossible_builds: Option<bool>,
 
     /// If true, the solver will run all three impossible request checks: initial
     /// requests, build validation before a resolve, and for build keys
@@ -290,30 +293,12 @@ pub struct Solver {
 }
 
 impl Solver {
-    pub async fn get_solver(
-        &self,
-        options: &Options,
-    ) -> Result<impl SolverExt + SolverMut + Clone + 'static> {
+    /// Create a solver using CLI overrides or the configured solver selection.
+    pub async fn get_solver(&self, options: &Options) -> Result<SolverImpl> {
         let option_map = options.get_options()?;
+        let config = spk_config::get_config().wrap_err("Failed to load config")?;
 
-        let mut solver = match self.decision_formatter_settings.solver_to_run {
-            SolverToRun::Resolvo => SolverImpl::Resolvo(solve::ResolvoSolver::default()),
-            _ => {
-                let mut solver = solve::StepSolver::default();
-                // These settings are only applicable to the Step solver.
-                solver.set_initial_request_impossible_checks(
-                    self.check_impossible_initial || self.check_impossible_all,
-                );
-                solver.set_resolve_validation_impossible_checks(
-                    self.check_impossible_validation || self.check_impossible_all,
-                );
-                solver.set_build_key_impossible_checks(
-                    self.check_impossible_builds || self.check_impossible_all,
-                );
-                SolverImpl::Step(solver)
-            }
-        };
-
+        let mut solver = self.get_solver_from_config(&config.solver)?;
         solver.update_options(option_map);
 
         for (name, repo) in self.repos.get_repos_for_non_destructive_operation().await? {
@@ -327,6 +312,35 @@ impl Solver {
         }
 
         Ok(solver)
+    }
+
+    /// Apply explicit check overrides while retaining the configured step-solver settings.
+    fn get_solver_from_config(&self, config: &spk_config::Solver) -> Result<SolverImpl> {
+        Ok(
+            match self.decision_formatter_settings.get_solver_to_run(config)? {
+                SolverToRun::Resolvo => SolverImpl::Resolvo(solve::ResolvoSolver::default()),
+                _ => {
+                    let mut solver = solve::StepSolver::default();
+                    // These settings are only applicable to the Step solver.
+                    solver.set_initial_request_impossible_checks(
+                        self.check_impossible_initial
+                            .unwrap_or(config.check_impossible_initial)
+                            || self.check_impossible_all,
+                    );
+                    solver.set_resolve_validation_impossible_checks(
+                        self.check_impossible_validation
+                            .unwrap_or(config.check_impossible_validation)
+                            || self.check_impossible_all,
+                    );
+                    solver.set_build_key_impossible_checks(
+                        self.check_impossible_builds
+                            .unwrap_or(config.check_impossible_builds)
+                            || self.check_impossible_all,
+                    );
+                    SolverImpl::Step(solver)
+                }
+            },
+        )
     }
 }
 
@@ -1368,7 +1382,7 @@ impl Repositories {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum SolverToRun {
     /// Run and show output from the basic solver
     Cli,
@@ -1381,7 +1395,7 @@ pub enum SolverToRun {
     Resolvo,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum SolverToShow {
     /// Show output from the basic solver.
     Cli,
@@ -1426,22 +1440,24 @@ pub struct DecisionFormatterSettings {
     /// above zero will increase the verbosity every that many seconds
     /// the solve runs. If this is zero, the solver's verbosity will
     /// not increase during a solve.
-    #[clap(long, env = "SPK_SOLVER_TOO_LONG_SECONDS", default_value_t = 30)]
-    pub increase_verbosity: u64,
+    /// Overrides solver.too_long_seconds; defaults to 30 when unset in config.
+    #[clap(long, env = "SPK_SOLVER_TOO_LONG_SECONDS")]
+    pub increase_verbosity: Option<u64>,
 
     /// The maximum verbosity that automatic verbosity increases will
     /// stop at and not go above.
-    ///
-    #[clap(long, env = "SPK_SOLVER_VERBOSITY_INCREASE_LIMIT", default_value_t = 2)]
-    pub max_verbosity_increase_level: u8,
+    /// Overrides solver.verbosity_increase_limit; defaults to 2 when unset in config.
+    #[clap(long, env = "SPK_SOLVER_VERBOSITY_INCREASE_LIMIT")]
+    pub max_verbosity_increase_level: Option<u8>,
 
     /// Maximum number of seconds to let the solver run before halting the solve
     ///
     /// Maximum number of seconds to allow a solver to run before
     /// halting the solve. If this is zero, which is the default, the
     /// timeout is disabled and the solver will run to completion.
-    #[clap(long, env = "SPK_SOLVER_SOLVE_TIMEOUT", default_value_t = 0)]
-    pub timeout: u64,
+    /// Overrides solver.solve_timeout in config.
+    #[clap(long, env = "SPK_SOLVER_SOLVE_TIMEOUT")]
+    pub timeout: Option<u64>,
 
     /// Show the package builds in the solution for any solver
     /// run. This will be automatically enabled for 'build',
@@ -1450,40 +1466,33 @@ pub struct DecisionFormatterSettings {
     pub show_solution: bool,
 
     /// Set the threshold of a longer than acceptable solves, in seconds.
-    ///
-    #[clap(long, env = "SPK_SOLVER_LONG_SOLVE_THRESHOLD", default_value_t = 15)]
-    pub long_solves: u64,
+    /// Overrides solver.long_solve_threshold; defaults to 15 when unset in config.
+    #[clap(long, env = "SPK_SOLVER_LONG_SOLVE_THRESHOLD")]
+    pub long_solves: Option<u64>,
 
     /// Set the limit for how many of the most frequent errors are
     /// displayed in solve stats reports
-    #[clap(long, env = "SPK_SOLVER_MAX_FREQUENT_ERRORS", default_value_t = 15)]
-    pub max_frequent_errors: usize,
+    /// Overrides solver.max_frequent_errors; defaults to 15 when unset in config.
+    #[clap(long, env = "SPK_SOLVER_MAX_FREQUENT_ERRORS")]
+    pub max_frequent_errors: Option<usize>,
 
     /// Display a visualization of the solver progress if the solve takes longer
     /// than a few seconds.
     #[clap(long)]
     pub status_bar: bool,
 
-    /// Control which solver(s) are run. The default is to run all the
-    /// solvers in parallel and show the 'cli' solver's output. See
-    /// also --solver-to-show.
-    ///
-    /// There are currently two modes for the solver, one that is faster when
-    /// there are few problems encountered looking for packages (cli) and one
-    /// that is faster when it is difficult to find a set of packages that
-    /// satisfy a request (checks).
-    ///
-    /// By default, both solvers are run in parallel and the result is
-    /// taken from the first one that finishes, and the output from
-    /// the (cli) solver is displayed. even if the result ultimately
-    /// comes from the (checks) solver. To run only one solver, use
-    /// `--solver-to-run <cli|checks>`.
-    #[clap(long, env = "SPK_SOLVER__SOLVER_TO_RUN", value_enum, default_value_t = SolverToRun::All)]
-    pub solver_to_run: SolverToRun,
+    /// Control which solver(s) are run, overriding solver.solver_to_run
+    /// in the config file. Without a configured choice, run both 'cli'
+    /// and 'checks' in parallel and take the first result.
+    /// 'all' runs only 'cli' and 'checks', not Resolvo.
+    /// Use 'resolvo' to select the Resolvo SAT solver.
+    #[clap(long, env = "SPK_SOLVER__SOLVER_TO_RUN", value_enum)]
+    pub solver_to_run: Option<SolverToRun>,
     /// Control which solver's output is shown when multiple solvers
     /// (all) are run. See also --solver-to-run.
-    #[clap(long, env = "SPK_SOLVER__SOLVER_TO_SHOW", value_enum, default_value_t = SolverToShow::Cli)]
-    pub solver_to_show: SolverToShow,
+    /// Overrides solver.solver_to_show in the config file; defaults to 'cli'.
+    #[clap(long, env = "SPK_SOLVER__SOLVER_TO_SHOW", value_enum)]
+    pub solver_to_show: Option<SolverToShow>,
 
     /// Display a report on of the search space size for the resolved solution.
     #[clap(long)]
@@ -1529,6 +1538,49 @@ pub struct DecisionFormatterSettings {
 }
 
 impl DecisionFormatterSettings {
+    /// Merge explicit formatter overrides into config, keeping zero values meaningful.
+    fn get_formatter_config(&self, config: &spk_config::Solver) -> spk_config::Solver {
+        let mut config = config.clone();
+        config.too_long_seconds = if self.status_bar {
+            0
+        } else {
+            self.increase_verbosity.unwrap_or(config.too_long_seconds)
+        };
+        config.verbosity_increase_limit = self
+            .max_verbosity_increase_level
+            .unwrap_or(config.verbosity_increase_limit);
+        config.solve_timeout = self.timeout.unwrap_or(config.solve_timeout);
+        config.long_solve_threshold = self.long_solves.unwrap_or(config.long_solve_threshold);
+        config.max_frequent_errors = self
+            .max_frequent_errors
+            .unwrap_or(config.max_frequent_errors);
+        config
+    }
+
+    /// Resolve the solver choice, preserving CLI/environment precedence over config.
+    fn get_solver_to_run(&self, config: &spk_config::Solver) -> Result<SolverToRun> {
+        if let Some(choice) = self.solver_to_run {
+            return Ok(choice);
+        }
+        if config.solver_to_run.is_empty() {
+            return Ok(SolverToRun::All);
+        }
+        SolverToRun::from_str(&config.solver_to_run, true)
+            .map_err(|err| miette!("Invalid solver.solver_to_run: {err}"))
+    }
+
+    /// Resolve the output choice independently of which solver is run.
+    fn get_solver_to_show(&self, config: &spk_config::Solver) -> Result<SolverToShow> {
+        if let Some(choice) = self.solver_to_show {
+            return Ok(choice);
+        }
+        if config.solver_to_show.is_empty() {
+            return Ok(SolverToShow::Cli);
+        }
+        SolverToShow::from_str(&config.solver_to_show, true)
+            .map_err(|err| miette!("Invalid solver.solver_to_show: {err}"))
+    }
+
     /// Get a decision formatter configured from the command line
     /// options and their defaults.
     pub fn get_formatter(&self, verbosity: u8) -> Result<DecisionFormatter> {
@@ -1540,29 +1592,16 @@ impl DecisionFormatterSettings {
     /// case some extra configuration might be needed before calling
     /// build.
     pub fn get_formatter_builder(&self, verbosity: u8) -> Result<DecisionFormatterBuilder> {
+        let config = spk_config::get_config().wrap_err("Failed to load config")?;
         let mut builder =
-            DecisionFormatterBuilder::try_from_config().wrap_err("Failed to load config")?;
+            DecisionFormatterBuilder::from_config(&self.get_formatter_config(&config.solver));
         builder
             .with_verbosity(verbosity)
             .with_time_and_stats(self.time)
-            .with_verbosity_increase_every({
-                // If using the status bar, don't automatically increase
-                // verbosity. The extra verbosity decreases the solver speed
-                // significantly.
-                if self.status_bar {
-                    0
-                } else {
-                    self.increase_verbosity
-                }
-            })
-            .with_max_verbosity_increase_level(self.max_verbosity_increase_level)
-            .with_timeout(self.timeout)
             .with_solution(self.show_solution)
-            .with_long_solves_threshold(self.long_solves)
-            .with_max_frequent_errors(self.max_frequent_errors)
             .with_status_bar(self.status_bar)
-            .with_solver_to_run(self.solver_to_run.into())
-            .with_solver_to_show(self.solver_to_show.into())
+            .with_solver_to_run(self.get_solver_to_run(&config.solver)?.into())
+            .with_solver_to_show(self.get_solver_to_show(&config.solver)?.into())
             .with_search_space_size(self.show_search_size)
             .with_stop_on_block(self.stop_on_block)
             .with_step_on_block(self.step_on_block)

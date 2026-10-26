@@ -21,8 +21,12 @@ struct Opt {
 
 #[spfstest]
 #[rstest]
+#[case("cli")]
+#[case("checks")]
+#[case("all")]
+#[case("resolvo")]
 #[tokio::test]
-async fn test_bake() {
+async fn test_bake(#[case] solver_to_run: &str) {
     // Test the bake command runs
     let mut rt = spfs_runtime().await;
     let remote_repo = spfsrepo().await;
@@ -51,7 +55,15 @@ async fn test_bake() {
         .unwrap();
 
     // Test a basic bake
+    let mut config = spk_config::Config::default();
+    config.solver.solver_to_run = solver_to_run.to_string();
+    config.make_current().unwrap();
     let mut opt = Opt::try_parse_from(["bake", "--no-runtime", "my-pkg:run"]).unwrap();
+    let solver = opt.bake.solver.get_solver(&opt.bake.options).await.unwrap();
+    assert_eq!(
+        matches!(solver, spk_solve::SolverImpl::Resolvo(_)),
+        solver_to_run == "resolvo"
+    );
     let result = opt.bake.run().await.unwrap();
     assert_eq!(result, 0);
 }
