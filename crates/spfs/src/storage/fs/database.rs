@@ -60,6 +60,42 @@ async fn object_rename_error(
     }
 }
 
+/// Publish an encoded object, accepting a failed rename only after an exact match.
+///
+/// A matching destination may have been written by another process or by an NFS
+/// rename that completed despite returning an error. Digest equality alone does
+/// not validate blob metadata, so compare all encoded bytes before recovering.
+async fn rename_object(source_path: &Path, destination_path: &Path, encoded: &[u8]) -> Result<()> {
+    let Err(source) = tokio::fs::rename(source_path, destination_path).await else {
+        return Ok(());
+    };
+    let validation = match tokio::fs::read(destination_path).await {
+        Ok(existing) if existing == encoded => {
+            tracing::debug!(
+                source_path = %source_path.display(),
+                destination_path = %destination_path.display(),
+                error = %source,
+                "rename failed but destination matches the encoded object"
+            );
+            let _ = tokio::fs::remove_file(source_path).await;
+            return Ok(());
+        }
+        Ok(existing) => format!(
+            "destination validation: encoded contents differ (expected {} bytes, found {} bytes)",
+            encoded.len(),
+            existing.len()
+        ),
+        Err(err) => format!("destination validation: read failed: {err}"),
+    };
+    let mut err = object_rename_error(source_path, destination_path, source).await;
+    if let Error::StorageObjectRenameError { observations, .. } = &mut err {
+        observations.push('\n');
+        observations.push_str(&validation);
+    }
+    let _ = tokio::fs::remove_file(source_path).await;
+    Err(err)
+}
+
 #[async_trait::async_trait]
 impl DatabaseView for super::MaybeOpenFsRepository {
     async fn has_object(&self, digest: encoding::Digest) -> bool {
@@ -314,13 +350,6 @@ impl graph::DatabaseExt for super::OpenFsRepository {
             }
         }
         self.objects.ensure_base_dir(&filepath)?;
-        match tokio::fs::rename(&working_file, &filepath).await {
-            Ok(_) => Ok(()),
-            Err(err) => {
-                let err = object_rename_error(&working_file, &filepath, err).await;
-                let _ = tokio::fs::remove_file(&working_file).await;
-                Err(err)
-            }
-        }
+        rename_object(&working_file, &filepath, &encoded).await
     }
 }
