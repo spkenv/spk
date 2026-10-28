@@ -4,6 +4,7 @@
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+use std::path::Path;
 use std::pin::Pin;
 
 use chrono::{DateTime, Utc};
@@ -13,6 +14,87 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::graph::{DatabaseView, Object, ObjectProto};
 use crate::{Error, Result, encoding, graph};
+
+#[cfg(test)]
+#[path = "./database_test.rs"]
+mod database_test;
+
+/// Inspect a path without hiding metadata errors or following its final symlink.
+async fn describe_path(path: &Path) -> String {
+    let status = match tokio::fs::symlink_metadata(path).await {
+        Ok(metadata) if metadata.is_file() => format!("file ({} bytes)", metadata.len()),
+        Ok(metadata) if metadata.is_dir() => "directory".to_owned(),
+        Ok(metadata) if metadata.is_symlink() => "symlink".to_owned(),
+        Ok(_) => "other file type".to_owned(),
+        Err(err) => format!("metadata error: {err}"),
+    };
+    format!("{}: {status}", path.display())
+}
+
+/// Capture rename diagnostics before cleanup removes evidence of the failure.
+///
+/// These observations can change after the failed operation, especially on NFS,
+/// and must not be used to infer success or suppress the original error.
+async fn object_rename_error(
+    source_path: &Path,
+    destination_path: &Path,
+    source: std::io::Error,
+) -> Error {
+    let mut observations = vec![
+        format!("source: {}", describe_path(source_path).await),
+        format!("destination: {}", describe_path(destination_path).await),
+    ];
+    for (label, path) in [
+        ("source parent", source_path.parent()),
+        ("destination parent", destination_path.parent()),
+    ] {
+        if let Some(path) = path {
+            observations.push(format!("{label}: {}", describe_path(path).await));
+        }
+    }
+    Error::StorageObjectRenameError {
+        source_path: source_path.to_owned(),
+        destination_path: destination_path.to_owned(),
+        observations: observations.join("\n"),
+        source,
+    }
+}
+
+/// Publish an encoded object, accepting a failed rename only after an exact match.
+///
+/// A matching destination may have been written by another process or by an NFS
+/// rename that completed despite returning an error. Digest equality alone does
+/// not validate blob metadata, so compare all encoded bytes before recovering.
+async fn rename_object(source_path: &Path, destination_path: &Path, encoded: &[u8]) -> Result<()> {
+    let Err(source) = tokio::fs::rename(source_path, destination_path).await else {
+        return Ok(());
+    };
+    let validation = match tokio::fs::read(destination_path).await {
+        Ok(existing) if existing == encoded => {
+            tracing::debug!(
+                source_path = %source_path.display(),
+                destination_path = %destination_path.display(),
+                error = %source,
+                "rename failed but destination matches the encoded object"
+            );
+            let _ = tokio::fs::remove_file(source_path).await;
+            return Ok(());
+        }
+        Ok(existing) => format!(
+            "destination validation: encoded contents differ (expected {} bytes, found {} bytes)",
+            encoded.len(),
+            existing.len()
+        ),
+        Err(err) => format!("destination validation: read failed: {err}"),
+    };
+    let mut err = object_rename_error(source_path, destination_path, source).await;
+    if let Error::StorageObjectRenameError { observations, .. } = &mut err {
+        observations.push('\n');
+        observations.push_str(&validation);
+    }
+    let _ = tokio::fs::remove_file(source_path).await;
+    Err(err)
+}
 
 #[async_trait::async_trait]
 impl DatabaseView for super::MaybeOpenFsRepository {
@@ -268,16 +350,6 @@ impl graph::DatabaseExt for super::OpenFsRepository {
             }
         }
         self.objects.ensure_base_dir(&filepath)?;
-        match tokio::fs::rename(&working_file, &filepath).await {
-            Ok(_) => Ok(()),
-            Err(err) => {
-                let _ = tokio::fs::remove_file(&working_file).await;
-                Err(Error::StorageWriteError(
-                    "rename on object file",
-                    filepath,
-                    err,
-                ))
-            }
-        }
+        rename_object(&working_file, &filepath, &encoded).await
     }
 }
