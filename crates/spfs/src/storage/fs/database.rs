@@ -4,6 +4,7 @@
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+use std::path::Path;
 use std::pin::Pin;
 
 use chrono::{DateTime, Utc};
@@ -13,6 +14,51 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::graph::{DatabaseView, Object, ObjectProto};
 use crate::{Error, Result, encoding, graph};
+
+#[cfg(test)]
+#[path = "./database_test.rs"]
+mod database_test;
+
+/// Inspect a path without hiding metadata errors or following its final symlink.
+async fn describe_path(path: &Path) -> String {
+    let status = match tokio::fs::symlink_metadata(path).await {
+        Ok(metadata) if metadata.is_file() => format!("file ({} bytes)", metadata.len()),
+        Ok(metadata) if metadata.is_dir() => "directory".to_owned(),
+        Ok(metadata) if metadata.is_symlink() => "symlink".to_owned(),
+        Ok(_) => "other file type".to_owned(),
+        Err(err) => format!("metadata error: {err}"),
+    };
+    format!("{}: {status}", path.display())
+}
+
+/// Capture rename diagnostics before cleanup removes evidence of the failure.
+///
+/// These observations can change after the failed operation, especially on NFS,
+/// and must not be used to infer success or suppress the original error.
+async fn object_rename_error(
+    source_path: &Path,
+    destination_path: &Path,
+    source: std::io::Error,
+) -> Error {
+    let mut observations = vec![
+        format!("source: {}", describe_path(source_path).await),
+        format!("destination: {}", describe_path(destination_path).await),
+    ];
+    for (label, path) in [
+        ("source parent", source_path.parent()),
+        ("destination parent", destination_path.parent()),
+    ] {
+        if let Some(path) = path {
+            observations.push(format!("{label}: {}", describe_path(path).await));
+        }
+    }
+    Error::StorageObjectRenameError {
+        source_path: source_path.to_owned(),
+        destination_path: destination_path.to_owned(),
+        observations: observations.join("\n"),
+        source,
+    }
+}
 
 #[async_trait::async_trait]
 impl DatabaseView for super::MaybeOpenFsRepository {
@@ -271,12 +317,9 @@ impl graph::DatabaseExt for super::OpenFsRepository {
         match tokio::fs::rename(&working_file, &filepath).await {
             Ok(_) => Ok(()),
             Err(err) => {
+                let err = object_rename_error(&working_file, &filepath, err).await;
                 let _ = tokio::fs::remove_file(&working_file).await;
-                Err(Error::StorageWriteError(
-                    "rename on object file",
-                    filepath,
-                    err,
-                ))
+                Err(err)
             }
         }
     }
