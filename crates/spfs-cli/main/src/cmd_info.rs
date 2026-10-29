@@ -7,7 +7,8 @@ use std::collections::VecDeque;
 use clap::Args;
 use colored::*;
 use futures::TryFutureExt;
-use miette::Result;
+use miette::{Result, miette};
+use spfs::config::ToAddress;
 use spfs::env::SPFS_DIR;
 use spfs::find_path::ObjectPathEntry;
 use spfs::graph::Annotation;
@@ -15,6 +16,10 @@ use spfs::io::{self, DigestFormat, Pluralize};
 use spfs::prelude::*;
 use spfs::{self};
 use spfs_cli_common as cli;
+
+#[cfg(test)]
+#[path = "./cmd_info_test.rs"]
+mod cmd_info_test;
 
 /// Display information about the current environment, or specific items
 #[derive(Debug, Args)]
@@ -31,6 +36,13 @@ pub struct CmdInfo {
 
     #[clap(flatten)]
     pub(crate) repos: cli::Repositories,
+
+    /// When set, use local/origin as fallback pair for object reads.
+    ///
+    /// With no --remote, local is primary and origin is fallback.
+    /// With --remote origin, origin is primary and local is fallback.
+    #[clap(long)]
+    origin_local_fallback: bool,
 
     /// Tag, id, or /spfs/file/path to show information about
     #[clap(value_name = "REF")]
@@ -56,8 +68,30 @@ pub struct CmdInfo {
 
 impl CmdInfo {
     pub async fn run(&mut self, config: &spfs::Config) -> Result<i32> {
-        let repo =
+        let primary_repo =
             spfs::config::open_repository_from_string(config, self.repos.remote.as_ref()).await?;
+        let repo = if self.origin_local_fallback {
+            let secondary_repo = match self.repos.remote.as_deref() {
+                None => spfs::config::open_repository_from_string(config, Some("origin")).await?,
+                Some("origin") => {
+                    spfs::config::open_repository_from_string(config, Option::<&str>::None).await?
+                }
+                Some(other) => {
+                    return Err(miette!(
+                        "--origin-local-fallback only supports local or --remote origin, got --remote {other}"
+                    ));
+                }
+            };
+
+            let proxy_config = spfs::storage::proxy::Config {
+                primary: primary_repo.address().to_string(),
+                secondary: vec![secondary_repo.address().to_string()],
+                include_secondary_tags: false,
+            };
+            spfs::open_repository(proxy_config.to_address()?).await?
+        } else {
+            primary_repo
+        };
 
         self.to_process.extend(self.refs.iter().cloned());
 
@@ -269,15 +303,23 @@ impl CmdInfo {
         verbosity: usize,
     ) -> Result<()> {
         let mut in_a_runtime = true;
-        let found = match spfs::find_path::find_path_providers_in_spfs_runtime(filepath, repo).await
-        {
-            Ok(f) => f,
-            Err(spfs::Error::NoActiveRuntime) => {
-                in_a_runtime = false;
-                Vec::new()
-            }
-            Err(err) => return Err(err.into()),
-        };
+        let search_result =
+            match spfs::find_path::find_path_providers_in_spfs_runtime_with_diagnostics(
+                filepath, repo,
+            )
+            .await
+            {
+                Ok(result) => result,
+                Err(spfs::Error::NoActiveRuntime) => {
+                    in_a_runtime = false;
+                    spfs::find_path::FindPathProvidersResult {
+                        providers: Vec::new(),
+                        skipped_unknown_objects: false,
+                    }
+                }
+                Err(err) => return Err(err.into()),
+            };
+        let found = search_result.providers;
 
         if found.is_empty() {
             println!("{filepath}: {}", "not found".yellow());
@@ -289,6 +331,12 @@ impl CmdInfo {
                     "No active runtime".red()
                 }
             );
+            if let Some(hint) = missing_file_provider_hint(MissingProviderContext {
+                in_a_runtime,
+                skipped_unknown_objects: search_result.skipped_unknown_objects,
+            }) {
+                println!(" - {}", hint.yellow());
+            }
         } else {
             if let Some(first_path) = found.first()
                 && let Some(ObjectPathEntry::FilePath(file_entry)) = first_path.last()
@@ -319,5 +367,20 @@ impl CmdInfo {
         }
 
         Ok(())
+    }
+}
+
+struct MissingProviderContext {
+    in_a_runtime: bool,
+    skipped_unknown_objects: bool,
+}
+
+fn missing_file_provider_hint(ctx: MissingProviderContext) -> Option<&'static str> {
+    if ctx.in_a_runtime && ctx.skipped_unknown_objects {
+        Some(
+            "some runtime objects were unavailable in this repo; enable extra repos (try --origin-local-fallback)",
+        )
+    } else {
+        None
     }
 }
