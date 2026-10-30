@@ -1585,6 +1585,52 @@ async fn test_solver_embedded_package_adds_request(
     );
 }
 
+/// An embedded package must be able to require its exact prerelease parent,
+/// whether the embedding is implicit or assigned to a specific component.
+#[rstest]
+#[case::step(step_solver())]
+#[case::resolvo(resolvo_solver())]
+#[tokio::test]
+async fn test_solver_embedded_package_prerelease(
+    #[case] mut solver: SolverImpl,
+    #[values(true, false)] use_index: bool,
+    #[values(true, false)] explicit_component: bool,
+    #[values("18.0.1-pre.1", "18.0.1")] parent_version: &str,
+) {
+    let components = if explicit_component {
+        serde_json::json!([
+            {"name": "build"},
+            {"name": "run", "embedded_packages": ["usd:all"]},
+        ])
+    } else {
+        serde_json::json!([])
+    };
+    let repo = make_repo!(
+        [
+            {
+                "pkg": format!("nuke/{parent_version}"),
+                "install": {
+                    "components": components,
+                    "embedded": [{"pkg": "usd/26.8.0.0"}],
+                },
+            },
+        ]
+    );
+    let repo = wrap_repo_for_test(repo, use_index).await;
+
+    solver.add_repository(Arc::new(repo));
+    solver.add_request(pinned_request!({
+        "pkg": format!("nuke/={parent_version}"),
+        "prereleasePolicy": "IncludeAll",
+    }));
+
+    let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
+
+    assert_resolved!(solution, "nuke", version = parent_version);
+    assert_resolved!(solution, "usd", "26.8.0.0");
+    assert_resolved!(solution, "usd", build =~ Build::Embedded(_));
+}
+
 #[rstest]
 #[case::step(step_solver())]
 #[case::resolvo(resolvo_solver())]

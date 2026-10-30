@@ -1712,7 +1712,10 @@ impl DependencyProvider for SpkProvider {
                                                                 .target()
                                                                 .clone(),
                                                         ),
-                                                    ),
+                                                    )
+                                                    .with_prerelease(Some(
+                                                        PreReleasePolicy::IncludeAll,
+                                                    )),
                                                 },
                                             )),
                                         )
