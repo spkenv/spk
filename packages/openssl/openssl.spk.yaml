@@ -9,7 +9,7 @@ build:
     - var: arch
     - var: os
     - var: centos
-    - pkg: gcc/6.3
+    - pkg: gcc/11
   script:
     - cd openssl-1.1.1m
     - ./config
@@ -22,8 +22,6 @@ build:
 install:
   requirements:
     - pkg: stdfs
-    - pkg: gcc
-      fromBuildEnv: x.x
   environment:
     - set: OPENSSLDIR
       value: /etc/pki/tls

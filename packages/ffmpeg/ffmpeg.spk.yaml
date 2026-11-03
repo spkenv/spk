@@ -34,7 +34,7 @@ build:
     - var: centos
     - pkg: stdfs
     - pkg: cmake/^3.13
-    - pkg: gcc/6.3
+    - pkg: gcc/11
     - pkg: zlib
     - pkg: freetype
     - pkg: openjpeg

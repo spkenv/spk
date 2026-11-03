@@ -19,7 +19,7 @@ build:
     - var: os
     - var: centos
     - pkg: stdfs
-    - pkg: gcc/6.3
+    - pkg: gcc/11
     - pkg: cmake/^3.13
     - pkg: zlib
     - pkg: libpng
@@ -27,8 +27,8 @@ build:
     - pkg: lcms2
   # Pure C library, doesn't need gcc variants
   # variants:
-  #   - { gcc: 6.3 }
-  #   - { gcc: 9.3 }
+  #   - { gcc: 11 }
+  #   - { gcc: 14 }
   script:
     - cmake --version
     - export CMAKE_PREFIX_PATH=$PREFIX:$CMAKE_PREFIX_PATH

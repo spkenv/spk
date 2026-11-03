@@ -21,14 +21,14 @@ build:
     - var: os
     - var: centos
     - pkg: stdfs
-    - pkg: gcc/6
+    - pkg: gcc/11
     - pkg: cmake/^3.13
     - pkg: cuda
     # - pkg: ncurses
 
   variants:
-    - { gcc: 6.3 }
-    - { gcc: 9.3 }
+    - { gcc: 11 }
+    - { gcc: 14 }
 
   script:
     - ./build.sh

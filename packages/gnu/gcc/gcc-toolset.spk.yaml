@@ -1,0 +1,59 @@
+# {% set opt = opt | default_opts(toolset="14", version="14.2.1") %}
+# Wraps a Red Hat gcc-toolset (/opt/rh/gcc-toolset-N) as an spk package.
+#
+# Requires the gcc-toolset-N-gcc-c++ rpm on the build host. Nothing is
+# compiled or copied; the package links the toolset's tools (compilers and
+# its matching binutils) into /spfs/bin and sets CC/CXX. The version must
+# match the installed toolset exactly, which the build script checks.
+#
+# Binaries built with a gcc-toolset link against the system libstdc++, with
+# any newer parts linked statically, so they run on a host without the
+# toolset installed.
+#
+# To wrap a different toolset, override both options, e.g.
+#   spk mkb -o toolset=15 -o version=15.2.1 gnu/gcc/gcc-toolset.spk.yaml
+pkg: gcc/{{ opt.version }}
+api: v0/package
+# gcc keeps its ABI stable within a major release, so any 11.x (for example)
+# satisfies a request for gcc/11.
+compat: x.ab.ab
+
+sources: []
+
+build:
+  # the package is only valid on the distro (and version) it was built on
+  auto_host_vars: Distro
+  options:
+    - pkg: stdfs
+  script: |
+    root=/opt/rh/gcc-toolset-{{ opt.toolset }}/root/usr
+    if [ ! -x $root/bin/gcc ]; then
+      echo "gcc-toolset-{{ opt.toolset }} is not installed on this system"
+      exit 1
+    fi
+    actual="$($root/bin/gcc -dumpfullversion)"
+    if [ "$actual" != "{{ opt.version }}" ]; then
+      echo "gcc-toolset-{{ opt.toolset }} is gcc $actual, but this recipe is for {{ opt.version }}"
+      exit 1
+    fi
+    for tool in $root/bin/*; do
+      ln -s $tool /spfs/bin/
+    done
+
+tests:
+  - stage: install
+    script:
+      - echo 'int main() { return 0; }' > test.c
+      - gcc test.c -o test && ./test
+      - echo 'int main() { return 0; }' > test.cpp
+      - g++ test.cpp -o test && ./test
+      - test "$(gcc -dumpfullversion)" = "{{ opt.version }}"
+
+install:
+  environment:
+    - set: CC
+      value: /spfs/bin/gcc
+    - set: CXX
+      value: /spfs/bin/g++
+  requirements:
+    - pkg: stdfs

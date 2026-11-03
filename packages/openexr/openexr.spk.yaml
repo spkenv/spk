@@ -21,13 +21,13 @@ build:
     - var: centos
     - pkg: stdfs
     - pkg: cmake/^3.13
-    - pkg: gcc/6.3
+    - pkg: gcc/11
     - pkg: zlib
     - pkg: imath/~3.1.0
 
   variants:
-    - { gcc: 6.3 }
-    - { gcc: 9.3 }
+    - { gcc: 11 }
+    - { gcc: 14 }
 
   script:
     - cmake -S openexr -B build -G Ninja
@@ -39,8 +39,6 @@ build:
 install:
   requirements:
     - pkg: stdfs
-    - pkg: gcc
-      fromBuildEnv: x.x
     - pkg: zlib
       fromBuildEnv: x.x
     - pkg: imath

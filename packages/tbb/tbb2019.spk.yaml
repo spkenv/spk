@@ -25,10 +25,10 @@ build:
     - var: os      # rebuild if the os changes
     - var: centos  # rebuild if centos version changes
     - pkg: cmake/^3.13
-    - pkg: gcc/6.3
+    - pkg: gcc/11
   variants:
-    - { gcc: 6.3 }
-    - { gcc: 9.3 }
+    - { gcc: 11 }
+    - { gcc: 14 }
   script:
     - cmake -B build -S oneTBB -G Ninja
         -DCMAKE_INSTALL_PREFIX=${PREFIX}
@@ -46,5 +46,3 @@ tests:
 install:
   requirements:
     - pkg: stdfs
-    - pkg: gcc
-      fromBuildEnv: x.x

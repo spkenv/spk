@@ -15,6 +15,8 @@ RUN yum install -y --allowerasing \
     flex \
     gcc \
     gcc-c++ \
+    gcc-toolset-14-binutils \
+    gcc-toolset-14-gcc-c++ \
     gettext \
     gettext-devel \
     git \

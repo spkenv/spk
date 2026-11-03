@@ -19,15 +19,15 @@ build:
     - var: arch    # rebuild if the arch changes
     - var: os      # rebuild if the os changes
     - var: centos  # rebuild if centos version changes
-    - pkg: gcc/6.3
+    - pkg: gcc/11
     - pkg: cmake/^3.13
     - var: sharedlibs
       default: on
       choices: [on, off]
 
   variants:
-    - { gcc: 6.3 }
-    - { gcc: 9.3 }
+    - { gcc: 11 }
+    - { gcc: 14 }
 
   script:
     - cmake -S pugixml -B build

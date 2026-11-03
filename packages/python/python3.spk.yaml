@@ -27,7 +27,7 @@ build:
       default: off
       choices: [on, off]
   variants:
-    - { gcc: 6.3, abi: "{{cpXX}}m", debug: off }
+    - { gcc: 11, abi: "{{cpXX}}m", debug: off }
   script:
     - |
       case "$SPK_OPT_debug" in
@@ -93,9 +93,6 @@ install:
   requirements:
     - pkg: binutils
       fromBuildEnv: Binary
-    - pkg: gcc
-      fromBuildEnv: Binary
-      include: IfAlreadyPresent
     - pkg: stdfs
     - pkg: libffi
     - pkg: ncurses

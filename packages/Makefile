@@ -10,17 +10,16 @@ packages: \
 	opentimelineio
 
 .PHONY: bootstrap bootstrap.full
-# bootstrap just enough to get a real linker and compiler
-# under /spfs, then move on from there
+# bootstrap just enough to get a linker and compiler under /spfs
+# (the system gcc is wrapped, not rebuilt), then move on from there
 bootstrap: \
 	stdfs/stdfs.spk \
 	bootstrap/automake.spk \
-	bootstrap/gcc.spk \
+	gnu/gcc/gcc-system.spk \
 	bootstrap/glibc.spk
 bootstrap.full: bootstrap \
 	bootstrap/autoconf.spk \
 	bootstrap/autoconf-archive.spk \
-	bootstrap/autogen.spk \
 	bootstrap/bison.spk \
 	bootstrap/coreutils.spk \
 	bootstrap/flex.spk \
@@ -41,10 +40,7 @@ gnu: bootstrap.full \
 	gnu/binutils.spk \
 	gnu/bash.spk \
 	gnu/ncurses.spk \
-	gnu/gmp.spk \
-	gnu/mpfr.spk \
-	gnu/mpc.spk \
-	gnu/gcc/gcc63.spk
+	gnu/gcc/gcc-toolset.spk
 gnu.full: gnu \
 	gnu/autoconf.spk \
 	gnu/automake.spk \
@@ -52,8 +48,7 @@ gnu.full: gnu \
 	gnu/make.spk \
 	gnu/glibc.spk \
 	gnu/m4.spk \
-	gnu/texinfo.spk \
-	gnu/gcc/gcc93.spk
+	gnu/texinfo.spk
 
 perl: gnu perl/perl.spk
 

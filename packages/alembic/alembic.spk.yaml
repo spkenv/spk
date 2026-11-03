@@ -20,24 +20,24 @@ build:
     - var: centos
     - var: python.abi
     - pkg: stdfs
-    - pkg: gcc/6.3
+    - pkg: gcc/11
     - pkg: python/~3.7.0
     - pkg: boost-python/~1.70.0
     - pkg: imath/~3.1.0
     - pkg: cmake/^3.13
   variants:
     # VFX 2019-ish, Maya 2020, Houdini 18
-    - { gcc: 6.3, python: ~2.7.0, boost-python: ~1.70.0, python.abi: "cp27mu", imath: 2.4 }
+    - { gcc: 11, python: ~2.7.0, boost-python: ~1.70.0, python.abi: "cp27mu", imath: 2.4 }
     # VFX2020-ish, Nuke 13?
-    - { gcc: 6.3, python: ~3.7.0, boost-python: ~1.70.0, python.abi: "cp37m", imath: 2.4 }
+    - { gcc: 11, python: ~3.7.0, boost-python: ~1.70.0, python.abi: "cp37m", imath: 2.4 }
     # VFX 2021-ish, Maya 2022, Houdini 19
-    - { gcc: 9.3, python: ~3.7.0, boost-python: ~1.73.0, python.abi: "cp37m", imath: 2.4 }
+    - { gcc: 14, python: ~3.7.0, boost-python: ~1.73.0, python.abi: "cp37m", imath: 2.4 }
     # Cutting edge version: VFX Platform 2022 will look like this
-    - { gcc: 9.3, python: ~3.7.0, boost-python: ~1.73.0, python.abi: "cp37m", imath: ~3.1.0 }
+    - { gcc: 14, python: ~3.7.0, boost-python: ~1.73.0, python.abi: "cp37m", imath: ~3.1.0 }
     # Not sure if any of these are needed yet, but standing by:
-    #- { gcc: 6.3, python: ~3.7.0, boost-python: ~1.70.0, python.abi: "cp37m" }
-    #- { gcc: 6.3, python: ~2.7.0, boost-python: ~1.70.0, python.abi: "cp27mu" }
-    #- { gcc: 9.3, python: ~2.7.0, boost-python: ~1.73.0, python.abi: "cp27mu" }
+    #- { gcc: 11, python: ~3.7.0, boost-python: ~1.70.0, python.abi: "cp37m" }
+    #- { gcc: 11, python: ~2.7.0, boost-python: ~1.70.0, python.abi: "cp27mu" }
+    #- { gcc: 14, python: ~2.7.0, boost-python: ~1.73.0, python.abi: "cp27mu" }
   script:
     # OpenEXR 2's exported cmake config doesn't have everything we need. A
     # little extra hinting is necessary.
@@ -60,8 +60,6 @@ build:
 install:
   requirements:
     - pkg: stdfs
-    - pkg: gcc
-      fromBuildEnv: x.x
     - pkg: boost-python
       fromBuildEnv: x.x
     - pkg: python

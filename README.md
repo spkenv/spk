@@ -151,24 +151,25 @@ spk convert pip --help
 
 #### Other Notes
 
-- The `make packages.python3` target can be used to bootstrap just enough to be able to build Python for SPK. The Python recipes will build multiple Python versions for each gcc48 and 63 as well as for the different Python ABIs
-- The make `packages.gnu` target can be used to bootstrap just enough to get "native" spk packages for gcc48 and gcc63
+- The `make packages.python3` target can be used to bootstrap just enough to be able to build Python for SPK. The Python recipes will build multiple Python versions for each gcc variant as well as for the different Python ABIs
+- The make `packages.gnu` target can be used to bootstrap just enough to get the gcc packages. These wrap the host's compilers rather than building gcc from source: `gnu/gcc/gcc-system.spk.yaml` wraps the system gcc (gcc 11 on el9) and `gnu/gcc/gcc-toolset.spk.yaml` wraps a Red Hat gcc-toolset (gcc-toolset-14 by default)
 
 Of course, the packages themselves can also be built with the `spk build <spec_file>` command directly, though you may find that some required build dependencies need to be generated with the `make packages.bootstrap.full` command first.
 
-The following RPM packages must be installed in order to create the bootstrap packages.
+The following RPM packages must be installed in order to create the bootstrap packages. On el9, several of them come from the EPEL and CRB repositories.
 
 ```bash
 sudo yum install -y \
     autoconf \
     autoconf-archive \
-    autogen \
     automake \
     binutils \
     bison \
     coreutils \
     flex \
     gcc \
+    gcc-c++ \
+    gcc-toolset-14-gcc-c++ \
     gettext \
     glibc \
     grep \

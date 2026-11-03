@@ -20,7 +20,7 @@ build:
     - var: os      # rebuild if the os changes
     - var: centos  # rebuild if centos version changes
     - pkg: stdfs
-    - pkg: gcc/6.3
+    - pkg: gcc/11
     - pkg: python/~3.7.0
     - pkg: cmake/^3.13
     - pkg: tbb/2019
@@ -37,9 +37,9 @@ build:
       choices: [on, off]
 
   variants:
-    - { gcc: 6.3, python: ~2.7.0 }
-    - { gcc: 6.3, python: ~3.7.0 }
-    # At SPI, we don't yet have python built for gcc/9. Come back to
+    - { gcc: 11, python: ~2.7.0 }
+    - { gcc: 11, python: ~3.7.0 }
+    # At SPI, we don't yet have python built for gcc/14. Come back to
     # and do these builds when that has been finished.
 
   script:
@@ -67,7 +67,6 @@ build:
     - cmake --build build --target install
     # Also build nanovdb if this is an openvdb branch that supports it
     - if [ -e openvdb/nanovdb ] ; then
-        export PATH="/opt/rh/devtoolset-6/root/bin:${PATH}" ;
         cmake -S openvdb/nanovdb -B nanobuild -G Ninja
             -DCMAKE_INSTALL_PREFIX=$PREFIX
             -DNANOVDB_BUILD_UNITTESTS=OFF
@@ -87,8 +86,6 @@ build:
 install:
   requirements:
     - pkg: stdfs
-    - pkg: gcc
-      fromBuildEnv: x.x
     - pkg: python
       fromBuildEnv: x.x
       # If python is already in the environment/resolve then we

@@ -22,7 +22,7 @@ build:
     - var: os      # rebuild if the os changes
     - var: centos  # rebuild if centos version changes
     - var: python.abi
-    - pkg: gcc/6.3
+    - pkg: gcc/11
     - pkg: cmake/^3.15
     - pkg: blosc
     - pkg: alembic/~1.8.0
@@ -33,13 +33,13 @@ build:
 
   variants:
     # VFX 2019-ish, Maya 2020, Houdini 18
-    - { gcc: 6.3, python: ~2.7.0, python.abi: "cp27mu", imath: 2.4 }
+    - { gcc: 11, python: ~2.7.0, python.abi: "cp27mu", imath: 2.4 }
     # VFX2020-ish, Nuke 13?
-    - { gcc: 6.3, python: ~3.7.0, python.abi: "cp37m", imath: 2.4 }
+    - { gcc: 11, python: ~3.7.0, python.abi: "cp37m", imath: 2.4 }
     # VFX 2021-ish, Maya 2022, Houdini 19
-    - { gcc: 9.3, python: ~3.7.0, python.abi: "cp37m", imath: 2.4 }
+    - { gcc: 14, python: ~3.7.0, python.abi: "cp37m", imath: 2.4 }
     # Cutting edge version: VFX Platform 2022 will look like this
-    - { gcc: 9.3, python: ~3.7.0, python.abi: "cp37m", imath: ~3.1.0 }
+    - { gcc: 14, python: ~3.7.0, python.abi: "cp37m", imath: ~3.1.0 }
 
   script:
     - ls -l
@@ -57,8 +57,6 @@ build:
 install:
   requirements:
     - pkg: stdfs
-    - pkg: gcc
-      fromBuildEnv: x.x
     - pkg: blosc
       fromBuildEnv: x.x
     - pkg: alembic

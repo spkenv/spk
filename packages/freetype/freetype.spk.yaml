@@ -20,13 +20,13 @@ build:
     - var: os
     - var: centos
     - pkg: stdfs
-    - pkg: gcc/6.3
+    - pkg: gcc/11
     - pkg: cmake/^3.13
     - pkg: zlib
     - pkg: libpng
   variants:
-    - { gcc: 6.3 }
-    - { gcc: 9.3 }
+    - { gcc: 11 }
+    - { gcc: 14 }
   script:
     - cmake -S freetype -B build -G Ninja
         -DCMAKE_BUILD_TYPE=Release
@@ -38,8 +38,6 @@ build:
 install:
   requirements:
     - pkg: stdfs
-    - pkg: gcc
-      fromBuildEnv: x.x
     - pkg: zlib
       fromBuildEnv: x.x
     - pkg: libpng
