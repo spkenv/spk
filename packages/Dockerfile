@@ -37,6 +37,12 @@ RUN yum install -y --allowerasing \
 
 RUN yum update -y
 
+# wget gives up on a connection error such as "Network is unreachable"
+# (which is what the runners report for ipv6) unless told otherwise, so
+# one timed out download would otherwise fail the whole build
+RUN printf '%s\n' 'tries = 10' 'waitretry = 10' 'connect_timeout = 30' \
+    'retry_connrefused = on' >> /etc/wgetrc
+
 # the spk rpm includes spfs (and obsoletes the spfs rpm)
 COPY rpm/RPMS/x86_64/spk-*.rpm /tmp/
 RUN yum install -y /tmp/spk-*.rpm
