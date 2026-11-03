@@ -11,6 +11,7 @@ BuildRequires: git
 BuildRequires: gcc-c++
 BuildRequires: libcap-devel
 BuildRequires: openssl-devel
+BuildRequires: libcurl-devel
 BuildRequires: python3-devel
 BuildRequires: python3-pip
 BuildRequires: fuse3-devel

@@ -12,6 +12,7 @@ BuildRequires: gcc-c++
 BuildRequires: make
 BuildRequires: cmake3
 BuildRequires: openssl-devel
+BuildRequires: libcurl-devel
 BuildRequires: fuse3-devel
 # see explicit versions from dockerfile
 # BuildRequires: flatbuffers-compiler
