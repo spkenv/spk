@@ -2,6 +2,7 @@ FROM almalinux:9 as build_env
 
 RUN yum install -y \
     epel-release \
+    gcc \
     curl-minimal \
     rpm-build \
     yum-utils \
