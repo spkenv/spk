@@ -1,5 +1,5 @@
 Name: spk
-Version: 0.44.0
+Version: 0.46.0
 Release: 1%{?dist}
 Summary: Package manager and a software runtime for studio environments
 License: NONE
@@ -30,7 +30,7 @@ Requires: rsync
 # set and logs a warning on every run.
 Requires: kmod
 Obsoletes: spfs
-Provides: spfs = 0.44.0
+Provides: spfs = 0.46.0
 
 %define debug_package %{nil}
 
