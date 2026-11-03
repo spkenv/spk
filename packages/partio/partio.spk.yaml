@@ -28,12 +28,10 @@ build:
     - pkg: alembic/~1.8.0
     - pkg: tbb/2019
     - pkg: openvdb/~8.0.0
-    - pkg: python/~2.7.0
+    - pkg: python/~3.7.0
     - pkg: imath/~2.4.0
 
   variants:
-    # VFX 2019-ish, Maya 2020, Houdini 18
-    - { gcc: 11, python: ~2.7.0, python.abi: "cp27mu", imath: 2.4 }
     # VFX2020-ish, Nuke 13?
     - { gcc: 11, python: ~3.7.0, python.abi: "cp37m", imath: 2.4 }
     # VFX 2021-ish, Maya 2022, Houdini 19

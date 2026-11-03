@@ -109,8 +109,8 @@ In a new environment, it can be helpful to build all of the core packages whose 
 make packages
 # build only enough to bootstrap a compiler and linker
 make packages.bootstrap
-# build the python2 package (will require at least packages.bootstrap)
-make packages.python2
+# build the python3 package (will require at least packages.bootstrap)
+make packages.python3
 ```
 
 Some of these package specs have not yet been used or tested fully or ironed out all the way so please communicate any issues as you run into them!
@@ -126,7 +126,7 @@ Currently, this process can only be run on an rpm-based system, as it relies on 
 ```sh
 # build bootstrap packages in a docker image
 # (can also build any other packages.* rule, though the container startup is heavy)
-make packages.docker.python2
+make packages.docker.python3
 # build all core packages
 make packages.docker
 # import the created packages to the local spk environment

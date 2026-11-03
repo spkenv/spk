@@ -65,8 +65,6 @@ build:
   # variants declares the default set of variants to build and publish
   # using the spk build and make-* commands
   variants:
-    # VFX Platform 2019-ish, Maya 2020, Houdini 18
-    - { gcc: ~6.3.0, cxx: 14, python: ~2.7.0, python.abi: "cp27mu", boost: ~1.70.0, openexr: ~2.4.3, imath: ~2.4.0 }
     # VFX Platform 2020-ish (Nuke 13?)
     - { gcc: 11, cxx: 14, python: ~3.7.0, python.abi: "cp37m", boost: ~1.70.0, openexr: ~2.4.3, imath: ~2.4.0 }
     # VFX Platform 2021-ish, Maya 2022, Houdini 19

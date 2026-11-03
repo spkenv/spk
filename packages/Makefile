@@ -52,9 +52,8 @@ gnu.full: gnu \
 
 perl: gnu perl/perl.spk
 
-.PHONY: python python2 python3
-python: python2 python3
-python2: bootstrap bzip2/bzip2.spk zlib/zlib.spk python/python2.spk
+.PHONY: python python3
+python: python3
 python3: bootstrap bzip2/bzip2.spk zlib/zlib.spk libffi/libffi.spk openssl/openssl.spk python/python3.spk
 
 .PHONY: ninja

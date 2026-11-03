@@ -35,9 +35,7 @@ build:
     - pkg: cmake/3.13
 
   variants:
-    - { gcc: 11, python: ~2.7.0 }
     - { gcc: 11, python: ~3.7.0 }
-    - { gcc: 14, python: ~2.7.0 }
     - { gcc: 14, python: ~3.7.0 }
 
   script:

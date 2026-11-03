@@ -26,8 +26,6 @@ build:
     - pkg: imath/~3.1.0
     - pkg: cmake/^3.13
   variants:
-    # VFX 2019-ish, Maya 2020, Houdini 18
-    - { gcc: 11, python: ~2.7.0, boost-python: ~1.70.0, python.abi: "cp27mu", imath: 2.4 }
     # VFX2020-ish, Nuke 13?
     - { gcc: 11, python: ~3.7.0, boost-python: ~1.70.0, python.abi: "cp37m", imath: 2.4 }
     # VFX 2021-ish, Maya 2022, Houdini 19
@@ -36,8 +34,6 @@ build:
     - { gcc: 14, python: ~3.7.0, boost-python: ~1.73.0, python.abi: "cp37m", imath: ~3.1.0 }
     # Not sure if any of these are needed yet, but standing by:
     #- { gcc: 11, python: ~3.7.0, boost-python: ~1.70.0, python.abi: "cp37m" }
-    #- { gcc: 11, python: ~2.7.0, boost-python: ~1.70.0, python.abi: "cp27mu" }
-    #- { gcc: 14, python: ~2.7.0, boost-python: ~1.73.0, python.abi: "cp27mu" }
   script:
     # OpenEXR 2's exported cmake config doesn't have everything we need. A
     # little extra hinting is necessary.

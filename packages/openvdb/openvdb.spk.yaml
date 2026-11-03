@@ -37,7 +37,6 @@ build:
       choices: [on, off]
 
   variants:
-    - { gcc: 11, python: ~2.7.0 }
     - { gcc: 11, python: ~3.7.0 }
     # At SPI, we don't yet have python built for gcc/14. Come back to
     # and do these builds when that has been finished.

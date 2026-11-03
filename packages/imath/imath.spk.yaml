@@ -27,7 +27,6 @@ build:
     - pkg: cmake/~3.13
     - pkg: boost-python/~1.70.0
   variants:
-    - { gcc: 11, python: ~2.7.0, boost-python: ~1.70.0, python.abi: "cp27mu" }
     - { gcc: 11, python: ~3.7.0, boost-python: ~1.70.0, python.abi: "cp37m" }
     - { gcc: 14, python: ~3.7.0, boost-python: ~1.73.0, python.abi: "cp37m" }
   script:

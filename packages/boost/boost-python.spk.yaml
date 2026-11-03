@@ -21,12 +21,10 @@ build:
     - var: centos
     - pkg: stdfs
     - pkg: gcc/11
-    - pkg: python/2.7
+    - pkg: python/3.7
 
   variants:
-    - { gcc: 11, python: 2.7 }
     - { gcc: 11, python: 3.7 }
-    - { gcc: 14, python: 2.7 }
     - { gcc: 14, python: 3.7 }
 
   script: |

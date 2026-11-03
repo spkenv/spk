@@ -21,7 +21,6 @@ build:
     - pkg: cmake
     - pkg: python/3.7
   variants:
-    - { python: 2.7 }
     - { python: 3.7 }
   script:
     - cmake -S pybind11 -B build
