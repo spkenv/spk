@@ -370,6 +370,7 @@
     "libcap",
     "LIBCPP",
     "libcuda",
+    "libcurl",
     "librdkafka",
     "libcxx",
     "libcxxabi",
