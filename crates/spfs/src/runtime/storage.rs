@@ -728,7 +728,8 @@ impl Runtime {
                 Ok(pat) => Ok(pat),
             })
             .collect::<Result<Vec<gitignore::Pattern>>>()?;
-        for entry in walkdir::WalkDir::new(&self.config.upper_dir) {
+        let mut walker = walkdir::WalkDir::new(&self.config.upper_dir).into_iter();
+        while let Some(entry) = walker.next() {
             let entry = entry.map_err(|err| {
                 Error::RuntimeReadError(self.config.upper_dir.clone(), err.into())
             })?;
@@ -736,21 +737,24 @@ impl Runtime {
             if fullpath == self.config.upper_dir {
                 continue;
             }
-            for pattern in paths.iter() {
-                let is_dir = entry
-                    .metadata()
-                    .map_err(|err| Error::RuntimeReadError(entry.path().to_owned(), err.into()))?
-                    .file_type()
-                    .is_dir();
-                if pattern.is_excluded(fullpath, is_dir) {
-                    if is_dir {
-                        std::fs::remove_dir_all(fullpath)
-                            .map_err(|err| Error::RuntimeWriteError(fullpath.to_owned(), err))?;
-                    } else {
-                        std::fs::remove_file(fullpath)
-                            .map_err(|err| Error::RuntimeWriteError(fullpath.to_owned(), err))?;
-                    }
-                }
+            // walkdir does not follow symlinks, so this is the type of the
+            // entry itself, and it is checked only once: once a pattern
+            // matches, the entry is removed and must not be looked at again
+            let is_dir = entry.file_type().is_dir();
+            if !paths
+                .iter()
+                .any(|pattern| pattern.is_excluded(fullpath, is_dir))
+            {
+                continue;
+            }
+            if is_dir {
+                std::fs::remove_dir_all(fullpath)
+                    .map_err(|err| Error::RuntimeWriteError(fullpath.to_owned(), err))?;
+                // its contents are gone too, so don't walk into it
+                walker.skip_current_dir();
+            } else {
+                std::fs::remove_file(fullpath)
+                    .map_err(|err| Error::RuntimeWriteError(fullpath.to_owned(), err))?;
             }
         }
         Ok(())

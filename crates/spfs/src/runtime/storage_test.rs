@@ -560,6 +560,43 @@ async fn test_runtime_reset(tmpdir: tempfile::TempDir) {
 
 #[rstest]
 #[tokio::test]
+async fn test_runtime_reset_multiple_paths(tmpdir: tempfile::TempDir) {
+    let root = tmpdir.path().to_string_lossy().to_string();
+    let repo = crate::storage::RepositoryHandle::from(
+        crate::storage::fs::MaybeOpenFsRepository::create(root)
+            .await
+            .unwrap(),
+    );
+    let storage = Storage::new(repo).unwrap();
+
+    let mut runtime = storage
+        .create_owned_runtime()
+        .await
+        .expect("failed to create runtime in storage");
+    let upper_dir = tmpdir.path().join("upper");
+    runtime.data.config.upper_dir.clone_from(&upper_dir);
+
+    ensure(upper_dir.join("man/man1/a.1"), "a");
+    ensure(upper_dir.join("man/man1/b.1"), "b");
+    ensure(upper_dir.join("man/man3/c.3"), "c");
+    ensure(upper_dir.join("dir/sub/file"), "d");
+    ensure(upper_dir.join("keep"), "keep");
+
+    // like a shell-expanded glob: many paths, where an entry matched
+    // by an earlier path must not be revisited by the later ones,
+    // and a removed directory must not be walked into
+    runtime
+        .reset(&["/man/man1/a.1", "/man/man1/b.1", "/dir", "/man/man3/c.3"])
+        .expect("failed to reset multiple runtime paths");
+    assert!(!upper_dir.join("man/man1/a.1").exists());
+    assert!(!upper_dir.join("man/man1/b.1").exists());
+    assert!(!upper_dir.join("man/man3/c.3").exists());
+    assert!(!upper_dir.join("dir").exists());
+    assert!(upper_dir.join("keep").exists());
+}
+
+#[rstest]
+#[tokio::test]
 async fn test_runtime_ensure_extra_bind_mount_locations_exist(tmpdir: tempfile::TempDir) {
     let root = tmpdir.path().to_string_lossy().to_string();
     let repo = crate::storage::RepositoryHandle::from(
