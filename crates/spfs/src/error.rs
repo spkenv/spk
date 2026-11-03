@@ -158,6 +158,17 @@ pub enum Error {
     StorageReadError(&'static str, std::path::PathBuf, #[source] io::Error),
     #[error("Storage write error from {0} at {1}: {2}")]
     StorageWriteError(&'static str, std::path::PathBuf, #[source] io::Error),
+    /// A failed object rename with filesystem observations captured before cleanup.
+    #[error(
+        "Storage write error from rename on object file from {source_path} to {destination_path}: {source}\n\
+         Post-failure filesystem observations (not an atomic snapshot):\n{observations}"
+    )]
+    StorageObjectRenameError {
+        source_path: PathBuf,
+        destination_path: PathBuf,
+        observations: String,
+        source: io::Error,
+    },
 
     #[error("'{0}' not found in PATH, was it installed properly?")]
     MissingBinary(&'static str),
@@ -364,6 +375,7 @@ impl OsError for Error {
             Error::RuntimeWriteError(_, err) => err.os_error(),
             Error::StorageReadError(_, _, err) => err.os_error(),
             Error::StorageWriteError(_, _, err) => err.os_error(),
+            Error::StorageObjectRenameError { source, .. } => source.os_error(),
             Error::Errno(_, errno) => Some(*errno),
             #[cfg(unix)]
             Error::Nix(err) => Some(*err as i32),
