@@ -27,6 +27,7 @@ itertools = { workspace = true }
 spfs = { workspace = true }
 spk-cli-common = { workspace = true }
 spk-cli-group2 = { workspace = true }
+spk-config = { workspace = true }
 spk-schema = { workspace = true }
 spk-solve = { workspace = true }
 spk-storage = { workspace = true }
