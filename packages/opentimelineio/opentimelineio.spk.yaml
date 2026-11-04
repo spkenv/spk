@@ -29,7 +29,9 @@ build:
     - cmake -DCMAKE_INSTALL_PREFIX=/spfs ..
     - make all -j
     - make install
-    - python -m pip install ..[dev]
+    # pip builds the wheel with the newest cmake from PyPI, and CMake 4
+    # rejects the old cmake_minimum_required in the bundled pybind11
+    - CMAKE_POLICY_VERSION_MINIMUM=3.5 python -m pip install ..[dev]
 
 install:
   requirements:
