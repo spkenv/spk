@@ -71,6 +71,23 @@ components:
       tags:
         - docker
 
+  - name: spfs-rootless-integration-tests
+    kind: GenericBash
+    test:
+      - docker run --privileged --rm
+        -v /lib/modules:/lib/modules:ro
+        -v $PWD:/source:ro
+        docker.io/rockylinux/rockylinux:9.8
+        bash -exc "dnf install -y podman /source/dist/rpm/RPMS/x86_64/*.rpm &&
+        bash /source/crates/spfs/tests/integration/run_rootless_ci_tests.sh /usr/local/bin"
+    ci_config:
+      parallel: true
+      needs:
+        - component: rpm
+          artifacts: true
+      tags:
+        - docker
+
   - kind: SentryRelease
     name: sentry
     project: spk

@@ -28,12 +28,59 @@ sudo podman run --privileged ...   # Podman (rootful)
 Without it, spfs will fail the mount with an error such as `mount: /spfs: permission
 denied` followed by `Failed to mount overlayfs`.
 
-> [!CAUTION]
-> **Rootless Podman is not supported for the `/spfs` mount.** A rootless container
-> runs in a user namespace that disallows the `overlayfs` mount even with
-> `--privileged`, so spfs fails with `mount: /spfs: permission denied`. Use **rootful
-> Podman** (`sudo podman run ...`) or **Docker** (whose daemon already runs as root).
-> The kernel-module requirements below still apply identically in all cases.
+#### Rootless Podman
+
+Rootless Podman also works (`podman run --privileged ...` without `sudo`), on
+kernels that allow `overlayfs` mounts inside a user namespace (Linux 5.11 or newer).
+A rootless container runs in its own user namespace, where the kernel does not allow
+access to the `trusted.*` extended attributes that `overlayfs` normally uses. spfs
+detects this and mounts `/spfs` with the `userxattr` option, which also forces
+`redirect_dir=nofollow`, `index=off` and `metacopy=off` regardless of the configured
+`filesystem.overlayfs_options`.
+
+Older versions of spfs did not do this. On kernels with the reworked overlayfs
+mount option parsing (including RHEL/Rocky 9.7 and newer), those versions fail with
+`mount: /spfs: permission denied` and a kernel log message of `overlayfs: redirect_dir
+requires permission to access trusted xattrs`. Earlier kernels (RHEL/Rocky 9.6 and
+older) accepted the mount, but removing a directory that came from a lower layer could
+fail with `Input/output error`.
+
+The kernel-module requirements below apply in all cases.
+
+#### Testing installed binaries
+
+From a source checkout, build the debug binaries and run the rootless integration
+matrix:
+
+```bash
+make debug-spfs
+bash crates/spfs/tests/integration/run_rootless_tests.sh
+```
+
+The runner builds a Rocky Linux 9.8 image and installs the binaries with the same
+file capabilities as `make install-spfs`. It tests both container root and a
+non-root user through the mount-command and mount-syscall paths, with default
+options and with conflicting redirect/index/metacopy settings. It checks the
+actual mount options, read-only protection, remounting with `spfs edit`, and
+directory removal followed by committing and reopening the resulting platform.
+An optional first argument selects a different directory of built binaries.
+
+Both CI systems run this matrix as well. GitHub runs it in the privileged Linux
+build container using a dedicated rootless Podman user and a Debian Bookworm test
+image matching the built binaries' glibc. The spdev
+`spfs-rootless-integration-tests` component consumes the RPM artifacts and runs the
+matrix in Rocky Linux 9.8. Both use the same CI bootstrap and test runner; a
+rootful Podman invocation fails rather than silently changing what is tested.
+For binaries built on another distribution, `SPFS_ROOTLESS_TEST_BASE_IMAGE`
+selects a compatible Rocky or Debian base image.
+
+These cases pass on a Rocky Linux 9.8 host running kernel
+`5.14.0-687.34.1.el9_8.x86_64` with rootless Podman 5.8.2. The test configures a
+local `origin` to avoid the independent
+[missing-origin issue](https://github.com/spkenv/spk/issues/1412).
+Removing and recreating a lower-layer directory is also checked in the live
+runtime, but preserving its opaque-directory semantics after committing remains
+a [known limitation](https://github.com/spkenv/spk/issues/1413).
 
 ### 2. `kmod` and the kernel module tree (avoiding the overlayfs warning)
 
@@ -108,19 +155,19 @@ docker run --rm --privileged \
     spfs run - -- echo "hello from inside spfs"
 ```
 
-### Running with Podman (rootful)
+### Running with Podman
 
-Run as root (or via `sudo`) so the `overlayfs` mount is permitted; rootless Podman
-cannot mount `/spfs` (see the caution above):
+The same invocation works rootful (with `sudo`) or rootless (without it; see
+[Rootless Podman](#rootless-podman) above):
 
 ```bash
-sudo podman run --rm --privileged \
+podman run --rm --privileged \
     -v /lib/modules:/lib/modules:ro \
     your-spfs-image \
     spfs run - -- echo "hello from inside spfs"
 ```
 
-In both cases, with `kmod` installed and `/lib/modules` mounted, `modinfo overlay`
+In all cases, with `kmod` installed and `/lib/modules` mounted, `modinfo overlay`
 succeeds, the warning is gone, and spfs uses the full set of overlayfs options
 supported by the host kernel.
 

@@ -4,7 +4,7 @@
 
 use rstest::rstest;
 
-use super::parse_modinfo_params;
+use super::{is_initial_uid_map, parse_modinfo_params};
 
 #[rstest]
 #[cfg(target_os = "linux")]
@@ -62,4 +62,16 @@ parm:           ovl_xino_auto_def:Auto enable xino feature
             "xino_auto",
         ]
     );
+}
+
+#[rstest]
+#[case::initial("         0          0 4294967295\n", true)]
+#[case::rootless_container(
+    "         0       1000          1\n         1     524288      65536\n",
+    false
+)]
+#[case::single_mapping("0 1000 1\n", false)]
+#[case::empty("", false)]
+fn test_is_initial_uid_map(#[case] uid_map: &str, #[case] expected: bool) {
+    assert_eq!(is_initial_uid_map(uid_map), expected);
 }

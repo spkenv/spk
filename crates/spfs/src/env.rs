@@ -20,8 +20,12 @@ use linux_syscall::{
 };
 
 use super::runtime;
-use crate::config::OverlayFsOptions;
+use crate::config::{OverlayFsOptions, OverlayFsRedirectDir};
 use crate::{Error, Result, which};
+
+#[cfg(test)]
+#[path = "./env_test.rs"]
+mod env_test;
 
 pub const SPFS_DIR: &str = "/spfs";
 pub const SPFS_DIR_PREFIX: &str = "/spfs/";
@@ -37,6 +41,7 @@ const FSCONFIG_ON_CSTR: &CStr = c"on";
 const FSCONFIG_RO_CSTR: &CStr = c"ro";
 const FSCONFIG_SOURCE_CSTR: &CStr = c"source";
 const FSCONFIG_UPPERDIR_CSTR: &CStr = c"upperdir";
+const FSCONFIG_USERXATTR_CSTR: &CStr = c"userxattr";
 const FSCONFIG_WORKDIR_CSTR: &CStr = c"workdir";
 const FSOPEN_OVERLAY_CSTR: &CStr = c"overlay";
 
@@ -1002,6 +1007,7 @@ const OVERLAY_ARGS_INDEX_OFF: &str = "index=off";
 const OVERLAY_ARGS_METACOPY: &str = "metacopy";
 const OVERLAY_ARGS_METACOPY_ON: &str = "metacopy=on";
 const OVERLAY_ARGS_METACOPY_OFF: &str = "metacopy=off";
+const OVERLAY_ARGS_USERXATTR: &str = "userxattr";
 pub(crate) const OVERLAY_ARGS_LOWERDIR_APPEND: &str = "lowerdir+";
 const OVERLAY_ARGS_LOWERDIR_APPEND_ASSIGN: &str = "lowerdir+=";
 const OVERLAY_ARGS_LOWERDIR_ASSIGN: &str = "lowerdir=";
@@ -1016,6 +1022,15 @@ pub(crate) struct OverlayMountOptions {
     pub read_only: bool,
     /// The lowerdir+ mount option will be used to append layers when true.
     pub lowerdir_append: bool,
+    /// Store overlayfs metadata in `user.overlay.*` xattrs instead of
+    /// `trusted.overlay.*` ones.
+    ///
+    /// This is required when mounting from a user namespace other than the
+    /// initial one (eg: a rootless container), where trusted xattrs are not
+    /// accessible. The kernel refuses to mount with redirect_dir enabled in
+    /// that case, and fails directory operations without it. Enabling it
+    /// forces off redirect_dir, index, and metacopy.
+    pub user_xattr: bool,
 }
 
 impl OverlayMountOptions {
@@ -1025,7 +1040,22 @@ impl OverlayMountOptions {
             global_options,
             read_only: !rt.status.editable,
             lowerdir_append: true,
+            user_xattr: runtime::overlayfs::is_in_nested_user_namespace(),
         }
+    }
+
+    /// Return true if the index feature should be enabled.
+    fn index_on(&self) -> bool {
+        !self.user_xattr
+            && !self.global_options.break_hardlinks
+            && self.global_options.redirect_dir.allow_break_hardlinks()
+    }
+
+    /// Return true if the metacopy feature should be enabled.
+    fn metacopy_on(&self) -> bool {
+        !self.user_xattr
+            && self.global_options.metadata_copy_up
+            && self.global_options.redirect_dir.allow_metadata_copy_up()
     }
 
     /// Update state variables to match the features supported by the current overlay version.
@@ -1045,6 +1075,9 @@ impl OverlayMountOptions {
         if self.read_only {
             opts.push(OVERLAY_ARGS_RO_PREFIX);
         }
+        if self.user_xattr {
+            opts.push(OVERLAY_ARGS_USERXATTR);
+        }
         // Emit `index` explicitly rather than relying on the kernel's default
         // for the overlay module. Some kernels build/configure overlayfs with
         // `index=on` by default (e.g. CONFIG_OVERLAY_FS_INDEX=y), and an
@@ -1054,9 +1087,7 @@ impl OverlayMountOptions {
         // lower root changes and that verification fails with a "stale file
         // handle" error, breaking the remount of /spfs.
         if params.contains(OVERLAY_ARGS_INDEX) {
-            if !self.global_options.break_hardlinks
-                && self.global_options.redirect_dir.allow_break_hardlinks()
-            {
+            if self.index_on() {
                 opts.push(OVERLAY_ARGS_INDEX_ON);
             } else {
                 opts.push(OVERLAY_ARGS_INDEX_OFF);
@@ -1064,15 +1095,17 @@ impl OverlayMountOptions {
         }
         // Likewise pin metacopy rather than inheriting the kernel default.
         if params.contains(OVERLAY_ARGS_METACOPY) {
-            if self.global_options.metadata_copy_up
-                && self.global_options.redirect_dir.allow_metadata_copy_up()
-            {
+            if self.metacopy_on() {
                 opts.push(OVERLAY_ARGS_METACOPY_ON);
             } else {
                 opts.push(OVERLAY_ARGS_METACOPY_OFF);
             }
         }
-        opts.push(self.global_options.redirect_dir.into());
+        if self.user_xattr {
+            opts.push(OverlayFsRedirectDir::NoFollow.into());
+        } else {
+            opts.push(self.global_options.redirect_dir.into());
+        }
         opts
     }
 }
@@ -1315,13 +1348,29 @@ fn mount_overlayfs_syscalls<P: AsRef<Path>>(
         }
     }
 
-    if !mount_options.global_options.break_hardlinks
-        && params.contains(OVERLAY_ARGS_INDEX)
-        && mount_options
-            .global_options
-            .redirect_dir
-            .allow_break_hardlinks()
-    {
+    if mount_options.user_xattr {
+        // Safety: fd is valid and arguments are null-terminated.
+        let rc = unsafe {
+            syscall!(
+                SYS_fsconfig,
+                fd,
+                FSCONFIG_SET_FLAG,
+                FSCONFIG_USERXATTR_CSTR.as_ptr(),
+                std::ptr::null::<u8>(),
+                FSCONFIG_DEFAULT
+            )
+        }
+        .as_u64_unchecked();
+        if rc != 0 {
+            return Err(format!(
+                "mount_overlayfs_syscalls::SYS_fsconfig({}, FSCONFIG_SET_FLAG, userxattr, NULL) error: {}",
+                fd, rc
+            )
+            .into());
+        }
+    }
+
+    if mount_options.index_on() && params.contains(OVERLAY_ARGS_INDEX) {
         // Safety: fd is valid and arguments are null-terminated.
         let rc = unsafe {
             syscall!(
@@ -1343,13 +1392,7 @@ fn mount_overlayfs_syscalls<P: AsRef<Path>>(
         }
     }
 
-    if mount_options.global_options.metadata_copy_up
-        && params.contains(OVERLAY_ARGS_METACOPY)
-        && mount_options
-            .global_options
-            .redirect_dir
-            .allow_metadata_copy_up()
-    {
+    if mount_options.metacopy_on() && params.contains(OVERLAY_ARGS_METACOPY) {
         // Safety: fd is valid and arguments are null-terminated.
         let rc = unsafe {
             syscall!(

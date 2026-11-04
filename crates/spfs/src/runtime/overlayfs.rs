@@ -24,6 +24,31 @@ pub fn is_removed_entry(meta: &std::fs::Metadata) -> bool {
     meta.rdev() == 0
 }
 
+/// Return true if this process is in a user namespace other than the
+/// initial one, such as inside a rootless container.
+///
+/// Mounts made from such a namespace cannot use `trusted.*` xattrs, so
+/// overlayfs must be mounted with `userxattr` and without the features
+/// that depend on trusted xattrs.
+#[cfg(target_os = "linux")]
+#[cached::proc_macro::once(sync_writes = true)]
+pub fn is_in_nested_user_namespace() -> bool {
+    match std::fs::read_to_string("/proc/self/uid_map") {
+        Ok(uid_map) => !is_initial_uid_map(&uid_map),
+        Err(err) => {
+            tracing::debug!("Failed to read /proc/self/uid_map: {err}");
+            false
+        }
+    }
+}
+
+/// Return true if the contents of a `uid_map` file describe the identity
+/// mapping of the initial user namespace.
+fn is_initial_uid_map(uid_map: &str) -> bool {
+    let fields: Vec<_> = uid_map.split_whitespace().collect();
+    fields == ["0", "0", "4294967295"]
+}
+
 /// Get the set of supported overlayfs arguments on this machine
 #[cfg(target_os = "linux")]
 #[cached::proc_macro::once(sync_writes = true)]

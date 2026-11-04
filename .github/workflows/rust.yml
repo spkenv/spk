@@ -105,7 +105,7 @@ jobs:
     timeout-minutes: 45
     container:
       image: rust:slim-bookworm
-      options: --security-opt seccomp=unconfined --privileged
+      options: --security-opt seccomp=unconfined --privileged --volume /lib/modules:/lib/modules:ro
     env:
       # Disable cnproc because we're in a container
       SPFS_MONITOR_DISABLE_CNPROC: "1"
@@ -123,6 +123,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -y build-essential libcap2-bin sudo cmake tcsh rsync protobuf-compiler fuse libfuse-dev curl unzip pkg-config libssl-dev git libcurl4-openssl-dev
+          apt-get install -y --no-install-recommends podman uidmap slirp4netns
           # spfs-fuse requires this option enabled
           echo user_allow_other >> /etc/fuse.conf
           FB_REL=https://github.com/google/flatbuffers/releases/
@@ -194,6 +195,11 @@ jobs:
         run: |
           # Run tests that need root
           crates/spfs/tests/integration/run_privileged_tests.sh
+      - name: SPFS Integration Tests - Rootless Podman
+        env:
+          # Match the build container's glibc rather than using Rocky's older one.
+          SPFS_ROOTLESS_TEST_BASE_IMAGE: docker.io/debian:bookworm-slim
+        run: bash crates/spfs/tests/integration/run_rootless_ci_tests.sh target/debug
 
   matrix-build:
     name: build ${{ matrix.platform }} features ${{ matrix.no-default-features }} ${{ matrix.features }}
