@@ -211,10 +211,15 @@ impl Solver {
                             tracing::info!("Solver retry {loop_counter}");
                             continue;
                         }
-                        return Err(Error::FailedToResolve(format!(
-                            "{}",
-                            conflict.display_user_friendly(&solver)
-                        )));
+                        let mut error = conflict.display_user_friendly(&solver).to_string();
+                        let exclusions = solver.provider().format_global_option_exclusions();
+                        if !exclusions.is_empty() {
+                            error.push_str(
+                                "\n\nCandidate builds excluded by configured solver options:\n",
+                            );
+                            error.push_str(&exclusions);
+                        }
+                        return Err(Error::FailedToResolve(error));
                     }
                 }
             };
