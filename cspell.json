@@ -639,6 +639,7 @@
     "rebalance",
     "recursivebuilds",
     "reexec",
+    "regrtest",
     "reinit",
     "releasedir",
     "remoteorigin",

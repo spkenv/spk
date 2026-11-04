@@ -60,7 +60,9 @@ build:
       --with-ensurepip=no
       --enable-optimizations
       $DEBUG
-    - make -j$(nproc)
+    # --enable-optimizations trains on the test suite; a test that hangs
+    # would stall the build forever, and a failure here is not fatal
+    - make -j$(nproc) PROFILE_TASK='-m test.regrtest --pgo --timeout=300'
     - make install
     # remove test files that are just bloat
     - find /spfs/lib/python* -name "test" -type d | xargs -r rm -rv
