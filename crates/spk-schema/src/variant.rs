@@ -3,10 +3,12 @@
 // https://github.com/spkenv/spk
 
 use std::borrow::Cow;
+use std::collections::BTreeSet;
 use std::fmt::Write;
 
 use spk_schema_foundation::format::FormatOptionMap;
 use spk_schema_foundation::ident::RequestWithOptions;
+use spk_schema_foundation::name::OptNameBuf;
 use spk_schema_foundation::option_map::{HOST_OPTIONS, OptionMap};
 
 use crate::{RequirementsList, Result};
@@ -23,6 +25,16 @@ pub trait Variant {
 
     /// Additional requirements with options for this variant
     fn additional_requirements(&self) -> Cow<'_, RequirementsList<RequestWithOptions>>;
+
+    /// Names of options from `build.options` that this variant
+    /// requests be removed from the build environment.
+    ///
+    /// When a variant specifies `-name: ""`, the named option is excluded from
+    /// the resolved build environment even if it appears in the recipe's
+    /// `build.options` list.
+    fn removed_requirements(&self) -> Cow<'_, BTreeSet<OptNameBuf>> {
+        Cow::Owned(BTreeSet::new())
+    }
 }
 
 impl Variant for OptionMap {
@@ -49,6 +61,10 @@ where
 
     fn additional_requirements(&self) -> Cow<'_, RequirementsList<RequestWithOptions>> {
         (**self).additional_requirements()
+    }
+
+    fn removed_requirements(&self) -> Cow<'_, BTreeSet<OptNameBuf>> {
+        (**self).removed_requirements()
     }
 }
 
@@ -108,6 +124,10 @@ where
 
     fn additional_requirements(&self) -> Cow<'_, RequirementsList<RequestWithOptions>> {
         self.inner.additional_requirements()
+    }
+
+    fn removed_requirements(&self) -> Cow<'_, BTreeSet<OptNameBuf>> {
+        self.inner.removed_requirements()
     }
 }
 

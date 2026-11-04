@@ -190,6 +190,18 @@ Each entry in the VariantSpec can either:
       - { "bar:{extra1,extra2}": "2.0" }
   ```
 
+- Remove an existing option from `build.options` for this variant:
+
+  ```yaml
+  build:
+    options:
+      - pkg: foo/1.0
+      - pkg: bar/2.0
+      - var: debug/on
+    variants:
+      - { "-foo": "", "-debug": "" }
+  ```
+
 ### ValidationSpec
 
 The ValidationSpec modifies the default validation process for packages, primarily providing the ability to disable validators which may be incorrectly failing a package build.

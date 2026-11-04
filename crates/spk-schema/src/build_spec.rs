@@ -39,6 +39,8 @@ impl BuildSpec {
         V: Variant,
     {
         let mut opts = self.options.clone();
+        let removals = variant.removed_requirements();
+        opts.retain(|o| !removals.contains(o.full_name()));
         let mut known = opts
             .iter()
             .map(Opt::full_name)
