@@ -18,7 +18,7 @@ build:
     - var: arch    # rebuild if the arch changes
     - var: os      # rebuild if the os changes
     - var: centos  # rebuild if centos version changes
-    - pkg: gcc/6.3
+    - pkg: gcc/11
     - pkg: cmake/^3.13
   # Because this is a pure C library, just build with any gcc and don't
   # specify multiple gcc variants.
@@ -28,8 +28,7 @@ build:
         -DCMAKE_INSTALL_PREFIX=${PREFIX}
     - cmake --build build --target install
   variants:
-    - {gcc: 4.8}
-    - {gcc: 6.3}
+    - {gcc: 11}
 
 install:
   requirements:

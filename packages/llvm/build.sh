@@ -63,13 +63,16 @@ OMP_CUDA_FLAGS+=" -DCLANG_OPENMP_NVPTX_DEFAULT_ARCH=sm_61" # Default to P6000
 #
 # PROJECTS="${PROJECTS};lldb"
 
+# the install prefix of the gcc in use (the spk gcc package links it into /spfs/bin)
+GCC_PREFIX="$(dirname "$(dirname "$(readlink -f "$(command -v gcc)")")")"
+
 cmake -S "${SOURCE_DIR}" -B "${BUILD_DIR}"                \
       -DCMAKE_BUILD_TYPE:STRING=Release -G Ninja          \
       -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}"          \
       -DCMAKE_CXX_STANDARD=14                             \
       -DCMAKE_CXX_STANDARD_REQUIRED=ON                    \
       -DCMAKE_CXX_EXTENSIONS=OFF                          \
-      -DGCC_INSTALL_PREFIX=/opt/rh/devtoolset-6/root/usr  \
+      -DGCC_INSTALL_PREFIX="${GCC_PREFIX}"                \
       -DLLVM_ENABLE_LTO=OFF                               \
       -DLIBCLANG_BUILD_STATIC=ON                          \
       -DLLVM_ENABLE_ASSERTIONS=OFF                        \

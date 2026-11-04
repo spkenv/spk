@@ -20,7 +20,7 @@ build:
     - var: os      # rebuild if the os changes
     - var: centos  # rebuild if centos version changes
     - pkg: cmake/^3.13
-    - pkg: gcc/6.3
+    - pkg: gcc/11
 
   # Because this is a pure C library, just build with any gcc and don't
   # specify multiple gcc variants.

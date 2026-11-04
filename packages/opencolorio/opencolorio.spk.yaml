@@ -29,16 +29,14 @@ build:
     - var: os
     - var: centos
     - pkg: stdfs
-    - pkg: gcc/6.3
+    - pkg: gcc/11
     - pkg: python/~3.7.0
     - pkg: pybind11/2.6.2
     - pkg: cmake/3.13
 
   variants:
-    - { gcc: 6.3, python: ~2.7.0 }
-    - { gcc: 6.3, python: ~3.7.0 }
-    - { gcc: 9.3, python: ~2.7.0 }
-    - { gcc: 9.3, python: ~3.7.0 }
+    - { gcc: 11, python: ~3.7.0 }
+    - { gcc: 14, python: ~3.7.0 }
 
   script:
     - cmake -S OpenColorIO -B build -G Ninja
@@ -57,8 +55,6 @@ build:
 install:
   requirements:
     - pkg: stdfs
-    - pkg: gcc
-      fromBuildEnv: x.x
     - pkg: python
       fromBuildEnv: x.x
       # If python is already in the environment/resolve then we

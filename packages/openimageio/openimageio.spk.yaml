@@ -34,7 +34,7 @@ build:
     - var: os
     - var: centos
     - var: python.abi
-    - pkg: gcc/6.3
+    - pkg: gcc/11
     - pkg: python/~3.7.0
     - pkg: pybind11/2.6.2
     - pkg: numpy
@@ -78,16 +78,12 @@ build:
   # variants declares the default set of variants to build and publish
   # using the spk build and make-* commands
   variants:
-    # VFX Platform 2019-ish, Maya 2020, Houdini 18
-    - { gcc: 6.3, oiio_cxx: 14, python: ~2.7.0, python.abi: "cp27mu", boost: ~1.70.0, openexr: ~2.4.3, imath: ~2.4.0 }
     # VFX Platform 2020-ish (Nuke 13?)
-    - { gcc: 6.3, oiio_cxx: 14, python: ~3.7.0, python.abi: "cp37m", boost: ~1.70.0, openexr: ~2.4.3, imath: ~2.4.0 }
+    - { gcc: 11, oiio_cxx: 14, python: ~3.7.0, python.abi: "cp37m", boost: ~1.70.0, openexr: ~2.4.3, imath: ~2.4.0 }
     # VFX Platform 2021-ish, Maya 2022, Houdini 19
-    - { gcc: 9.3, oiio_cxx: 17, python: ~3.7.0, python.abi: "cp37m", boost: ~1.73.0, openexr: ~2.4.3, imath: ~2.4.0 }
+    - { gcc: 14, oiio_cxx: 17, python: ~3.7.0, python.abi: "cp37m", boost: ~1.73.0, openexr: ~2.4.3, imath: ~2.4.0 }
     # VFX Platform 2022-ish (including newer Imath + OpenEXR versions)
-    - { gcc: 9.3, oiio_cxx: 17, python: ~3.7.0, python.abi: "cp37m", boost: ~1.73.0, openexr: ~3.1.0, imath: ~3.1.0 }
-    # # unneeded?
-    # # - { gcc: 9.3, cxx: 17, python: ~2.7.0, boost: ~1.73.0, openexr: ~2.4.0, imath: ~2.4.0 }
+    - { gcc: 14, oiio_cxx: 17, python: ~3.7.0, python.abi: "cp37m", boost: ~1.73.0, openexr: ~3.1.0, imath: ~3.1.0 }
 
   script:
     - export SIMD_OPTS="-DUSE_SIMD=sse2"
@@ -117,8 +113,6 @@ build:
 
 install:
   requirements:
-    - pkg: gcc
-      fromBuildEnv: Binary
     - pkg: python
       fromBuildEnv: Binary
       # If python is already in the environment/resolve then we

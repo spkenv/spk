@@ -19,7 +19,7 @@ build:
     - var: os
     - var: centos
     - pkg: stdfs
-    - pkg: gcc/6.3
+    - pkg: gcc/11
     - pkg: cmake/^3.13
     - pkg: zlib
     - pkg: libtiff

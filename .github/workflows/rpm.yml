@@ -34,15 +34,9 @@ jobs:
       - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.11.0
       - uses: actions/checkout@v2
-      - name: Download Deps
-        uses: dawidd6/action-download-artifact@v6
+      - name: Download RPMs
+        uses: actions/download-artifact@v4
         with:
-          workflow: rpm.yml
-          workflow_conclusion: success
-          name: Binary RPM
-      - uses: actions/download-artifact@v2
-        with:
-          name: Binary RPM
-      - run: mkdir -p dist/rpm/RPMS/x86_64/
-      - run: cp *.rpm dist/rpm/RPMS/x86_64/
+          name: Binary RPMs
+          path: dist/rpm/RPMS/x86_64/
       - run: make packages.docker

@@ -35,7 +35,7 @@ build:
     - var: centos
     - var: python.abi
     - pkg: cmake/^3.13
-    - pkg: gcc/~6.3.0
+    - pkg: gcc/11
     - pkg: llvm/~12.0.1
     - pkg: openimageio/~2.3.7
     - pkg: python/~3.7.0
@@ -65,14 +65,12 @@ build:
   # variants declares the default set of variants to build and publish
   # using the spk build and make-* commands
   variants:
-    # VFX Platform 2019-ish, Maya 2020, Houdini 18
-    - { gcc: ~6.3.0, cxx: 14, python: ~2.7.0, python.abi: "cp27mu", boost: ~1.70.0, openexr: ~2.4.3, imath: ~2.4.0 }
     # VFX Platform 2020-ish (Nuke 13?)
-    - { gcc: 6.3, cxx: 14, python: ~3.7.0, python.abi: "cp37m", boost: ~1.70.0, openexr: ~2.4.3, imath: ~2.4.0 }
+    - { gcc: 11, cxx: 14, python: ~3.7.0, python.abi: "cp37m", boost: ~1.70.0, openexr: ~2.4.3, imath: ~2.4.0 }
     # VFX Platform 2021-ish, Maya 2022, Houdini 19
-    - { gcc: 9.3, cxx: 17, python: ~3.7.0, python.abi: "cp37m", boost: ~1.73.0, openexr: ~2.4.3, imath: ~2.4.0 }
+    - { gcc: 14, cxx: 17, python: ~3.7.0, python.abi: "cp37m", boost: ~1.73.0, openexr: ~2.4.3, imath: ~2.4.0 }
     # VFX Platform 2022-ish (including newer Imath + OpenEXR versions)
-    - { gcc: 9.3, cxx: 17, python: ~3.7.0, python.abi: "cp37m", boost: ~1.73.0, openexr: ~3.1.0, imath: ~3.1.2 }
+    - { gcc: 14, cxx: 17, python: ~3.7.0, python.abi: "cp37m", boost: ~1.73.0, openexr: ~3.1.0, imath: ~3.1.2 }
 
   script:
     - env | sort
@@ -99,16 +97,14 @@ build:
         -DCUDA_TOOLKIT_ROOT_DIR=${CUDA_ROOT}
         -DCUDA_TARGET_ARCH=${SPK_OPT_oslcudatarget}
         -DEXTRA_CPP_ARGS:STRING=-DOSL_SPI=1
-        -DOSL_EXTRA_NVCC_ARGS="--compiler-bindir=/opt/rh/devtoolset-6/root/bin/gcc"
-    # Note: We reference devtoolset-6 here because we compile the code into
-    # PTX in C++14 mode, due to limitations of nvcc.
+        -DOSL_EXTRA_NVCC_ARGS="--compiler-bindir=${CC}"
+    # Note: nvcc compiles the code into PTX in C++14 mode with the build's
+    # gcc as host compiler; the CUDA version must support that gcc version.
     - cmake --build build --target install
 
 
 install:
   requirements:
-    - pkg: gcc
-      fromBuildEnv: Binary
     - pkg: python
       fromBuildEnv: Binary
       # If python is already in the environment/resolve then we

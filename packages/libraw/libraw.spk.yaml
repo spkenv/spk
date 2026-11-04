@@ -20,13 +20,13 @@ build:
     - var: centos  # rebuild if centos version changes
     - pkg: stdfs
     - pkg: zlib
-    - pkg: gcc/6.3
+    - pkg: gcc/11
     - pkg: lcms2
     - pkg: libjpeg
 
   variants:
-    - { gcc: 6.3 }
-    - { gcc: 9.3 }
+    - { gcc: 11 }
+    - { gcc: 14 }
 
   script:
     - cd LibRaw
@@ -39,8 +39,6 @@ build:
 install:
   requirements:
     - pkg: stdfs
-    - pkg: gcc
-      fromBuildEnv: x.x
     - pkg: zlib
       fromBuildEnv: x.x
     - pkg: lcms2

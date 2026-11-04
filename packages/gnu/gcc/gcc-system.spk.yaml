@@ -1,0 +1,49 @@
+# {% set opt = opt | default_opts(version="11.5.0") %}
+# Wraps the host's system gcc (/usr/bin/gcc) as an spk package.
+#
+# Nothing is compiled or copied; the package only links the system compiler
+# into /spfs/bin and sets CC/CXX. The version must match the installed
+# system gcc exactly, which the build script checks.
+#
+# For newer compilers on the same host, see gcc-toolset.spk.yaml.
+pkg: gcc/{{ opt.version }}
+api: v0/package
+# gcc keeps its ABI stable within a major release, so any 11.x (for example)
+# satisfies a request for gcc/11.
+compat: x.ab.ab
+
+sources: []
+
+build:
+  # the package is only valid on the distro (and version) it was built on
+  auto_host_vars: Distro
+  options:
+    - pkg: stdfs
+  script: |
+    actual="$(/usr/bin/gcc -dumpfullversion)"
+    if [ "$actual" != "{{ opt.version }}" ]; then
+      echo "system gcc is $actual, but this recipe is for {{ opt.version }}"
+      exit 1
+    fi
+    for tool in cc c++ cpp gcc g++ gcc-ar gcc-nm gcc-ranlib gcov gcov-dump gcov-tool; do
+      if [ -e /usr/bin/$tool ]; then
+        ln -s /usr/bin/$tool /spfs/bin/$tool
+      fi
+    done
+
+tests:
+  - stage: install
+    script:
+      - echo 'int main() { return 0; }' > test.c
+      - gcc test.c -o test && ./test
+      - echo 'int main() { return 0; }' > test.cpp
+      - g++ test.cpp -o test && ./test
+
+install:
+  environment:
+    - set: CC
+      value: /spfs/bin/gcc
+    - set: CXX
+      value: /spfs/bin/g++
+  requirements:
+    - pkg: stdfs

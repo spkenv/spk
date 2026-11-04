@@ -10,7 +10,7 @@ build:
     - var: arch
     - var: os
     - var: centos
-    - pkg: gcc/6.3
+    - pkg: gcc/11
   script:
     - cd libffi-3.4.2
     - ./configure
@@ -26,5 +26,3 @@ build:
 install:
   requirements:
     - pkg: stdfs
-    - pkg: gcc
-      fromBuildEnv: x.x

@@ -34,30 +34,23 @@ build:
     - var: python.abi
     - pkg: stdfs
     - pkg: cmake/^3.13
-    - pkg: gcc/6.3
+    - pkg: gcc/11
     - pkg: zlib
     - pkg: python/~3.7.0
     - pkg: boost-python/~1.70.0
 
   variants:
-    - { gcc: 6.3, python: ~2.7.0, boost-python: ~1.70.0, python.abi: "cp27mu" }
-    - { gcc: 6.3, python: ~3.7.0, boost-python: ~1.70.0, python.abi: "cp37m" }
-    - { gcc: 9.3, python: ~2.7.0, boost-python: ~1.73.0, python.abi: "cp27mu" }
-    - { gcc: 9.3, python: ~3.7.0, boost-python: ~1.73.0, python.abi: "cp37m" }
+    - { gcc: 11, python: ~3.7.0, boost-python: ~1.70.0, python.abi: "cp37m" }
+    - { gcc: 14, python: ~3.7.0, boost-python: ~1.73.0, python.abi: "cp37m" }
 
   script:
-    - if [ "${SPK_PKG_python_VERSION_MAJOR}" == "2" ] ; then
-          export pycmd="-DCMAKE_DISABLE_FIND_PACKAGE_Python3=ON" ;
-      else
-          export pycmd="-DCMAKE_DISABLE_FIND_PACKAGE_Python2=ON" ;
-      fi
     - cmake -S openexr -B build -G Ninja
         -DCMAKE_BUILD_TYPE=Release
         -DCMAKE_INSTALL_PREFIX=$PREFIX
         -DCMAKE_PREFIX_PATH=$PREFIX
         -DOPENEXR_VIEWERS_ENABLE=OFF
         -DOPENEXR_BUILD_UTILS=OFF
-        $pycmd
+        -DCMAKE_DISABLE_FIND_PACKAGE_Python2=ON
     - cmake --build build --target install
     # In this OLD version of OpenEXR, the cmake build scripts are broken and
     # failed to copy this header. So we do it by hand.
@@ -66,8 +59,6 @@ build:
 install:
   requirements:
     - pkg: stdfs
-    - pkg: gcc
-      fromBuildEnv: x.x
     - pkg: zlib
       fromBuildEnv: x.x
     - pkg: boost-python

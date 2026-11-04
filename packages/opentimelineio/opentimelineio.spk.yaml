@@ -20,12 +20,18 @@ build:
     - {python: 3.7}
 
   script:
+    # 0.14.1 uses uint64_t without including <cstdint>, which gcc 11's
+    # libstdc++ no longer pulls in through other headers. This is set in the
+    # environment because pip runs its own cmake build below.
+    - export CXXFLAGS="-include cstdint"
     - mkdir -p build
     - cd build
     - cmake -DCMAKE_INSTALL_PREFIX=/spfs ..
     - make all -j
     - make install
-    - python -m pip install ..[dev]
+    # pip builds the wheel with the newest cmake from PyPI, and CMake 4
+    # rejects the old cmake_minimum_required in the bundled pybind11
+    - CMAKE_POLICY_VERSION_MINIMUM=3.5 python -m pip install ..[dev]
 
 install:
   requirements:

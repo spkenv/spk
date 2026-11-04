@@ -21,15 +21,14 @@ build:
     - var: centos
     - var: python.abi
     - pkg: stdfs
-    - pkg: gcc/6.3
+    - pkg: gcc/11
     - pkg: python/~3.7.0
     - pkg: numpy
     - pkg: cmake/~3.13
     - pkg: boost-python/~1.70.0
   variants:
-    - { gcc: 6.3, python: ~2.7.0, boost-python: ~1.70.0, python.abi: "cp27mu" }
-    - { gcc: 6.3, python: ~3.7.0, boost-python: ~1.70.0, python.abi: "cp37m" }
-    - { gcc: 9.3, python: ~3.7.0, boost-python: ~1.73.0, python.abi: "cp37m" }
+    - { gcc: 11, python: ~3.7.0, boost-python: ~1.70.0, python.abi: "cp37m" }
+    - { gcc: 14, python: ~3.7.0, boost-python: ~1.73.0, python.abi: "cp37m" }
   script:
     - cmake -S Imath -B build -G Ninja
         -DCMAKE_BUILD_TYPE=Release
@@ -42,8 +41,6 @@ build:
 install:
   requirements:
     - pkg: stdfs
-    - pkg: gcc
-      fromBuildEnv: x.x
     - pkg: boost-python
       fromBuildEnv: x.x
     - pkg: python

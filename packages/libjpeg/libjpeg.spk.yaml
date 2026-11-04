@@ -20,7 +20,7 @@ build:
     - var: arch    # rebuild if the arch changes
     - var: os      # rebuild if the os changes
     - var: centos  # rebuild if centos version changes
-    - pkg: gcc/6.3
+    - pkg: gcc/11
 
   # No need for gcc variants because we're only building the pure C library
   # components.
