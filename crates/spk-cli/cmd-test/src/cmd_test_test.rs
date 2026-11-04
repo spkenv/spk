@@ -604,3 +604,98 @@ tests:
     .unwrap();
     opt.test.run().await.unwrap();
 }
+
+#[spfstest]
+#[rstest]
+#[case::cli("cli")]
+#[case::checks("checks")]
+#[case::resolvo("resolvo")]
+#[tokio::test]
+async fn test_env_contains_namespaced_option_vars(
+    tmpdir: tempfile::TempDir,
+    #[case] solver_to_run: &str,
+) {
+    // Options that belong to a specific package are published to test
+    // environments as `SPK_PKG_{pkg}_OPT_{opt}`, with any hyphens in either
+    // name turned into underscores so the result is a usable shell variable.
+    // The `SPK_OPT_{pkg}.{opt}` spelling that this replaced is deprecated but
+    // still published for now.
+    let _rt = spfs_runtime().await;
+
+    // Records which stages actually ran, so a test that gets skipped instead
+    // of run can't make this pass by doing nothing.
+    let stages_run = tmpdir.path().join("stages-run.txt").display().to_string();
+
+    build_package!(
+        tmpdir,
+        "dep-pkg.spk.yaml",
+        br#"
+pkg: dep-pkg/1.0.0
+build:
+  options:
+    - { var: abi-flavor/cp39, inheritance: Strong, description: "The ABI flavor to use." }
+  script:
+    - "true"
+"#,
+        solver_to_run
+    );
+
+    // A strong inheritance var of a resolved package arrives namespaced to
+    // that package, and `--opt` can name a package explicitly. The latter is
+    // for a package that isn't in the solve, to show the value is carried by
+    // the option itself and not by the resolved package.
+    let recipe = format!(
+        r#"
+pkg: simple/1.0.0
+build:
+  options:
+    - pkg: dep-pkg
+  script:
+    - "true"
+
+tests:
+  - stage: sources
+    script:
+      - 'test "$SPK_PKG_some_pkg_OPT_some_opt" = "some-value"'
+      - 'echo sources >> {stages_run}'
+  - stage: build
+    script:
+      - 'test "$SPK_PKG_some_pkg_OPT_some_opt" = "some-value"'
+      - 'test "$SPK_PKG_dep_pkg_OPT_abi_flavor" = "cp39"'
+      # Deprecated spelling, still published for compatibility. It is not a
+      # valid shell variable name, hence reading it out of `env`.
+      - 'env | grep -q -F -x "SPK_OPT_dep_pkg.abi_flavor=cp39"'
+      - 'echo build >> {stages_run}'
+  - stage: install
+    script:
+      - 'test "$SPK_PKG_some_pkg_OPT_some_opt" = "some-value"'
+      - 'test "$SPK_PKG_dep_pkg_OPT_abi_flavor" = "cp39"'
+      - 'env | grep -q -F -x "SPK_OPT_dep_pkg.abi_flavor=cp39"'
+      - 'echo install >> {stages_run}'
+"#
+    );
+
+    let filename_str = build_package!(tmpdir, "simple.spk.yaml", recipe, solver_to_run);
+
+    let mut opt = TestOpt::try_parse_from([
+        "test",
+        // Don't exec a new process to move into a new runtime, this confuses
+        // coverage testing.
+        "--no-runtime",
+        "--disable-repo=origin",
+        "--opt",
+        "some-pkg.some-opt=some-value",
+        filename_str,
+    ])
+    .unwrap();
+    opt.test
+        .run()
+        .await
+        .expect("all the test stages should find the expected option variables");
+
+    assert_eq!(
+        std::fs::read_to_string(&stages_run).unwrap_or_default(),
+        "sources\nbuild\ninstall\n",
+        "every stage's test should have run"
+    );
+}
