@@ -90,14 +90,14 @@ impl CmdCheck {
         drop(checker); // clean up progress bars
         let spfs::check::CheckSummary {
             missing_tags,
-            checked_tags,
+            valid_tags,
             missing_objects,
             repaired_objects,
-            checked_objects,
+            valid_objects,
             missing_payloads,
             repaired_payloads,
-            checked_payloads,
-            checked_payload_bytes,
+            valid_payloads,
+            valid_payload_bytes,
         } = summary;
         let missing_objects = missing_objects.len();
         let missing_payloads = missing_payloads.len();
@@ -105,14 +105,14 @@ impl CmdCheck {
         println!("{} after {duration:.0?}:", "Finished".bold());
         let missing = "missing".red().italic();
         let repaired = "repaired".cyan().italic();
-        println!("{checked_tags:>12} tags visited     ({missing_tags} {missing})");
+        println!("{valid_tags:>12} tags visited     ({missing_tags} {missing})");
         println!(
-            "{checked_objects:>12} objects visited  ({missing_objects} {missing}, {repaired_objects} {repaired})",
+            "{valid_objects:>12} objects visited  ({missing_objects} {missing}, {repaired_objects} {repaired})",
         );
         println!(
-            "{checked_payloads:>12} payloads visited ({missing_payloads} {missing}, {repaired_payloads} {repaired})",
+            "{valid_payloads:>12} payloads visited ({missing_payloads} {missing}, {repaired_payloads} {repaired})",
         );
-        let human_bytes = match NumberPrefix::binary(checked_payload_bytes as f64) {
+        let human_bytes = match NumberPrefix::binary(valid_payload_bytes as f64) {
             NumberPrefix::Standalone(amt) => format!("{amt} bytes"),
             NumberPrefix::Prefixed(p, amt) => format!("{amt:.2} {}B", p.symbol()),
         };

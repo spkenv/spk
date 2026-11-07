@@ -1063,7 +1063,7 @@ impl Storage {
     /// Create a new blob payload to hold the given string value
     pub(crate) async fn create_blob_for_string(&self, payload: String) -> Result<Digest> {
         self.inner
-            .commit_blob(Box::pin(std::io::Cursor::new(payload.into_bytes())))
+            .commit_payload(Box::pin(std::io::Cursor::new(payload.into_bytes())))
             .await
     }
 
@@ -1168,8 +1168,7 @@ impl Storage {
         let data = match annotation.value() {
             AnnotationValue::String(s) => s,
             AnnotationValue::Blob(digest) => {
-                let blob = self.inner.read_blob(*digest).await?;
-                let (mut payload, filename) = self.inner.open_payload(*blob.digest()).await?;
+                let (mut payload, filename) = self.inner.open_payload(*digest).await?;
                 let mut writer: Vec<u8> = vec![];
                 tokio::io::copy(&mut payload, &mut writer)
                     .await
@@ -1262,7 +1261,7 @@ impl Storage {
         let (_, config_digest) = tokio::try_join!(
             self.inner.write_object(&platform),
             self.inner
-                .commit_blob(Box::pin(std::io::Cursor::new(config_data.into_bytes())),)
+                .commit_payload(Box::pin(std::io::Cursor::new(config_data.into_bytes())),)
         )?;
 
         tokio::try_join!(

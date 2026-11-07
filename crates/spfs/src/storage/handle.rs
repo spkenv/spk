@@ -15,7 +15,7 @@ use spfs_encoding as encoding;
 use super::prelude::*;
 use super::tag::TagSpecAndTagStream;
 use super::{TagNamespace, TagNamespaceBuf, TagStorageMut};
-use crate::graph::ObjectProto;
+use crate::graph::{FoundDigest, ObjectProto};
 use crate::storage::IndexPath;
 use crate::tracking::{self, BlobRead};
 use crate::{Error, Result, graph};
@@ -303,17 +303,16 @@ impl PayloadStorage for RepositoryHandle {
         each_variant!(self, repo, { repo.has_payload(digest).await })
     }
 
+    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+        each_variant!(self, repo, { repo.payload_size(digest).await })
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         each_variant!(self, repo, { repo.iter_payload_digests() })
     }
 
-    async unsafe fn write_data(
-        &self,
-        reader: Pin<Box<dyn BlobRead>>,
-    ) -> Result<(encoding::Digest, u64)> {
-        // Safety: we are wrapping the same underlying unsafe function and
-        // so the same safety holds for our callers
-        unsafe { each_variant!(self, repo, { repo.write_data(reader).await }) }
+    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
+        each_variant!(self, repo, { repo.write_data(reader).await })
     }
 
     async fn open_payload(
@@ -325,6 +324,16 @@ impl PayloadStorage for RepositoryHandle {
 
     async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
         each_variant!(self, repo, { repo.remove_payload(digest).await })
+    }
+
+    async fn remove_payload_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> Result<bool> {
+        each_variant!(self, repo, {
+            repo.remove_payload_if_older_than(older_than, digest).await
+        })
     }
 }
 
@@ -338,10 +347,10 @@ impl DatabaseView for RepositoryHandle {
         each_variant!(self, repo, { repo.read_object(digest).await })
     }
 
-    fn find_digests(
+    fn find_digests<'a>(
         &self,
-        search_criteria: graph::DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+        search_criteria: &'a graph::DigestSearchCriteria,
+    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>> {
         each_variant!(self, repo, { repo.find_digests(search_criteria) })
     }
 
@@ -478,17 +487,16 @@ impl PayloadStorage for Arc<RepositoryHandle> {
         each_variant!(&**self, repo, { repo.has_payload(digest).await })
     }
 
+    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+        each_variant!(&**self, repo, { repo.payload_size(digest).await })
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         each_variant!(&**self, repo, { repo.iter_payload_digests() })
     }
 
-    async unsafe fn write_data(
-        &self,
-        reader: Pin<Box<dyn BlobRead>>,
-    ) -> Result<(encoding::Digest, u64)> {
-        // Safety: we are wrapping the same underlying unsafe function and
-        // so the same safety holds for our callers
-        unsafe { each_variant!(&**self, repo, { repo.write_data(reader).await }) }
+    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
+        each_variant!(&**self, repo, { repo.write_data(reader).await })
     }
 
     async fn open_payload(
@@ -500,6 +508,16 @@ impl PayloadStorage for Arc<RepositoryHandle> {
 
     async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
         each_variant!(&**self, repo, { repo.remove_payload(digest).await })
+    }
+
+    async fn remove_payload_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> Result<bool> {
+        each_variant!(&**self, repo, {
+            repo.remove_payload_if_older_than(older_than, digest).await
+        })
     }
 }
 
@@ -513,10 +531,10 @@ impl DatabaseView for Arc<RepositoryHandle> {
         each_variant!(&**self, repo, { repo.read_object(digest).await })
     }
 
-    fn find_digests(
+    fn find_digests<'a>(
         &self,
-        search_criteria: graph::DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+        search_criteria: &'a graph::DigestSearchCriteria,
+    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>> {
         each_variant!(&**self, repo, { repo.find_digests(search_criteria) })
     }
 

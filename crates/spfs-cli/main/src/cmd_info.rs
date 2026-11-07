@@ -13,8 +13,15 @@ use spfs::find_path::ObjectPathEntry;
 use spfs::graph::Annotation;
 use spfs::io::{self, DigestFormat, Pluralize};
 use spfs::prelude::*;
-use spfs::{self};
+use spfs::{
+    Error,
+    {self},
+};
 use spfs_cli_common as cli;
+
+#[cfg(test)]
+#[path = "./cmd_info_test.rs"]
+mod cmd_info_test;
 
 /// Display information about the current environment, or specific items
 #[derive(Debug, Args)]
@@ -69,9 +76,21 @@ impl CmdInfo {
                     self.pretty_print_file(&reference, &repo, self.logging.verbose as usize)
                         .await?;
                 } else {
-                    let item = repo.read_ref(reference.as_str()).await?;
-                    self.pretty_print_ref(item, &repo, self.logging.verbose as usize)
-                        .await?;
+                    match repo.read_ref(reference.as_str()).await {
+                        Ok(item) => {
+                            self.pretty_print_ref(item, &repo, self.logging.verbose as usize)
+                                .await?;
+                        }
+                        Err(Error::UnknownObject(_)) => {
+                            let digest = repo.resolve_ref(reference.as_str()).await?;
+                            let payload_size = repo.payload_size(digest).await?;
+                            self.pretty_print_payload(digest, payload_size, &repo)
+                                .await?;
+                        }
+                        Err(err) => {
+                            return Err(err.into());
+                        }
+                    }
                 }
                 if !self.to_process.is_empty() {
                     println!();
@@ -213,6 +232,31 @@ impl CmdInfo {
                 );
             }
         }
+        Ok(())
+    }
+
+    /// Display the spfs payload information
+    async fn pretty_print_payload(
+        &mut self,
+        digest: spfs::encoding::Digest,
+        payload_size: u64,
+        repo: &spfs::storage::RepositoryHandle,
+    ) -> Result<()> {
+        println!(
+            "{}:\n {}:",
+            self.format_digest(digest, repo).await?,
+            "blob".green()
+        );
+        println!(
+            " {} {}",
+            "digest:".bright_blue(),
+            self.format_digest(digest, repo).await?
+        );
+        println!(
+            " {} {}",
+            "size:".bright_blue(),
+            spfs::io::format_size(payload_size)
+        );
         Ok(())
     }
 

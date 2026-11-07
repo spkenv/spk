@@ -11,7 +11,7 @@ use futures::Stream;
 use relative_path::RelativePath;
 
 use crate::config::{ToAddress, default_fallback_repo_include_secondary_tags};
-use crate::graph::ObjectProto;
+use crate::graph::{FoundDigest, ObjectProto};
 use crate::prelude::*;
 use crate::storage::fs::{FsHashStore, ManifestRenderPath, OpenFsRepository, RenderStore};
 use crate::storage::proxy::ProxyRepositoryExt;
@@ -223,10 +223,10 @@ impl graph::DatabaseView for FallbackProxy {
         res
     }
 
-    fn find_digests(
+    fn find_digests<'a>(
         &self,
-        search_criteria: graph::DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+        search_criteria: &'a graph::DigestSearchCriteria,
+    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>> {
         self.primary.find_digests(search_criteria)
     }
 
@@ -280,17 +280,16 @@ impl PayloadStorage for FallbackProxy {
         false
     }
 
+    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+        crate::storage::proxy::payload_size(self, digest).await
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         self.primary.iter_payload_digests()
     }
 
-    async unsafe fn write_data(
-        &self,
-        reader: Pin<Box<dyn BlobRead>>,
-    ) -> Result<(encoding::Digest, u64)> {
-        // Safety: we are wrapping the same underlying unsafe function and
-        // so the same safety holds for our callers
-        let res = unsafe { self.primary.write_data(reader).await? };
+    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
+        let res = self.primary.write_data(reader).await?;
         Ok(res)
     }
 
@@ -304,16 +303,7 @@ impl PayloadStorage for FallbackProxy {
             let missing_payload_error = match self.primary.open_payload(digest).await {
                 Ok(r) => return Ok(r),
                 Err(err @ Error::ObjectMissingPayload(_, _)) => err,
-                Err(err @ Error::UnknownObject(_)) => {
-                    // Try to repair the missing blob. There can be hash
-                    // collisions so use `read_blob` specifically in case
-                    // there is an object of some other type with the same
-                    // digest.
-                    if self.read_blob(digest).await.is_ok() {
-                        continue;
-                    }
-                    return Err(err);
-                }
+                Err(err @ Error::UnknownObject(_)) => err,
                 Err(err) => return Err(err),
             };
 
@@ -328,7 +318,7 @@ impl PayloadStorage for FallbackProxy {
                         // context, so don't make another one here.
                         SyncReporters::silent(),
                     );
-                match syncer.sync_digest(digest).await {
+                match syncer.sync_payload(digest).await {
                     Ok(_) => {
                         // Warn for non-sentry users; info for sentry users.
                         #[cfg(not(feature = "sentry"))]
@@ -369,6 +359,17 @@ impl PayloadStorage for FallbackProxy {
     async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
         self.primary.remove_payload(digest).await?;
         Ok(())
+    }
+
+    async fn remove_payload_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> Result<bool> {
+        Ok(self
+            .primary
+            .remove_payload_if_older_than(older_than, digest)
+            .await?)
     }
 }
 

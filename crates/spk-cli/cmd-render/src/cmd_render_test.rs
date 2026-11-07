@@ -75,7 +75,7 @@ async fn make_origin_package_with_missing_local_manifests(
 
     for layer_digest in components.values() {
         spfs::Syncer::new(&local_repo, &origin_spfs)
-            .sync_digest(*layer_digest)
+            .sync_object_digest(*layer_digest)
             .await
             .unwrap();
     }
@@ -240,7 +240,7 @@ async fn test_render_local_package_with_origin_dependency_index_enabled() {
         .unwrap();
     for layer_digest in dep_components.values() {
         spfs::Syncer::new(&local_repo, &origin_spfs)
-            .sync_digest(*layer_digest)
+            .sync_object_digest(*layer_digest)
             .await
             .unwrap();
     }

@@ -6,14 +6,15 @@ use std::convert::TryInto;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use async_stream::try_stream;
 use chrono::{DateTime, Utc};
-use futures::{Stream, StreamExt};
+use futures::Stream;
 use tonic::{Request, Response, Status};
 
 use crate::prelude::*;
 use crate::proto::database_service_server::DatabaseServiceServer;
 use crate::proto::{self, RpcResult, convert_digest, convert_to_datetime};
-use crate::storage;
+use crate::{graph, storage};
 
 #[derive(Debug, Clone)]
 pub struct DatabaseService {
@@ -61,14 +62,44 @@ impl proto::database_service_server::DatabaseService for DatabaseService {
             .search_criteria
             .try_into()
             .map_err(|err: crate::Error| Status::invalid_argument(err.to_string()))?;
-        let stream = self
-            .repo
-            .find_digests(search_criteria)
-            .map(proto::FindDigestsResponse::from_result)
-            .map(Ok);
+        let repo = Arc::clone(&self.repo);
+        let stream = try_stream! {
+            for await result in repo.find_digests(&search_criteria) {
+                match result {
+                    // Older clients only expect to find objects here
+                    Ok(graph::FoundDigest::Object(digest)) => {
+                        yield proto::FindDigestsResponse::ok(digest.into());
+                    }
+                    Ok(graph::FoundDigest::Payload(_)) => continue,
+                    Err(err) => yield proto::FindDigestsResponse::error(err),
+                }
+            }
+        };
         let stream: Self::FindDigestsStream = Box::pin(stream);
         let response = Response::new(stream);
         Ok(response)
+    }
+
+    type FindItemsStream =
+        Pin<Box<dyn Stream<Item = Result<proto::FindItemsResponse, Status>> + Send>>;
+
+    async fn find_items(
+        &self,
+        request: Request<proto::FindDigestsRequest>,
+    ) -> Result<Response<Self::FindItemsStream>, Status> {
+        let request = request.into_inner();
+        let search_criteria: graph::DigestSearchCriteria = request
+            .search_criteria
+            .try_into()
+            .map_err(|err: crate::Error| Status::invalid_argument(err.to_string()))?;
+        let repo = Arc::clone(&self.repo);
+        let stream = try_stream! {
+            for await result in repo.find_digests(&search_criteria) {
+                yield proto::FindItemsResponse::from_result(result);
+            }
+        };
+        let stream: Self::FindItemsStream = Box::pin(stream);
+        Ok(Response::new(stream))
     }
 
     async fn iter_objects(

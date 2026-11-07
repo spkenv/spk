@@ -529,7 +529,7 @@ where
         result.visited_objects += 1;
         if let graph::object::Enum::Blob(b) = obj.to_enum() {
             result.visited_payloads += 1;
-            self.reporter.visit_payload(&b);
+            self.reporter.visit_payload(b.digest());
         }
 
         // This recursively calls visit_attached_objects() (this
@@ -549,115 +549,74 @@ where
             .repo
             .iter_objects()
             // we have no interest in removing attached items
-            .try_filter(|(digest, _object)| ready(!self.attached.contains(digest)))
+            .try_filter(|item| ready(!self.attached.contains(item.digest())))
             // we have already visited all attached objects
             // but also want to report these ones
-            .and_then(|obj| {
-                self.reporter.visit_object(&obj.1);
-                result.visited_objects += 1;
-                ready(Ok(obj))
-            })
-            .and_then(|(digest, object)| {
-                if self.dry_run {
-                    return ready(Ok(ready(Ok((digest, object, true))).boxed()));
+            .inspect_ok(|item| match item {
+                graph::DatabaseItem::Object(_digest, flat_object) => {
+                    self.reporter.visit_object(flat_object);
+                    result.visited_objects += 1;
                 }
-                let future = self
-                    .repo
-                    .remove_object_if_older_than(self.must_be_older_than, digest)
-                    .map(|res| {
-                        if let Err(Error::UnknownObject(_)) = res {
-                            return Ok(true);
-                        }
-                        res
-                    })
-                    .map_ok(move |removed| (digest, object, removed));
-                ready(Ok(future.boxed()))
+                graph::DatabaseItem::Payload(digest) => {
+                    self.reporter.visit_payload(digest);
+                    result.visited_payloads += 1;
+                }
+            })
+            .and_then(|item| {
+                if self.dry_run {
+                    // XXX: this ignores must_be_older_than
+                    return ready(Ok(ready(Ok((item, true))).boxed()));
+                }
+                let future = (match &item {
+                    graph::DatabaseItem::Object(digest, _flat_object) => self
+                        .repo
+                        .remove_object_if_older_than(self.must_be_older_than, *digest)
+                        .boxed(),
+                    graph::DatabaseItem::Payload(digest) => self
+                        .repo
+                        .remove_payload_if_older_than(self.must_be_older_than, *digest)
+                        .boxed(),
+                })
+                .map(|res| {
+                    if let Err(Error::UnknownObject(_)) = res {
+                        return Ok(true);
+                    }
+                    res
+                })
+                .map_ok(move |removed| (item, removed))
+                .boxed();
+                ready(Ok(future))
             })
             .try_buffer_unordered(self.removal_concurrency)
-            .try_filter_map(|(digest, obj, removed)| {
+            .try_filter_map(|(item, removed)| {
                 if !removed {
                     // objects that are too new to be removed become
                     // implicitly attached
-                    self.attached.insert(digest);
+                    self.attached.insert(*item.digest());
                 }
-                ready(Ok(removed.then_some(obj)))
+                ready(Ok(removed.then_some(item)))
             })
-            .and_then(|obj| {
-                self.reporter.object_removed(&obj);
-                ready(Ok(obj))
-            })
-            // also try to remove the corresponding payload
-            // each removed blob
-            .try_filter_map(|obj| match obj.into_enum() {
-                graph::object::Enum::Blob(blob) => ready(Ok(Some(blob))),
-                _ => ready(Ok(None)),
-            })
-            .and_then(|blob| {
-                if self.dry_run {
-                    return ready(Ok(ready(Ok(blob)).boxed()));
+            .inspect_ok(|item| match item {
+                graph::DatabaseItem::Object(_digest, flat_object) => {
+                    self.reporter.object_removed(flat_object);
                 }
-                self.reporter.visit_payload(&blob);
-                result.visited_payloads += 1;
-                let future = self
-                    .repo
-                    .remove_payload(*blob.payload())
-                    .map(|res| {
-                        if let Err(Error::UnknownObject(_)) = res {
-                            return Ok(());
-                        }
-                        res
-                    })
-                    .map_ok(|_| blob);
-                ready(Ok(future.boxed()))
+                graph::DatabaseItem::Payload(digest) => {
+                    self.reporter.payload_removed(digest);
+                }
             })
-            .try_buffer_unordered(self.removal_concurrency)
             .boxed();
         let mut result = CleanResult::default();
-        while let Some(blob) = stream.try_next().await? {
-            result.removed_payloads.insert(*blob.payload());
-            self.reporter.payload_removed(&blob)
+        while let Some(item) = stream.try_next().await? {
+            match item {
+                graph::DatabaseItem::Object(digest, _flat_object) => {
+                    result.removed_objects.insert(digest);
+                }
+                graph::DatabaseItem::Payload(digest) => {
+                    result.removed_payloads.insert(digest);
+                }
+            };
         }
         drop(stream);
-
-        let mut stream = self
-            .repo
-            .iter_payload_digests()
-            .try_filter_map(|payload| {
-                if self.attached.contains(&payload) {
-                    return ready(Ok(None));
-                }
-                // TODO: this should be able to get the size of the payload, but
-                // currently there is no way to do this unless you start with
-                // the blob
-                let blob = graph::Blob::new(payload, 0);
-                ready(Ok(Some(blob)))
-            })
-            .and_then(|blob| {
-                self.reporter.visit_payload(&blob);
-                result.visited_payloads += 1;
-                if self.dry_run {
-                    return ready(Ok(ready(Ok(blob)).boxed()));
-                }
-                let future = self
-                    .repo
-                    .remove_payload(*blob.payload())
-                    .map(|res| {
-                        if let Err(Error::UnknownObject(_)) = res {
-                            return Ok(());
-                        }
-                        res
-                    })
-                    .map_ok(|_| blob);
-                ready(Ok(future.boxed()))
-            })
-            .try_buffer_unordered(self.removal_concurrency)
-            .boxed();
-        while let Some(blob) = stream.try_next().await? {
-            result.removed_payloads.insert(*blob.payload());
-            self.reporter.payload_removed(&blob)
-        }
-        drop(stream);
-
         Ok(result)
     }
 
@@ -948,10 +907,10 @@ pub trait CleanReporter: Send + Sync {
     fn object_removed(&self, _object: &graph::Object) {}
 
     /// Called when the cleaner visits a payload during scanning
-    fn visit_payload(&self, _payload: &graph::Blob) {}
+    fn visit_payload(&self, _payload: &encoding::Digest) {}
 
     /// Called when the cleaner removes a payload from the database
-    fn payload_removed(&self, _payload: &graph::Blob) {}
+    fn payload_removed(&self, _payload: &encoding::Digest) {}
 
     /// Called when the cleaner visits a proxy during scanning
     fn visit_proxy(&self, _proxy: &encoding::Digest) {}
@@ -993,11 +952,11 @@ impl CleanReporter for TracingCleanReporter {
         tracing::info!(%object, "object removed");
     }
 
-    fn visit_payload(&self, payload: &graph::Blob) {
+    fn visit_payload(&self, payload: &encoding::Digest) {
         tracing::info!(?payload, "visit payload");
     }
 
-    fn payload_removed(&self, payload: &graph::Blob) {
+    fn payload_removed(&self, payload: &encoding::Digest) {
         tracing::info!(?payload, "payload removed");
     }
 
@@ -1051,11 +1010,11 @@ impl CleanReporter for ConsoleCleanReporter {
         self.get_bars().objects.inc_length(1);
     }
 
-    fn visit_payload(&self, _payload: &graph::Blob) {
+    fn visit_payload(&self, _payload: &encoding::Digest) {
         self.get_bars().payloads.inc(1);
     }
 
-    fn payload_removed(&self, _payload: &graph::Blob) {
+    fn payload_removed(&self, _payload: &encoding::Digest) {
         self.get_bars().payloads.inc_length(1);
     }
 

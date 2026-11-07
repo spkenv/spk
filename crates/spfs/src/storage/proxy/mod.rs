@@ -12,6 +12,7 @@ pub(crate) use repository::{
     find_tags_in_namespace,
     iter_tag_streams_in_namespace,
     ls_tags_in_namespace,
+    payload_size,
     read_tag_in_namespace,
 };
 

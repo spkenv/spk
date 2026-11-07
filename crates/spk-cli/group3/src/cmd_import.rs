@@ -6,6 +6,7 @@ use clap::Args;
 use futures::TryStreamExt;
 use miette::{Context, Result};
 use spfs::storage::TagStorage;
+use spfs::sync::reporter::Summary;
 use spk_cli_common::{CommandArgs, Run};
 
 #[cfg(test)]

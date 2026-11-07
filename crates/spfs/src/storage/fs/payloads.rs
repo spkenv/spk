@@ -5,13 +5,14 @@
 use std::io::ErrorKind;
 use std::pin::Pin;
 
+use chrono::{DateTime, Utc};
 use futures::future::ready;
 use futures::{Stream, StreamExt, TryFutureExt};
 
 use super::{MaybeOpenFsRepository, OpenFsRepository};
-use crate::storage::prelude::*;
+use crate::storage::fs::database::remove_file_if_older_than;
 use crate::tracking::BlobRead;
-use crate::{Error, Result, encoding, graph};
+use crate::{Error, Result, encoding};
 
 #[async_trait::async_trait]
 impl crate::storage::PayloadStorage for MaybeOpenFsRepository {
@@ -22,6 +23,11 @@ impl crate::storage::PayloadStorage for MaybeOpenFsRepository {
         opened.has_payload(digest).await
     }
 
+    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+        let opened = self.opened().await?;
+        opened.payload_size(digest).await
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         self.opened()
             .and_then(|opened| ready(Ok(opened.iter_payload_digests())))
@@ -29,14 +35,9 @@ impl crate::storage::PayloadStorage for MaybeOpenFsRepository {
             .boxed()
     }
 
-    async unsafe fn write_data(
-        &self,
-        reader: Pin<Box<dyn BlobRead>>,
-    ) -> Result<(encoding::Digest, u64)> {
+    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
         let opened = self.opened().await?;
-        // Safety: we are simply deferring this function to the inner
-        // one and so the same safety rules apply to our caller
-        unsafe { opened.write_data(reader).await }
+        opened.write_data(reader).await
     }
 
     async fn open_payload(
@@ -49,6 +50,17 @@ impl crate::storage::PayloadStorage for MaybeOpenFsRepository {
     async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
         self.opened().await?.remove_payload(digest).await
     }
+
+    async fn remove_payload_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> Result<bool> {
+        self.opened()
+            .await?
+            .remove_payload_if_older_than(older_than, digest)
+            .await
+    }
 }
 
 #[async_trait::async_trait]
@@ -58,14 +70,22 @@ impl crate::storage::PayloadStorage for OpenFsRepository {
         tokio::fs::symlink_metadata(path).await.is_ok()
     }
 
+    async fn payload_size(&self, digest: encoding::Digest) -> Result<u64> {
+        let path = self.payloads.build_digest_path(&digest);
+        tokio::fs::symlink_metadata(&path)
+            .await
+            .map(|meta| meta.len())
+            .map_err(|err| match err.kind() {
+                ErrorKind::NotFound => Error::UnknownObject(digest),
+                _ => Error::StorageReadError("symlink_metadata on payload", path, err),
+            })
+    }
+
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
         Box::pin(self.payloads.iter())
     }
 
-    async unsafe fn write_data(
-        &self,
-        reader: Pin<Box<dyn BlobRead>>,
-    ) -> Result<(encoding::Digest, u64)> {
+    async fn write_data(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<(encoding::Digest, u64)> {
         self.payloads.write_data(reader).await
     }
 
@@ -77,25 +97,15 @@ impl crate::storage::PayloadStorage for OpenFsRepository {
         match tokio::fs::File::open(&path).await {
             Ok(file) => Ok((Box::pin(tokio::io::BufReader::new(file)), path)),
             Err(err) => match err.kind() {
-                ErrorKind::NotFound => {
-                    // Return an error specific to this situation, whether the
-                    // blob is really unknown or just the payload is missing.
-                    match self.read_blob(digest).await {
-                        Ok(blob) => Err(Error::ObjectMissingPayload(blob.into(), digest)),
-                        Err(
-                            err @ Error::NotCorrectKind {
-                                desired: graph::ObjectKind::Blob,
-                                ..
-                            },
-                        ) => Err(err),
-                        Err(_) => Err(Error::UnknownObject(digest)),
-                    }
-                }
+                ErrorKind::NotFound => Err(Error::UnknownObject(digest)),
                 _ => Err(Error::StorageReadError("open on payload", path, err)),
             },
         }
     }
 
+    // TODO: This operation is unsafe, a payload must not be removed if _any_
+    // reference to it still exists, which could be in Manifests, Layer
+    // annotations, tags (can you tag a blob directly?), etc.
     async fn remove_payload(&self, digest: encoding::Digest) -> Result<()> {
         let path = self.payloads.build_digest_path(&digest);
         match tokio::fs::remove_file(&path).await {
@@ -109,5 +119,14 @@ impl crate::storage::PayloadStorage for OpenFsRepository {
                 )),
             },
         }
+    }
+
+    async fn remove_payload_if_older_than(
+        &self,
+        older_than: DateTime<Utc>,
+        digest: encoding::Digest,
+    ) -> Result<bool> {
+        let filepath = self.payloads.build_digest_path(&digest);
+        remove_file_if_older_than(older_than, &filepath, digest).await
     }
 }

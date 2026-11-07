@@ -69,4 +69,5 @@ version = "0.51"
 
 [dev-dependencies]
 rstest = { workspace = true }
+spfs = { workspace = true, features = ["test-fixtures"] }
 tempfile = { workspace = true }

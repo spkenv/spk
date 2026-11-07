@@ -105,6 +105,11 @@ rpc_result!(
     g::Digest
 );
 rpc_result!(
+    g::FindItemsResponse,
+    g::find_items_response::Result,
+    g::FoundDigest
+);
+rpc_result!(
     g::IterDigestsResponse,
     g::iter_digests_response::Result,
     g::Digest
@@ -128,6 +133,11 @@ rpc_result!(
 );
 
 rpc_result!(
+    g::PayloadSizeResponse,
+    g::payload_size_response::Result,
+    u64
+);
+rpc_result!(
     g::WritePayloadResponse,
     g::write_payload_response::Result,
     g::write_payload_response::UploadOption
@@ -142,4 +152,9 @@ rpc_result!(
     g::write_payload_response::UploadResponse,
     g::write_payload_response::upload_response::Result,
     g::write_payload_response::upload_response::UploadResult
+);
+rpc_result!(
+    g::RemovePayloadIfOlderThanResponse,
+    g::remove_payload_if_older_than_response::Result,
+    bool
 );

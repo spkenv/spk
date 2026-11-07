@@ -37,9 +37,17 @@ message DigestSearchCriteria {
 
 message FindDigestsRequest { DigestSearchCriteria search_criteria = 1; }
 message FindDigestsResponse {
+    // Only object digests are returned, for compatibility with older
+    // clients. Use FindItems to also find payloads.
     oneof result {
         Error error = 1;
         Digest ok = 2;
+    }
+}
+message FindItemsResponse {
+    oneof result {
+        Error error = 1;
+        FoundDigest ok = 2;
     }
 }
 
@@ -108,6 +116,7 @@ service DatabaseService {
     rpc HasObject(HasObjectRequest) returns (HasObjectResponse);
     rpc ReadObject(ReadObjectRequest) returns (ReadObjectResponse);
     rpc FindDigests(FindDigestsRequest) returns (stream FindDigestsResponse);
+    rpc FindItems(FindDigestsRequest) returns (stream FindItemsResponse);
     rpc IterObjects(IterObjectsRequest) returns (stream IterObjectsResponse);
     rpc WalkObjects(WalkObjectsRequest) returns (stream WalkObjectsResponse);
     rpc WriteObject(WriteObjectRequest) returns (WriteObjectResponse);

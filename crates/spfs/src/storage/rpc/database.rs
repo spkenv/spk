@@ -8,8 +8,10 @@ use std::pin::Pin;
 use futures::{Stream, TryStreamExt};
 use proto::RpcResult;
 
-use crate::graph::{self, ObjectProto};
+use crate::graph::{self, FoundDigest, ObjectProto};
 use crate::{Result, encoding, proto};
+
+type FoundDigestStream = Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send>>;
 
 #[async_trait::async_trait]
 impl graph::DatabaseView for super::RpcRepository {
@@ -40,20 +42,41 @@ impl graph::DatabaseView for super::RpcRepository {
         obj.try_into()
     }
 
-    fn find_digests(
+    fn find_digests<'a>(
         &self,
-        search_criteria: graph::DigestSearchCriteria,
-    ) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
+        search_criteria: &'a graph::DigestSearchCriteria,
+    ) -> Pin<Box<dyn Stream<Item = Result<FoundDigest>> + Send + 'a>> {
         let request = proto::FindDigestsRequest {
-            search_criteria: Some(search_criteria.into()),
+            search_criteria: Some(search_criteria.clone().into()),
         };
         let mut client = self.db_client.clone();
-        let stream = futures::stream::once(async move { client.find_digests(request).await })
-            .map_err(crate::Error::from)
-            .map_ok(|r| r.into_inner().map_err(crate::Error::from))
-            .try_flatten()
-            .and_then(|d| async { d.to_result() })
-            .and_then(|d| async { d.try_into() });
+        let stream = futures::stream::once(async move {
+            match client.find_items(request.clone()).await {
+                Ok(response) => {
+                    let stream = response
+                        .into_inner()
+                        .map_err(crate::Error::from)
+                        .and_then(|d| async { d.to_result() })
+                        .and_then(|d| async { d.try_into() });
+                    Ok(Box::pin(stream) as FoundDigestStream)
+                }
+                // Older servers can only find objects
+                Err(status) if status.code() == tonic::Code::Unimplemented => {
+                    let stream = client
+                        .find_digests(request)
+                        .await?
+                        .into_inner()
+                        .map_err(crate::Error::from)
+                        .and_then(|d| async { d.to_result() })
+                        .and_then(|d| async {
+                            encoding::Digest::try_from(d).map(FoundDigest::Object)
+                        });
+                    Ok(Box::pin(stream) as FoundDigestStream)
+                }
+                Err(status) => Err(crate::Error::from(status)),
+            }
+        })
+        .try_flatten();
         Box::pin(stream)
     }
 

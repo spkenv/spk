@@ -16,7 +16,10 @@ pub trait PlatformStorage: graph::Database + Sync + Send {
     /// Iterate the objects in this storage which are platforms.
     fn iter_platforms<'db>(&'db self) -> Pin<Box<dyn Stream<Item = PlatformStreamItem> + 'db>> {
         let stream = self.iter_objects().filter_map(|res| match res {
-            Ok((digest, obj)) => obj.into_platform().map(|b| Ok((digest, b))),
+            Ok(graph::DatabaseItem::Object(digest, obj)) => {
+                obj.into_platform().map(|b| Ok((digest, b)))
+            }
+            Ok(graph::DatabaseItem::Payload(_digest)) => None,
             Err(err) => Some(Err(err)),
         });
         Box::pin(stream)

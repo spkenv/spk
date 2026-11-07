@@ -4,6 +4,7 @@
 
 use clap::Args;
 use miette::Result;
+use spfs::sync::reporter::Summary;
 use spfs_cli_common as cli;
 
 /// Push one or more objects to a remote repository
