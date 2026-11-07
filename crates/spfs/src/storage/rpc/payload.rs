@@ -11,7 +11,7 @@ use prost::Message;
 
 use crate::proto::{self, RpcResult};
 use crate::tracking::BlobRead;
-use crate::{Error, Result, encoding, storage};
+use crate::{Error, Result, encoding, graph, storage};
 
 #[async_trait::async_trait]
 impl storage::PayloadStorage for super::RpcRepository {
@@ -32,14 +32,19 @@ impl storage::PayloadStorage for super::RpcRepository {
         let request = proto::PayloadSizeRequest {
             digest: Some(digest.into()),
         };
-        let response = self
-            .payload_client
-            .clone()
-            .payload_size(request)
-            .await?
-            .into_inner()
-            .to_result()?;
-        Ok(response)
+        match self.payload_client.clone().payload_size(request).await {
+            Ok(response) => response.into_inner().to_result(),
+            // Older servers cannot report a payload size directly, but they
+            // will have a legacy blob object that records it.
+            Err(status) if status.code() == tonic::Code::Unimplemented => {
+                use crate::graph::DatabaseView;
+                match self.read_object(digest).await?.into_enum() {
+                    graph::object::Enum::Blob(blob) => Ok(blob.size()),
+                    _ => Err(Error::UnknownObject(digest)),
+                }
+            }
+            Err(status) => Err(status.into()),
+        }
     }
 
     fn iter_payload_digests(&self) -> Pin<Box<dyn Stream<Item = Result<encoding::Digest>> + Send>> {
@@ -159,13 +164,32 @@ impl storage::PayloadStorage for super::RpcRepository {
             older_than: Some(proto::convert_from_datetime(&older_than)),
             digest: Some(digest.into()),
         };
-        Ok(self
+        match self
             .payload_client
             .clone()
             .remove_payload_if_older_than(request)
-            .await?
-            .into_inner()
-            .to_result()?)
+            .await
+        {
+            Ok(response) => response.into_inner().to_result(),
+            // Older servers cannot check the age of a payload, but they will
+            // have a legacy blob object written at the same time.
+            Err(status) if status.code() == tonic::Code::Unimplemented => {
+                use crate::graph::Database;
+                match self.remove_object_if_older_than(older_than, digest).await {
+                    Ok(true) => {}
+                    Ok(false) => return Ok(false),
+                    // Without a blob object the age of the payload is
+                    // unknown, so err on the side of keeping it.
+                    Err(Error::UnknownObject(_)) => return Ok(false),
+                    Err(err) => return Err(err),
+                }
+                match self.remove_payload(digest).await {
+                    Ok(()) | Err(Error::UnknownObject(_)) => Ok(true),
+                    Err(err) => Err(err),
+                }
+            }
+            Err(status) => Err(status.into()),
+        }
     }
 }
 

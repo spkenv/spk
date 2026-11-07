@@ -102,6 +102,11 @@ rpc_result!(
 rpc_result!(
     g::FindDigestsResponse,
     g::find_digests_response::Result,
+    g::Digest
+);
+rpc_result!(
+    g::FindItemsResponse,
+    g::find_items_response::Result,
     g::FoundDigest
 );
 rpc_result!(
