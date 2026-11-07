@@ -200,7 +200,9 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         let res = match item {
             tracking::EnvSpecItem::Digest(digest) => match self.sync_object_digest(digest).await {
                 Ok(r) => SyncEnvItemResult::Object(r),
-                Err(Error::UnknownObject(digest)) => self
+                // Only fall back to a payload when the requested digest itself
+                // is not an object, not when one of its children is missing.
+                Err(Error::UnknownObject(missing)) if missing == digest => self
                     .sync_payload(digest)
                     .await
                     .map(SyncEnvItemResult::Payload)?,
@@ -230,8 +232,8 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
         let resolved = self.src.resolve_tag(&tag).await?;
         let result = match self.sync_object_digest(resolved.target).await {
             Ok(r) => SyncItemResult::Object(r),
-            Err(Error::UnknownObject(digest)) => self
-                .sync_payload(digest)
+            Err(Error::UnknownObject(missing)) if missing == resolved.target => self
+                .sync_payload(missing)
                 .await
                 .map(SyncItemResult::Payload)?,
             Err(e) => return Err(e),
@@ -461,7 +463,10 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
             return Ok(SyncBlobResult::Duplicate);
         }
 
-        if self.policy.check_existing_objects() && self.dest.has_payload(*blob.payload()).await {
+        if self.policy.check_existing_objects()
+            && self.dest.has_payload(*blob.payload()).await
+            && self.dest_has_legacy_blob_object_if_needed(*digest).await
+        {
             self.processed_digests.insert(*digest);
             return Ok(SyncBlobResult::Skipped);
         }
@@ -494,7 +499,11 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
             return Ok(SyncPayloadResult::Duplicate);
         }
 
-        if self.policy.check_existing_payloads() && self.dest.has_payload(digest).await {
+        if self.policy.check_existing_payloads()
+            && self.dest.has_payload(digest).await
+            && self.dest_has_legacy_blob_object_if_needed(digest).await
+        {
+            self.processed_digests.insert(digest);
             return Ok(SyncPayloadResult::Skipped);
         }
 
@@ -516,9 +525,19 @@ impl<'src, 'dst> Syncer<'src, 'dst> {
             )));
         }
 
+        // Older versions of spfs require a blob object for every payload.
+        self.dest.write_legacy_blob_object(digest, size).await?;
+        self.processed_digests.insert(digest);
+
         let res = SyncPayloadResult::Synced { size };
         self.reporter.synced_payload(&res);
         Ok(res)
+    }
+
+    /// Return true unless legacy blob objects are being written and the
+    /// destination is missing the blob object for this payload digest.
+    async fn dest_has_legacy_blob_object_if_needed(&self, digest: encoding::Digest) -> bool {
+        !crate::config::write_legacy_blob_objects() || self.dest.has_object(digest).await
     }
 
     async fn read_object_with_fallback(&self, digest: encoding::Digest) -> Result<graph::Object> {

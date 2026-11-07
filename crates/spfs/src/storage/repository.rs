@@ -18,6 +18,10 @@ use crate::{Error, Result, encoding, graph};
 mod repository_test;
 
 #[cfg(test)]
+#[path = "./legacy_blob_test.rs"]
+mod legacy_blob_test;
+
+#[cfg(test)]
 #[path = "./database_test.rs"]
 mod database_test;
 
@@ -129,9 +133,24 @@ impl<T> Repository for T where
 #[async_trait]
 pub trait RepositoryExt: super::PayloadStorage + graph::DatabaseExt {
     /// Commit the data from 'reader' as a payload in this repository
+    ///
+    /// A legacy blob object is also written for the payload unless
+    /// [`crate::config::Storage::write_legacy_blob_objects`] is disabled.
     async fn commit_payload(&self, reader: Pin<Box<dyn BlobRead>>) -> Result<encoding::Digest> {
-        let (digest, _size) = self.write_data(reader).await?;
+        let (digest, size) = self.write_data(reader).await?;
+        self.write_legacy_blob_object(digest, size).await?;
         Ok(digest)
+    }
+
+    /// Write a legacy blob object for the identified payload, if enabled.
+    ///
+    /// Blob objects are only written for compatibility with older versions
+    /// of spfs, see [`crate::config::Storage::write_legacy_blob_objects`].
+    async fn write_legacy_blob_object(&self, payload: encoding::Digest, size: u64) -> Result<()> {
+        if !crate::config::write_legacy_blob_objects() {
+            return Ok(());
+        }
+        self.write_object(&graph::Blob::new(payload, size)).await
     }
 }
 

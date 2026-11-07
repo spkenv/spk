@@ -31,6 +31,9 @@ pub struct Checker<'repo, 'sync, Reporter: CheckReporter = SilentCheckReporter> 
     repair_with: Option<super::Syncer<'sync, 'repo>>,
     reporter: Arc<Reporter>,
     processed_digests: Arc<dashmap::DashMap<encoding::Digest, CheckProgress>>,
+    /// Payloads are tracked separately from objects because legacy blob
+    /// objects share their digest with the payload that they describe.
+    processed_payloads: Arc<dashmap::DashSet<encoding::Digest>>,
     tag_stream_semaphore: Semaphore,
     object_semaphore: Semaphore,
 }
@@ -47,6 +50,7 @@ impl<'repo> Checker<'repo, 'static> {
             reporter: Arc::new(SilentCheckReporter::default()),
             repair_with: None,
             processed_digests: Arc::new(Default::default()),
+            processed_payloads: Arc::new(Default::default()),
             tag_stream_semaphore: Semaphore::new(Self::DEFAULT_MAX_TAG_STREAM_CONCURRENCY),
             object_semaphore: Semaphore::new(Self::DEFAULT_MAX_OBJECT_CONCURRENCY),
         }
@@ -68,6 +72,7 @@ where
             reporter: reporter.into(),
             repair_with: self.repair_with,
             processed_digests: self.processed_digests,
+            processed_payloads: self.processed_payloads,
             tag_stream_semaphore: self.tag_stream_semaphore,
             object_semaphore: self.object_semaphore,
         }
@@ -90,6 +95,7 @@ where
                     .with_policy(SyncPolicy::LatestTagsAndResyncObjects),
             ),
             processed_digests: self.processed_digests,
+            processed_payloads: self.processed_payloads,
             tag_stream_semaphore: self.tag_stream_semaphore,
             object_semaphore: self.object_semaphore,
         }
@@ -161,10 +167,9 @@ where
     /// Check one environment item and any associated data.
     pub async fn check_env_item(&self, item: tracking::EnvSpecItem) -> Result<CheckEnvItemResult> {
         let res = match item {
-            tracking::EnvSpecItem::Digest(digest) => self
-                .check_object_digest(digest)
-                .await
-                .map(CheckEnvItemResult::Object)?,
+            tracking::EnvSpecItem::Digest(digest) => {
+                self.check_item_digest(digest).await.map(Into::into)?
+            }
             tracking::EnvSpecItem::PartialDigest(digest) => {
                 self.check_partial_digest(digest).await.map(Into::into)?
             }
@@ -246,6 +251,14 @@ where
     ///
     /// This works for object and payload digests.
     pub async fn check_item_digest(&self, digest: encoding::Digest) -> Result<CheckItemResult> {
+        if !self.repo.has_object(digest).await && self.repo.has_payload(digest).await {
+            // Avoid reporting a missing object for what is known to be a
+            // payload.
+            return self
+                .check_payload(digest)
+                .await
+                .map(CheckItemResult::Payload);
+        }
         match self.check_object_digest(digest).await? {
             CheckObjectResult::Missing(_) => self
                 .check_payload(digest)
@@ -307,8 +320,14 @@ where
         let res = match obj.into_enum() {
             Enum::Layer(obj) => CheckObjectResult::Layer(self.check_layer(obj).await?.into()),
             Enum::Platform(obj) => CheckObjectResult::Platform(self.check_platform(obj).await?),
-            Enum::Blob(_obj) => {
-                return Err("internal error: check_object called on blob".into());
+            Enum::Blob(obj) => {
+                // Legacy blob objects are still found in repositories, and
+                // may still be written for compatibility, but they carry no
+                // information beyond the payload that they describe.
+                CheckObjectResult::LegacyBlob(
+                    self.check_payload_with_perms_opt(*obj.payload(), None)
+                        .await?,
+                )
             }
             Enum::Manifest(obj) => CheckObjectResult::Manifest(self.check_manifest(obj).await?),
         };
@@ -421,19 +440,36 @@ where
         digest: encoding::Digest,
         perms: Option<u32>,
     ) -> Result<CheckPayloadResult> {
-        self.reporter.visit_payload(digest);
-        let mut result = CheckPayloadResult::Missing(digest);
-        if let Ok(size_bytes) = self.repo.payload_size(digest).await {
-            result = CheckPayloadResult::Ok { size_bytes };
-        } else if let Some(syncer) = &self.repair_with
-            && let Ok(r) = syncer.sync_payload_with_perms_opt(digest, perms).await
-        {
-            let size_bytes = r.summary().synced_payload_bytes;
-            self.reporter.repaired_payload(&r);
-            result = CheckPayloadResult::Repaired { size_bytes };
+        if !self.processed_payloads.insert(digest) {
+            return Ok(CheckPayloadResult::Duplicate);
         }
+        self.reporter.visit_payload(digest);
+        let result = match self.repo.payload_size(digest).await {
+            Ok(size_bytes) => CheckPayloadResult::Ok { size_bytes },
+            Err(Error::UnknownObject(_)) => self.repair_payload(digest, perms).await,
+            Err(err) => return Err(err),
+        };
         self.reporter.checked_payload(&result);
         Ok(result)
+    }
+
+    /// Attempt to repair a missing payload, if a repair source is available.
+    async fn repair_payload(
+        &self,
+        digest: encoding::Digest,
+        perms: Option<u32>,
+    ) -> CheckPayloadResult {
+        let Some(syncer) = &self.repair_with else {
+            return CheckPayloadResult::Missing(digest);
+        };
+        let Ok(r) = syncer.sync_payload_with_perms_opt(digest, perms).await else {
+            return CheckPayloadResult::Missing(digest);
+        };
+        self.reporter.repaired_payload(&r);
+        match self.repo.payload_size(digest).await {
+            Ok(size_bytes) => CheckPayloadResult::Repaired { size_bytes },
+            Err(_) => CheckPayloadResult::Missing(digest),
+        }
     }
 
     /// Returns the object, and whether or not it was repaired
@@ -799,6 +835,8 @@ pub enum CheckObjectResult {
     Layer(Box<CheckLayerResult>),
     Manifest(CheckManifestResult),
     Annotation(CheckAnnotationResult),
+    /// A legacy blob object was checked by checking its payload
+    LegacyBlob(CheckPayloadResult),
 }
 
 impl CheckObjectResult {
@@ -813,6 +851,7 @@ impl CheckObjectResult {
             CheckObjectResult::Layer(r) => r.set_repaired(),
             CheckObjectResult::Manifest(r) => r.set_repaired(),
             CheckObjectResult::Annotation(r) => r.set_repaired(),
+            CheckObjectResult::LegacyBlob(_) => (),
         }
     }
 
@@ -828,6 +867,10 @@ impl CheckObjectResult {
             CheckObjectResult::Layer(res) => res.summary(),
             CheckObjectResult::Manifest(res) => res.summary(),
             CheckObjectResult::Annotation(res) => res.summary(),
+            // Legacy blob objects are redundant with their payload, so they
+            // are not counted as objects. This keeps summaries consistent
+            // whether or not they are still being written.
+            CheckObjectResult::LegacyBlob(res) => res.summary(),
         }
     }
 }
@@ -947,6 +990,8 @@ impl CheckEntryResult {
 }
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum CheckPayloadResult {
+    /// The payload was already checked in this session
+    Duplicate,
     /// The payload is missing from this repository
     Missing(encoding::Digest),
     /// The payload was missing from this repository but was repaired
@@ -962,6 +1007,7 @@ impl CheckPayloadResult {
                 missing_payloads: Some(*digest).into_iter().collect(),
                 ..Default::default()
             },
+            Self::Duplicate => CheckSummary::default(),
             Self::Repaired { size_bytes } => CheckSummary {
                 valid_payloads: 1,
                 repaired_payloads: 1,

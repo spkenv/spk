@@ -143,6 +143,16 @@ pub struct Storage {
     /// All available formats are still supported for reading.
     #[serde(default)]
     pub encoding_format: graph::object::EncodingFormat,
+    /// If true, write legacy blob objects alongside payloads.
+    ///
+    /// Blob objects are no longer needed for reading, but older versions of
+    /// spfs require them to exist. Keep this enabled until all clients and
+    /// servers that access the same repositories have been upgraded to a
+    /// version that does not read blob objects.
+    ///
+    /// When disabled, requests to write blob objects (e.g. from older
+    /// clients) are accepted but ignored.
+    pub write_legacy_blob_objects: bool,
 }
 
 impl Storage {
@@ -165,6 +175,7 @@ impl Default for Storage {
             tag_namespace: None,
             digest_strategy: graph::object::DigestStrategy::default(),
             encoding_format: graph::object::EncodingFormat::default(),
+            write_legacy_blob_objects: true,
         }
     }
 }
@@ -883,6 +894,16 @@ pub fn get_config() -> Result<Arc<Config>> {
         ))
     })?;
     Ok(Arc::clone(&*lock))
+}
+
+/// Return true if legacy blob objects should be written alongside payloads.
+///
+/// See [`Storage::write_legacy_blob_objects`]. If the config cannot be
+/// loaded, this defaults to true, which is the most compatible choice.
+pub fn write_legacy_blob_objects() -> bool {
+    get_config()
+        .map(|config| config.storage.write_legacy_blob_objects)
+        .unwrap_or(true)
 }
 
 /// Load the spfs configuration from disk, even if it's already been loaded.

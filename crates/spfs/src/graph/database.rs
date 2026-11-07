@@ -160,7 +160,7 @@ pub enum DigestSearchCriteria {
 }
 
 /// The types of digests that can exist in a database.
-#[derive(PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FoundDigest {
     Object(encoding::Digest),
     Payload(encoding::Digest),
@@ -263,16 +263,25 @@ pub trait DatabaseView: Sync + Send {
     /// - UnknownReferenceError: if the digest cannot be resolved
     /// - AmbiguousReferenceError: if the digest could point to multiple items
     async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<FoundDigest> {
-        let options: Vec<_> = self
-            .find_digests(&crate::graph::DigestSearchCriteria::StartsWith(
-                partial.clone(),
-            ))
-            .try_collect()
-            .await?;
+        let criteria = crate::graph::DigestSearchCriteria::StartsWith(partial.clone());
+        let mut found = self.find_digests(&criteria);
+        let mut options = std::collections::HashMap::new();
+        while let Some(item) = found.try_next().await? {
+            // A legacy blob object has the same digest as its payload. Count
+            // them once, preferring the payload.
+            options
+                .entry(*item.digest())
+                .and_modify(|existing: &mut FoundDigest| {
+                    if matches!(item, FoundDigest::Payload(_)) {
+                        *existing = FoundDigest::Payload(*item.digest());
+                    }
+                })
+                .or_insert(item);
+        }
 
         match options.len() {
             0 => Err(Error::UnknownReference(partial.to_string())),
-            1 => Ok(options.into_iter().next().unwrap()),
+            1 => Ok(options.into_values().next().unwrap()),
             _ => Err(Error::AmbiguousReference(partial.to_string())),
         }
     }

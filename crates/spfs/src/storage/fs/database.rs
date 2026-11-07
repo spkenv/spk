@@ -127,12 +127,33 @@ impl DatabaseView for super::OpenFsRepository {
     }
 
     async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<FoundDigest> {
-        match self.objects.resolve_full_digest(partial).await {
-            Ok(digest) => Ok(FoundDigest::Object(digest)),
-            Err(_) => {
-                let digest = self.payloads.resolve_full_digest(partial).await?;
-                Ok(FoundDigest::Payload(digest))
-            }
+        if let Some(digest) = partial.to_digest() {
+            // A complete digest does not need to be searched for, but we
+            // still need to know what kind of item it refers to. Like the
+            // object store, this does not require that the item exists.
+            return Ok(if self.payloads.has_digest(&digest) {
+                FoundDigest::Payload(digest)
+            } else {
+                FoundDigest::Object(digest)
+            });
+        }
+
+        fn is_not_found(err: &Error) -> bool {
+            matches!(err, Error::UnknownReference(_) | Error::UnknownObject(_))
+        }
+
+        let object = self.objects.resolve_full_digest(partial).await;
+        let payload = self.payloads.resolve_full_digest(partial).await;
+        match (object, payload) {
+            // A legacy blob object has the same digest as its payload; the
+            // payload is the item of interest.
+            (Ok(o), Ok(p)) if o == p => Ok(FoundDigest::Payload(p)),
+            (Ok(_), Ok(_)) => Err(Error::AmbiguousReference(partial.to_string())),
+            (Ok(o), Err(err)) if is_not_found(&err) => Ok(FoundDigest::Object(o)),
+            (Err(err), Ok(p)) if is_not_found(&err) => Ok(FoundDigest::Payload(p)),
+            (Err(err), _) if !is_not_found(&err) => Err(err),
+            (_, Err(err)) if !is_not_found(&err) => Err(err),
+            _ => Err(Error::UnknownReference(partial.to_string())),
         }
     }
 }
@@ -215,8 +236,14 @@ impl graph::Database for super::OpenFsRepository {
 #[async_trait::async_trait]
 impl graph::DatabaseExt for super::OpenFsRepository {
     async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
-        if matches!(obj.to_enum(), graph::object::Enum::Blob(_)) {
-            return Err("writing blob objects is not permitted".into());
+        if matches!(obj.to_enum(), graph::object::Enum::Blob(_))
+            && !crate::config::write_legacy_blob_objects()
+        {
+            // Blob objects are no longer needed, but older clients still
+            // try to write them. Accept and discard them so that those
+            // clients keep working.
+            tracing::trace!(digest = ?obj.digest().ok(), "ignoring write of legacy blob object");
+            return Ok(());
         };
 
         let digest = obj.digest()?;
