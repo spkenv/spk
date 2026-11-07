@@ -87,7 +87,7 @@ async fn test_commit_payload_legacy_blob(
     );
     assert_eq!(
         tmprepo
-            .resolve_full_digest(&partial(&digest))
+            .resolve_full_digest(&partial(&digest), graph::PartialDigestType::Unknown)
             .await
             .unwrap(),
         FoundDigest::Payload(digest),
@@ -95,7 +95,10 @@ async fn test_commit_payload_legacy_blob(
     );
     assert_eq!(
         tmprepo
-            .resolve_full_digest(&encoding::PartialDigest::from(digest.as_bytes()))
+            .resolve_full_digest(
+                &encoding::PartialDigest::from(digest.as_bytes()),
+                graph::PartialDigestType::Unknown,
+            )
             .await
             .unwrap(),
         FoundDigest::Payload(digest),

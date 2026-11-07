@@ -78,8 +78,14 @@ where
         self.inner.walk_objects(root)
     }
 
-    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<FoundDigest> {
-        self.inner.resolve_full_digest(partial).await
+    async fn resolve_full_digest(
+        &self,
+        partial: &encoding::PartialDigest,
+        partial_digest_type: graph::PartialDigestType,
+    ) -> Result<FoundDigest> {
+        self.inner
+            .resolve_full_digest(partial, partial_digest_type)
+            .await
     }
 }
 
@@ -112,6 +118,19 @@ where
         // this allows some recovery and sync operations to still function
         // on pinned repositories
         self.inner.write_object(obj).await
+    }
+
+    async unsafe fn write_object_unchecked<O: ObjectProto>(
+        &self,
+        obj: &graph::FlatObject<O>,
+    ) -> Result<()> {
+        // objects are stored by digest, not time, and so can still
+        // be safely written to a past repository view. In practice,
+        // this allows some recovery and sync operations to still function
+        // on pinned repositories
+        //
+        // Safety: transitive unsafe call
+        unsafe { self.inner.write_object_unchecked(obj).await }
     }
 }
 

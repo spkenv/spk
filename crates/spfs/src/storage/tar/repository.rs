@@ -240,8 +240,14 @@ impl graph::DatabaseView for TarRepository {
         self.repo.walk_objects(root)
     }
 
-    async fn resolve_full_digest(&self, partial: &encoding::PartialDigest) -> Result<FoundDigest> {
-        self.repo.resolve_full_digest(partial).await
+    async fn resolve_full_digest(
+        &self,
+        partial: &encoding::PartialDigest,
+        partial_digest_type: graph::PartialDigestType,
+    ) -> Result<FoundDigest> {
+        self.repo
+            .resolve_full_digest(partial, partial_digest_type)
+            .await
     }
 }
 
@@ -273,6 +279,18 @@ impl graph::Database for TarRepository {
 impl graph::DatabaseExt for TarRepository {
     async fn write_object<T: ObjectProto>(&self, obj: &graph::FlatObject<T>) -> Result<()> {
         self.repo.write_object(obj).await?;
+        self.up_to_date.store(false, Ordering::Release);
+        Ok(())
+    }
+
+    async unsafe fn write_object_unchecked<T: ObjectProto>(
+        &self,
+        obj: &graph::FlatObject<T>,
+    ) -> Result<()> {
+        // Safety: transitive unsafe call
+        unsafe {
+            self.repo.write_object_unchecked(obj).await?;
+        }
         self.up_to_date.store(false, Ordering::Release);
         Ok(())
     }
