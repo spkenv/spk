@@ -34,6 +34,19 @@ LICENSE_FIELD_TRUNCATION_POINT = LICENSE_FIELD_LIMIT - len(TRUNCATED_VALUE_INDIC
 # Metadata labels
 SPK_GENERATED_BY_LABEL = "spk:generated_by"
 SPK_GENERATED_BY_VALUE = "spk-convert-pip"
+# Build option listing the exact extras enabled for a build
+PYTHON_EXTRAS_VAR = "python_extras"
+# Value of PYTHON_EXTRAS_VAR when no extras are enabled. An empty value can't
+# be used because spk treats an empty var as unset, which would match any
+# requested value.
+#
+# The value must also never collide with a real extra name. Normalized extra
+# names (PEP 685) match `^([a-z0-9]|[a-z0-9]([a-z0-9-](?!--))*[a-z0-9])$`, so
+# something like "none" is a legal extra name and would make a build with an
+# extra called "none" indistinguishable from a build with no extras. A leading
+# underscore can never appear in a normalized extra name (and
+# _to_python_extras_value converts every "_" to "-"), so "_none" is safe.
+PYTHON_EXTRAS_NONE = "_none"
 
 
 def spk_exe() -> str:
@@ -345,6 +358,14 @@ class PipImporter:
         for extra in requester.extras:
             spec["build"]["options"].append({"var": f"python_extra_{extra}/true"})
 
+        # Also record the exact set of extras enabled for this build, so a
+        # specific flavor can be requested, e.g.
+        # `--opt python-foo.python_extras=a,b` or `...=_none`. The individual
+        # python_extra_* vars can only express "at least this extra".
+        spec["build"]["options"].append(
+            {"var": f"{PYTHON_EXTRAS_VAR}/{_to_python_extras_value(requester.extras)}"}
+        )
+
         api_var = f"/{self._python_abi}" if self._python_abi else ""
         spec["build"]["options"].append({"var": f"python.abi{api_var}"})
 
@@ -377,11 +398,25 @@ class PipImporter:
             req = Requirement(requirement_str)
 
             if req.marker is not None:
-                if not req.marker.evaluate(
-                    {
-                        "extra": ",".join(requester.extras) or "",
-                        "python_version": self._python_version,
-                    }
+                # Extras enabled on the requester only apply to the
+                # requester's own dependencies. A marker like
+                # `extra == "crypto"` is satisfied if any one of the
+                # requested extras matches, so evaluate the marker once
+                # per extra (plus once with no extra for unconditional
+                # dependencies).
+                marker = req.marker
+                if not any(
+                    marker.evaluate(
+                        {
+                            "extra": extra,
+                            # python_version is only "major.minor"
+                            "python_version": ".".join(
+                                self._python_version.split(".")[:2]
+                            ),
+                            "python_full_version": self._python_version,
+                        }
+                    )
+                    for extra in ("", *sorted(requester.extras))
                 ):
                     _LOGGER.debug(f"Skip requirement due to markers {requirement_str}")
                     continue
@@ -401,9 +436,6 @@ class PipImporter:
             dist_requirements.setdefault(
                 spk_name, DepRequirement(pypi_name, [])
             ).requirements.append((spk_version_range, req))
-
-            # Inherit the requester's extras when recursing deeper.
-            req.extras |= requester.extras
 
         for spk_name, requirement in dist_requirements.items():
             # Join all the requirements together and let spk figure out if
@@ -502,6 +534,17 @@ def _to_spk_name(name: str) -> str:
     if not name.startswith("python-"):
         name = "python-" + name
     return name
+
+
+def _to_python_extras_value(extras: Set[str]) -> str:
+    """Canonical value for the PYTHON_EXTRAS_VAR build option.
+
+    Extras are normalized per PEP 685 and sorted so the same set of extras
+    always produces the same value, regardless of how they were spelled or
+    ordered in the request.
+    """
+    normalized = sorted({re.sub(r"[-_.]+", "-", e).lower() for e in extras})
+    return ",".join(normalized) or PYTHON_EXTRAS_NONE
 
 
 def _to_spk_version(version: str) -> str:
