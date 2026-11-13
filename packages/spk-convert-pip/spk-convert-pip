@@ -377,11 +377,25 @@ class PipImporter:
             req = Requirement(requirement_str)
 
             if req.marker is not None:
-                if not req.marker.evaluate(
-                    {
-                        "extra": ",".join(requester.extras) or "",
-                        "python_version": self._python_version,
-                    }
+                # Extras enabled on the requester only apply to the
+                # requester's own dependencies. A marker like
+                # `extra == "crypto"` is satisfied if any one of the
+                # requested extras matches, so evaluate the marker once
+                # per extra (plus once with no extra for unconditional
+                # dependencies).
+                marker = req.marker
+                if not any(
+                    marker.evaluate(
+                        {
+                            "extra": extra,
+                            # python_version is only "major.minor"
+                            "python_version": ".".join(
+                                self._python_version.split(".")[:2]
+                            ),
+                            "python_full_version": self._python_version,
+                        }
+                    )
+                    for extra in ("", *sorted(requester.extras))
                 ):
                     _LOGGER.debug(f"Skip requirement due to markers {requirement_str}")
                     continue
@@ -401,9 +415,6 @@ class PipImporter:
             dist_requirements.setdefault(
                 spk_name, DepRequirement(pypi_name, [])
             ).requirements.append((spk_version_range, req))
-
-            # Inherit the requester's extras when recursing deeper.
-            req.extras |= requester.extras
 
         for spk_name, requirement in dist_requirements.items():
             # Join all the requirements together and let spk figure out if
