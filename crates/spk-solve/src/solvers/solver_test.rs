@@ -3378,6 +3378,125 @@ async fn test_solver_component_embedded(
     assert!(res.is_err());
 }
 
+/// A custom parent component must request the declared child components,
+/// including their requirements, rather than a child component of its own name.
+#[rstest]
+#[case::run("usd:run", &["run"])]
+#[case::multiple("usd:{build,run}", &["build", "run"])]
+#[case::all("usd:all", &["build", "run"])]
+#[tokio::test]
+async fn test_solver_component_embedded_mapped_components(
+    #[values(false, true)] use_index: bool,
+    #[case] embedded_request: &str,
+    #[case] expected_components: &[&str],
+) {
+    let mut solver = resolvo_solver();
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "nuke/16.0.9+r.1",
+                "install": {
+                    "components": [
+                        {"name": "without-monitor-output", "embedded": [embedded_request]},
+                    ],
+                    "embedded": [{
+                        "pkg": "usd/24.5.0.0",
+                        "install": {
+                            "components": [
+                                {"name": "build", "requirements": [{"pkg": "usd-devel"}]},
+                                {"name": "run", "requirements": [{"pkg": "usd-runtime"}]},
+                            ],
+                        },
+                    }],
+                },
+            },
+            {"pkg": "usd-runtime/1.0.0"},
+            {"pkg": "usd-devel/1.0.0"},
+            {
+                "pkg": "nuke-tools/1.0.0",
+                "install": {"requirements": [{"pkg": "usd:run/24.5.0.0"}]},
+            },
+        ]
+    );
+    let repo = wrap_repo_for_test(repo, use_index).await;
+    solver.add_repository(Arc::new(repo));
+    solver.add_request(pinned_request!("nuke:without-monitor-output/=16.0.9+r.1"));
+    solver.add_request(pinned_request!("nuke-tools"));
+
+    let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
+
+    assert_eq!(
+        solution.get("nuke").unwrap().request.pkg.components,
+        [Component::Named("without-monitor-output".into())].into(),
+    );
+    assert_resolved!(solution, "usd", build =~ Build::Embedded(_));
+    assert_resolved!(solution, "usd-runtime", "1.0.0");
+    assert_eq!(
+        solution.get("usd").unwrap().request.pkg.components,
+        expected_components
+            .iter()
+            .map(|component| component.parse::<Component>().unwrap())
+            .collect(),
+    );
+    assert_eq!(
+        solution.get("usd-devel").is_some(),
+        expected_components.contains(&"build"),
+    );
+}
+
+/// One owning component is enough to provide an embedded component; other
+/// owners must not introduce their unrelated requirements into the solution.
+#[rstest]
+#[case::parent_only(false, true)]
+#[case::embedded_first(true, true)]
+#[case::embedded_only(true, false)]
+#[tokio::test]
+async fn test_solver_component_embedded_alternative_owners(
+    #[values(false, true)] use_index: bool,
+    #[case] request_embedded: bool,
+    #[case] request_parent: bool,
+) {
+    let mut solver = resolvo_solver();
+    let repo = make_repo!(
+        [
+            {
+                "pkg": "nuke/16.0.9+r.1",
+                "install": {
+                    "components": [
+                        {"name": "run", "requirements": [{"pkg": "missing"}]},
+                        {
+                            "name": "usd",
+                            "embedded": ["usd:run/24.5.0.0"],
+                            "requirements": [{"pkg": "missing"}],
+                        },
+                        {
+                            "name": "without-monitor-output",
+                            "embedded": ["usd:run/24.5.0.0"],
+                        },
+                    ],
+                    "embedded": [{"pkg": "usd/24.5.0.0"}],
+                },
+            },
+        ]
+    );
+    let repo = wrap_repo_for_test(repo, use_index).await;
+    solver.add_repository(Arc::new(repo));
+    if request_embedded {
+        solver.add_request(pinned_request!("usd:run"));
+    }
+    if request_parent {
+        solver.add_request(pinned_request!("nuke:without-monitor-output/=16.0.9+r.1"));
+    }
+
+    let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
+
+    assert_eq!(
+        solution.get("nuke").unwrap().request.pkg.components,
+        [Component::Named("without-monitor-output".into())].into(),
+    );
+    assert_resolved!(solution, "usd", build =~ Build::Embedded(_));
+}
+
 #[rstest]
 #[case::comp1(&["mypkg:comp1", "dep-e1:comp1"], true)]
 #[case::comp2(&["mypkg:comp2", "dep-e1:comp2"], false)]
