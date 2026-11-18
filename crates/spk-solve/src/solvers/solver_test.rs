@@ -3380,6 +3380,7 @@ async fn test_solver_component_embedded(
 
 /// A custom parent component must request the declared child components,
 /// including their requirements, rather than a child component of its own name.
+/// The embedding component may be requested indirectly through `uses`.
 #[rstest]
 #[case::run("usd:run", &["run"])]
 #[case::multiple("usd:{build,run}", &["build", "run"])]
@@ -3387,18 +3388,27 @@ async fn test_solver_component_embedded(
 #[tokio::test]
 async fn test_solver_component_embedded_mapped_components(
     #[values(false, true)] use_index: bool,
+    #[values(false, true)] via_uses: bool,
     #[case] embedded_request: &str,
     #[case] expected_components: &[&str],
 ) {
     let mut solver = resolvo_solver();
+    let components = if via_uses {
+        serde_json::json!([
+            {"name": "usd", "embedded": [embedded_request]},
+            {"name": "without-monitor-output", "uses": ["usd"]},
+        ])
+    } else {
+        serde_json::json!([
+            {"name": "without-monitor-output", "embedded": [embedded_request]},
+        ])
+    };
     let repo = make_repo!(
         [
             {
                 "pkg": "nuke/16.0.9+r.1",
                 "install": {
-                    "components": [
-                        {"name": "without-monitor-output", "embedded": [embedded_request]},
-                    ],
+                    "components": components,
                     "embedded": [{
                         "pkg": "usd/24.5.0.0",
                         "install": {
@@ -3425,9 +3435,14 @@ async fn test_solver_component_embedded_mapped_components(
 
     let solution = run_and_print_resolve_for_tests(&mut solver).await.unwrap();
 
+    let mut expected_parent_components =
+        std::collections::BTreeSet::from([Component::Named("without-monitor-output".into())]);
+    if via_uses {
+        expected_parent_components.insert(Component::Named("usd".into()));
+    }
     assert_eq!(
         solution.get("nuke").unwrap().request.pkg.components,
-        [Component::Named("without-monitor-output".into())].into(),
+        expected_parent_components,
     );
     assert_resolved!(solution, "usd", build =~ Build::Embedded(_));
     assert_resolved!(solution, "usd-runtime", "1.0.0");
